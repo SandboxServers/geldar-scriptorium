@@ -1,0 +1,13 @@
+{
+  "name": "@geldar/scriptorium-live-check",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The live malicious-book check: the pure evidence evaluator and its deny-rule converter",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "dependencies": {
+    "@geldar/scriptorium-path-rule": "workspace:*"
+  }
+}
