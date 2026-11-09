@@ -47,3 +47,9 @@ Each requirement is one line. Tests are written in SC-60.
 - H-20: Reads of the CLI home and credentials are denied (managed settings) and tested. Test: T-20
   Implemented in: image/settings/managed.json (installed at the CLI managed path by image/Dockerfile). Guarded by tests/image/settings.test.ts (rules present) and tests/image/cli.test.ts (the pinned CLI accepts them). Whether a deny blocks a model read is not tested in CI (D-SC-01); it is the local-only live check in SC-62. See image/README.md.
   - Known gap: a background process of the agent can swap an allowed path for a symlink to a readable file between the commit tool's path check and its hashing step; T-20 either tests the mitigation or records the residual risk.
+
+## Implemented in (bash launcher)
+
+- H-01 to H-05: launcher/lib/prepare.sh. H-06 to H-08, H-19: launcher/lib/session.sh, launcher/lib/player.sh.
+- H-09, H-10, H-11 (gate call), H-16: launcher/lib/bundle.sh. H-10 and H-13 on the launcher side: launcher/lib/bundle.sh and launcher/lib/recheck.sh.
+- H-12, H-14, H-15, H-17: launcher/lib/finish.sh (`finish_session`), with `play` in launcher/geldar-play. Guarded by launcher/test/finish.test.ts.

@@ -54,6 +54,29 @@ parse_cli() {
   esac
 }
 
+# play: prepare, session, finish; a leftover running session is finished from its stored START.
+verb_play() {
+  local id=$1 d cid
+  d=$(player_dir "$id")
+  lock_acquire "$id"
+  guard_not_held "$id"
+  if [ -f "$d/session/running" ]; then
+    cid=$(docker_cmd ps -q --filter label=geldar.role=session       --filter "label=com.docker.compose.project=geldar-$id" 2> /dev/null)
+    [ -z "$cid" ] || die 1 locked "$id"
+    if docker_cmd volume inspect "geldar-ws-$id" > /dev/null 2>&1; then
+      say recovering
+      finish_session "$id"
+      return 0
+    fi
+    rm -rf "$d/session"
+    rm -f "$d/start" "$d/mode"
+    say stale_cleared
+  fi
+  prepare_session "$id" play
+  start_session "$id" play
+  finish_session "$id"
+}
+
 verb=${1:-}
 [ $# -eq 0 ] || shift
 

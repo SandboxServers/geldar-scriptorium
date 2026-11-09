@@ -1,0 +1,8 @@
+fetch_failed	The session could not be brought in safely, so nothing was saved. It is kept. Run: geldar-play resolve %s
+push_failed	Could not send the memory to GitHub. It is kept. Run: geldar-play resolve %s
+host_moved	Your copy of %s changed during the session, so nothing was saved. It is kept. Run: geldar-play resolve %s
+ff_failed	The memory reached GitHub, but your copy could not be brought up to date. Run: geldar-play resolve %s
+saved	Saved %s commit(s) for %s.
+nothing_to_save	Nothing new to save for %s.
+recovering	The last session ended before it was saved. Saving it now.
+stale_cleared	The workspace of an earlier session is gone. Its leftover state was cleared.
