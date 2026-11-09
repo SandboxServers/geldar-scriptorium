@@ -103,5 +103,47 @@ function Test-HostRecheck([string]$Clone, [string]$Start, [string]$Ref, [string]
     if ($dmode -cne '100644' -and $dmode -cne '000000') { $script:RC_WHY = Sanitize $p; return $false }
     if (-not (Test-PathAllowed $p $Mode)) { $script:RC_WHY = Sanitize $p; return $false }
   }
-  return ($script:RC_WHY -eq '')
+  if ($script:RC_WHY -ne '') { return $false }
+  return (Test-FoldCollision $Clone $Start $Ref)
+}
+
+# Test-FoldCollision clone start ref: $false (RC_WHY set) when a name in the end tree is new and
+# differs only by ASCII case from another end-tree name (decision 28). Members are the files and
+# every directory prefix; the twin of recheck_collision in recheck.sh.
+function Test-FoldCollision([string]$Clone, [string]$Start, [string]$Ref) {
+  $members = {
+    param([string]$Tree)
+    $set = [System.Collections.Generic.List[string]]::new()
+    $r = Invoke-GitRaw @('-C', $Clone, 'ls-tree', '-r', '-z', '--name-only', $Tree)
+    if ($r.Code -ne 0) { return $set }
+    foreach ($path in $r.Text.Split([char]0)) {
+      if ($path -eq '') { continue }
+      $acc = ''
+      foreach ($part in $path.Split('/')) {
+        if ($acc -eq '') { $acc = $part } else { $acc = "$acc/$part" }
+        $set.Add($acc)
+      }
+    }
+    return $set
+  }
+  $inStart = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+  foreach ($m in (& $members $Start)) { [void]$inStart.Add($m) }
+  $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+  $first = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
+  $fresh = [System.Collections.Generic.Dictionary[string, string]]::new([StringComparer]::Ordinal)
+  $hit = ''
+  foreach ($l in (& $members $Ref)) {
+    if (-not $seen.Add($l)) { continue }
+    $f = $l.ToLowerInvariant()
+    if (-not $first.ContainsKey($f)) {
+      $first[$f] = $l
+      if (-not $inStart.Contains($l)) { $fresh[$f] = $l }
+      continue
+    }
+    if (-not $inStart.Contains($l)) { $hit = $l; break }
+    if ($fresh.ContainsKey($f)) { $hit = $fresh[$f]; break }
+  }
+  if ($hit -eq '') { return $true }
+  $script:RC_WHY = "$($script:GP_MSG['recheck_case_collision']): $(Sanitize $hit)"
+  return $false
 }
