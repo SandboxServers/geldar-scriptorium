@@ -1,0 +1,12 @@
+resolve_diverged	origin has moved on. The held session for %s cannot be added without a merge, and the launcher never merges. If you run resolve --discard, the whole held session is lost.
+resolve_host_changed	Your copy of %s changed. The held session cannot be added without a merge. Use --discard to drop it.
+resolve_nothing	Nothing is held for %s.
+resolved	The held session for %s is already saved. Its leftovers were cleaned up.
+discarded	Dropped the held session for %s (%s commit(s) lost).
+not_pushed	The copy of %s on this machine is not the same as GitHub's. Save and push your changes first. Nothing was archived.
+archive_confirm	Archiving %s (%s) stops all play and removes it from this machine. Type exactly: archive %s
+archive_target	The origin of %s is not a player repository on GitHub. Nothing was archived.
+archive_held	%s has a held or unfinished session. Run: geldar-play resolve %s
+archived	Archived %s on GitHub and removed it from this machine. Your own folder was left alone.
+many_players	Each player uses your plan's limits. Start with one and watch.
+dup_player	The player %s is listed twice.

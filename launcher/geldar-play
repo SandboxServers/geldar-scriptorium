@@ -122,6 +122,12 @@ fi
 if [ ${#GP_ARGS[@]} -ge 1 ]; then
   valid_player_id "${GP_ARGS[0]}" || die 2 bad_player_id "${GP_ARGS[0]}"
 fi
+if [ "$verb" = "play" ] && [ ${#GP_ARGS[@]} -ge 2 ]; then
+  for id in "${GP_ARGS[@]}"; do
+    valid_player_id "$id" || die 2 bad_player_id "$id"
+  done
+  verb=play_many
+fi
 
 # shellcheck disable=SC2046
 need $(verb_needs "$verb")

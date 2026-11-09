@@ -52,5 +52,9 @@ case $sub in
     [ "$n" -gt "${FAKE_GH_CLONE_FAILS:-0}" ] || exit 1
     git clone -q "$FAKE_GH_ROOT/$name.git" "$name" || exit 1
     ;;
+  archive)
+    [ -d "$FAKE_GH_ROOT/${name#*/}.git" ] || [ -z "${FAKE_GH_ARCHIVE_NEEDS_REPO:-}" ] || exit 1
+    echo archived > "$FAKE_GH_ROOT/${name##*/}.archived"
+    ;;
   *) exit 99 ;;
 esac
