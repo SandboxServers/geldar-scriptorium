@@ -6,7 +6,7 @@ Scriptorium task runner: setup and local checks.
 .DESCRIPTION
 Runs on PowerShell 7 on Windows and Linux.
 
-  ./scriptorium.ps1 setup            Install workspace dependencies (frozen lockfile)
+  ./scriptorium.ps1 setup            Install workspace dependencies (frozen lockfile once pnpm-lock.yaml exists)
   ./scriptorium.ps1 pnpm <args...>   Run pnpm with the pinned version on PATH, nested calls included
   ./scriptorium.ps1 check            Every check CI runs, in CI's order
   ./scriptorium.ps1 help             Show this help
