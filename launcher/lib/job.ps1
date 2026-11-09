@@ -15,15 +15,18 @@ public static class GeldarJob {
   [DllImport("kernel32.dll")] static extern IntPtr CreateJobObjectW(IntPtr attrs, string name);
   [DllImport("kernel32.dll")] static extern bool SetInformationJobObject(IntPtr job, int cls, ref Ext info, int len);
   [DllImport("kernel32.dll")] static extern bool AssignProcessToJobObject(IntPtr job, IntPtr proc);
+  [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
   [DllImport("kernel32.dll")] static extern bool TerminateJobObject(IntPtr job, uint code);
   public static IntPtr Create() {
     IntPtr j = CreateJobObjectW(IntPtr.Zero, null);
+    if (j == IntPtr.Zero) return IntPtr.Zero;
     Ext e = new Ext();
     e.B.LimitFlags = 0x2000; // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-    SetInformationJobObject(j, 9, ref e, Marshal.SizeOf(typeof(Ext)));
+    if (!SetInformationJobObject(j, 9, ref e, Marshal.SizeOf(typeof(Ext)))) { CloseHandle(j); return IntPtr.Zero; }
     return j;
   }
   public static bool Assign(IntPtr job, IntPtr proc) { return AssignProcessToJobObject(job, proc); }
+  public static void Close(IntPtr job) { if (job != IntPtr.Zero) CloseHandle(job); }
   public static void Kill(IntPtr job) { TerminateJobObject(job, 124); }
 }
 '@

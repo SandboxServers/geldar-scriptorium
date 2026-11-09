@@ -227,13 +227,21 @@ function Invoke-Bounded {
     $job = [IntPtr]::Zero
     if ($IsWindows) { Initialize-JobType; $job = [GeldarJob]::Create() }
     $p = [System.Diagnostics.Process]::Start($psi)
-    if ($IsWindows) { [void][GeldarJob]::Assign($job, $p.Handle) }
+    if ($IsWindows -and ($job -eq [IntPtr]::Zero -or -not [GeldarJob]::Assign($job, $p.Handle))) {
+      if ($job -ne [IntPtr]::Zero) { [GeldarJob]::Close($job) }
+      $job = [IntPtr]::Zero
+    }
   } catch {
     return 127
   }
-  if ($p.WaitForExit([int]$secs * 1000)) { return $p.ExitCode }
-  if ($IsWindows) { [GeldarJob]::Kill($job) } else { try { $p.Kill($true) } catch {} }
+  if ($p.WaitForExit([int]$secs * 1000)) {
+    $code = $p.ExitCode
+    if ($IsWindows) { [GeldarJob]::Close($job) }
+    return $code
+  }
+  if ($IsWindows -and $job -ne [IntPtr]::Zero) { [GeldarJob]::Kill($job) } else { try { $p.Kill($true) } catch {} }
   $p.WaitForExit()
+  if ($IsWindows) { [GeldarJob]::Close($job) }
   if ($container) {
     Invoke-Docker kill $container *> $null
     Invoke-Docker rm -f $container *> $null

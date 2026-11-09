@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
   existsSync,
@@ -113,6 +113,15 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
       { input: `${cases.join('\n')}\n` },
     );
     expect(r.stdout.trim().split(/\r?\n/)).toEqual(['ok', 'no', 'no', 'no', 'no', 'no', 'no']);
+  }, 60_000);
+
+  it('4b. valid_player_id rejects an id with a trailing newline', () => {
+    const r = runLib(launcher, {
+      bash: `if valid_player_id $'abc
+'; then echo ok; else echo no; fi`,
+      pwsh: "if (Test-PlayerId \"abc`n\") { 'ok' } else { 'no' }",
+    });
+    expect(r.stdout.trim()).toBe('no');
   }, 60_000);
 
   it('5. one launch per player: a live lock refuses, a release frees, a dead lock is kept', async () => {
@@ -351,7 +360,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
       launcher,
       [
         '__bounded',
-        win ? '8' : '2',
+        launcher.name === 'pwsh' && win ? '8' : '2',
         '--container',
         'geldar-t-1',
         docker as string,
@@ -381,23 +390,61 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
 
     const pidFile = join(w.root, 'sleeper.pid');
     const t1 = Date.now();
+    // pwsh: the grandchild is a native Windows process (ping), checked by its Windows PID, so
+    // killing only the top process leaves it alive and the assertion fails.
+    const nativeGrandchild = launcher.name === 'pwsh' && win;
     const b = run(
       launcher,
-      [
-        '__bounded',
-        '2',
-        'sh',
-        '-c',
-        `sleep 60 > /dev/null 2>&1 & echo $! > '${bashPath(pidFile)}'; wait`,
-      ],
-      { env: envOf(launcher, w), timeoutMs: 20_000 },
+      nativeGrandchild
+        ? [
+            '__bounded',
+            '4',
+            'pwsh',
+            '-NoProfile',
+            '-Command',
+            `$c = Start-Process ping -ArgumentList '-n','60','127.0.0.1' -PassThru -WindowStyle Hidden -RedirectStandardOutput '${pidFile.replace(/'/g, "''")}.out'; $c.Id | Set-Content -Path '${pidFile.replace(/'/g, "''")}'; Start-Sleep 60`,
+          ]
+        : [
+            '__bounded',
+            '2',
+            'sh',
+            '-c',
+            `sleep 60 > /dev/null 2>&1 & echo $! > '${bashPath(pidFile)}'; wait`,
+          ],
+      { env: envOf(launcher, w), timeoutMs: 30_000 },
     );
     const pid = readFileSync(pidFile, 'utf8').trim();
-    const alive = runBash(`kill -0 ${pid} 2>/dev/null && echo alive || echo dead`).stdout.trim();
-    if (alive === 'alive') runBash(`kill -9 ${pid}`);
+    let alive: string;
+    if (nativeGrandchild) {
+      const g = spawnSync(
+        'pwsh',
+        [
+          '-NoProfile',
+          '-Command',
+          `if (Get-Process -Id ${Number(pid)} -ErrorAction SilentlyContinue) { 'alive' } else { 'dead' }`,
+        ],
+        { encoding: 'utf8' },
+      );
+      alive = g.stdout.trim();
+      if (alive === 'alive') process.kill(Number(pid));
+    } else {
+      alive = runBash(`kill -0 ${pid} 2>/dev/null && echo alive || echo dead`).stdout.trim();
+      if (alive === 'alive') runBash(`kill -9 ${pid}`);
+    }
     expect(alive).toBe('dead');
     expect(Date.now() - t1).toBeLessThan(slow);
     expect(b.status).toBe(124);
+
+    if (launcher.name === 'pwsh' && win) {
+      // A .cmd under a path with spaces runs through cmd.exe and keeps its arguments.
+      const spaced = join(w.root, 'dir with spaces');
+      mkdirSync(spaced, { recursive: true });
+      const cmdFile = join(spaced, 'echo arg.cmd');
+      writeFileSync(cmdFile, '@echo off\r\necho got %1\r\nexit /b 4\r\n');
+      const sp = run(launcher, ['__bounded', '10', cmdFile, 'hello'], { env: envOf(launcher, w) });
+      expect(sp.stdout).toContain('got hello');
+      expect(sp.status).toBe(4);
+    }
 
     for (const bad of ['0x10', '$(touch pwned)', '-1', '', '1.5']) {
       const e = run(launcher, ['__bounded', bad, 'true'], { env: envOf(launcher, w) });
