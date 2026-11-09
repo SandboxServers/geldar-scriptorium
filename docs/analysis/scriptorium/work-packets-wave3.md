@@ -43,9 +43,9 @@ Dispatch notes:
 | `@modelcontextprotocol/sdk` | `1.32.2` | 2026-10-23 (16 days) | `npm view` shows it as `latest` and the newest at least 14 days old. Fallback `1.32.1` (2026-10-05). Same pin as scriptorium wave 2 |
 | `zod` | `4.6.7` | 2026-10-12 (27 days) | `npm view zod dist-tags` `latest`. Required peer of the SDK. Same pin as wave 2 |
 | `ajv`, `ajv-formats` | `8.20.0`, `3.0.1` | already in `contract/package.json` | no change; `mcp-mock` takes them only through `@geldar/contract` |
-| Node | `22.23.2` (`.nvmrc`) | n/a | matches geldar `.nvmrc` and `engines` |
+| Node | `22.23.4` (`.nvmrc`) | n/a | matches geldar `.nvmrc` and `engines` |
 | pnpm | `12.15.0` | n/a | geldar `package.json` `packageManager` |
-| Image base | `node:22.23.2-trixie-slim@sha256:c5849ff9c9ebcd66615412f0b548ca5b8ecaef84003dc9ac2e077ebe46aaa3f6` | n/a | `docker buildx imagetools inspect node:22.23.2-trixie-slim` (index digest, same as scriptorium wave 4) |
+| Image base | `node:22.23.4-trixie-slim@sha256:be1e2a3dc2c4fd68cdfadad2a696a280e0d2749098bee509230174d72fb768c6` | n/a | `docker buildx imagetools inspect node:22.23.4-trixie-slim` (index digest, same as scriptorium wave 4) |
 | `docker/setup-buildx-action` | `f87e5991a6d7451dcb8d9637bfbc97413f497069` (v4.4.1, 2026-09-16, 53 days) | | `gh api repos/docker/setup-buildx-action/git/ref/tags/v4.4.1` returns a commit object |
 | `docker/login-action` | `81c6f93d4bc991e510b342a00b419b3bb4efc5c6` (v4.7.0, 2026-10-23, 16 days) | | same call. v4.8.0 (2026-11-05) is too new |
 | `docker/build-push-action` | `c3c9e263c25d99ce0380d002d59b67737d91b0dc` (v7.4.0, 2026-09-15, 54 days) | | same call |
@@ -55,7 +55,7 @@ Dispatch notes:
 
 No other third-party package is added by this wave. If a coder thinks one is needed, it stops and reports.
 
-**SDK facts, verified by a scratch run on Node 22.23.2 (a coder relies on them and may skip re-proving them):**
+**SDK facts, verified by a scratch run on Node 22.23.4 (a coder relies on them and may skip re-proving them):**
 - The tool schemas come from the contract as JSON Schema, not zod, so the server uses `McpServer` and sets handlers on its low-level `.server`: `const mcp = new McpServer({ name, version }, { capabilities: { tools: {}, resources: {}, prompts: {} } }); mcp.server.setRequestHandler(ListToolsRequestSchema, ...)`. (`Server` itself is marked `@deprecated` in the typings; `McpServer.server` is the supported door.) Imports: `@modelcontextprotocol/sdk/server/mcp.js`, `.../types.js` (`ListToolsRequestSchema`, `CallToolRequestSchema`, `ListResourcesRequestSchema`, `ReadResourceRequestSchema`, `ListPromptsRequestSchema`, `GetPromptRequestSchema`, `isInitializeRequest`), `.../server/streamableHttp.js` (`StreamableHTTPServerTransport`), `.../client/index.js` (`Client`), `.../client/streamableHttp.js` (`StreamableHTTPClientTransport`).
 - A plain `node:http` server works: per session, `new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomUUID(), onsessioninitialized })`, `await mcp.connect(transport)`, then `await transport.handleRequest(req, res, parsedBody)`. Requests carry `mcp-session-id` after `initialize`. No Express or Hono is needed.
 - A client sends the token with `new StreamableHTTPClientTransport(url, { requestInit: { headers: { Authorization: 'Bearer <token>' } } })`.
@@ -448,13 +448,13 @@ threshold/mcp-mock/
 
   ```
   # syntax=docker/dockerfile:1
-  FROM node:22.23.2-trixie-slim@sha256:c5849ff9c9ebcd66615412f0b548ca5b8ecaef84003dc9ac2e077ebe46aaa3f6 AS deps
+  FROM node:22.23.4-trixie-slim@sha256:be1e2a3dc2c4fd68cdfadad2a696a280e0d2749098bee509230174d72fb768c6 AS deps
   RUN npm install -g pnpm@12.15.0
   WORKDIR /opt/geldar
   COPY . .
   RUN pnpm install --frozen-lockfile --prod --filter "@geldar/mcp-mock..."
 
-  FROM node:22.23.2-trixie-slim@sha256:c5849ff9c9ebcd66615412f0b548ca5b8ecaef84003dc9ac2e077ebe46aaa3f6 AS mock
+  FROM node:22.23.4-trixie-slim@sha256:be1e2a3dc2c4fd68cdfadad2a696a280e0d2749098bee509230174d72fb768c6 AS mock
   LABEL org.opencontainers.image.source="https://github.com/SandboxServers/geldar"
   COPY --from=deps /opt/geldar /opt/geldar
   ENV NODE_ENV=production

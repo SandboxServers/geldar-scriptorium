@@ -36,6 +36,24 @@ describe.skipIf(!ready)('kit image build', () => {
     expect(major > 2 || (major === 2 && minor >= 40)).toBe(true);
   }, 120_000);
 
+  it('libcurl is absent and local git (commit, bundle, clone from a bundle) still works', () => {
+    const out = inKit(
+      [
+        'dpkg -s libcurl3t64-gnutls 2>&1 | head -3',
+        'ls /usr/lib/*/libcurl* 2>&1 | head -1',
+        'cd /tmp && git init -q -b main r && cd r',
+        'git -c user.name=t -c user.email=t@t commit -q --allow-empty -m one',
+        'git bundle create ../b.bundle main >/dev/null 2>&1',
+        'cd .. && git clone -q -b main b.bundle c && git -C c log --format=%s',
+        'git -C r fetch -q ../b.bundle main && echo fetch-ok',
+      ].join('; '),
+    ).stdout;
+    expect(out).not.toContain('Status: install ok installed');
+    expect(out).toMatch(/No such file/);
+    expect(out).toContain('one');
+    expect(out).toContain('fetch-ok');
+  }, 120_000);
+
   it('runs as player in /player by default', () => {
     expect(inKit('id -un; pwd').stdout.trim().split('\n')).toEqual(['player', '/player']);
   }, 120_000);

@@ -32,7 +32,7 @@ Every action is pinned by the commit SHA of the release tag (`gh api repos/<r>/g
 | actionlint (a Go binary, SC-63h) | `v1.7.12`, asset `actionlint_1.7.12_linux_amd64.tar.gz`, sha256 `8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8` (from the release's checksums file; tag commit `914e7df21a07ef503a81201c76d2b11c789d3fca`) | 2026-03-30 (225 days) |
 | npm `yaml` (SC-63c) | `2.9.1` | 2026-09-11 (59 days) |
 | Node, pnpm | `.nvmrc`, `packageManager` | unchanged |
-| Kit image base | `node:22.23.2-trixie-slim@sha256:c5849ff9c9ebcd66615412f0b548ca5b8ecaef84003dc9ac2e077ebe46aaa3f6` | unchanged (`image/Dockerfile`) |
+| Kit image base | `node:22.23.4-trixie-slim@sha256:be1e2a3dc2c4fd68cdfadad2a696a280e0d2749098bee509230174d72fb768c6` | unchanged (`image/Dockerfile`) |
 
 The kit image repository is `ghcr.io/sandboxservers/geldar-kit` (public, D-SC-06; lowercase, as the mock world's `ghcr.io/sandboxservers/geldar-mcp-mock`). Tags are `<kit version>` only, never `latest`; `player.json` pins by digest.
 

@@ -2,23 +2,25 @@
 # The Geldar kit image: the pinned Claude Code CLI plus the companion MCP servers
 # (geldar-memory, geldar-git, geldar-verify) and the managed settings.
 # Every pin is exact: the base by digest, the CLI by version, pnpm by version.
+# Node 22.23.4 is a one-off waiver of the 14-day pin rule (decision 30, 2026-11-09): KEV-listed CVE-2026-111497 is fixed in 22.23.4. The next bump returns to the 14-day rule.
 # npm and npx are removed after the CLI install: nothing runs them, and npm's bundled node-tar carried CVE-2026-59873.
-# npm and npx are removed after the CLI install: nothing runs them, and npm bundled node-tar with CVE-2026-59873.
+# libcurl3t64-gnutls is purged (8 unfixed criticals): git here only works on local repos and bundles, never http remotes.
 # The git version floor is 2.40; the build fails below it.
 # Build with --target kit. The nettest stage is for tests only and is never released.
-FROM node:22.23.2-trixie-slim@sha256:c5849ff9c9ebcd66615412f0b548ca5b8ecaef84003dc9ac2e077ebe46aaa3f6 AS deps
+FROM node:22.23.4-trixie-slim@sha256:be1e2a3dc2c4fd68cdfadad2a696a280e0d2749098bee509230174d72fb768c6 AS deps
 RUN npm install -g pnpm@12.15.0
 WORKDIR /opt/geldar
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages ./packages
 RUN pnpm install --frozen-lockfile --prod --filter "./packages/{path-rule,memory,git,verify}"
 
-FROM node:22.23.2-trixie-slim@sha256:c5849ff9c9ebcd66615412f0b548ca5b8ecaef84003dc9ac2e077ebe46aaa3f6 AS kit
+FROM node:22.23.4-trixie-slim@sha256:be1e2a3dc2c4fd68cdfadad2a696a280e0d2749098bee509230174d72fb768c6 AS kit
 ARG CLAUDE_CODE_VERSION=2.1.310
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git jq bash ca-certificates \
  && rm -rf /var/lib/apt/lists/* \
  && git --version | awk '{split($3,v,"."); exit !(v[1]>2 || (v[1]==2 && v[2]>=40))}' \
+ && dpkg --purge --force-depends libcurl3t64-gnutls \
  && npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
  && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
  && groupmod -n player node && usermod -l player -d /home/player -m node
