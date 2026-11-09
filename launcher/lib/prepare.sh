@@ -104,6 +104,8 @@ prepare_session() {
   # H-03
   start=$(git_cmd -C "$clone" rev-parse HEAD 2> /dev/null)
   [[ $start =~ ^[0-9a-f]{40}$ ]] || die 1 pull_failed "$id" 'no commit'
+  private_mkdir "$(state_dir)"
+  private_mkdir "$d"
   private_mkdir "$sd"
   printf '%s\n' "$start" > "$d/start"
   printf '%s\n' "$mode" > "$d/mode"
