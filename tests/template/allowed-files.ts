@@ -37,8 +37,6 @@ export const pendingFiles: readonly string[] = [
   'template/.claude/hooks/session-start.sh',
   'template/.claude/hooks/post-tool-use.sh',
   'template/.claude/hooks/session-end.sh',
-  'template/.claude/skills/play/SKILL.md',
-  'template/.claude/skills/reflect/SKILL.md',
   'template/.claude/skills/trade/SKILL.md',
   'template/.claude/skills/author/SKILL.md',
   'template/.claude/skills/moot/SKILL.md',
