@@ -44,9 +44,13 @@ export function dockerReady(): boolean {
   return false;
 }
 
-// Builds the kit image once per process; throws with stderr when the build fails.
+// Set by global-setup.ts once it has built the image for this vitest run.
+export const BUILT_FLAG = 'KIT_IMAGE_BUILT';
+
+// Builds the kit image once per process; a no-op when global-setup.ts already built it
+// for this run. Throws with stderr when the build fails.
 export function buildKit(): void {
-  if (built) return;
+  if (built || process.env[BUILT_FLAG] === KIT_IMAGE) return;
   const result = spawnSync(
     'docker',
     ['build', '--target', 'kit', '-f', 'image/Dockerfile', '-t', KIT_IMAGE, '.'],
