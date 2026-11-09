@@ -63,6 +63,7 @@ describe.each(forGroup('hostile'))('H-15 cleanup ($name)', (launcher) => {
     expect(a.finish.status, a.finish.stderr).toBe(0);
     expect(existsSync(ws(a)), 'workspace volume removed').toBe(false);
     expect(existsSync(session(a)), 'session dir removed').toBe(false);
+    expect(existsSync(join(a.player.stateDir, 'pub')), 'pub dir removed (N4)').toBe(false);
     expect(existsSync(held(a))).toBe(false);
     expect(existsSync(join(a.player.stateDir, 'start'))).toBe(false);
     expect(existsSync(cli(a)), 'CLI volume survives').toBe(true);

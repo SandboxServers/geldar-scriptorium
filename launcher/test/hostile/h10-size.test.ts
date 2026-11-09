@@ -64,13 +64,13 @@ describe.each(forGroup('hostile'))('H-10 size ($name)', (launcher) => {
   });
 
   timingIt(
-    'the real cap: a 48 MiB incompressible bundle (under 52428800) is not too large',
+    'the real cap: a 48 MiB incompressible bundle of 48 one-MiB blobs (under 52428800) is not too large',
     () => {
       const a = attack(launcher, {
         until: 'verify',
         session: `mkdir -p memory
-head -c 50331648 /dev/urandom > memory/big.md
-git add memory/big.md
+for i in $(seq 1 48); do head -c 1048576 /dev/urandom > memory/big$i.md; done
+git add memory
 git commit -q -m big
 `,
       });

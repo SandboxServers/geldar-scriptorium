@@ -16,3 +16,6 @@ export const enabled = {
     'hostile',
   ],
 } satisfies Record<string, string[]>;
+
+// Groups that name a test file set, not a launcher capability: `--capabilities` never prints them.
+export const testOnlyGroups: string[] = ['hostile', 'upgrade'];
