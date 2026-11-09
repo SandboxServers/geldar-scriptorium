@@ -12,6 +12,12 @@ services:
     # Squid aborts with "setgid: Operation not permitted" without these two.
     cap_drop: [ALL]
     cap_add: [SETUID, SETGID]
+    # The session starts only once Squid accepts connections (otherwise the first call can meet ECONNREFUSED).
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/3128'"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
 
   session:
     image: ${KIT_IMAGE:?}
@@ -32,7 +38,9 @@ services:
     networks: [inside]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    depends_on: [proxy]
+    depends_on:
+      proxy:
+        condition: service_healthy
     tty: true
     stdin_open: true
 
