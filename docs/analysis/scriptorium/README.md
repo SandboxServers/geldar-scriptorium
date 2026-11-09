@@ -50,7 +50,7 @@ Spec-level decisions are records in the **geldar** repo (`docs/decisions/`). Thi
 
 ## Packets
 
-Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. Repo: **S** = this repo, **G** = geldar. Each packet is sized for one Haiku `packet-coder` session under 75k tokens. Waves 3–7 are scope cards until the wave before them closes, then they're written out in full.
+Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. Repo: **S** = this repo, **G** = geldar. Each packet is sized for one Haiku `packet-coder` session under 75k tokens. Waves 3, 6 and 7 are scope cards until the wave before them closes, then they're written out in full; wave 5 is in [work-packets-wave5.md](work-packets-wave5.md).
 
 | Packet | Wave | Repo | Title | Implementer | Status | Depends on |
 |---|---|---|---|---|---|---|
@@ -84,12 +84,24 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-41b | 4 | S | Session compose (internal network, no external DNS) and egress allow/deny tests | packet-coder | Done | SC-40b, SC-41a |
 | SC-42a | 4 | S | Image contract tests: marker, hooks guard, read-only kit paths, uid and git | packet-coder | Done | SC-40b |
 | SC-42b | 4 | S | Pinned-CLI tests: managed path, tool denies, GELDAR_MODE (D-SC-14) | packet-coder | Done | SC-40a, SC-40b |
-| SC-50 | 5 | S | Launcher (bash): pre-session (state, export, workspace) | packet-coder | BlockedDependency | wave 4 |
-| SC-51 | 5 | S | Launcher (bash): post-session (bundle, verify, fetch, push, failure paths) | packet-coder | BlockedDependency | SC-50 |
-| SC-52 | 5 | S | Launcher (bash): `new`, `setup`, `archive`, `status`, multi-player | packet-coder | BlockedDependency | SC-51 |
-| SC-53 | 5 | S | Launcher (PowerShell): pre- and post-session parity | packet-coder | BlockedDependency | SC-51 |
-| SC-54 | 5 | S | Launcher (PowerShell): commands parity, Windows Terminal tabs | packet-coder | BlockedDependency | SC-52, SC-53 |
-| SC-55 | 5 | S | End-to-end CI: `new` → `setup` → `play` → push, stub CLI against the mock world | packet-coder | BlockedDependency | SC-52, SC-33 |
+| SC-50a | 5 | S | Launcher (bash): dispatcher, message table, test harness, fake docker | packet-coder | Ready | wave 4 |
+| SC-50b | 5 | S | Launcher (bash): pre-session (clean clone, START, export, isolated workspace; H-01 to H-05) | packet-coder | BlockedDependency | SC-50a |
+| SC-50c | 5 | S | Launcher (bash): session start (compose override, allowlist, CLI volume; H-06 to H-08, H-19) | packet-coder | BlockedDependency | SC-50b |
+| SC-50d | 5 | S | Steering text: durable intents, sleep and wait, no polling (template) | packet-coder | Ready | wave 1 |
+| SC-51a | 5 | S | Launcher (bash): bundle, verify, host re-check (H-09 to H-11, H-13, H-16) | packet-coder | BlockedDependency | SC-50c |
+| SC-51b | 5 | S | Launcher (bash): fetch, push, fast-forward, hold, crash recovery (H-12, H-14, H-15, H-17); Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-51a |
+| SC-52a | 5 | S | Launcher (bash): `new` and `setup` | packet-coder | BlockedDependency | SC-51b |
+| SC-52b | 5 | S | Launcher (bash): `resolve`, `archive`, `status`, multi-player `play` | packet-coder | BlockedDependency | SC-52a |
+| SC-53a | 5 | S | Launcher (PowerShell): dispatcher and common functions | packet-coder | BlockedDependency | SC-50a |
+| SC-53b | 5 | S | Launcher (PowerShell): pre-session parity | packet-coder | BlockedDependency | SC-50b, SC-53a |
+| SC-53c | 5 | S | Launcher (PowerShell): session start parity | packet-coder | BlockedDependency | SC-50c, SC-53b |
+| SC-53d | 5 | S | Launcher (PowerShell): bundle, verify, host re-check parity | packet-coder | BlockedDependency | SC-51a, SC-53c |
+| SC-53e | 5 | S | Launcher (PowerShell): fetch, push, hold, recovery parity; Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-51b, SC-53d |
+| SC-54a | 5 | S | Launcher (PowerShell): `new` and `setup` parity | packet-coder | BlockedDependency | SC-52a, SC-53e |
+| SC-54b | 5 | S | Launcher (PowerShell): `resolve`, `archive`, `status`, Windows Terminal tabs; Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-52b, SC-54a |
+| SC-55a | 5 | S | Stub CLI over HTTP, stub image variant, in-test world | packet-coder | Ready | wave 4 |
+| SC-55b | 5 | S | End-to-end CI on the in-test world: `new` → `setup` → three `play` days → push, both launchers; Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-52b, SC-54b, SC-55a |
+| SC-55c | 5 | S | End-to-end CI against the mock world image | packet-coder | BlockedDependency (Wave 3) | SC-55b, SC-33 |
 | SC-60 | 6 | S | Hostile workspace tests, one per hardening item | packet-coder | BlockedDependency | SC-55 |
 | SC-61 | 6 | S+G | Malicious-book corpus as mock world scenarios | packet-coder | BlockedDependency | SC-32 |
 | SC-62 | 6 | S | Live malicious-book check, local only (script plus documented procedure; never in CI) with pinned Claude Code | packet-coder | Planned | SC-61 |
