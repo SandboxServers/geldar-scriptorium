@@ -68,12 +68,12 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-16 | 1 | S | Hooks with the container guard, and their tests | packet-coder | Done (merged into wave1) | SC-10 |
 | SC-20 | 2 | S | `path-rule` package: allowed paths, modes, write-once identity | packet-coder | Done (merged into wave2) | wave 1 |
 | SC-21 | 2 | S | `geldar-memory` MCP server (`recall`) | packet-coder | Done (merged into wave2) | SC-20 |
-| SC-22a | 2 | S | `geldar-git`: runner, filter-safe `commitMemory`, message, fixture and tests | packet-coder | Done (merged into wave2; Linux tests await CI) | SC-20 |
-| SC-22b | 2 | S | `geldar-git`: MCP server and CLI (`commit_memory`) | packet-coder | Done (merged into wave2 locally)| SC-22a |
+| SC-22a | 2 | S | `geldar-git`: runner, filter-safe `commitMemory`, message, fixture and tests | packet-coder | Done (merged into wave2) | SC-20 |
+| SC-22b | 2 | S | `geldar-git`: MCP server and CLI (`commit_memory`) | packet-coder | Done (merged into wave2)| SC-22a |
 | SC-23a | 2 | S | `geldar-verify`: bundle intake, caps and verdict | packet-coder | Done (merged into wave2) | SC-20 |
-| SC-23b | 2 | S | `geldar-verify`: history, path, mode and identity checks, CLI, hostile bundles | packet-coder | Writing | SC-23a |
-| SC-24a | 2 | S | `stub-cli`: scripted stand-in for the vendor CLI (scenario runner; large, budget a retry) | packet-coder | Done (merged into wave2 locally) | SC-21 |
-| SC-24b | 2 | S | `stub-cli`: birth and reflect scenarios | packet-coder | Done (merged into wave2 locally) | SC-24a, SC-22b |
+| SC-23b | 2 | S | `geldar-verify`: history, path, mode and identity checks, CLI, hostile bundles | packet-coder | Done (merged into wave2) | SC-23a |
+| SC-24a | 2 | S | `stub-cli`: scripted stand-in for the vendor CLI (scenario runner; large, budget a retry) | packet-coder | Done (merged into wave2) | SC-21 |
+| SC-24b | 2 | S | `stub-cli`: birth and reflect scenarios | packet-coder | Done (merged into wave2) | SC-24a, SC-22b |
 | SC-30 | 3 | G | Contract: MCP tool and result schemas (5.15.3, Appendix K as fixed by 0009) | packet-coder | BlockedDependency | geldar P0-01 |
 | SC-31 | 3 | G | `threshold/mcp-mock`: Streamable HTTP per player, bearer auth, tools, resources, prompts | packet-coder | BlockedDependency | SC-30 |
 | SC-32 | 3 | G | Mock world: day clock, events, `wait` cursor, `act` validation, `sleep` digest, books | packet-coder | BlockedDependency | SC-31 |
