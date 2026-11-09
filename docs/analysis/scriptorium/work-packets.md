@@ -2,7 +2,7 @@
 
 Ledger and status: [README.md](README.md). Resume card: [RESUME.md](RESUME.md).
 
-Waves 0 to 2 are written out in full. Waves 3–7 are **scope cards**: files, test and acceptance. Each card is written out in full when the wave before it closes, against what actually merged.
+Waves 0 to 2 are written out in full. Wave 4 is in [work-packets-wave4.md](work-packets-wave4.md). Waves 3 and 5–7 are **scope cards**: files, test and acceptance. Each card is written out in full when the wave before it closes, against what actually merged.
 
 ## Dispatch rules (every packet)
 
@@ -1018,28 +1018,9 @@ import { z } from 'zod';
   `wait` long-polls on the cursor and returns coalesced events and a `wake_reason`. `act` and `say` accept or reject with reasons and count budget. `sleep` returns the day digest.
 - **SC-33 (G) image.** `ghcr.io/sandboxservers/geldar-mcp-mock`, built and pushed from geldar `main` (visibility per D-SC-06), with a compose snippet.
 
-## Wave 4 — the kit image (scope cards)
+## Wave 4 — the kit image
 
-- **SC-40 `image/Dockerfile`.**
-  - Base: a pinned Node 22 slim image by digest, plus git, jq and bash.
-  - The pinned Claude Code CLI (D-SC-07), and the companion packages from `packages/`.
-  - **Carried from wave 1:** `image/settings/managed.json` currently denies only `**/.credentials.json`. Add concrete `Read`, `Edit` and `Write` denies for the CLI home (`CLAUDE_CONFIG_DIR`) to match § Settings layers and hardening item H-20.
-  - **From wave 2:** git 2.40 or newer in the image (`geldar-git` and `geldar-verify` rely on it); the session container user has the **same uid** as the workspace owner (git's `safe.directory` check cannot be set from `-c` or a nulled global config, so a different owner makes every git call fail).
-  - A non-root `player` user. Marker file `/etc/geldar-kit`. Settings at `/etc/geldar/settings/`, with managed settings at the CLI's managed path. Workdir `/player`.
-  - Built in CI on every PR; no push until SC-63.
-- **SC-41 egress.**
-  - `image/proxy/`: Squid pinned by digest (D-SC-04), with an allowlist file (vendor API and login hosts, the MCP host, the OAuth host) and `http_access deny all`.
-  - `image/compose/session.yml`: an internal network for the session container and the proxy, with the proxy also on an egress network. The session container has no DNS server.
-  - **Tests:** inside the session container, an allowed host (the mock world in CI) succeeds, while `github.com`, a raw IP and `nslookup` all fail.
-- **SC-42 image tests.** In the container:
-  - hooks act only with the marker;
-  - kit paths are read-only;
-  - `/permissions` shows the managed denies;
-  - reading the CLI home is denied (the whole `CLAUDE_CONFIG_DIR`, not only `.credentials.json`; see SC-40);
-  - `Write` is governed like `Edit`;
-  - the managed settings path is correct for the pinned CLI.
-  - `GELDAR_MODE` (D-SC-14) reaches the MCP servers the pinned CLI starts: with `GELDAR_MODE=setup` in the container environment, `commit_memory` of `memory/identity.md` succeeds, and in play mode (unset or `play`) it is refused. Report a mismatch as a new record.
-  Any mismatch with § Claude Code syntax goes to the orchestrator as a new record.
+Written out in full in [work-packets-wave4.md](work-packets-wave4.md) (this file is past its size cap): SC-40a, SC-40b, SC-41a, SC-41b, SC-42a, SC-42b.
 
 ## Wave 5 — the launcher (scope cards)
 

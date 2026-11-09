@@ -78,9 +78,12 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-31 | 3 | G | `threshold/mcp-mock`: Streamable HTTP per player, bearer auth, tools, resources, prompts | packet-coder | BlockedDependency | SC-30 |
 | SC-32 | 3 | G | Mock world: day clock, events, `wait` cursor, `act` validation, `sleep` digest, books | packet-coder | BlockedDependency | SC-31 |
 | SC-33 | 3 | G | Mock world image, published to GHCR from `main` | packet-coder | BlockedDecision | SC-32, D-SC-06 |
-| SC-40 | 4 | S | Kit image: Dockerfile, pinned CLI, companions, marker, non-root | packet-coder | BlockedDependency | wave 2 |
-| SC-41 | 4 | S | Egress proxy and session networking, with allow and deny tests | packet-coder | BlockedDependency | SC-40 |
-| SC-42 | 4 | S | Image tests: marker, mounts, settings, hooks guard | packet-coder | BlockedDependency | SC-40 |
+| SC-40a | 4 | S | Managed and play settings (CLI-home denies), Docker test support | packet-coder | Ready | wave 2 |
+| SC-40b | 4 | S | Kit image Dockerfile: pinned CLI, companions, marker, non-root; build test; CI Docker step | packet-coder | BlockedDependency | SC-40a |
+| SC-41a | 4 | S | Squid proxy config and allowlist, with config tests | packet-coder | BlockedDependency | SC-40a |
+| SC-41b | 4 | S | Session compose (internal network, no external DNS) and egress allow/deny tests | packet-coder | BlockedDependency | SC-40b, SC-41a |
+| SC-42a | 4 | S | Image contract tests: marker, hooks guard, read-only kit paths, uid and git | packet-coder | BlockedDependency | SC-40b |
+| SC-42b | 4 | S | Pinned-CLI tests: managed path, tool denies, GELDAR_MODE (D-SC-14) | packet-coder | BlockedDependency | SC-40a, SC-40b |
 | SC-50 | 5 | S | Launcher (bash): pre-session (state, export, workspace) | packet-coder | BlockedDependency | wave 4 |
 | SC-51 | 5 | S | Launcher (bash): post-session (bundle, verify, fetch, push, failure paths) | packet-coder | BlockedDependency | SC-50 |
 | SC-52 | 5 | S | Launcher (bash): `new`, `setup`, `archive`, `status`, multi-player | packet-coder | BlockedDependency | SC-51 |
