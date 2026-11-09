@@ -3,7 +3,7 @@
 # validated, nothing from it is evaluated, every command takes an argument array, and memory/,
 # skills/ and the identity are never touched.
 
-$GP_GROUPS += 'upgrade'
+# No $GP_GROUPS entry: upgrade is a test group, not a --capabilities group (the bash twin adds none).
 
 $script:UP_TEMPLATE = 'https://github.com/SandboxServers/geldar-player-template.git'
 $script:UP_SEMVER = '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.]+)?\z'
