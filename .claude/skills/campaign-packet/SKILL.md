@@ -64,7 +64,7 @@ Then ship with the `ship-pr` skill and update the ledger rows.
 
 ## 5. State on disk
 
-At every wave boundary rewrite `RESUME.md` and the ledger rows. The transcript is not the record: a compaction or a new session must be able to continue from the campaign folder alone.
+At every wave boundary rewrite `RESUME.md` and the ledger rows. The transcript is not the record: a compaction or a new session must be able to continue from the campaign folder alone. The owner wants the conversation compacted at every wave boundary: after rewriting `RESUME.md`, say so and ask them to run `/compact` (the orchestrator cannot run it).
 
 ## 6. Close the wave: docs, retro, process
 
