@@ -94,7 +94,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-50b | 5 | S | Launcher (bash): pre-session (clean clone, START, export, isolated workspace; H-01 to H-05) | Sonnet (general-purpose) | Done | SC-50a |
 | SC-50c | 5 | S | Launcher (bash): session start (compose override, allowlist, CLI volume; H-06 to H-08, H-19) | Sonnet (general-purpose) | Done | SC-50b |
 | SC-50d | 5 | S | Steering text: durable intents, sleep and wait, no polling (template) | packet-coder | Done | wave 1 |
-| SC-51a | 5 | S | Launcher (bash): bundle, verify, host re-check (H-09 to H-11, H-13, H-16) | Sonnet (general-purpose) | BlockedDependency | SC-50c |
+| SC-51a | 5 | S | Launcher (bash): bundle, verify, host re-check (H-09 to H-11, H-13, H-16) | Sonnet (general-purpose) | Done | SC-50c |
 | SC-51b | 5 | S | Launcher (bash): fetch, push, fast-forward, hold, crash recovery (H-12, H-14, H-15, H-17); Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-51a |
 | SC-52a | 5 | S | Launcher (bash): `new` and `setup` | Sonnet (general-purpose) | BlockedDependency | SC-51b |
 | SC-52b | 5 | S | Launcher (bash): `resolve`, `archive`, `status`, multi-player `play` | Sonnet (general-purpose) | BlockedDependency | SC-52a |
