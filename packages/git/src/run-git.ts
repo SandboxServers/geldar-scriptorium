@@ -52,7 +52,8 @@ function checkArgs(args: readonly string[]): void {
   if (sub === undefined || !ALLOWED_SUBCOMMANDS.has(sub)) refuse();
   if (sub === 'hash-object') {
     const pathOption = args.some((arg) => arg.startsWith('--path'));
-    if (!args.includes('--no-filters') || !args.includes('--stdin-paths') || pathOption) refuse();
+    const viaStdin = args.includes('--stdin-paths') || args.includes('--stdin');
+    if (!args.includes('--no-filters') || !viaStdin || pathOption) refuse();
   }
   if (sub === 'diff' && !args.includes('--cached')) refuse();
 }
@@ -109,7 +110,7 @@ export function runGit(
   root: string,
   args: readonly string[],
   identity?: GitIdentity,
-  input?: string,
+  input?: string | Buffer,
 ): string {
   checkArgs(args);
   try {
