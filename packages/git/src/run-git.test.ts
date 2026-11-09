@@ -87,6 +87,13 @@ describe('identity layers', () => {
     expect(env.GIT_ATTR_NOSYSTEM).toBe('1');
   });
 
+  it('gitOptions disables replace objects first, and a host value cannot unset it', () => {
+    setEnv('GIT_NO_REPLACE_OBJECTS', '0');
+    expect(gitOptions()).toContain('--no-replace-objects');
+    expect(gitOptions()[0]).toBe('--no-replace-objects');
+    expect(gitEnv().GIT_NO_REPLACE_OBJECTS).toBe('1');
+  });
+
   it('gitOptions adds the user options only with an identity', () => {
     const options = gitOptions(noreplyIdentity('mmpr-red'));
     expect(options).toContain('user.name=player-mmpr-red');

@@ -57,6 +57,8 @@ function checkArgs(args: readonly string[]): void {
 
 export function gitOptions(identity?: GitIdentity): string[] {
   const options = [
+    // refs/replace/* would otherwise redirect read-tree, ls-tree and diff to a crafted commit.
+    '--no-replace-objects',
     `--attr-source=${EMPTY_TREE}`,
     '-c',
     `core.hooksPath=${NULL_DEVICE}`,
@@ -87,6 +89,7 @@ export function gitEnv(identity?: GitIdentity): NodeJS.ProcessEnv {
   env.GIT_CONFIG_GLOBAL = NULL_DEVICE;
   env.GIT_CONFIG_NOSYSTEM = '1';
   env.GIT_ATTR_NOSYSTEM = '1';
+  env.GIT_NO_REPLACE_OBJECTS = '1';
   env.GIT_TERMINAL_PROMPT = '0';
   env.HOME = home;
   env.XDG_CONFIG_HOME = home;

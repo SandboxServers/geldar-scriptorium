@@ -250,6 +250,19 @@ export function commitMemory(opts: { root: string; message: string; mode: Mode }
 
   // 12. plumbing commit
   const tree = runGit(root, ['write-tree']).trim();
+
+  // 12a. the final tree, compared with HEAD path by path: anything outside the allowlist fails closed
+  const finalTree = parseTracked(runGit(root, ['ls-tree', '-r', '-z', '--full-tree', tree]));
+  const changedPaths = [...new Set([...tracked.keys(), ...finalTree.keys()])].filter((path) => {
+    const before = tracked.get(path);
+    const after = finalTree.get(path);
+    return before?.sha !== after?.sha || before?.mode !== after?.mode;
+  });
+  if (changedPaths.some((path) => !allowed(path))) {
+    runGit(root, ['read-tree', 'HEAD']);
+    throw new CommitRefusal('unsafe_staging');
+  }
+
   const sha = runGit(root, ['commit-tree', tree, '-p', old, '-m', subject], identity).trim();
   runGit(root, ['update-ref', '-m', 'commit_memory', 'HEAD', sha, old]);
 

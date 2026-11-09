@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
   existsSync,
@@ -15,6 +16,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { CommitResult } from './commit.ts';
 import { CommitRefusal, commitMemory, parseMode } from './commit.ts';
 import { git, makeRepo } from './repo-fixture.ts';
+import { gitEnv } from './run-git.ts';
 
 const cleanups: (() => void)[] = [];
 const restore: (() => void)[] = [];
@@ -96,6 +98,52 @@ const POSIX = process.platform !== 'win32';
 afterEach(() => {
   for (const undo of restore.splice(0).reverse()) undo();
   for (const cleanup of cleanups.splice(0)) cleanup();
+});
+
+// Test support only: runs git with the null global config and optional stdin.
+function run(root: string, args: readonly string[], input?: string): string {
+  const result = spawnSync('git', [...args], {
+    cwd: root,
+    env: gitEnv(),
+    ...(input === undefined ? {} : { input }),
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${result.stderr}`);
+  return result.stdout.trim();
+}
+
+describe('commitMemory and replace refs', () => {
+  it('ignores a replace ref that points HEAD at a crafted commit', () => {
+    const root = repo();
+    const parent = headOf(root);
+    // A commit whose tree adds CLAUDE.md = EVIL, installed as a replacement for HEAD.
+    const blob = run(root, ['hash-object', '-w', '--stdin'], 'EVIL\n');
+    const tree = run(root, ['mktree'], `100644 blob ${blob}\tCLAUDE.md\n`);
+    const evil = run(root, [
+      '-c',
+      'user.name=Evil',
+      '-c',
+      'user.email=evil@example.test',
+      'commit-tree',
+      tree,
+      '-p',
+      parent,
+      '-m',
+      'evil',
+    ]);
+    git(root, ['replace', parent, evil]);
+    write(root, 'memory/summary.md', 'day 2\n');
+
+    const result = commitMemory({ root, message: 'day 2', mode: 'play' });
+
+    expect(result.files).toEqual(['memory/summary.md']);
+    expect(
+      git(root, ['--no-replace-objects', 'diff', '--name-only', parent, 'HEAD'])
+        .split('\n')
+        .filter((l) => l !== ''),
+    ).toEqual(['memory/summary.md']);
+    expect(git(root, ['--no-replace-objects', 'show', 'HEAD:CLAUDE.md'])).toBe('rules\n');
+  });
 });
 
 describe('commitMemory', () => {
