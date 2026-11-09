@@ -18,4 +18,6 @@ Read this, then [README.md](README.md) (the ledger), before acting. Rewrite at e
 
 **Open owner decisions:** D-SC-01 (CI API key), D-SC-02 (template publish credential), D-SC-05 (license), D-SC-06 (GHCR visibility), D-SC-08 (Codex terms). None block wave 0 except the `LICENSE` file.
 
-**Worktrees:** none.
+**In flight (2026-11-08):** `scriptorium/wave0` created and pushed. SC-01 coder dispatched in `.claude/worktrees/sc-01` (branch `scriptorium/sc-01-workspace`). Next: review SC-01, merge `--no-ff` into `scriptorium/wave0`, then dispatch SC-02..05.
+
+**Worktrees:** sc-01.
