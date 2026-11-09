@@ -125,7 +125,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-60l | 6 | S | Start-tree case-collision check in the host re-check, PowerShell | Sonnet (general-purpose) | Done | SC-60a, SC-60b2 |
 | SC-60m | 6 | S | N3: refuse local and private names (and empty labels) in `mcp_url`, bash | packet-coder (Haiku) | Done | SC-60b1 |
 | SC-60n | 6 | S | N3: same, PowerShell | packet-coder (Haiku) | Done | SC-60b1 |
-| SC-60o | 6 | S | N4: state and session directories 0700, only the allowlist world-readable (export stays readable), bash | Sonnet (general-purpose) | BlockedDependency | SC-60a, SC-60t |
+| SC-60o | 6 | S | N4: state and session directories 0700, only the allowlist world-readable (export stays readable), bash | Sonnet (general-purpose) | Done | SC-60a, SC-60t |
 | SC-60p | 6 | S | N4 (non-Windows) and N6 (`.cmd` shim quoting), PowerShell | Sonnet (general-purpose) | BlockedDependency | SC-60a, SC-60t |
 | SC-60q | 6 | S | N8: every `GELDAR_` variable is classified and gated or documented | packet-coder (Haiku) | Done | SC-60a |
 | SC-60s | 6 | S | N6: the remaining `.cmd` shim sites (`recheck.ps1`, call wrappers), PowerShell | Sonnet (general-purpose) | BlockedDependency | SC-60l, SC-60p |
