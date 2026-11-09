@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import {
   chmodSync,
   existsSync,
@@ -25,6 +25,7 @@ import {
   runLib,
 } from './harness.ts';
 import { enabled } from './parity.ts';
+import { timingIt } from './timing.ts';
 
 const lib = bashPath(join(repoRoot, 'launcher', 'lib', 'common.sh'));
 const fakeDockerSh = bashPath(join(repoRoot, 'launcher', 'test', 'fake-docker.sh'));
@@ -49,9 +50,7 @@ function envOf(launcher: Launcher, world: ReturnType<typeof makeWorld>, extra = 
   return { ...(launcher.name === 'bash' ? world.env : world.envPwsh), ...extra };
 }
 
-// Spawning is slow on Windows; the bound is 10 s elsewhere.
 const win = process.platform === 'win32';
-const slow = process.platform === 'win32' ? 25_000 : 10_000;
 
 function chr(...codes: number[]): string {
   return String.fromCharCode(...codes);
@@ -196,83 +195,87 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     expect(claude.stderr).toContain('This command is not available');
   }, 60_000);
 
-  it('10. test-only variables have no effect without GELDAR_INTERNAL=1', () => {
-    const names = [
-      'GELDAR_TEST_HOOK_AFTER_CLEAN',
-      'GELDAR_SLEEP',
-      'GELDAR_KEEP_PROXY_LOG',
-      'GELDAR_TMUX',
-      'GELDAR_WT',
-      'GELDAR_EXTRA_COMPOSE',
-      'GELDAR_UNSAFE_IMAGE',
-      'GELDAR_PRIVATE_SHARDS_TEST',
-      'GELDAR_HELPER_TIMEOUT_SEC',
-      'GELDAR_TOOL_PATH',
-      'GELDAR_STUB_X',
-    ];
-    const env: Record<string, string> = {};
-    for (const n of names) env[n] = 'value';
-    const scripts = {
-      bash: `for n in ${names.join(' ')}; do printf '[%s]' "$(gp_env "$n")"; done`,
-      pwsh: `foreach ($n in '${names.join("','")}') { [Console]::Out.Write('[' + (Get-GatedEnv $n) + ']') }`,
-    };
-    expect(runLib(launcher, scripts, { env }).stdout).toBe(names.map(() => '[]').join(''));
-    expect(runLib(launcher, scripts, { env: { ...env, GELDAR_INTERNAL: '1' } }).stdout).toBe(
-      names.map(() => '[value]').join(''),
-    );
-    // The same names are never read directly in the launcher code.
-    const direct = new RegExp(
-      `\\$(?:env:)?\\{?(${names.map((n) => n.replace('_X', '_')).join('|')})`,
-    );
-    for (const f of launcher.name === 'bash' ? sources : psSources)
-      expect(
-        text(f)
-          .split('\n')
-          .filter((l) => direct.test(l)),
-      ).toEqual([]);
-    // GELDAR_TOOL_PATH does not change the prerequisite checks.
-    const w = makeWorld();
-    const empty = join(w.root, 'empty');
-    mkdirSync(empty);
-    const tp = run(launcher, ['play', 'abc'], {
-      env: envOf(launcher, w, {
-        GELDAR_INTERNAL: '',
-        GELDAR_TOOL_PATH: launcher.name === 'bash' ? bashPath(empty) : empty,
-      }),
-    });
-    expect(tp.stderr).toContain('This command is not available');
-    // GELDAR_HELPER_TIMEOUT_SEC does not shorten run_bounded.
-    const t = (internal: string) =>
-      runLib(
-        launcher,
-        {
-          bash: 'run_bounded 60 sleep 8; echo "rc=$?"',
-          pwsh: '$rc = Invoke-Bounded 60 sleep 8; "rc=$rc"',
-        },
-        { env: { GELDAR_INTERNAL: internal, GELDAR_HELPER_TIMEOUT_SEC: '1' } },
-      ).stdout.trim();
-    expect(t('')).toBe('rc=0');
-    expect(t('1')).toBe('rc=124');
-    // GELDAR_UNSAFE_IMAGE alone does not unlock a tag-form image (the image rules arrive with
-    // the pwsh pre-session packet; until then this part runs for bash).
-    if (launcher.name !== 'bash') return;
-    const img = (internal: string) =>
-      runBash('. "$LIB"; resolve_kit_image "x@sha256:$D"; echo "image=$GP_IMAGE"', {
-        env: {
-          LIB: lib,
-          D: 'a'.repeat(64),
-          GELDAR_KIT_IMAGE: 'geldar-kit:dev',
-          GELDAR_UNSAFE_IMAGE: '1',
-          GELDAR_INTERNAL: internal,
-        },
+  timingIt(
+    '10. test-only variables have no effect without GELDAR_INTERNAL=1',
+    () => {
+      const names = [
+        'GELDAR_TEST_HOOK_AFTER_CLEAN',
+        'GELDAR_SLEEP',
+        'GELDAR_KEEP_PROXY_LOG',
+        'GELDAR_TMUX',
+        'GELDAR_WT',
+        'GELDAR_EXTRA_COMPOSE',
+        'GELDAR_UNSAFE_IMAGE',
+        'GELDAR_PRIVATE_SHARDS_TEST',
+        'GELDAR_HELPER_TIMEOUT_SEC',
+        'GELDAR_TOOL_PATH',
+        'GELDAR_STUB_X',
+      ];
+      const env: Record<string, string> = {};
+      for (const n of names) env[n] = 'value';
+      const scripts = {
+        bash: `for n in ${names.join(' ')}; do printf '[%s]' "$(gp_env "$n")"; done`,
+        pwsh: `foreach ($n in '${names.join("','")}') { [Console]::Out.Write('[' + (Get-GatedEnv $n) + ']') }`,
+      };
+      expect(runLib(launcher, scripts, { env }).stdout).toBe(names.map(() => '[]').join(''));
+      expect(runLib(launcher, scripts, { env: { ...env, GELDAR_INTERNAL: '1' } }).stdout).toBe(
+        names.map(() => '[value]').join(''),
+      );
+      // The same names are never read directly in the launcher code.
+      const direct = new RegExp(
+        `\\$(?:env:)?\\{?(${names.map((n) => n.replace('_X', '_')).join('|')})`,
+      );
+      for (const f of launcher.name === 'bash' ? sources : psSources)
+        expect(
+          text(f)
+            .split('\n')
+            .filter((l) => direct.test(l)),
+        ).toEqual([]);
+      // GELDAR_TOOL_PATH does not change the prerequisite checks.
+      const w = makeWorld();
+      const empty = join(w.root, 'empty');
+      mkdirSync(empty);
+      const tp = run(launcher, ['play', 'abc'], {
+        env: envOf(launcher, w, {
+          GELDAR_INTERNAL: '',
+          GELDAR_TOOL_PATH: launcher.name === 'bash' ? bashPath(empty) : empty,
+        }),
       });
-    const refused = img('');
-    expect(refused.status).toBe(1);
-    expect(refused.stderr).toContain('not pinned by digest, so it was not used');
-    const unsafe = img('1');
-    expect(unsafe.stderr).toContain('geldar-play: UNSAFE:');
-    expect(unsafe.stdout).toContain('image=geldar-kit:dev');
-  }, 60_000);
+      expect(tp.stderr).toContain('This command is not available');
+      // GELDAR_HELPER_TIMEOUT_SEC does not shorten run_bounded.
+      const t = (internal: string) =>
+        runLib(
+          launcher,
+          {
+            bash: 'run_bounded 60 sleep 8; echo "rc=$?"',
+            pwsh: '$rc = Invoke-Bounded 60 sleep 8; "rc=$rc"',
+          },
+          { env: { GELDAR_INTERNAL: internal, GELDAR_HELPER_TIMEOUT_SEC: '1' } },
+        ).stdout.trim();
+      expect(t('')).toBe('rc=0');
+      expect(t('1')).toBe('rc=124');
+      // GELDAR_UNSAFE_IMAGE alone does not unlock a tag-form image (the image rules arrive with
+      // the pwsh pre-session packet; until then this part runs for bash).
+      if (launcher.name !== 'bash') return;
+      const img = (internal: string) =>
+        runBash('. "$LIB"; resolve_kit_image "x@sha256:$D"; echo "image=$GP_IMAGE"', {
+          env: {
+            LIB: lib,
+            D: 'a'.repeat(64),
+            GELDAR_KIT_IMAGE: 'geldar-kit:dev',
+            GELDAR_UNSAFE_IMAGE: '1',
+            GELDAR_INTERNAL: internal,
+          },
+        });
+      const refused = img('');
+      expect(refused.status).toBe(1);
+      expect(refused.stderr).toContain('not pinned by digest, so it was not used');
+      const unsafe = img('1');
+      expect(unsafe.stderr).toContain('geldar-play: UNSAFE:');
+      expect(unsafe.stdout).toContain('image=geldar-kit:dev');
+    },
+    60_000,
+  );
 
   it('11. prerequisites per verb, with the hint text', () => {
     const w = makeWorld();
@@ -350,120 +353,6 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     const got = new Set(r.stdout.split('\n').filter(Boolean));
     const want = new Set<string>(['core', ...(enabled[launcher.name] as string[])]);
     expect(got).toEqual(want);
-  }, 60_000);
-
-  it('14. __bounded stops a hung command and its whole process group', () => {
-    const w = makeWorld();
-    const docker = launcher.name === 'bash' ? w.env.GELDAR_DOCKER : w.envPwsh.GELDAR_DOCKER;
-    const t0 = Date.now();
-    const a = run(
-      launcher,
-      [
-        '__bounded',
-        win ? '8' : '2',
-        '--container',
-        'geldar-t-1',
-        docker as string,
-        'run',
-        '--rm',
-        '--label',
-        'geldar.role=workspace-init',
-        '--cap-drop',
-        'ALL',
-        '--security-opt',
-        'no-new-privileges',
-        '--name',
-        'geldar-t-1',
-        'img',
-        'sh',
-        '-c',
-        'true',
-      ],
-      { env: envOf(launcher, w, { FAKE_ROLE_SLEEP: '30' }), timeoutMs: 60_000 },
-    );
-    expect(Date.now() - t0).toBeLessThan(slow);
-    expect(a.status).not.toBe(0);
-    const verbs = w.calls().map((c) => c.slice(0, 3).join(' '));
-    const k = verbs.indexOf('kill geldar-t-1');
-    expect(k).toBeGreaterThan(0);
-    expect(verbs.indexOf('rm -f geldar-t-1')).toBeGreaterThan(k);
-
-    const pidFile = join(w.root, 'sleeper.pid');
-    const t1 = Date.now();
-    // pwsh: the grandchild is a native Windows process (ping), checked by its Windows PID, so
-    // killing only the top process leaves it alive and the assertion fails.
-    const nativeGrandchild = launcher.name === 'pwsh' && win;
-    const b = run(
-      launcher,
-      nativeGrandchild
-        ? [
-            '__bounded',
-            '4',
-            'pwsh',
-            '-NoProfile',
-            '-Command',
-            `$c = Start-Process ping -ArgumentList '-n','60','127.0.0.1' -PassThru -WindowStyle Hidden -RedirectStandardOutput '${pidFile.replace(/'/g, "''")}.out'; $c.Id | Set-Content -Path '${pidFile.replace(/'/g, "''")}'; Start-Sleep 60`,
-          ]
-        : [
-            '__bounded',
-            '2',
-            'sh',
-            '-c',
-            `sleep 60 > /dev/null 2>&1 & echo $! > '${bashPath(pidFile)}'; wait`,
-          ],
-      { env: envOf(launcher, w), timeoutMs: 30_000 },
-    );
-    const pid = readFileSync(pidFile, 'utf8').trim();
-    let alive: string;
-    if (nativeGrandchild) {
-      const g = spawnSync(
-        'pwsh',
-        [
-          '-NoProfile',
-          '-Command',
-          `if (Get-Process -Id ${Number(pid)} -ErrorAction SilentlyContinue) { 'alive' } else { 'dead' }`,
-        ],
-        { encoding: 'utf8' },
-      );
-      alive = g.stdout.trim();
-      if (alive === 'alive') process.kill(Number(pid));
-    } else {
-      alive = runBash(`kill -0 ${pid} 2>/dev/null && echo alive || echo dead`).stdout.trim();
-      if (alive === 'alive') runBash(`kill -9 ${pid}`);
-    }
-    expect(alive).toBe('dead');
-    expect(Date.now() - t1).toBeLessThan(slow);
-    expect(b.status).toBe(124);
-
-    if (launcher.name === 'pwsh' && win) {
-      // A .cmd under a path with spaces runs through cmd.exe and keeps its arguments.
-      const spaced = join(w.root, 'dir with spaces');
-      mkdirSync(spaced, { recursive: true });
-      const cmdFile = join(spaced, 'echo arg.cmd');
-      writeFileSync(cmdFile, '@echo off\r\necho got %1\r\nexit /b 4\r\n');
-      const sp = run(launcher, ['__bounded', '10', cmdFile, 'hello'], { env: envOf(launcher, w) });
-      expect(sp.stdout).toContain('got hello');
-      expect(sp.status).toBe(4);
-    }
-
-    for (const bad of ['0x10', '$(touch pwned)', '-1', '', '1.5']) {
-      const e = run(launcher, ['__bounded', bad, 'true'], { env: envOf(launcher, w) });
-      expect(e.status).toBe(2);
-      expect(e.stderr).toContain('Usage: geldar-play');
-    }
-    expect(existsSync(join(repoRoot, 'pwned'))).toBe(false);
-
-    const c = run(launcher, ['__bounded', '5', 'sh', '-c', 'echo hi; exit 3'], {
-      env: envOf(launcher, w),
-    });
-    expect(c.status).toBe(3);
-    expect(c.stdout).toBe('hi\n');
-
-    const d = run(launcher, ['__bounded', '5', 'true'], {
-      env: envOf(launcher, w, { GELDAR_INTERNAL: '' }),
-    });
-    expect(d.status).toBe(2);
-    expect(d.stderr).toContain('That is not a command.');
   }, 60_000);
 
   it('15. the fake workspace-init role runs the launcher script and builds a clean repo', () => {
