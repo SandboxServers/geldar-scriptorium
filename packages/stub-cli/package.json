@@ -1,0 +1,24 @@
+{
+  "name": "@geldar/scriptorium-stub-cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The scripted stand-in for the claude CLI: runs a scenario of tool calls and file edits for deterministic CI",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cli": "./src/cli.ts"
+  },
+  "bin": {
+    "claude": "./src/cli.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "devDependencies": {
+    "@geldar/scriptorium-memory": "workspace:*"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "4.6.7"
+  }
+}
