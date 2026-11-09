@@ -30,8 +30,5 @@ export const allowedFiles: readonly string[] = [
 // Listed above but shipped by later packets: allowed, not yet required.
 // Each packet removes the files it ships from this list.
 export const pendingFiles: readonly string[] = [
-  'template/.claude/hooks/session-start.sh',
-  'template/.claude/hooks/post-tool-use.sh',
-  'template/.claude/hooks/session-end.sh',
   'template/.claude/skills/setup/SKILL.md',
 ];
