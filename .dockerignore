@@ -1,0 +1,13 @@
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!.nvmrc
+!packages/path-rule
+!packages/memory
+!packages/git
+!packages/verify
+!image/settings
+**/node_modules
+**/*.test.ts
+**/test-client.ts
