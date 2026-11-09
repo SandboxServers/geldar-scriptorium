@@ -50,7 +50,7 @@ Spec-level decisions are records in the **geldar** repo (`docs/decisions/`). Thi
 
 ## Packets
 
-Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. Repo: **S** = this repo, **G** = geldar. Each packet is sized for one Haiku `packet-coder` session under 75k tokens. Waves 3–7 are scope cards until the wave before them closes, then they're written out in full.
+Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. Repo: **S** = this repo, **G** = geldar. Each packet is sized for one Haiku `packet-coder` session under 75k tokens. Wave 3 and wave 4 are written out in full ([work-packets-wave3.md](work-packets-wave3.md), [work-packets-wave4.md](work-packets-wave4.md)); waves 5–7 are scope cards until the wave before them closes.
 
 | Packet | Wave | Repo | Title | Implementer | Status | Depends on |
 |---|---|---|---|---|---|---|
@@ -74,10 +74,16 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-23b | 2 | S | `geldar-verify`: history, path, mode and identity checks, CLI, hostile bundles | packet-coder | Done (merged into wave2) | SC-23a |
 | SC-24a | 2 | S | `stub-cli`: scripted stand-in for the vendor CLI (scenario runner; large, budget a retry) | packet-coder | Done (merged into wave2) | SC-21 |
 | SC-24b | 2 | S | `stub-cli`: birth and reflect scenarios | packet-coder | Done (merged into wave2) | SC-24a, SC-22b |
-| SC-30 | 3 | G | Contract: MCP tool and result schemas (5.15.3, Appendix K as fixed by 0009) | packet-coder | BlockedDependency | geldar P0-01 |
-| SC-31 | 3 | G | `threshold/mcp-mock`: Streamable HTTP per player, bearer auth, tools, resources, prompts | packet-coder | BlockedDependency | SC-30 |
-| SC-32 | 3 | G | Mock world: day clock, events, `wait` cursor, `act` validation, `sleep` digest, books | packet-coder | BlockedDependency | SC-31 |
-| SC-33 | 3 | G | Mock world image, published to GHCR from `main` | packet-coder | BlockedDecision | SC-32, D-SC-06 |
+| SC-30a | 3 | G | Contract: generator support, shared MCP types, schemas for look, wait, act, say; bundled tool definitions | packet-coder (Sonnet) | Ready | geldar main |
+| SC-30b | 3 | G | Contract: schemas for the other ten tools | packet-coder | BlockedDependency | SC-30a |
+| SC-31a | 3 | G | `threshold/mcp-mock` package: bearer auth, HTTP sessions, supersede | packet-coder (Sonnet) | Ready | — |
+| SC-31b | 3 | G | `mcp-mock`: contract-validated tool registry, ids, snapshot builder, fake world | packet-coder | BlockedDependency | SC-30b, SC-31a |
+| SC-31c | 3 | G | `mcp-mock`: resources, prompts, app, command line | packet-coder | BlockedDependency | SC-31b |
+| SC-32a | 3 | G | Mock world: clock, scenario file, pure wake policy | packet-coder | BlockedDependency | SC-31a |
+| SC-32b | 3 | G | Mock world: event log, scripted intent executor, eat reflex, player sim | packet-coder | BlockedDependency | SC-32a |
+| SC-32c | 3 | G | Mock world: hub, `wait` long-poll with wake policy, look, status, sleep, journal | packet-coder (Sonnet) | BlockedDependency | SC-32b, SC-31b |
+| SC-32d | 3 | G | Mock world: act and say with budget, books and skills, sim world, CLI scenario flags, real-time end-to-end | packet-coder (Sonnet) | BlockedDependency | SC-32c, SC-31c |
+| SC-33 | 3 | G | Mock world image, published to GHCR from `main` (public, D-SC-06) | packet-coder (Sonnet) | BlockedDependency | SC-32d |
 | SC-40a | 4 | S | Managed and play settings (CLI-home denies), Docker test support | packet-coder | Done | wave 2 |
 | SC-40b | 4 | S | Kit image Dockerfile: pinned CLI, companions, marker, non-root; build test; CI Docker step | packet-coder | Done | SC-40a |
 | SC-41a | 4 | S | Squid proxy config and allowlist, with config tests | packet-coder | Done | SC-40a |
