@@ -23,6 +23,7 @@ const findRun = (job: string, pat: string, text = TEXT): number =>
 const check = (text: string) => checkWorkflow({ path: '.github/workflows/release.yml', text });
 
 const SHAS: Record<string, string> = {
+  'actions/setup-node': '949feb2413d6458794dcd2491c4babbbce0c15c1',
   'actions/checkout': '3d3c42e5aac5ba805825da76410c181273ba90b1',
   'docker/setup-buildx-action': 'f87e5991a6d7451dcb8d9637bfbc97413f497069',
   'docker/login-action': '81c6f93d4bc991e510b342a00b419b3bb4efc5c6',
@@ -66,7 +67,7 @@ describe('release.yml (SC-63d)', () => {
 
   it('pins every action to the card SHA', () => {
     const uses = Object.values(jobs()).flatMap((j: Obj) =>
-      (j.steps as Obj[]).map((s) => s.uses).filter(Boolean),
+      ((j.steps ?? []) as Obj[]).map((s) => s.uses).filter(Boolean),
     ) as string[];
     expect(uses.length).toBeGreaterThan(0);
     for (const u of uses) {
