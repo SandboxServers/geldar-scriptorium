@@ -123,7 +123,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-60j | 6 | S | `geldar-git`: hash each file from an O_NOFOLLOW descriptor; symlink-swap test (wave 2 gap) | Sonnet (general-purpose) | Planned | wave 2 |
 | SC-60k | 6 | S | Start-tree case-collision check in the host re-check, bash | Sonnet (general-purpose) | BlockedDependency | SC-60a, SC-60b2 |
 | SC-60l | 6 | S | Start-tree case-collision check in the host re-check, PowerShell | Sonnet (general-purpose) | BlockedDependency | SC-60a, SC-60b2 |
-| SC-60m | 6 | S | N3: refuse local and private names (and empty labels) in `mcp_url`, bash | packet-coder (Haiku) | BlockedDependency | SC-60b1 |
+| SC-60m | 6 | S | N3: refuse local and private names (and empty labels) in `mcp_url`, bash | packet-coder (Haiku) | Done | SC-60b1 |
 | SC-60n | 6 | S | N3: same, PowerShell | packet-coder (Haiku) | BlockedDependency | SC-60b1 |
 | SC-60o | 6 | S | N4: state and session directories 0700, only the allowlist world-readable (export stays readable), bash | Sonnet (general-purpose) | BlockedDependency | SC-60a, SC-60t |
 | SC-60p | 6 | S | N4 (non-Windows) and N6 (`.cmd` shim quoting), PowerShell | Sonnet (general-purpose) | BlockedDependency | SC-60a, SC-60t |
