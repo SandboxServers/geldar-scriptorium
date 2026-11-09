@@ -6,4 +6,4 @@ Run: `claude --scenario <file.jsonl>` or set `GELDAR_STUB_SCENARIO`; other argum
 
 Public surface (`src/index.ts`): `runScenario`, `parseScenario`, `Step`, the MCP config helpers. `GELDAR_MODE` set in the run options reaches the servers.
 
-Run its tests from the repo root with `pnpm vitest run packages/stub-cli` (or `./scriptorium.ps1 check` for everything).
+Run its tests from the repo root with `./scriptorium.ps1 pnpm vitest run packages/stub-cli` (or `./scriptorium.ps1 check` for everything).

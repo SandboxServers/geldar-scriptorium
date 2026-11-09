@@ -10,4 +10,4 @@ The mode comes from `--mode` or the `GELDAR_MODE` environment variable. In play 
 
 Public surface (`src/index.ts`): `commitMemory`, `parseMode`, `CommitRefusal`, `sanitizeMessage`, `runGit`, `createServer`. It uses `path-rule` for allowed paths and the author identity.
 
-Run its tests from the repo root with `pnpm vitest run packages/git` (or `./scriptorium.ps1 check` for everything).
+Run its tests from the repo root with `./scriptorium.ps1 pnpm vitest run packages/git` (or `./scriptorium.ps1 check` for everything).

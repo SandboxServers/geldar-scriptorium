@@ -6,4 +6,4 @@ Run: `geldar-memory --root <dir>` (stdio). One tool, `recall`. A result is cut a
 
 Public surface (`src/index.ts`): `recall`, `MAX_BYTES`, `RecallResult`, `SECTION_FORMS`, `resolveSection`, `createServer`. It uses `path-rule` for the path rule.
 
-Run its tests from the repo root with `pnpm vitest run packages/memory` (or `./scriptorium.ps1 check` for everything).
+Run its tests from the repo root with `./scriptorium.ps1 pnpm vitest run packages/memory` (or `./scriptorium.ps1 check` for everything).

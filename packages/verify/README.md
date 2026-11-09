@@ -10,4 +10,4 @@ Stable reason ids (`REASONS`): `bad_arguments`, `verify_error`, `bundle_too_larg
 
 Public surface (`src/index.ts`): `verify`, `parseVerifyArgs`, `VerifyInput`, `REASONS`, `Reason`, `Verdict`, `verdict`, `MAX_BUNDLE_BYTES`, `MAX_COMMITS`.
 
-Run its tests from the repo root with `pnpm vitest run packages/verify` (or `./scriptorium.ps1 check` for everything).
+Run its tests from the repo root with `./scriptorium.ps1 pnpm vitest run packages/verify` (or `./scriptorium.ps1 check` for everything).

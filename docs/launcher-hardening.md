@@ -33,7 +33,7 @@ Each requirement is one line. Tests are written in SC-60.
   Implemented in: verify/src/verify.ts, verify/src/history.ts, verify/src/reasons.ts, verify/src/args.ts, with the rule from path-rule/src/path-rule.ts and path-rule/src/identity.ts. Guarded by the tests beside them (verify.test.ts, history.test.ts, reasons.test.ts, cli.test.ts).
 - H-12: The host fetches with `git -c fetch.fsckObjects=true -c transfer.fsckObjects=true fetch --no-tags <bundle> refs/heads/<branch>:refs/launcher/incoming`. Test: T-12
 - H-13: The host independently re-checks the ancestry and the net `--no-renames` path list. Test: T-13
-  Implemented in: verify/src/history.ts (the same per-commit and net checks, usable for the host re-check). The host-side call is launcher work.
+  Implemented in: verify/src/history.ts (the same per-commit and net checks; not exported from the package yet, so the host re-check cannot import it). The host-side call is launcher work.
 - H-14: The host branch is updated only with `merge --ff-only`. Push is `git push origin HEAD:refs/heads/<branch>`, never `--force`. Test: T-14
 - H-15: The workspace and bundle are deleted only after a successful push. On failure, keep both, leave the host branch as it is, and report. Test: T-15
 - H-16: Control characters are stripped from any bundle-derived text before printing. Test: T-16
@@ -44,5 +44,4 @@ Each requirement is one line. Tests are written in SC-60.
 - H-18: Hooks exit at once without the kit marker. Test: T-18
 - H-19: The image is pinned by digest from `player.json`. The launcher never reads container settings from the repo. Test: T-19
 - H-20: Reads of the CLI home and credentials are denied (managed settings) and tested. Test: T-20
-  Implemented in (commit side): git/src/commit.ts and git/src/run-git.ts (plumbing commit, `hash-object --no-filters`, path check, replace objects and attributes ignored). Guarded by git/src/commit.test.ts and run-git.test.ts.
   - Known gap: a background process of the agent can swap an allowed path for a symlink to a readable file between the commit tool's path check and its hashing step; T-20 either tests the mitigation or records the residual risk.
