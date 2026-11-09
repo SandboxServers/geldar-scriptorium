@@ -23,6 +23,11 @@ Each packet is self-contained: the coder skips CLAUDE.md, so these rules travel 
 10. **Commit.** Commit once with the message in your brief. Never `git stash`, `git push`, `gh pr` or `git worktree prune`.
 11. **Report.** Write it to the path in your brief, then return one line: `<packet> <done|blocked|failed> <commit-sha|-> <report-path>`.
 
+12. **Report first, commit early.** Write a stub report before anything else and update it as you go. Commit the moment the packet's checks pass, before extra polish or revert checks. A coder that dies before committing loses the session (seen in SC-22a, SC-23a, SC-23b, SC-24a). If you pass about 60k tokens, stop, commit nothing half-done, and record exactly what is left.
+13. **Shared files have one owner.** Lists many packets append to (`tests/template/allowed-files.ts`, `pnpm-lock.yaml`, root `package.json`) conflict on merge. The orchestrator resolves them: take the wave branch's version, re-apply the packet's one-line change, and regenerate the lockfile with `./scriptorium.ps1 pnpm install --no-frozen-lockfile`. Never merge or push a wave branch on a failing `./scriptorium.ps1 check`.
+14. **Platform.** The author machine is Windows without `jq` and without a Linux shell. Tests that need Linux or `jq` skip locally and must run in CI. For a packet with such tests, open a draft PR from the wave branch early to get the Linux run, and read the CI log to confirm they ran.
+15. **Wave close.** Every wave ends with a docs pass, a retro and process changes (campaign-packet skill § 6), shipped in the wave PR.
+
 **Branches.** Wave integration branch `scriptorium/wave<N>` from `main`. Packet branch `scriptorium/sc-NN-<slug>`, worktree `.claude/worktrees/sc-NN`, branched from the wave branch. Reports go to `.claude/reports/scriptorium/<packet>-<role>.md`. Repo **G** packets use the geldar repo's own rules (its `work-packets.md` dispatch rules, `./geldar.ps1`) and branch `scriptorium/sc-NN-<slug>` from geldar `main`.
 
 ## Contract (what packets build against)
@@ -1033,6 +1038,7 @@ import { z } from 'zod';
   - reading the CLI home is denied (the whole `CLAUDE_CONFIG_DIR`, not only `.credentials.json`; see SC-40);
   - `Write` is governed like `Edit`;
   - the managed settings path is correct for the pinned CLI.
+  - `GELDAR_MODE` (D-SC-14) reaches the MCP servers the pinned CLI starts: with `GELDAR_MODE=setup` in the container environment, `commit_memory` of `memory/identity.md` succeeds, and in play mode (unset or `play`) it is refused. Report a mismatch as a new record.
   Any mismatch with § Claude Code syntax goes to the orchestrator as a new record.
 
 ## Wave 5 — the launcher (scope cards)
@@ -1054,7 +1060,7 @@ Both launchers implement docs/launcher-hardening.md item by item, citing the H-n
 
 ## Wave 6 — safety and release (scope cards)
 
-- **SC-60 hostile tests:** one test `T-NN` per H-item, each with a scripted stub-CLI session that attacks it. Every test asserts the host repo, `origin` and the host filesystem outside launcher state are unchanged.
+- **SC-60 hostile tests:** one test `T-NN` per H-item, each with a scripted stub-CLI session that attacks it. Known gap to cover: `geldar-git` classifies a path and then hashes it, and a background process of the agent can swap an allowed path for a symlink in between (SC-22a scope notes; wave 2 review 1). Either test the mitigation (open each file with `O_NOFOLLOW` and hash per file from stdin) or record the residual risk against H-20. Every test asserts the host repo, `origin` and the host filesystem outside launcher state are unchanged.
 - **SC-61 (S+G) malicious-book corpus,** as mock world scenarios. Books and speech that try to:
   - run commands, fetch URLs, or edit config;
   - exfiltrate through `say`;

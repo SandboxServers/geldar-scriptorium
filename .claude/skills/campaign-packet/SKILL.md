@@ -65,3 +65,13 @@ Then ship with the `ship-pr` skill and update the ledger rows.
 ## 5. State on disk
 
 At every wave boundary rewrite `RESUME.md` and the ledger rows. The transcript is not the record: a compaction or a new session must be able to continue from the campaign folder alone.
+
+## 6. Close the wave: docs, retro, process
+
+Every wave ends with these three steps before its PR leaves draft. They are part of the wave, not extras.
+
+1. **Docs.** List what the wave merged and update every doc that describes it: `docs/architecture.md`, `docs/clients.md`, `docs/release.md`, `docs/threat-model.md`, `docs/launcher-hardening.md` (tests named per item), the decisions index, package READMEs when a package gains a public surface. A wave that changes behavior and no doc says so in the PR. A fresh agent does the pass (a docs packet), a reviewer checks it against the merged code.
+2. **Retro.** Write `docs/analysis/scriptorium/worknotes/retro-wave-N.md` (one page): what went well, what cost time or tokens (coders that ran out of context, review loops that took three passes, merge conflicts), what the reviews caught that the packets missed, what we would slice differently. Use the transcript's facts, not memory: count passes per packet from the ledger and the reports.
+3. **Process and scaffolding.** Turn the retro into changes and ship them in the same wave PR: edit the dispatch rules in `work-packets.md`, the agent files and skills under `.claude/`, `CLAUDE.md`/`AGENTS.md`, `scriptorium.ps1` helpers, the PR template, CI. Each change names the retro finding it answers. Prefer a guard that makes a mistake impossible (a script, a check, a template) over a rule people must remember. Record what you changed at the end of the retro.
+
+The retro and the process changes are reviewed like any other change (a fresh `packet-reviewer`).

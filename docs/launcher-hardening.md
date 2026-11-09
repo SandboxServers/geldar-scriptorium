@@ -41,3 +41,4 @@ Each requirement is one line. Tests are written in SC-60.
 - H-18: Hooks exit at once without the kit marker. Test: T-18
 - H-19: The image is pinned by digest from `player.json`. The launcher never reads container settings from the repo. Test: T-19
 - H-20: Reads of the CLI home and credentials are denied (managed settings) and tested. Test: T-20
+  - Known gap: a background process of the agent can swap an allowed path for a symlink to a readable file between the commit tool's path check and its hashing step; T-20 either tests the mitigation or records the residual risk.
