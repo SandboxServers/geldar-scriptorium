@@ -1066,6 +1066,11 @@ Both launchers implement docs/launcher-hardening.md item by item, citing the H-n
   - on `kit-v*`: build and push the image, cosign sign, SBOM, then trivy and grype scans that fail on critical findings;
   - sign the launcher assets;
   - publish `template/` to `geldar-player-template` as one commit naming the release triple (D-SC-02), and write the image digest and version into the published `player.json` defaults.
+  - **Publish credential (D-SC-02, Accepted):**
+    - Trigger only on `push: tags: ['kit-v*']`. The Azure trust matches only runs for those tags of this repo, so branch and PR runs can't sign in.
+    - The job has `permissions: id-token: write` and signs in with `azure/login` using the repo variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` (no client secret).
+    - It reads the secrets `geldar-bot-app-id` and `geldar-bot-private-key` from the Key Vault named by the repo variable `KEY_VAULT_NAME` (`kv-geldar-infra`), mints an installation token with `actions/create-github-app-token` (pinned by SHA), and pushes to `geldar-player-template` with it.
+    - The App `geldar-bot` (org SandboxServers) is installed on `geldar-player-template` only, with contents write and metadata read. Details: geldar-infra `docs/release-identity.md`.
 - **SC-64 `upgrade`:** in the host repo, a branch that replaces the kit files with the new release's template and bumps `kit_version` and `kit_image`, opened as a PR with `gh`. Memory is never touched.
 
 ## Wave 7 — onboarding and acceptance (scope cards)

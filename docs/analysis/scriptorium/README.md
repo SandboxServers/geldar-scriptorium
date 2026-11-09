@@ -34,11 +34,11 @@ Spec-level decisions are records in the **geldar** repo (`docs/decisions/`). Thi
 | ID | Decision | Status | Needed by | Record |
 |---|---|---|---|---|
 | D-SC-01 | Model access for the live malicious-book CI: an Anthropic API key as a repo secret with a monthly spend cap. A subscription login can't be used for automation (spec 5.15.1). | **Open (owner)** | SC-62 | — |
-| D-SC-02 | Credential the release job uses to publish `template/` to `geldar-player-template`: a GitHub App (`geldar-bot`, also wanted by open decision 2f) or a fine-grained token scoped to that one repo | **Open (owner)** | SC-63 | — |
+| D-SC-02 | Credential the release job uses to publish `template/` to `geldar-player-template`: the GitHub App `geldar-bot`, installed on that repo only (contents write, metadata read); its key and app ID are Key Vault secrets read through Azure OIDC | Accepted (owner, 2026-11-08) | SC-63 | geldar-infra `docs/release-identity.md` |
 | D-SC-03 | Container runtime for v1: Docker Desktop (Windows, macOS) and Docker Engine (Linux). Podman later. | Proposed (orchestrator) | SC-40 | — |
 | D-SC-04 | Egress proxy: Squid, pinned by digest, with a hostname allowlist and `http_access deny all`. The session container sits on an internal network with no DNS; Squid resolves names. | Proposed (orchestrator) | SC-41 | — |
 | D-SC-05 | License for this repo and the template | **Open (owner)** | SC-02 | — |
-| D-SC-06 | GHCR visibility for the kit image and the mock world image while this repo is private | **Open (owner)** | SC-33, SC-63 | — |
+| D-SC-06 | GHCR visibility for the kit image and the mock world image (this repo is now public, so public images are the straightforward answer) | **Open (owner to confirm)** | SC-33, SC-63 | — |
 | D-SC-07 | Exact current Claude Code syntax for settings, permissions, hooks and skills; the CLI version itself is pinned in SC-40 (at least 2.1.257) | Accepted | SC-12 | geldar [0016](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0016-claude-code-settings-errata.md), work-packets.md § Claude Code syntax |
 | D-SC-08 | Codex CLI: current terms and MCP support (the Codex half of spec open decision 2g) | **Open (owner)** | SC-71 | geldar 0010 |
 | D-SC-09 | Prerequisites on the human's machine: Docker (D-SC-03), git, GitHub CLI `gh` (for `new` and `upgrade`), PowerShell 7 on Windows | Proposed (orchestrator) | SC-50 | — |
