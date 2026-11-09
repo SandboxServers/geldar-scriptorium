@@ -5,10 +5,16 @@
   "description": "geldar-git: saves the player's memory files as commits",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./cli": "./src/cli.ts"
+  },
+  "bin": {
+    "geldar-git": "./src/cli.ts"
   },
   "dependencies": {
-    "@geldar/scriptorium-path-rule": "workspace:*"
+    "@geldar/scriptorium-path-rule": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "4.6.7"
   },
   "scripts": {
     "typecheck": "tsc -p . --noEmit"
