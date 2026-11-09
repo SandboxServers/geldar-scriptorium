@@ -77,7 +77,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-30a | 3 | G | Contract: generator support, shared MCP types, schemas for look, wait, act, say; bundled tool definitions | packet-coder (Sonnet) | Ready | geldar main |
 | SC-30b | 3 | G | Contract: schemas for the other ten tools | packet-coder | BlockedDependency | SC-30a |
 | SC-31a | 3 | G | `threshold/mcp-mock` package: bearer auth, HTTP sessions, supersede | packet-coder (Sonnet) | Ready | — |
-| SC-31b | 3 | G | `mcp-mock`: contract-validated tool registry, ids, snapshot builder, fake world | packet-coder | BlockedDependency | SC-30b, SC-31a |
+| SC-31b | 3 | G | `mcp-mock`: contract-validated tool registry, ids, snapshot builder, fake world | packet-coder (Sonnet) | BlockedDependency | SC-30b, SC-31a |
 | SC-31c | 3 | G | `mcp-mock`: resources, prompts, app, command line | packet-coder | BlockedDependency | SC-31b |
 | SC-32a | 3 | G | Mock world: clock, scenario file, pure wake policy | packet-coder (Sonnet) | BlockedDependency | SC-31a |
 | SC-32b | 3 | G | Mock world: event log, scripted intent executor, eat reflex, player sim | packet-coder (Sonnet) | BlockedDependency | SC-32a, SC-31b |
