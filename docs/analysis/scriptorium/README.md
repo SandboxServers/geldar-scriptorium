@@ -137,7 +137,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-61d | 6 | G | Mock world test: hostile book text stays untrusted; corpus README (no Dockerfile change needed); new image digest to this repo | Sonnet (general-purpose) | BlockedDependency | SC-61b, SC-61c |
 | SC-61e | 6 | S | Corpus manifest, coverage test and gullible-session runner; gate | Sonnet (general-purpose) | Done | SC-60a |
 | SC-61f | 6 | S | Gullible sessions MB-01 to MB-05 through the real launcher and gate | Sonnet (general-purpose) | Done | SC-61e |
-| SC-61g | 6 | S | Gullible session MB-06 and the enforcing-test markers (`tests/image/*`, `e2e.test.ts`) | Sonnet (general-purpose) | BlockedDependency | SC-61e |
+| SC-61g | 6 | S | Gullible session MB-06 and the enforcing-test markers (`tests/image/*`, `e2e.test.ts`) | Sonnet (general-purpose) | Done | SC-61e |
 | SC-61h | 6 | S | Stub session (generated per-entry scenario with `expect.includes` on the canary) against each corpus scenario in the mock image (real Docker); pins the corpus image digest | Sonnet (general-purpose) | BlockedDependency | SC-61d, SC-61e |
 | SC-62 | 6 | S | Live malicious-book check, local only (D-SC-01): umbrella for SC-62a to SC-62c (cards: [work-packets-wave6b.md](work-packets-wave6b.md)) | - | BlockedDependency (done when SC-62c is) | SC-62a to SC-62c |
 | SC-62a | 6 | S | Live check: the pure evidence evaluator (five checks, deny-rule converter); gate | packet-coder (Haiku) | Done | wave 5 |
