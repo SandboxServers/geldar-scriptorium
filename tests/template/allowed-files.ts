@@ -29,6 +29,4 @@ export const allowedFiles: readonly string[] = [
 
 // Listed above but shipped by later packets: allowed, not yet required.
 // Each packet removes the files it ships from this list.
-export const pendingFiles: readonly string[] = [
-  'template/.claude/skills/setup/SKILL.md',
-];
+export const pendingFiles: readonly string[] = ['template/.claude/skills/setup/SKILL.md'];
