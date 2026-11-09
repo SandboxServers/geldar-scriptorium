@@ -84,7 +84,9 @@ jobs:
       - name: test (vitest, one group of files)
         env:
           GROUP: ${{ matrix.group }}
-        run: pnpm vitest run $(node tools/repo-checks/src/ci-groups-cli.ts files "$GROUP")
+        run: |
+          mapfile -t files < <(node tools/repo-checks/src/ci-groups-cli.ts files "$GROUP")
+          pnpm vitest run "${files[@]}"
 
   e2e:
     name: e2e
@@ -109,7 +111,9 @@ jobs:
       - name: test (vitest, end to end)
         env:
           GELDAR_E2E: '1'
-        run: pnpm vitest run $(node tools/repo-checks/src/ci-groups-cli.ts files e2e)
+        run: |
+          mapfile -t files < <(node tools/repo-checks/src/ci-groups-cli.ts files e2e)
+          pnpm vitest run "${files[@]}"
 
   gate:
     name: ci gate

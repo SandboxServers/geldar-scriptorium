@@ -171,7 +171,7 @@ jobs:
             exit 1
           }
           token=$(curl -fsS "https://ghcr.io/token?scope=repository:sandboxservers/geldar-kit:pull" | jq -r .token) || fail
-          [ -n "$token" ] && [ "$token" != "null" ] || fail
+          if [ -z "$token" ] || [ "$token" = "null" ]; then fail; fi
           curl -fsS -o /dev/null \
             -H "Authorization: Bearer $token" \
             -H "Accept: application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json" \
