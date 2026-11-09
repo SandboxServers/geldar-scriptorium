@@ -230,6 +230,12 @@ importers:
         specifier: workspace:*
         version: link:../path-rule
 
+  tools/live-check:
+    dependencies:
+      '@geldar/scriptorium-path-rule':
+        specifier: workspace:*
+        version: link:../../packages/path-rule
+
   tools/repo-checks:
     dependencies:
       yaml:
