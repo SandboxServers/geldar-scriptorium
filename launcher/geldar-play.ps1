@@ -23,6 +23,7 @@ function Get-VerbNeeds([string]$Verb) {
     { $_ -in 'setup', 'play', '__prepare', '__session', '__finish' } { return @('docker', 'git', 'tar', 'perl') }
     'resolve' { return @('docker', 'git', 'perl') }
     'status' { return @('git') }
+    'upgrade' { return @('git', 'gh') }
   }
   return @()
 }
@@ -65,7 +66,7 @@ switch -CaseSensitive ($verb) {
   { $_ -in '__prepare', '__session', '__finish', '__bounded' } {
     if ((Get-GatedEnv 'GELDAR_INTERNAL') -ne '1') { Die 2 internal_only }
   }
-  { $_ -in 'new', 'setup', 'play', 'resolve', 'archive', 'status' } { }
+  { $_ -in 'new', 'setup', 'play', 'resolve', 'archive', 'status', 'upgrade' } { }
   default { Die 2 usage }
 }
 
