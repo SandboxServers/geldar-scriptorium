@@ -115,7 +115,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-60t | 6 | S | `session.test.ts` made independent of where the allowlist lives; gate for SC-60o and SC-60p | packet-coder (Haiku) | Done | wave 5 |
 | SC-60c | 6 | S | Hostile tests H-01 to H-05 | Sonnet (general-purpose) | BlockedDependency | SC-60a |
 | SC-60d | 6 | S | Hostile tests H-06, H-07, H-08, H-19 | Sonnet (general-purpose) | BlockedDependency | SC-60a |
-| SC-60e | 6 | S | Hostile tests H-09, H-10 | Sonnet (general-purpose) | BlockedDependency | SC-60a |
+| SC-60e | 6 | S | Hostile tests H-09, H-10 | Sonnet (general-purpose) | Done | SC-60a |
 | SC-60f | 6 | S | Hostile tests H-11 matrix, H-16 | Sonnet (general-purpose) | Done | SC-60a |
 | SC-60g | 6 | S | Hostile tests H-12, H-13 | Sonnet (general-purpose) | BlockedDependency | SC-60a |
 | SC-60h | 6 | S | Hostile tests H-14, H-15, H-17 | Sonnet (general-purpose) | BlockedDependency | SC-60a |
