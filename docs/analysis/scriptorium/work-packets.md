@@ -2,7 +2,7 @@
 
 Ledger and status: [README.md](README.md). Resume card: [RESUME.md](RESUME.md).
 
-Unsuffixed SC-40, SC-41 and SC-42 in older text mean the a/b packets in [work-packets-wave4.md](work-packets-wave4.md). Waves 0 to 2 are written out in full. Wave 3 is in [work-packets-wave3.md](work-packets-wave3.md) and wave 4 in [work-packets-wave4.md](work-packets-wave4.md). Waves 5–7 are **scope cards**: files, test and acceptance. Each card is written out in full when the wave before it closes, against what actually merged.
+Unsuffixed SC-40, SC-41 and SC-42 in older text mean the a/b packets in [work-packets-wave4.md](work-packets-wave4.md). Waves 0 to 2 are written out in full. Wave 3 is in [work-packets-wave3.md](work-packets-wave3.md), wave 4 in [work-packets-wave4.md](work-packets-wave4.md) and wave 5 in [work-packets-wave5.md](work-packets-wave5.md). Waves 6 and 7 are **scope cards**: files, test and acceptance. Each card is written out in full when the wave before it closes, against what actually merged.
 
 ## Dispatch rules (every packet)
 
@@ -1012,23 +1012,9 @@ Written out in full in [work-packets-wave3.md](work-packets-wave3.md) (this file
 
 Written out in full in [work-packets-wave4.md](work-packets-wave4.md) (this file is past its size cap): SC-40a, SC-40b, SC-41a, SC-41b, SC-42a, SC-42b.
 
-## Wave 5 — the launcher (scope cards)
+## Wave 5 — the launcher
 
-Both launchers implement docs/launcher-hardening.md item by item, citing the H-number in a comment where each item is enforced. State lives in `${XDG_STATE_HOME:-~/.local/state}/geldar` (bash) and `%LOCALAPPDATA%\geldar` (PowerShell).
-
-- **SC-50 bash, before the session:** H-01 to H-08, `play <player_id>` up to the container start.
-- **SC-51 bash, after the session:** H-09 to H-17. The bundle and verify containers come from the pinned image (D-SC-11).
-- **SC-52 bash, commands:**
-  - `new <player_id> [--private] [--mock <url>]`: `gh repo create --template SandboxServers/geldar-player-template`, public unless `--private` (geldar 0013, 0015), clone, fill `player.json`, first commit;
-  - `setup`: setup mode; refuses if `memory/identity.md` has content; the gate allows `identity.md` once (geldar 0011, 0015);
-  - **Launcher requirements from wave 2:** start setup mode (`GELDAR_MODE=setup`) only for an unborn player. Setup mode lets `memory/identity.md` change at any time, so write-once rests entirely on this check. The workspace folder is owned by the same uid the session container runs as.
-  - `resolve [--discard]`: retry a held bundle's push after pulling, or discard it (geldar 0011);
-  - `archive`: final push, then `gh repo archive`;
-  - `status`;
-  - `play <player_id>...`: one player, or several in tmux windows. Commands are verbs, so player IDs never collide with them (geldar 0015).
-- **SC-53 and SC-54 PowerShell:** the same behaviour and messages. Multi-player opens Windows Terminal tabs when `wt` exists, otherwise separate windows. Tests run the same scenarios through `pwsh`.
-- **Steering text (launcher and the CLAUDE.md it starts with):** steer the character to set durable intents and to `sleep` or `wait` rather than poll (spec 5.3.1).
-- **SC-55 end-to-end CI:** a local bare repo as `origin`, the mock world from SC-33, and the stub CLI image variant. It runs `new` → `setup` → three `play` days → push, then asserts the commit list, authors and paths on `origin`.
+Written out in full in [work-packets-wave5.md](work-packets-wave5.md) (this file is past its size cap): SC-50a to SC-50d, SC-51a, SC-51b, SC-52a, SC-52b, SC-53a to SC-53e, SC-54a, SC-54b, SC-55a to SC-55c. SC-55c needs the mock world (Wave 3); the rest do not.
 
 ## Wave 6 — safety and release (scope cards)
 
@@ -1065,4 +1051,4 @@ Both launchers implement docs/launcher-hardening.md item by item, citing the H-n
 - **SC-72 acceptance:** the owner runs the exit criteria on Windows and Linux, records turns and `/usage` across three in-game days on Haiku-low, and writes the numbers into the Patron guide.
 - **SC-73 campaign review:** a fresh reviewer checks everything the campaign merged against geldar 0007–0016 and this ledger.
 
-<!-- legacy-ids: SC-23, SC-40, SC-41, SC-42 -->
+<!-- legacy-ids: SC-23, SC-40, SC-41, SC-42, SC-50, SC-51, SC-52 -->
