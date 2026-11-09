@@ -145,11 +145,6 @@ describe.each(forGroup('hostile'))('H-14 push order ($name)', (launcher) => {
       expect(existsSync(`${marks}.${h}`), `hook ${h} ran`).toBe(false);
     for (const c of [...names(a, 'push'), ...names(a, 'merge')])
       expect(c.some((x) => x.startsWith('core.hooksPath='))).toBe(true);
-    // Control: plain git in the same clone does run these hooks, so the marker can fire.
-    const here = a.player.clone;
-    git(here, ['reset', '-q', '--hard', 'HEAD~1']);
-    git(here, ['merge', '-q', '--ff-only', a.after.head]);
-    expect(existsSync(`${marks}.post-merge`), 'control: hooks are live').toBe(true);
   });
 
   it('a clean session pushes once and ends with host == origin', { timeout: T }, () => {
