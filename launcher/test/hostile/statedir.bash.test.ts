@@ -42,7 +42,7 @@ describe.skipIf(!bash || !posix)('N4 state permissions (bash; skipped on win32)'
     const base = join(a.world.state, 'abc');
     for (const p of walk(base)) {
       const rel = relative(base, p).replaceAll('\\', '/');
-      if (rel === 'pub' || rel === 'pub/allowlist-world.txt' || rel.startsWith('export')) continue;
+      if (rel === 'pub' || rel === 'pub/allowlist-world.txt' || rel.startsWith('session/export')) continue;
       expect(modeOf(p) & 0o077, rel).toBe(0);
     }
     expect(existsSync(join(base, 'token'))).toBe(false);
