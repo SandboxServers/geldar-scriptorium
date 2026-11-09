@@ -105,7 +105,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-53e | 5 | S | Launcher (PowerShell): fetch, push, hold, recovery parity; Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-51b, SC-53d |
 | SC-54a | 5 | S | Launcher (PowerShell): `new` and `setup` parity | packet-coder | BlockedDependency | SC-52a, SC-53e |
 | SC-54b | 5 | S | Launcher (PowerShell): `resolve`, `archive`, `status`, Windows Terminal tabs; Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-52b, SC-54a |
-| SC-55a | 5 | S | Stub CLI over HTTP, stub image variant, in-test world | Sonnet (general-purpose) | Ready | wave 4 |
+| SC-55a | 5 | S | Stub CLI over HTTP, stub image variant, in-test world | Sonnet (general-purpose) | Done | wave 4 |
 | SC-55b | 5 | S | End-to-end CI on the in-test world: `new` → `setup` → three `play` days → push, both launchers; Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-52b, SC-54b, SC-55a |
 | SC-55c | 5 | S | End-to-end CI against the mock world image | packet-coder | BlockedDependency (Wave 3) | SC-55b, SC-33 |
 | SC-60 | 6 | S | Hostile workspace tests, one per hardening item | packet-coder | BlockedDependency | SC-55b |
