@@ -44,7 +44,7 @@ Spec-level decisions are records in the **geldar** repo (`docs/decisions/`). Thi
 | D-SC-09 | Prerequisites on the human's machine: Docker (D-SC-03), git, GitHub CLI `gh` (for `new` and `upgrade`), PowerShell 7 on Windows | Proposed (orchestrator) | SC-50 | — |
 | D-SC-10 | A scripted **stub CLI** (`packages/stub-cli`) stands in for the vendor CLI in deterministic CI. Real models run only in the live malicious-book job. | Accepted (orchestrator) | SC-24a | — |
 | D-SC-11 | The post-session gate is TypeScript (`geldar-verify`) running in a network-less container from the pinned image. The launcher's bash and PowerShell shims stay thin and re-check only the cheap invariants on the host. | Accepted (orchestrator) | SC-23, SC-51 | geldar 0011 |
-| D-SC-12 | Mock world auth: a static bearer token per player. The real OAuth flow and its loopback callback wait for Threshold. | Accepted (owner) | SC-31 | — |
+| D-SC-12 | Mock world auth: a static bearer token per player. The real OAuth flow and its loopback callback wait for Threshold. | Accepted (owner) | SC-31a | — |
 | D-SC-13 | Package names: `@geldar/scriptorium-<name>`; binaries `geldar-memory`, `geldar-git`, `geldar-verify` | Accepted (orchestrator) | SC-20 | — |
 | D-SC-14 | Mode reaches `geldar-git` through a `GELDAR_MODE` environment variable (`play` or `setup`; unset means `play`), set by the launcher; whether the pinned CLI passes it on to MCP servers is checked in SC-42b and a failure is safe (play mode is the stricter one for identity). | Accepted (orchestrator) | SC-22a, SC-22b | work-packets.md § Wave 2 |
 
@@ -79,8 +79,8 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-31a | 3 | G | `threshold/mcp-mock` package: bearer auth, HTTP sessions, supersede | packet-coder (Sonnet) | Ready | — |
 | SC-31b | 3 | G | `mcp-mock`: contract-validated tool registry, ids, snapshot builder, fake world | packet-coder | BlockedDependency | SC-30b, SC-31a |
 | SC-31c | 3 | G | `mcp-mock`: resources, prompts, app, command line | packet-coder | BlockedDependency | SC-31b |
-| SC-32a | 3 | G | Mock world: clock, scenario file, pure wake policy | packet-coder | BlockedDependency | SC-31a |
-| SC-32b | 3 | G | Mock world: event log, scripted intent executor, eat reflex, player sim | packet-coder | BlockedDependency | SC-32a |
+| SC-32a | 3 | G | Mock world: clock, scenario file, pure wake policy | packet-coder (Sonnet) | BlockedDependency | SC-31a |
+| SC-32b | 3 | G | Mock world: event log, scripted intent executor, eat reflex, player sim | packet-coder (Sonnet) | BlockedDependency | SC-32a, SC-31b |
 | SC-32c | 3 | G | Mock world: hub, `wait` long-poll with wake policy, look, status, sleep, journal | packet-coder (Sonnet) | BlockedDependency | SC-32b, SC-31b |
 | SC-32d | 3 | G | Mock world: act and say with budget, books and skills, sim world, CLI scenario flags, real-time end-to-end | packet-coder (Sonnet) | BlockedDependency | SC-32c, SC-31c |
 | SC-33 | 3 | G | Mock world image, published to GHCR from `main` (public, D-SC-06) | packet-coder (Sonnet) | BlockedDependency | SC-32d |
@@ -97,7 +97,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-54 | 5 | S | Launcher (PowerShell): commands parity, Windows Terminal tabs | packet-coder | BlockedDependency | SC-52, SC-53 |
 | SC-55 | 5 | S | End-to-end CI: `new` → `setup` → `play` → push, stub CLI against the mock world | packet-coder | BlockedDependency | SC-52, SC-33 |
 | SC-60 | 6 | S | Hostile workspace tests, one per hardening item | packet-coder | BlockedDependency | SC-55 |
-| SC-61 | 6 | S+G | Malicious-book corpus as mock world scenarios | packet-coder | BlockedDependency | SC-32 |
+| SC-61 | 6 | S+G | Malicious-book corpus as mock world scenarios | packet-coder | BlockedDependency | SC-32d |
 | SC-62 | 6 | S | Live malicious-book check, local only (script plus documented procedure; never in CI) with pinned Claude Code | packet-coder | Planned | SC-61 |
 | SC-63 | 6 | S | Release workflow: image, cosign, SBOM, scan, launcher assets, template publish | packet-coder | BlockedDependency (SC-60; D-SC-02 and D-SC-06 are Accepted) | SC-60 |
 | SC-64 | 6 | S | `geldar-play upgrade`: kit bump as a PR | packet-coder | BlockedDependency | SC-63 |
