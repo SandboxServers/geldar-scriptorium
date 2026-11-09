@@ -24,10 +24,10 @@ Each packet is self-contained: the coder skips CLAUDE.md, so these rules travel 
 11. **Report.** Write it to the path in your brief, then return one line: `<packet> <done|blocked|failed> <commit-sha|-> <report-path>`.
 
 12. **Report first, commit early.** Write a stub report before anything else and update it as you go. Commit the moment the packet's checks pass, before extra polish or revert checks. A coder that dies before committing loses the session (seen in SC-22a, SC-23a, SC-23b, SC-24a). If you pass about 60k tokens, stop, commit nothing half-done, and record exactly what is left.
-13. **Shared files have one owner.** Lists many packets append to (`tests/template/allowed-files.ts`, `pnpm-lock.yaml`, root `package.json`) conflict on merge. The orchestrator resolves them: take the wave branch's version, re-apply the packet's one-line change, and regenerate the lockfile with `./scriptorium.ps1 pnpm install --no-frozen-lockfile`. Never merge or push a wave branch on a failing `./scriptorium.ps1 check`.
+13. **Shared files have one owner.** Lists many packets append to (`tests/template/allowed-files.ts`, `pnpm-lock.yaml`, root `package.json`) conflict on merge. The orchestrator resolves them: take the wave branch's version, re-apply the packet's one-line change, and regenerate the lockfile with `./scriptorium.ps1 pnpm install --no-frozen-lockfile`. `./scriptorium.ps1 merge-packet <branch>` does this merge. Never merge or push a wave branch on a failing `./scriptorium.ps1 check`.
 14. **Platform.** The author machine is Windows without `jq` and without a Linux shell. Tests that need Linux or `jq` skip locally and must run in CI. For a packet with such tests, open a draft PR from the wave branch early to get the Linux run, and read the CI log to confirm they ran.
 15. **Wave close.** Every wave ends with a docs pass, a retro and process changes (campaign-packet skill § 6), shipped in the wave PR.
-16. **Green means green on the wave branch.** A packet is green only when `check` passes on the wave branch after the merge; a check run inside a worktree is not the gate.
+16. **Green means green on the wave branch.** A packet is green only when `check` passes on the wave branch after the merge; a check run inside a worktree is not the gate (it warns). `./scriptorium.ps1 merge-packet <branch>` merges, checks on the wave branch and reverts the merge if red; `push-verified` pushes and confirms `ls-remote` equals HEAD; `ledger set SC-NN <status>` edits one ledger row.
 17. **Docker packets isolate their image.** Packets that touch Docker use an isolated image tag via `KIT_IMAGE=geldar-kit:<packet>`; the kit image is built once per vitest run by the global setup.
 
 **Branches.** Wave integration branch `scriptorium/wave<N>` from `main`. Packet branch `scriptorium/sc-NN-<slug>`, worktree `.claude/worktrees/sc-NN`, branched from the wave branch. Reports go to `.claude/reports/scriptorium/<packet>-<role>.md`. Repo **G** packets use the geldar repo's own rules (its `work-packets.md` dispatch rules, `./geldar.ps1`) and branch `scriptorium/sc-NN-<slug>` from geldar `main`.
@@ -1085,3 +1085,5 @@ Both launchers implement docs/launcher-hardening.md item by item, citing the H-n
 - **SC-71 Codex:** `template/.codex/config.toml` (low reasoning effort, MCP tool timeouts above 240 s, web search off), and the settings test extended to cover it. Blocked on D-SC-08.
 - **SC-72 acceptance:** the owner runs the exit criteria on Windows and Linux, records turns and `/usage` across three in-game days on Haiku-low, and writes the numbers into the Patron guide.
 - **SC-73 campaign review:** a fresh reviewer checks everything the campaign merged against geldar 0007–0016 and this ledger.
+
+<!-- legacy-ids: SC-23, SC-40, SC-41, SC-42 -->
