@@ -156,7 +156,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-64 | 6 | S | `geldar-play upgrade`: umbrella for SC-64a to SC-64d | - | BlockedDependency (done when SC-64d is) | SC-64a to SC-64d |
 | SC-64a | 6 | S | Upgrade: messages, fake `gh pr create`, template release fixture (many tags) and shared suite; gate | packet-coder (Haiku) | Done | wave 5 |
 | SC-64b | 6 | S | Upgrade: kit bump as a pull request, bash | Sonnet (general-purpose) | Done | SC-64a |
-| SC-64c | 6 | S | Upgrade: PowerShell | Sonnet (general-purpose) | BlockedDependency | SC-64a |
+| SC-64c | 6 | S | Upgrade: PowerShell | Sonnet (general-purpose) | Done | SC-64a |
 | SC-64d | 6 | S | Upgrade docs (launcher README, release guide) | packet-coder (Haiku) | BlockedDependency | SC-64b, SC-64c, SC-63i |
 | SC-70 | 7 | S | Template README (the Patron guide), onboarding and troubleshooting docs | packet-coder | BlockedDependency | wave 6 |
 | SC-71 | 7 | S | Codex CLI support | packet-coder | BlockedDecision | D-SC-08 |
