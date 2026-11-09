@@ -154,7 +154,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-63i | 6 | S | Release guide, rehearsal procedure and first-tag checklist (`docs/release.md`) | packet-coder (Haiku) | BlockedDependency | SC-63f, SC-60r, SC-61h, SC-62c |
 | SC-63 | 6 | S | Release workflow: umbrella for SC-63a to SC-63i (cards: [work-packets-wave6c.md](work-packets-wave6c.md)); D-SC-02 and D-SC-06 Accepted | - | BlockedDependency (done when SC-63i is; the first tag is an owner event) | SC-63a to SC-63i |
 | SC-64 | 6 | S | `geldar-play upgrade`: umbrella for SC-64a to SC-64d | - | BlockedDependency (done when SC-64d is) | SC-64a to SC-64d |
-| SC-64a | 6 | S | Upgrade: messages, fake `gh pr create`, template release fixture (many tags) and shared suite; gate | packet-coder (Haiku) | Planned | wave 5 |
+| SC-64a | 6 | S | Upgrade: messages, fake `gh pr create`, template release fixture (many tags) and shared suite; gate | packet-coder (Haiku) | Done | wave 5 |
 | SC-64b | 6 | S | Upgrade: kit bump as a pull request, bash | Sonnet (general-purpose) | BlockedDependency | SC-64a |
 | SC-64c | 6 | S | Upgrade: PowerShell | Sonnet (general-purpose) | BlockedDependency | SC-64a |
 | SC-64d | 6 | S | Upgrade docs (launcher README, release guide) | packet-coder (Haiku) | BlockedDependency | SC-64b, SC-64c, SC-63i |
