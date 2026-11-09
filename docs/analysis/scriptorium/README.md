@@ -112,7 +112,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-60a | 6 | S | Hostile harness (`attack`, host snapshot, refusal asserts) and the `hostile` parity group; gate | Sonnet (general-purpose) | Planned | wave 5 |
 | SC-60b1 | 6 | S | URL case table and suite for the private-name check (N3); gate for SC-60m and SC-60n | packet-coder (Haiku) | Done | wave 5 |
 | SC-60b2 | 6 | S | Collision case table, suite and message row (decision 28); gate for SC-60k and SC-60l | packet-coder (Haiku) | Done | wave 5 |
-| SC-60t | 6 | S | `session.test.ts` made independent of where the allowlist lives; gate for SC-60o and SC-60p | packet-coder (Haiku) | Planned | wave 5 |
+| SC-60t | 6 | S | `session.test.ts` made independent of where the allowlist lives; gate for SC-60o and SC-60p | packet-coder (Haiku) | Done | wave 5 |
 | SC-60c | 6 | S | Hostile tests H-01 to H-05 | Sonnet (general-purpose) | BlockedDependency | SC-60a |
 | SC-60d | 6 | S | Hostile tests H-06, H-07, H-08, H-19 | Sonnet (general-purpose) | BlockedDependency | SC-60a |
 | SC-60e | 6 | S | Hostile tests H-09, H-10 | Sonnet (general-purpose) | BlockedDependency | SC-60a |
