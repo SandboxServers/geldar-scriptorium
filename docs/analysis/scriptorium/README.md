@@ -83,7 +83,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-41a | 4 | S | Squid proxy config and allowlist, with config tests | packet-coder | Done | SC-40a |
 | SC-41b | 4 | S | Session compose (internal network, no external DNS) and egress allow/deny tests | packet-coder | Ready | SC-40b, SC-41a |
 | SC-42a | 4 | S | Image contract tests: marker, hooks guard, read-only kit paths, uid and git | packet-coder | Done | SC-40b |
-| SC-42b | 4 | S | Pinned-CLI tests: managed path, tool denies, GELDAR_MODE (D-SC-14) | packet-coder | BlockedDependency | SC-40a, SC-40b |
+| SC-42b | 4 | S | Pinned-CLI tests: managed path, tool denies, GELDAR_MODE (D-SC-14) | packet-coder | Done | SC-40a, SC-40b |
 | SC-50 | 5 | S | Launcher (bash): pre-session (state, export, workspace) | packet-coder | BlockedDependency | wave 4 |
 | SC-51 | 5 | S | Launcher (bash): post-session (bundle, verify, fetch, push, failure paths) | packet-coder | BlockedDependency | SC-50 |
 | SC-52 | 5 | S | Launcher (bash): `new`, `setup`, `archive`, `status`, multi-player | packet-coder | BlockedDependency | SC-51 |
