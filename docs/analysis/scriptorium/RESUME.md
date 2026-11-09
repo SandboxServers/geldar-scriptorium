@@ -2,11 +2,10 @@
 
 Read this, then [README.md](README.md) (the ledger) and [worknotes/overnight-decisions.md](worknotes/overnight-decisions.md) (decisions 1 to 34), before acting. Rewrite at every wave boundary, in 40 lines at most.
 
-**State (2026-11-09 night):** waves 0 to 5 are on `main` (Wave 5 = PR #12, merged). **Wave 6 is on `scriptorium/wave6`, draft PR #13, not merged.** Every Wave 6 packet that needs no owner decision is merged into the branch (SC-60a to 60s, 61e to 61h, 62a, 63a to 63h, 64a to 64c, plus fix passes). Held on owner decisions: SC-62b, SC-62c (live check), SC-63i (release docs, needs SC-62c). Linux CI is parallel now (`static`, a `tests` matrix of 5 groups, `e2e`, `ci gate`; groups in `tools/repo-checks/src/ci-groups.ts`, about 12 min wall). Last CI run on the full fix pass: id 42711004116 (head c21b18c). Earlier runs showed the remaining reds were Linux fixture issues (H-10, H-11, H-12 trees), the PowerShell `pub` cleanup (fixed), core case 12 (fixed), the nettest/libcurl and proxy race (fixed), e2e oversized-bundle case (open), finish pwsh B5 (timeout raised). Read the run before doing anything else.
+**State (2026-11-10):** waves 0 to 5 are on `main`. **Wave 6 is on `scriptorium/wave6`, PR #13; CI is green on head 9b01530 and the retro is [worknotes/retro-wave-6.md](worknotes/retro-wave-6.md).** Every packet that needs no owner decision is merged. Held on owner decisions: SC-62b, SC-62c (live check), SC-63i (release docs). Linux CI is parallel (`static`, a `tests` matrix of 5 groups, two `e2e` jobs, `ci gate`; about 12 min).
 
 **Next actions**
-1. Read CI for the wave6 head; dispatch fixers for what is still red (one agent per area, own worktree; never push between runs: a push cancels the in-flight run).
-2. Then close Wave 6: SC-62b/62c/63i need owner decisions (below); write `worknotes/retro-wave-6.md`, a docs pass, merge PR #13 on green CI, remove worktrees safely (see rule 24: delete junctions first; never `git worktree remove --force` on a tree with links).
+1. Wave 6 close: merge PR #13 on green CI, then remove worktrees safely (rule 24: delete junctions first; never `git worktree remove --force` on a tree with links). SC-62b/62c/63i wait for owner decisions (below).
 3. Wave 7 (cards are scope only): SC-70 Patron guide, SC-71 Codex (gated D-SC-08, owner calls C1 and C3), SC-72 acceptance (six players), SC-73 campaign review, SC-74 `new --persona-dir`, SC-75 local-world dev override, SC-76 world port 18443. Write full cards with a fan-out plan (rule 22), spec-review them, then build.
 4. At campaign end: full campaign retro (owner instruction), final RESUME rewrite, cleanup of Docker scratch images and leftover worktree folders.
 
