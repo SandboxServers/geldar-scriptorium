@@ -35,7 +35,7 @@ Each requirement is one line. Tests are written in SC-60.
 - H-12: The host fetches with `git -c fetch.fsckObjects=true -c transfer.fsckObjects=true fetch --no-tags <bundle> refs/heads/<branch>:refs/launcher/incoming`. Test: T-12
 - H-13: The host independently re-checks the ancestry and the net `--no-renames` path list. Test: T-13
   Implemented in: verify/src/history.ts (the same per-commit and net checks; not exported from the package yet, so the host re-check cannot import it). The host-side call is launcher work.
-- H-14: The host branch is updated only with `merge --ff-only`. Push is `git push origin HEAD:refs/heads/<branch>`, never `--force`. Test: T-14
+- H-14: The verified private ref is pushed to origin by its verified SHA (`git push origin <sha>:refs/heads/<branch>`, never `--force`); only after the push succeeds is the host branch updated, and only with `merge --ff-only` (geldar 0011: on any failure the human's branch stays where it was). Test: T-14
 - H-15: The workspace and bundle are deleted only after a successful push. On failure, keep both, leave the host branch as it is, and report. Test: T-15
 - H-16: Control characters are stripped from any bundle-derived text before printing. Test: T-16
 - H-17: Crash recovery uses the stored START only. Test: T-17

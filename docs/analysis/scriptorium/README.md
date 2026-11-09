@@ -41,7 +41,7 @@ Spec-level decisions are records in the **geldar** repo (`docs/decisions/`). Thi
 | D-SC-06 | GHCR visibility for the kit image and the mock world image: **public** (owner, 2026-11-09). | **Accepted** | SC-33, SC-63 | — |
 | D-SC-07 | Exact current Claude Code syntax for settings, permissions, hooks and skills; the CLI version itself is pinned in SC-40 (at least 2.1.257) | Accepted | SC-12 | geldar [0016](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0016-claude-code-settings-errata.md), work-packets.md § Claude Code syntax |
 | D-SC-08 | Codex CLI: current terms and MCP support (the Codex half of spec open decision 2g) | **Direction set (owner, 2026-11-09): Codex at parity with Claude where possible; terms and MCP support being researched, see worknotes/codex-parity.md** | SC-71 | geldar 0010 |
-| D-SC-09 | Prerequisites on the human's machine: Docker (D-SC-03), git, GitHub CLI `gh` (for `new` and `upgrade`), PowerShell 7 on Windows | Proposed (orchestrator) | SC-50 | — |
+| D-SC-09 | Prerequisites on the human's machine: Docker (D-SC-03), git, GitHub CLI `gh` (for `new` and `upgrade`), PowerShell 7 on Windows, `tar` (bsdtar ships with Windows), `tmux` (bash multi-player only) | Proposed (orchestrator) | SC-50 | — |
 | D-SC-10 | A scripted **stub CLI** (`packages/stub-cli`) stands in for the vendor CLI in deterministic CI. Real models run only in the live malicious-book job. | Accepted (orchestrator) | SC-24a | — |
 | D-SC-11 | The post-session gate is TypeScript (`geldar-verify`) running in a network-less container from the pinned image. The launcher's bash and PowerShell shims stay thin and re-check only the cheap invariants on the host. | Accepted (orchestrator) | SC-23, SC-51 | geldar 0011 |
 | D-SC-12 | Mock world auth: a static bearer token per player. The real OAuth flow and its loopback callback wait for Threshold. | Accepted (owner) | SC-31 | — |
@@ -84,13 +84,13 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-41b | 4 | S | Session compose (internal network, no external DNS) and egress allow/deny tests | packet-coder | Done | SC-40b, SC-41a |
 | SC-42a | 4 | S | Image contract tests: marker, hooks guard, read-only kit paths, uid and git | packet-coder | Done | SC-40b |
 | SC-42b | 4 | S | Pinned-CLI tests: managed path, tool denies, GELDAR_MODE (D-SC-14) | packet-coder | Done | SC-40a, SC-40b |
-| SC-50a | 5 | S | Launcher (bash): dispatcher, message table, test harness, fake docker | packet-coder | Ready | wave 4 |
-| SC-50b | 5 | S | Launcher (bash): pre-session (clean clone, START, export, isolated workspace; H-01 to H-05) | packet-coder | BlockedDependency | SC-50a |
+| SC-50a | 5 | S | Launcher (bash): dispatcher, message table, test harness, fake docker | Sonnet (general-purpose) | Ready | wave 4 |
+| SC-50b | 5 | S | Launcher (bash): pre-session (clean clone, START, export, isolated workspace; H-01 to H-05) | Sonnet (general-purpose) | BlockedDependency | SC-50a |
 | SC-50c | 5 | S | Launcher (bash): session start (compose override, allowlist, CLI volume; H-06 to H-08, H-19) | packet-coder | BlockedDependency | SC-50b |
 | SC-50d | 5 | S | Steering text: durable intents, sleep and wait, no polling (template) | packet-coder | Ready | wave 1 |
-| SC-51a | 5 | S | Launcher (bash): bundle, verify, host re-check (H-09 to H-11, H-13, H-16) | packet-coder | BlockedDependency | SC-50c |
+| SC-51a | 5 | S | Launcher (bash): bundle, verify, host re-check (H-09 to H-11, H-13, H-16) | Sonnet (general-purpose) | BlockedDependency | SC-50c |
 | SC-51b | 5 | S | Launcher (bash): fetch, push, fast-forward, hold, crash recovery (H-12, H-14, H-15, H-17); Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-51a |
-| SC-52a | 5 | S | Launcher (bash): `new` and `setup` | packet-coder | BlockedDependency | SC-51b |
+| SC-52a | 5 | S | Launcher (bash): `new` and `setup` | Sonnet (general-purpose) | BlockedDependency | SC-51b |
 | SC-52b | 5 | S | Launcher (bash): `resolve`, `archive`, `status`, multi-player `play` | packet-coder | BlockedDependency | SC-52a |
 | SC-53a | 5 | S | Launcher (PowerShell): dispatcher and common functions | packet-coder | BlockedDependency | SC-50a |
 | SC-53b | 5 | S | Launcher (PowerShell): pre-session parity | packet-coder | BlockedDependency | SC-50b, SC-53a |
@@ -99,17 +99,17 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-53e | 5 | S | Launcher (PowerShell): fetch, push, hold, recovery parity; Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-51b, SC-53d |
 | SC-54a | 5 | S | Launcher (PowerShell): `new` and `setup` parity | packet-coder | BlockedDependency | SC-52a, SC-53e |
 | SC-54b | 5 | S | Launcher (PowerShell): `resolve`, `archive`, `status`, Windows Terminal tabs; Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-52b, SC-54a |
-| SC-55a | 5 | S | Stub CLI over HTTP, stub image variant, in-test world | packet-coder | Ready | wave 4 |
+| SC-55a | 5 | S | Stub CLI over HTTP, stub image variant, in-test world | Sonnet (general-purpose) | Ready | wave 4 |
 | SC-55b | 5 | S | End-to-end CI on the in-test world: `new` → `setup` → three `play` days → push, both launchers; Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-52b, SC-54b, SC-55a |
 | SC-55c | 5 | S | End-to-end CI against the mock world image | packet-coder | BlockedDependency (Wave 3) | SC-55b, SC-33 |
-| SC-60 | 6 | S | Hostile workspace tests, one per hardening item | packet-coder | BlockedDependency | SC-55 |
+| SC-60 | 6 | S | Hostile workspace tests, one per hardening item | packet-coder | BlockedDependency | SC-55b |
 | SC-61 | 6 | S+G | Malicious-book corpus as mock world scenarios | packet-coder | BlockedDependency | SC-32 |
 | SC-62 | 6 | S | Live malicious-book check, local only (script plus documented procedure; never in CI) with pinned Claude Code | packet-coder | Planned | SC-61 |
 | SC-63 | 6 | S | Release workflow: image, cosign, SBOM, scan, launcher assets, template publish | packet-coder | BlockedDependency (SC-60; D-SC-02 and D-SC-06 are Accepted) | SC-60 |
 | SC-64 | 6 | S | `geldar-play upgrade`: kit bump as a PR | packet-coder | BlockedDependency | SC-63 |
 | SC-70 | 7 | S | Template README (the Patron guide), onboarding and troubleshooting docs | packet-coder | BlockedDependency | wave 6 |
 | SC-71 | 7 | S | Codex CLI support | packet-coder | BlockedDecision | D-SC-08 |
-| SC-72 | 7 | S | Acceptance runs on Windows and Linux; measure Haiku-low turns | owner + main session | BlockedDependency | SC-70 |
+| SC-72 | 7 | S | Acceptance runs on Windows and Linux; measure Haiku-low turns; owner inputs: the real MCP host (`launcher/config/world.conf` mcp_base) and the private-only shard list | owner + main session | BlockedDependency | SC-70 |
 | SC-73 | 7 | S | Campaign review | packet-reviewer | BlockedDependency | SC-72 |
 
-**Cross-campaign dependency:** wave 3 needs `@geldar/contract` from geldar Phase 0 packet P0-01. Waves 0–2 and 4 don't need wave 3. Wave 5's end-to-end test (SC-55) does.
+**Cross-campaign dependency:** wave 3 needs `@geldar/contract` from geldar Phase 0 packet P0-01. Waves 0–2 and 4 don't need wave 3. Only SC-55c (not SC-55b) needs wave 3.
