@@ -357,7 +357,7 @@ SC-10 first. Then SC-11, SC-12, SC-13, SC-14 and SC-16 in parallel. SC-15 after 
 ### SC-12 — Play-mode settings, `.mcp.json`, policy test
 
 - **Branch** `scriptorium/sc-12-settings`, worktree `sc-12`. Commit: `feat(template): add the Claude Code settings, MCP servers and policy test`.
-- **Status: BlockedDecision until D-SC-07 is Accepted.** The orchestrator fills in the pinned CLI version below, then dispatches.
+- **D-SC-07 is Accepted** (geldar 0016): use § Claude Code syntax exactly. This packet pins no CLI version; SC-40 does.
 - **Create `template/.claude/settings.json`:** the project layer of § Settings layers, using only § Claude Code syntax.
   - `allow` lists each Geldar tool by name: `look`, `wait`, `act`, `say`, `read_book`, `write_book`, `define_skill`, `use_skill`, `offer`, `propose`, `vote`, `sleep`, `journal`, `status`.
   - Also allow `mcp__geldar_memory__recall` and `mcp__geldar_git__commit_memory`.
@@ -420,12 +420,12 @@ SC-10 first. Then SC-11, SC-12, SC-13, SC-14 and SC-16 in parallel. SC-15 after 
   4. a backstory seed of at most five sentences, with no facts about the world;
   5. what they value.
 
-  A character may be based on someone the human names; write the personality in your own words.
+  A character may be invented or based on a **fictional** character the human names, written in your own words. Never a real person, and never ask for personal details about the human (geldar 0015; the repo is public).
 
   Refuse anything about where things are or what to do in the world, and say why: it would be playing for them.
 
-  Then write `memory/identity.md` with headings `Name`, `Traits`, `Voice`, `Seed`, `Values`, `Born`. `Born` comes from `status` once the world is reachable, otherwise "before the first day". Seed `memory/summary.md` with three sentences of who you are, and `memory/goals.md` with two or three goals drawn from your values. Show the human what you wrote, apply their corrections, then call `commit_memory` with `birth: <name>` and stop.
-- **Change `tests/template/skills.test.ts`:** assert `setup` has `disable-model-invocation: true` and names all six identity headings.
+  Then write `memory/identity.md` with headings `Name` (the display name; it doesn't rename the player), `Traits`, `Voice`, `Seed`, `Values`. The day you were born comes from the world, not from this file. Seed `memory/summary.md` with three sentences of who you are, and `memory/goals.md` with two or three goals drawn from your values. Show the human what you wrote, apply their corrections, then call `commit_memory` with `birth: <name>` and stop.
+- **Change `tests/template/skills.test.ts`:** assert `setup` has `disable-model-invocation: true`, names all five identity headings, never mentions `player.json`, and says "fictional".
 - **Checks:** `./scriptorium.ps1 check`.
 
 ### SC-16 — Hooks and their tests
@@ -516,11 +516,12 @@ Both launchers implement docs/launcher-hardening.md item by item, citing the H-n
 - **SC-50 bash, before the session:** H-01 to H-08, `play <player_id>` up to the container start.
 - **SC-51 bash, after the session:** H-09 to H-17. The bundle and verify containers come from the pinned image (D-SC-11).
 - **SC-52 bash, commands:**
-  - `new <player_id> [--mock <url>]`: `gh repo create --template SandboxServers/geldar-player-template --public` (geldar 0013), clone, fill `player.json`, first commit;
-  - `setup`: setup mode, its own path rule;
+  - `new <player_id> [--private] [--mock <url>]`: `gh repo create --template SandboxServers/geldar-player-template`, public unless `--private` (geldar 0013, 0015), clone, fill `player.json`, first commit;
+  - `setup`: setup mode; refuses if `memory/identity.md` has content; the gate allows `identity.md` once (geldar 0011, 0015);
+  - `resolve [--discard]`: retry a held bundle's push after pulling, or discard it (geldar 0011);
   - `archive`: final push, then `gh repo archive`;
   - `status`;
-  - `play a b c` in tmux windows.
+  - `play <player_id>...`: one player, or several in tmux windows. Commands are verbs, so player IDs never collide with them (geldar 0015).
 - **SC-53 and SC-54 PowerShell:** the same behaviour and messages. Multi-player opens Windows Terminal tabs when `wt` exists, otherwise separate windows. Tests run the same scenarios through `pwsh`.
 - **SC-55 end-to-end CI:** a local bare repo as `origin`, the mock world from SC-33, and the stub CLI image variant. It runs `new` → `setup` → three `play` days → push, then asserts the commit list, authors and paths on `origin`.
 
