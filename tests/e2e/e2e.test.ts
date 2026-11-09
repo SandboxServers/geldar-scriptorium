@@ -1,3 +1,4 @@
+// corpus: MB-04
 // End to end through real containers (SC-55b): the real launcher, the compose project with the
 // real Squid, the stub variant of the kit image, an in-test world and a real geldar-verify.
 // Only `gh` is faked. Heavy: it builds two images and starts containers, so locally it runs only
