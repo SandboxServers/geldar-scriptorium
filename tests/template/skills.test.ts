@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { repoRoot } from './check.ts';
 
 // The skills this packet ships. Later packets add their own names here.
-const skillNames = ['play', 'reflect'];
+const skillNames = ['play', 'reflect', 'setup'];
 
 interface Skill {
   frontmatter: Record<string, string>;
@@ -62,5 +62,27 @@ describe('play skill', () => {
 
   it('never gives through a separate give tool', () => {
     expect(body).not.toContain('give(');
+  });
+});
+
+describe('setup skill', () => {
+  const skill = parseSkill(readSkill('setup'));
+
+  it('is started only by the human', () => {
+    expect(skill.frontmatter['disable-model-invocation']).toBe('true');
+  });
+
+  it('names all five identity headings', () => {
+    for (const heading of ['Name', 'Traits', 'Voice', 'Seed', 'Values']) {
+      expect(skill.body).toContain(heading);
+    }
+  });
+
+  it('never mentions player.json', () => {
+    expect(skill.body).not.toContain('player.json');
+  });
+
+  it('says the character may be fictional', () => {
+    expect(skill.body).toContain('fictional');
   });
 });
