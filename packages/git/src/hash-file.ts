@@ -36,7 +36,9 @@ export interface HashOptions {
 export function hashRegularFile(root: string, absPath: string, opts: HashOptions): string {
   const cap = opts.maxBytes ?? MAX_FILE_BYTES;
   // On win32 O_NOFOLLOW is undefined; the dev/ino comparison is the only guard there.
-  const flags = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0);
+  // O_NONBLOCK keeps open() from waiting forever on a FIFO with no writer (a session can leave one
+  // in the workspace); the fstat check below then refuses it as not_regular. It is a no-op for files.
+  const flags = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0);
   let fd: number;
   try {
     fd = openSync(absPath, flags);
