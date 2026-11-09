@@ -37,10 +37,10 @@ Spec-level decisions are records in the **geldar** repo (`docs/decisions/`). Thi
 | D-SC-02 | Credential the release job uses to publish `template/` to `geldar-player-template`: the GitHub App `geldar-bot`, installed on that repo only (contents write, metadata read); its key and app ID are Key Vault secrets read through Azure OIDC | Accepted (owner, 2026-11-08) | SC-63 | geldar-infra `docs/release-identity.md` |
 | D-SC-03 | Container runtime for v1: Docker Desktop (Windows, macOS) and Docker Engine (Linux). Podman later. | Proposed (orchestrator) | SC-40b | — |
 | D-SC-04 | Egress proxy: Squid, pinned by digest, with a hostname allowlist and `http_access deny all`. The session container sits on an internal network with no DNS; Squid resolves names. | Proposed (orchestrator) | SC-41a, SC-41b | — |
-| D-SC-05 | License for this repo and the template | **Open (owner)** | SC-02 | — |
-| D-SC-06 | GHCR visibility for the kit image and the mock world image (this repo is now public, so public images are the straightforward answer) | **Open (owner to confirm)** | SC-33, SC-63 | — |
+| D-SC-05 | License for this repo and the template: an open license (owner, 2026-11-09). Orchestrator chose **Apache-2.0** (patent grant, widely understood); `LICENSE` added at the repo root. Owner may swap it. The template folder carries no license file of its own; player repos choose theirs. | **Accepted (owner: open license; orchestrator: Apache-2.0)** | SC-02 | — |
+| D-SC-06 | GHCR visibility for the kit image and the mock world image: **public** (owner, 2026-11-09). | **Accepted** | SC-33, SC-63 | — |
 | D-SC-07 | Exact current Claude Code syntax for settings, permissions, hooks and skills; the CLI version itself is pinned in SC-40 (at least 2.1.257) | Accepted | SC-12 | geldar [0016](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0016-claude-code-settings-errata.md), work-packets.md § Claude Code syntax |
-| D-SC-08 | Codex CLI: current terms and MCP support (the Codex half of spec open decision 2g) | **Open (owner)** | SC-71 | geldar 0010 |
+| D-SC-08 | Codex CLI: current terms and MCP support (the Codex half of spec open decision 2g) | **Direction set (owner, 2026-11-09): Codex at parity with Claude where possible; terms and MCP support being researched, see worknotes/codex-parity.md** | SC-71 | geldar 0010 |
 | D-SC-09 | Prerequisites on the human's machine: Docker (D-SC-03), git, GitHub CLI `gh` (for `new` and `upgrade`), PowerShell 7 on Windows | Proposed (orchestrator) | SC-50 | — |
 | D-SC-10 | A scripted **stub CLI** (`packages/stub-cli`) stands in for the vendor CLI in deterministic CI. Real models run only in the live malicious-book job. | Accepted (orchestrator) | SC-24a | — |
 | D-SC-11 | The post-session gate is TypeScript (`geldar-verify`) running in a network-less container from the pinned image. The launcher's bash and PowerShell shims stay thin and re-check only the cheap invariants on the host. | Accepted (orchestrator) | SC-23, SC-51 | geldar 0011 |
@@ -55,7 +55,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | Packet | Wave | Repo | Title | Implementer | Status | Depends on |
 |---|---|---|---|---|---|---|
 | SC-01 | 0 | S | Workspace, toolchain, repo checks, `scriptorium.ps1` | packet-coder | Done (merged into wave0) | — |
-| SC-02 | 0 | S | CI with `ci gate`, Dependabot, PR template, SECURITY.md | packet-coder | Done (merged into wave0; LICENSE waits on D-SC-05) | SC-01 |
+| SC-02 | 0 | S | CI with `ci gate`, Dependabot, PR template, SECURITY.md | packet-coder | Done (LICENSE added after D-SC-05 was accepted) | SC-01 |
 | SC-03 | 0 | S | Developer agent setup: CLAUDE.md, AGENTS.md, agents, skills, memory | packet-coder | Done (merged into wave0) | SC-01 |
 | SC-04 | 0 | S | Docs: architecture, clients matrix, releases, decisions index | packet-coder | Done (merged into wave0) | SC-01 |
 | SC-05 | 0 | S | Kit threat model and launcher hardening checklist | Sonnet (general-purpose) | Done (merged into wave0) | SC-01 |
@@ -93,7 +93,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-60 | 6 | S | Hostile workspace tests, one per hardening item | packet-coder | BlockedDependency | SC-55 |
 | SC-61 | 6 | S+G | Malicious-book corpus as mock world scenarios | packet-coder | BlockedDependency | SC-32 |
 | SC-62 | 6 | S | Live malicious-book check, local only (script plus documented procedure; never in CI) with pinned Claude Code | packet-coder | Planned | SC-61 |
-| SC-63 | 6 | S | Release workflow: image, cosign, SBOM, scan, launcher assets, template publish | packet-coder | BlockedDecision (D-SC-06 only; D-SC-02 is Accepted) | SC-60, D-SC-06 |
+| SC-63 | 6 | S | Release workflow: image, cosign, SBOM, scan, launcher assets, template publish | packet-coder | BlockedDependency (SC-60; D-SC-02 and D-SC-06 are Accepted) | SC-60 |
 | SC-64 | 6 | S | `geldar-play upgrade`: kit bump as a PR | packet-coder | BlockedDependency | SC-63 |
 | SC-70 | 7 | S | Template README (the Patron guide), onboarding and troubleshooting docs | packet-coder | BlockedDependency | wave 6 |
 | SC-71 | 7 | S | Codex CLI support | packet-coder | BlockedDecision | D-SC-08 |

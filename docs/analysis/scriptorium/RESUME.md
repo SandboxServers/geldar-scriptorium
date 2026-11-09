@@ -23,6 +23,6 @@ Read this, then [README.md](README.md) (the ledger), before acting. Rewrite at e
 - H-20 live deny check is SC-62 (local only); until it runs, H-20 is structural only.
 - Confirm no one commits the untracked `.agents/` and `.codex/` folders.
 
-**Open owner decisions:** D-SC-05 (license; `LICENSE` absent), D-SC-06 (GHCR visibility; the repo is public so public images are the easy answer), D-SC-08 (Codex terms). Settled: D-SC-01 (no CI API key; live checks local only), D-SC-02, D-SC-07, D-SC-14.
+**Open owner decisions:** D-SC-08 (Codex: direction set, parity with Claude where possible; terms and MCP support under research). Settled: D-SC-05 (Apache-2.0), D-SC-06 (public GHCR), D-SC-01 (no CI API key; live checks local only), D-SC-02, D-SC-07, D-SC-14.
 
 **Worktrees:** none expected; check `git worktree list`.
