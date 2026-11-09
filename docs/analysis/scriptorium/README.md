@@ -122,7 +122,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-60i | 6 | S | Hostile tests H-18, H-20 (hooks, credential denies) | Sonnet (general-purpose) | Done | SC-60a |
 | SC-60j | 6 | S | `geldar-git`: hash each file from an O_NOFOLLOW descriptor; symlink-swap test (wave 2 gap) | Sonnet (general-purpose) | Done | wave 2 |
 | SC-60k | 6 | S | Start-tree case-collision check in the host re-check, bash | Sonnet (general-purpose) | Done | SC-60a, SC-60b2 |
-| SC-60l | 6 | S | Start-tree case-collision check in the host re-check, PowerShell | Sonnet (general-purpose) | BlockedDependency | SC-60a, SC-60b2 |
+| SC-60l | 6 | S | Start-tree case-collision check in the host re-check, PowerShell | Sonnet (general-purpose) | Done | SC-60a, SC-60b2 |
 | SC-60m | 6 | S | N3: refuse local and private names (and empty labels) in `mcp_url`, bash | packet-coder (Haiku) | Done | SC-60b1 |
 | SC-60n | 6 | S | N3: same, PowerShell | packet-coder (Haiku) | Done | SC-60b1 |
 | SC-60o | 6 | S | N4: state and session directories 0700, only the allowlist world-readable (export stays readable), bash | Sonnet (general-purpose) | BlockedDependency | SC-60a, SC-60t |
