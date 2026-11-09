@@ -39,7 +39,7 @@ Spec-level decisions are records in the **geldar** repo (`docs/decisions/`). Thi
 | D-SC-04 | Egress proxy: Squid, pinned by digest, with a hostname allowlist and `http_access deny all`. The session container sits on an internal network with no DNS; Squid resolves names. | Proposed (orchestrator) | SC-41 | — |
 | D-SC-05 | License for this repo and the template | **Open (owner)** | SC-02 | — |
 | D-SC-06 | GHCR visibility for the kit image and the mock world image while this repo is private | **Open (owner)** | SC-33, SC-63 | — |
-| D-SC-07 | Claude Code version to pin, and the exact current syntax for settings, permissions, hooks and skills | In progress (orchestrator research) | SC-12 | work-packets.md § Claude Code syntax |
+| D-SC-07 | Exact current Claude Code syntax for settings, permissions, hooks and skills; the CLI version itself is pinned in SC-40 (at least 2.1.257) | Accepted | SC-12 | geldar [0016](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0016-claude-code-settings-errata.md), work-packets.md § Claude Code syntax |
 | D-SC-08 | Codex CLI: current terms and MCP support (the Codex half of spec open decision 2g) | **Open (owner)** | SC-71 | geldar 0010 |
 | D-SC-09 | Prerequisites on the human's machine: Docker (D-SC-03), git, GitHub CLI `gh` (for `new` and `upgrade`), PowerShell 7 on Windows | Proposed (orchestrator) | SC-50 | — |
 | D-SC-10 | A scripted **stub CLI** (`packages/stub-cli`) stands in for the vendor CLI in deterministic CI. Real models run only in the live malicious-book job. | Accepted (orchestrator) | SC-24 | — |
@@ -60,11 +60,11 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-05 | 0 | S | Kit threat model and launcher hardening checklist | Sonnet (general-purpose) | Done (merged into wave0) | SC-01 |
 | SC-10 | 1 | S | Template skeleton, `player.json` schema, boundary test | packet-coder | BlockedDependency | wave 0 |
 | SC-11 | 1 | S | One instructions source, generated `CLAUDE.md` and `AGENTS.md`, drift check | packet-coder | BlockedDependency | SC-10 |
-| SC-12 | 1 | S | Play-mode `.claude/settings.json`, `.mcp.json`, policy test | packet-coder | BlockedDecision | SC-10, D-SC-07 |
+| SC-12 | 1 | S | Play-mode `.claude/settings.json`, `.mcp.json`, policy test | packet-coder | BlockedDependency | SC-10 |
 | SC-13 | 1 | S | Skills: `play`, `reflect` | packet-coder | BlockedDependency | SC-10 |
 | SC-14 | 1 | S | Skills: `trade`, `author`, `moot` | packet-coder | BlockedDependency | SC-10 |
-| SC-15 | 1 | S | `setup` skill and setup-mode settings | packet-coder | BlockedDecision | SC-12 |
-| SC-16 | 1 | S | Hooks with the container guard, and their tests | packet-coder | BlockedDecision | SC-10, D-SC-07 |
+| SC-15 | 1 | S | `setup` skill and setup-mode settings | packet-coder | BlockedDependency | SC-12 |
+| SC-16 | 1 | S | Hooks with the container guard, and their tests | packet-coder | BlockedDependency | SC-10 |
 | SC-20 | 2 | S | `path-rule` package: allowed paths, modes, write-once identity | packet-coder | BlockedDependency | wave 1 |
 | SC-21 | 2 | S | `geldar-memory` MCP server (`recall`) | packet-coder | BlockedDependency | SC-20 |
 | SC-22 | 2 | S | `geldar-git` MCP server and CLI (`commit_memory`) | packet-coder | BlockedDependency | SC-20 |
