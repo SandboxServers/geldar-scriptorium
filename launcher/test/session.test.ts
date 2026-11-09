@@ -113,7 +113,7 @@ function composeConfig(w: World, p: Player, extraEnv: Record<string, string> = {
     GELDAR_WORKSPACE: `geldar-ws-${p.id}`,
     GELDAR_CLI_HOME: `geldar-cli-${p.id}-claude`,
     KIT_IMAGE: `registry.test/geldar-kit@sha256:${'a'.repeat(64)}`,
-    GELDAR_WORLD_ALLOWLIST: `${sd}/allowlist-world.txt`,
+    GELDAR_WORLD_ALLOWLIST: `${bashPath(w.root)}/allowlist-world.txt`,
     GELDAR_MODE: 'play',
     ...extraEnv,
   });
@@ -210,7 +210,7 @@ describe.each(forGroup('session'))('session ($name)', (launcher) => {
     }
   });
 
-  it('4. H-08: the allowlist is the bare host, 0644 in a 0755 directory', () => {
+  it('4. H-08: the allowlist the launcher exports is the bare host, 0644', () => {
     const w = makeWorld();
     const p = player(w, 'four', {}, 'https://mcp.registry.test:443/mcp/v1');
     // umask 077 makes a missing chmod visible: mkdir and printf would give 0700 and 0600.
@@ -219,14 +219,23 @@ describe.each(forGroup('session'))('session ($name)', (launcher) => {
       launcher.name === 'bash'
         ? { ...launcher, prefix: ['-c', 'umask 077; . "$0"'], entry: bashPath(launcher.entry) }
         : launcher;
-    const r = start(strict, w, p);
+    // The session script reports where the launcher put the allowlist and what it holds.
+    const out = bashPath(join(w.root, 'al-content.txt'));
+    const modeOut = bashPath(join(w.root, 'al-mode.txt'));
+    const pathOut = bashPath(join(w.root, 'al-path.txt'));
+    const sf = join(w.root, 'allowlist-probe.sh');
+    writeFileSync(
+      sf,
+      `printf '%s' "$GELDAR_WORLD_ALLOWLIST" > "${pathOut}"
+cat "$GELDAR_WORLD_ALLOWLIST" > "${out}"
+stat -c %a "$GELDAR_WORLD_ALLOWLIST" > "${modeOut}"
+`,
+    );
+    const r = start(strict, w, p, 'play', { FAKE_SESSION: bashPath(sf) });
     expect(r.status, r.stderr).toBe(0);
-    const f = join(sessionDir(p), 'allowlist-world.txt');
-    expect(text(f)).toBe('mcp.registry.test\n');
-    if (!win) {
-      expect(statSync(f).mode & 0o777).toBe(0o644);
-      expect(statSync(sessionDir(p)).mode & 0o777).toBe(0o755);
-    }
+    expect(text(join(w.root, 'al-path.txt'))).toMatch(/allowlist-world\.txt$/);
+    expect(text(join(w.root, 'al-content.txt'))).toBe('mcp.registry.test\n');
+    if (!win) expect(text(join(w.root, 'al-mode.txt')).trim()).toBe('644');
   });
 
   it('5. H-19: only the share compose file and the override are used', () => {
@@ -370,6 +379,7 @@ describe.each(forGroup('session'))('session ($name)', (launcher) => {
       // Refused before anything is written or any docker call is made.
       expect(w.calls()).toHaveLength(before);
       expect(existsSync(join(sd, 'allowlist-world.txt'))).toBe(false);
+      expect(existsSync(join(root, 'ten', 'pub', 'allowlist-world.txt'))).toBe(false);
       expect(existsSync(join(sd, 'override.yml'))).toBe(false);
       // The override writer refuses it on its own, too.
       const d = runBash(`${pre}write_override ten "${bashPath(sd)}" https://m.test/mcp`, {
