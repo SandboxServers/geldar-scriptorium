@@ -153,7 +153,9 @@ if [ -n "\${FAKE_GIT_SLEEP_ON:-}" ]; then
   done
   if [ "$sub" = "$FAKE_GIT_SLEEP_ON" ]; then
     trap '' PIPE
-    sleep 30
+    sleep "\${FAKE_GIT_SLEEP_SEC:-30}" &
+    [ -z "\${FAKE_PIDFILE:-}" ] || echo "$!" >> "$FAKE_PIDFILE"
+    wait
     exit 1
   fi
 fi

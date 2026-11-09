@@ -22,7 +22,6 @@ import {
   type World,
 } from './harness.ts';
 
-const slow = process.platform === 'win32' ? 25_000 : 10_000;
 const text = (p: string) => readFileSync(p, 'utf8');
 
 function envOf(l: Launcher, w: World, extra: Record<string, string> = {}) {
@@ -91,6 +90,12 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
         mkdirSync(join(p.clone, 'a', 'b'), { recursive: true });
         writeFileSync(join(p.clone, 'a', 'b', 'c.txt'), 'x');
       },
+      // A clone-local status.showUntrackedFiles=no hides every untracked file from plain
+      // `status --porcelain`; only --untracked-files=all overrides it.
+      () => {
+        git(p.clone, ['config', 'status.showUntrackedFiles', 'no'], gitEnv(w));
+        writeFileSync(join(p.clone, 'hidden.txt'), 'x');
+      },
     ];
     for (const make of cases) {
       git(p.clone, ['checkout', '--', '.'], gitEnv(w));
@@ -102,6 +107,7 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
       expect(dockerCalls(w)).toEqual([]);
       expect(existsSync(join(p.stateDir, 'start'))).toBe(false);
     }
+    git(p.clone, ['config', '--unset', 'status.showUntrackedFiles'], gitEnv(w));
   }, 120_000);
 
   it('3. H-02 pulls new commits; a diverged clone is refused', () => {
@@ -344,37 +350,70 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
   }, 120_000);
 
   it('13. a hung helper or pull is bounded and leaves nothing behind', () => {
-    const w = makeWorld();
-    const p = makePlayer(w, { id: 'thirteen' });
-    const t0 = Date.now();
-    const r = prep(launcher, w, p, 'play', {
-      FAKE_ROLE_SLEEP: '30',
-      GELDAR_HELPER_TIMEOUT_SEC: '2',
-    });
-    expect(Date.now() - t0).toBeLessThan(slow * 3);
-    expect(r.status).toBe(1);
-    const kills = w
-      .calls()
-      .filter((c) => c[0] === 'kill' && /^geldar-workspace-init-/.test(c[1] ?? ''));
-    expect(kills.length).toBe(1);
-    const name = kills[0]?.[1];
-    expect(w.calls().some((c) => c[0] === 'rm' && c[1] === '-f' && c[2] === name)).toBe(true);
-    for (const f of ['start', 'mode', 'session/running']) {
-      expect(existsSync(join(p.stateDir, f)), f).toBe(false);
-    }
-    expect(existsSync(volDir(w, p))).toBe(false);
+    // The stand-ins sleep far longer than the 10 s bound, so only the bound ends them, and each
+    // records its child pid so the test can prove nothing is left running.
+    const pids: string[] = [];
+    const pidsIn = (file: string) =>
+      existsSync(file)
+        ? text(file)
+            .split('\n')
+            .filter((l) => /^[0-9]+$/.test(l))
+        : [];
+    const alive = (pid: string) =>
+      spawnSync('bash', ['-c', 'kill -0 "$1" 2>/dev/null', 'x', pid]).status === 0;
+    try {
+      const w = makeWorld();
+      const p = makePlayer(w, { id: 'thirteen' });
+      const pf = join(w.root, 'pids-a');
+      const t0 = Date.now();
+      const r = prep(launcher, w, p, 'play', {
+        FAKE_ROLE_SLEEP: '120',
+        FAKE_PIDFILE: bashPath(pf),
+        GELDAR_HELPER_TIMEOUT_SEC: '10',
+      });
+      expect(Date.now() - t0).toBeLessThan(40_000);
+      expect(r.status).toBe(1);
+      const a = pidsIn(pf);
+      pids.push(...a);
+      expect(a.length).toBeGreaterThan(0);
+      const kills = w
+        .calls()
+        .filter((c) => c[0] === 'kill' && /^geldar-workspace-init-/.test(c[1] ?? ''));
+      expect(kills.length).toBe(1);
+      const name = kills[0]?.[1];
+      expect(w.calls().some((c) => c[0] === 'rm' && c[1] === '-f' && c[2] === name)).toBe(true);
+      for (const f of ['start', 'mode', 'session/running']) {
+        expect(existsSync(join(p.stateDir, f)), f).toBe(false);
+      }
+      expect(existsSync(volDir(w, p))).toBe(false);
 
-    const w2 = makeWorld();
-    const q = makePlayer(w2, { id: 'pullhang' });
-    const t1 = Date.now();
-    const s = prep(launcher, w2, q, 'play', {
-      FAKE_GIT_SLEEP_ON: 'pull',
-      GELDAR_HELPER_TIMEOUT_SEC: '2',
-    });
-    expect(Date.now() - t1).toBeLessThan(slow * 3);
-    expect(s.status).toBe(1);
-    expect(s.stderr).toContain('Could not bring pullhang up to date');
-    expect(dockerCalls(w2)).toEqual([]);
+      const w2 = makeWorld();
+      const q = makePlayer(w2, { id: 'pullhang' });
+      const pf2 = join(w2.root, 'pids-b');
+      const t1 = Date.now();
+      const s = prep(launcher, w2, q, 'play', {
+        FAKE_GIT_SLEEP_ON: 'pull',
+        FAKE_GIT_SLEEP_SEC: '120',
+        FAKE_PIDFILE: bashPath(pf2),
+        GELDAR_HELPER_TIMEOUT_SEC: '10',
+      });
+      expect(Date.now() - t1).toBeLessThan(40_000);
+      expect(s.status).toBe(1);
+      expect(s.stderr).toContain('Could not bring pullhang up to date');
+      expect(s.stderr).toContain('(timed out)');
+      expect(dockerCalls(w2)).toEqual([]);
+      const b = pidsIn(pf2);
+      pids.push(...b);
+      expect(b.length).toBeGreaterThan(0);
+
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000);
+      for (const pid of pids) expect(alive(pid), `pid ${pid} still running`).toBe(false);
+    } finally {
+      // Only the pids the stand-ins recorded, never anything by name.
+      for (const pid of pids) {
+        if (alive(pid)) spawnSync('bash', ['-c', 'kill -KILL "$1" 2>/dev/null', 'x', pid]);
+      }
+    }
   }, 180_000);
 
   it('14. player.json is read at START, after the pull', () => {
