@@ -149,7 +149,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-63d | 6 | S | Image workflow in three jobs: build and push to GHCR, trivy and grype (fail on critical) and SBOM, cosign sign and attest; public-package check; image `LABEL` | Sonnet (general-purpose) | Done | SC-63c |
 | SC-63e | 6 | S | Launcher assets: reproducible tarball and checksums | Sonnet (general-purpose) | Done | SC-63b |
 | SC-63g | 6 | S | Image scan on pull requests, `main` and weekly (no push, no credential) | packet-coder (Haiku) | Done | SC-63c |
-| SC-63f | 6 | S | Release wiring: launcher signing, template call, GitHub release with template-tag check, rehearsal job; join | Sonnet (general-purpose) | BlockedDependency | SC-63a, SC-63d, SC-63e, SC-63g, SC-63h |
+| SC-63f | 6 | S | Release wiring: launcher signing, template call, GitHub release with template-tag check, rehearsal job; join | Sonnet (general-purpose) | Done | SC-63a, SC-63d, SC-63e, SC-63g, SC-63h |
 | SC-63h | 6 | S | actionlint (pinned binary) and `check:workflows` in `ci.yml` | packet-coder (Haiku) | Done | SC-63c |
 | SC-63i | 6 | S | Release guide, rehearsal procedure and first-tag checklist (`docs/release.md`) | packet-coder (Haiku) | BlockedDependency | SC-63f, SC-60r, SC-61h, SC-62c |
 | SC-63 | 6 | S | Release workflow: umbrella for SC-63a to SC-63i (cards: [work-packets-wave6c.md](work-packets-wave6c.md)); D-SC-02 and D-SC-06 Accepted | - | BlockedDependency (done when SC-63i is; the first tag is an owner event) | SC-63a to SC-63i |
