@@ -29,7 +29,10 @@ const asOwner = linux ? ['--user', `${uid}:${gid}`, '-e', 'HOME=/tmp'] : [];
 
 function kit(script: string, extra: string[] = [], input?: string) {
   const args = ['run', '--rm', ...(input === undefined ? [] : ['-i']), ...extra];
-  return run([...args, KIT_IMAGE, 'sh', '-c', script], { timeoutMs: RUN_MS, input });
+  return run([...args, KIT_IMAGE, 'sh', '-c', script], {
+    timeoutMs: RUN_MS,
+    ...(input === undefined ? {} : { input }),
+  });
 }
 
 function git(cwd: string, args: string[]): string {
@@ -94,7 +97,7 @@ function hook(script: string, ws: string, extra: string[], input?: string) {
       'bash',
       `/hooks/${script}`,
     ],
-    { timeoutMs: RUN_MS, input },
+    { timeoutMs: RUN_MS, ...(input === undefined ? {} : { input }) },
   );
 }
 
@@ -102,7 +105,9 @@ describe.skipIf(!ready)('kit image contract', () => {
   beforeAll(buildKit, 900_000);
 
   it('marker: /etc/geldar-kit is root-owned and not writable by player', () => {
-    const r = kit('test -f /etc/geldar-kit && stat -c %U /etc/geldar-kit && test ! -w /etc/geldar-kit && echo unwritable');
+    const r = kit(
+      'test -f /etc/geldar-kit && stat -c %U /etc/geldar-kit && test ! -w /etc/geldar-kit && echo unwritable',
+    );
     expect(r.status).toBe(0);
     expect(r.stdout.trim().split('\n')).toEqual(['root', 'unwritable']);
   }, 120_000);
@@ -113,7 +118,7 @@ describe.skipIf(!ready)('kit image contract', () => {
       ['/etc/geldar/settings/setup.json', 'image/settings/setup.json'],
       ['/etc/claude-code/managed-settings.json', 'image/settings/managed.json'],
     ];
-    for (const [inImage, rel] of files) {
+    for (const [inImage = '', rel = ''] of files) {
       const cat = kit(`cat ${inImage}`);
       expect(cat.status).toBe(0);
       expect(cat.stdout).toBe(readFileSync(resolve(repoRoot, rel), 'utf8'));
@@ -159,7 +164,19 @@ describe.skipIf(!ready)('kit image contract', () => {
         if (linux) {
           // Asserts the exit status, so a failing git cannot pass as empty output.
           const status = run(
-            ['run', '--rm', ...asOwner, '-v', `${dockerPath(off)}:/player`, KIT_IMAGE, 'git', '-C', '/player', 'status', '--porcelain'],
+            [
+              'run',
+              '--rm',
+              ...asOwner,
+              '-v',
+              `${dockerPath(off)}:/player`,
+              KIT_IMAGE,
+              'git',
+              '-C',
+              '/player',
+              'status',
+              '--porcelain',
+            ],
             { timeoutMs: RUN_MS },
           );
           expect(status.status).toBe(0);
@@ -176,13 +193,22 @@ describe.skipIf(!ready)('kit image contract', () => {
     try {
       const r = run(
         [
-          'run', '--rm',
-          '--user', `${uid}:${gid}`,
-          '-e', 'HOME=/tmp',
-          '-e', 'CLAUDE_PROJECT_DIR=/player',
-          '-v', `${dockerPath(ws)}:/player`,
-          '-v', `${dockerPath(hooksDir)}:/hooks:ro`,
-          KIT_IMAGE, 'sh', '-c', 'echo "uid=$(id -u)"; bash /hooks/session-start.sh',
+          'run',
+          '--rm',
+          '--user',
+          `${uid}:${gid}`,
+          '-e',
+          'HOME=/tmp',
+          '-e',
+          'CLAUDE_PROJECT_DIR=/player',
+          '-v',
+          `${dockerPath(ws)}:/player`,
+          '-v',
+          `${dockerPath(hooksDir)}:/hooks:ro`,
+          KIT_IMAGE,
+          'sh',
+          '-c',
+          'echo "uid=$(id -u)"; bash /hooks/session-start.sh',
         ],
         { timeoutMs: RUN_MS },
       );
@@ -200,7 +226,17 @@ describe.skipIf(!ready)('kit image contract', () => {
     const ws = makeWorkspace();
     try {
       const r = run(
-        ['run', '--rm', ...asOwner, '-v', `${dockerPath(ws)}:/player`, KIT_IMAGE, 'sh', '-c', 'echo x >> /player/memory/identity.md'],
+        [
+          'run',
+          '--rm',
+          ...asOwner,
+          '-v',
+          `${dockerPath(ws)}:/player`,
+          KIT_IMAGE,
+          'sh',
+          '-c',
+          'echo x >> /player/memory/identity.md',
+        ],
         { timeoutMs: RUN_MS },
       );
       expect(r.status).toBe(0);
@@ -240,12 +276,39 @@ describe.skipIf(!ready)('kit image contract', () => {
       const ws = makeWorkspace();
       try {
         const same = run(
-          ['run', '--rm', ...asOwner, '-v', `${dockerPath(ws)}:/player`, KIT_IMAGE, 'git', '-C', '/player', 'status', '--porcelain'],
+          [
+            'run',
+            '--rm',
+            ...asOwner,
+            '-v',
+            `${dockerPath(ws)}:/player`,
+            KIT_IMAGE,
+            'git',
+            '-C',
+            '/player',
+            'status',
+            '--porcelain',
+          ],
           { timeoutMs: RUN_MS },
         );
         expect(same.status).toBe(0);
         const other = run(
-          ['run', '--rm', '--user', `${uid + 1}:${gid + 1}`, '-e', 'HOME=/tmp', '-v', `${dockerPath(ws)}:/player`, KIT_IMAGE, 'git', '-C', '/player', 'status', '--porcelain'],
+          [
+            'run',
+            '--rm',
+            '--user',
+            `${uid + 1}:${gid + 1}`,
+            '-e',
+            'HOME=/tmp',
+            '-v',
+            `${dockerPath(ws)}:/player`,
+            KIT_IMAGE,
+            'git',
+            '-C',
+            '/player',
+            'status',
+            '--porcelain',
+          ],
           { timeoutMs: RUN_MS },
         );
         expect(other.status).not.toBe(0);
@@ -260,7 +323,20 @@ describe.skipIf(!ready)('kit image contract', () => {
       try {
         writeFileSync(join(ws, 'memory', 'summary.md'), 'day 1\n');
         const r = run(
-          ['run', '--rm', ...asOwner, '-v', `${dockerPath(ws)}:/player`, KIT_IMAGE, 'geldar-git', 'commit', '--root', '/player', '--message', 'test'],
+          [
+            'run',
+            '--rm',
+            ...asOwner,
+            '-v',
+            `${dockerPath(ws)}:/player`,
+            KIT_IMAGE,
+            'geldar-git',
+            'commit',
+            '--root',
+            '/player',
+            '--message',
+            'test',
+          ],
           { timeoutMs: RUN_MS },
         );
         expect(r.status).toBe(0);
