@@ -2,16 +2,14 @@
 
 Read this, then [README.md](README.md) (the ledger), before acting. Rewrite at every wave boundary, in 40 lines at most.
 
-**State (2026-11-08):** wave 0 (SC-01 to SC-05) is done and merged into `scriptorium/wave0`; every packet passed its own review. The wave review (pass 1) returned `fix`; the fixes are on branch `scriptorium/wave0-fix` (worktree `.claude/worktrees/wave0-fix`) and need a re-review before they merge into `scriptorium/wave0`. The kit's decisions (geldar 0007–0016) are in geldar PR #3, owned by the planning session; don't touch it or geldar `docs/decisions/`.
+**State (2026-11-08):** wave 0 (SC-01 to SC-05) is done and merged into `scriptorium/wave0`, wave review verdict `ship` (pass 2). The PR from `scriptorium/wave0` to `main` is open and waiting for the owner's go; don't merge without it. The kit's decisions (geldar 0007–0016) are in geldar PR #3, owned by the planning session; don't touch it or geldar `docs/decisions/`.
 
-**Current wave:** 0 closing. Wave 1 (the template, SC-10 to SC-16) starts after wave 0 merges to `main`.
+**Current wave:** 0 done, PR open. Wave 1 (the template, SC-10 to SC-16) starts after wave 0 merges to `main`.
 
 **Next action:**
 
-1. Re-review `scriptorium/wave0-fix` (wave review pass 2, fresh Sonnet reviewer). On `ship`, merge it `--no-ff` into `scriptorium/wave0` and push.
-2. Open one PR from `scriptorium/wave0` to `main` (ship-pr skill, body ends with the attribution footer). Then stop and wait: merge only when the owner says so.
-3. After the merge: remove the sc-01..sc-05 and wave0-fix worktrees and branches, rewrite this card for wave 1.
-4. Wave 1 is already written in `work-packets.md`. SC-12, SC-15 and SC-16 wait on D-SC-07 being marked Accepted.
+1. Wait for the owner to say merge. Then merge the PR (`gh pr merge --merge`), remove the sc-01..sc-05 and wave0-fix worktrees and branches, and rewrite this card for wave 1.
+2. Wave 1 is already written in `work-packets.md`. SC-12, SC-15 and SC-16 wait on D-SC-07 being marked Accepted.
 
 **Agents:** `.claude/agents/` now exists (SC-03). Until a session has them loaded, dispatch with the Agent tool as `general-purpose` (coders `haiku`, reviewers `sonnet`), pasting the rules from the agent files into each brief.
 
