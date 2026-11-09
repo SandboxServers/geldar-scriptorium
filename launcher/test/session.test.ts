@@ -298,6 +298,9 @@ describe.each(forGroup('session'))('session ($name)', (launcher) => {
     const r = start(launcher, w, p, 'play', dumpSession(w));
     expect(r.status, r.stderr).toBe(0);
     expect(text(join(w.root, 'env-seven.txt'))).toContain(`GELDAR_MCP_TOKEN=${TOKEN}\n`);
+    // The launcher never prints the token, on either stream.
+    expect(r.stdout).not.toContain(TOKEN);
+    expect(r.stderr).not.toContain(TOKEN);
     expect(text(join(sessionDir(p), 'override.yml'))).not.toContain(TOKEN);
     expect(text(join(w.dockerRoot, 'calls.log'))).not.toContain(TOKEN);
     // Only the 0600 token file holds it, anywhere in the state folder.
