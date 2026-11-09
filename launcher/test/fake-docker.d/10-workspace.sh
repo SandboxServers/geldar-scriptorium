@@ -60,20 +60,26 @@ fake_fill() {
 
 fake_run() {
   role=""
+  FAKE_NAME=""
   mounts=""
   envs=""
   nl='
 '
   while [ $# -gt 0 ]; do
     case $1 in
-      --rm | --init) shift ;;
+      --rm | --init | --read-only) shift ;;
+      --network | --tmpfs) shift 2 ;;
+      --name)
+        FAKE_NAME=$2
+        shift 2
+        ;;
       --label)
         case $2 in
           geldar.role=*) role=${2#geldar.role=} ;;
         esac
         shift 2
         ;;
-      --name | --memory | --pids-limit | --log-driver | --cap-drop | --security-opt)
+      --memory | --pids-limit | --log-driver | --cap-drop | --security-opt)
         shift 2
         ;;
       -v)
@@ -106,6 +112,7 @@ fake_run() {
   fi
   FAKE_IN=""
   FAKE_PL=""
+  FAKE_BUNDLE=""
   FAKE_TMP="$FAKE_DOCKER_ROOT/scratch/$$"
   mkdir -p "$FAKE_TMP"
   while IFS= read -r m; do
@@ -125,6 +132,7 @@ fake_run() {
     case $dst in
       /in) FAKE_IN=$src ;;
       /player) FAKE_PL=$src ;;
+      /in/bundle.bundle) FAKE_BUNDLE=$src ;;
       *)
         echo "fake docker: unsupported mount target: $dst" >&2
         return 99
