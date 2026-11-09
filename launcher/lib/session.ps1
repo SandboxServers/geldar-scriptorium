@@ -35,10 +35,18 @@ function ConvertTo-MountQuoted([string]$Path) {
 }
 
 # H-08: the host of mcp_url, alone on one line.
+# N4: it lives in <state>/<id>/pub (0755), the one world-readable path outside export/.
 function Write-Allowlist([string]$Sd, [string]$Url) {
   $h = $Url.Substring($Url.IndexOf('://') + 3)
   $h = $h.Split('/')[0].Split(':')[0]
-  [System.IO.File]::WriteAllText((Join-Path $Sd 'allowlist-world.txt'), "$h`n", $script:SESSION_UTF8)
+  $pub = Join-Path (Split-Path -Parent $Sd) 'pub'
+  New-Item -ItemType Directory -Path $pub -Force | Out-Null
+  $f = Join-Path $pub 'allowlist-world.txt'
+  [System.IO.File]::WriteAllText($f, "$h`n", $script:SESSION_UTF8)
+  if (-not $IsWindows) {
+    [System.IO.File]::SetUnixFileMode($pub, [System.IO.UnixFileMode]0x1ED)
+    [System.IO.File]::SetUnixFileMode($f, [System.IO.UnixFileMode]0x1A4)
+  }
 }
 
 # H-06: the override. Absolute host paths only; one read-only bind per kit entry.
@@ -88,17 +96,7 @@ function Invoke-DockerChild([string[]]$DockerArgs, [hashtable]$Set, [string[]]$U
   if (-not $exe) { $exe = 'docker' }
   $found = Get-Command $exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
   if ($found) { $exe = $found.Source }
-  $psi = [System.Diagnostics.ProcessStartInfo]::new()
-  $psi.UseShellExecute = $false
-  if ($exe -match '\.(cmd|bat)\z') {
-    $psi.FileName = 'cmd.exe'
-    $psi.ArgumentList.Add('/d')
-    $psi.ArgumentList.Add('/c')
-    $psi.ArgumentList.Add($exe)
-  } else {
-    $psi.FileName = $exe
-  }
-  foreach ($a in $DockerArgs) { $psi.ArgumentList.Add($a) }
+  $psi = New-CmdShimStartInfo $exe $DockerArgs
   foreach ($u in $Unset) { [void]$psi.Environment.Remove($u) }
   foreach ($k in $Set.Keys) { $psi.Environment[$k] = [string]$Set[$k] }
   if ($Quiet) {
@@ -134,6 +132,8 @@ function Start-PlayerSession([string]$Id, [string]$Mode) {
   if ([regex]::IsMatch($chk, '[\x00-\x1F\x7F:,]')) { Die 1 bad_state_path }
   $share = (Get-ShareDir).Replace([char]92, [char]47)
 
+  New-PrivateDir $d
+  New-PrivateDir $sd
   Write-Allowlist $sd $script:PL_MCP_URL
   Invoke-Docker volume create "geldar-cli-$Id-claude" *> $null
   if ($LASTEXITCODE -ne 0) { Die 1 workspace_failed $Id 'the CLI volume could not be created' }
@@ -141,7 +141,7 @@ function Start-PlayerSession([string]$Id, [string]$Mode) {
 
   $words = @(Get-HarnessCommand claude $Mode)
   $ov = "$sdf/override.yml"
-  $wl = "$sdf/allowlist-world.txt"
+  $wl = (Split-Path -Parent $sdf) + '/pub/allowlist-world.txt'
   $files = @('-f', "$share/compose/session.yml", '-f', $ov)
   $extra = Get-GatedEnv 'GELDAR_EXTRA_COMPOSE'
   if ($extra) {
