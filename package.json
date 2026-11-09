@@ -10,13 +10,15 @@
   "scripts": {
     "lint": "biome ci .",
     "format": "biome check --write .",
-    "typecheck": "pnpm -r --if-present run typecheck",
+    "typecheck": "pnpm -r --if-present run typecheck && tsc -p tests --noEmit",
     "test": "vitest run",
-    "check:repo": "node tools/repo-checks/src/cli.ts"
+    "check:repo": "node tools/repo-checks/src/cli.ts",
+    "check:template": "node tests/template/check.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.3",
     "@types/node": "22.20.5",
+    "ajv": "8.17.1",
     "typescript": "7.0.2",
     "vitest": "5.0.5"
   }

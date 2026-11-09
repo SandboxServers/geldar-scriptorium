@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "player.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "player_id",
+    "name",
+    "shard",
+    "mcp_url",
+    "harness",
+    "declared_model",
+    "kit_version",
+    "kit_image"
+  ],
+  "properties": {
+    "player_id": {
+      "type": "string",
+      "pattern": "^$|^[a-z][a-z0-9-]{1,38}$"
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 40
+    },
+    "shard": {
+      "type": "string",
+      "pattern": "^$|^[a-z][a-z0-9-]{0,30}$"
+    },
+    "mcp_url": {
+      "type": "string",
+      "pattern": "^$|^https?://"
+    },
+    "harness": {
+      "enum": ["claude", "codex"]
+    },
+    "declared_model": {
+      "type": "string"
+    },
+    "kit_version": {
+      "type": "string",
+      "pattern": "^$|^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+    },
+    "kit_image": {
+      "type": "string",
+      "pattern": "^$|^[a-z0-9./-]+@sha256:[0-9a-f]{64}$"
+    }
+  }
+}
