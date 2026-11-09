@@ -2,7 +2,7 @@ import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { bashExe, bashPath, forGroup, git } from '../harness.ts';
-import { attack, benign, expectHostUnchanged, expectRefusal } from './world.ts';
+import { type Attack, attack, benign, expectHostUnchanged, expectRefusal } from './world.ts';
 
 // H-13 (T-13): the gate is forced ok (FAKE_VERIFY_STDOUT), so host_recheck alone must reject.
 // The case-fold start-tree collision rows are in SC-60k and SC-60l. Case 5 of bundle.test.ts is
@@ -63,7 +63,7 @@ describe.each(forGroup('hostile'))('H-13 host re-check ($name)', (launcher) => {
     expect(readFileSync(join(a.player.stateDir, 'held', 'info'), 'utf8')).toContain(
       'reason=recheck_failed',
     );
-    expectHostUnchanged(a.before, { ...a.after, stateFiles: a.before.stateFiles });
+    expectHeld(a);
   });
 
   // The diff is made unreadable by a GELDAR_GIT wrapper that fails every `diff` call.
@@ -91,7 +91,7 @@ describe.each(forGroup('hostile'))('H-13 host re-check ($name)', (launcher) => {
     });
     expect(a.finish.status, a.finish.stderr).toBe(3);
     expectRefusal(a.finish, 'recheck_failed', { status: 3 });
-    expectHostUnchanged(a.before, { ...a.after, stateFiles: a.before.stateFiles });
+    expectHeld(a);
   });
 
   // --no-renames control: a rename from one allowed path to another allowed path is accepted,
@@ -110,3 +110,18 @@ describe.each(forGroup('hostile'))('H-13 host re-check ($name)', (launcher) => {
     expect(without).not.toMatch(/R\d+/);
   });
 });
+
+// A re-check hold leaves the fetched refs/launcher/incoming in the host clone (the push and the
+// merge never ran); every other host ref, the branch, the tree and origin are unchanged.
+function expectHeld(a: Attack): void {
+  const keep = (s: string) =>
+    s
+      .split('\n')
+      .filter((l) => !l.includes('refs/launcher/incoming'))
+      .join('\n');
+  expectHostUnchanged(a.before, {
+    ...a.after,
+    stateFiles: a.before.stateFiles,
+    cloneRefs: keep(a.after.cloneRefs),
+  });
+}
