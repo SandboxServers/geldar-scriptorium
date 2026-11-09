@@ -1,0 +1,80 @@
+{
+  "model": "haiku",
+  "effortLevel": "low",
+  "autoMemoryEnabled": false,
+  "permissions": {
+    "defaultMode": "dontAsk",
+    "allow": [
+      "mcp__geldar__look",
+      "mcp__geldar__wait",
+      "mcp__geldar__act",
+      "mcp__geldar__say",
+      "mcp__geldar__read_book",
+      "mcp__geldar__write_book",
+      "mcp__geldar__define_skill",
+      "mcp__geldar__use_skill",
+      "mcp__geldar__offer",
+      "mcp__geldar__propose",
+      "mcp__geldar__vote",
+      "mcp__geldar__sleep",
+      "mcp__geldar__journal",
+      "mcp__geldar__status",
+      "mcp__geldar_memory__recall",
+      "mcp__geldar_git__commit_memory",
+      "Read(/**)",
+      "Edit(/memory/**)",
+      "Write(/memory/**)",
+      "Edit(/skills/**)",
+      "Write(/skills/**)"
+    ],
+    "deny": [
+      "Edit(/.claude/**)",
+      "Write(/.claude/**)",
+      "Edit(/CLAUDE.md)",
+      "Write(/CLAUDE.md)",
+      "Edit(/AGENTS.md)",
+      "Write(/AGENTS.md)",
+      "Edit(/.mcp.json)",
+      "Write(/.mcp.json)",
+      "Edit(/player.json)",
+      "Write(/player.json)",
+      "Edit(/.gitattributes)",
+      "Write(/.gitattributes)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/session-start.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^mcp__geldar__(act|say)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/post-tool-use.sh\""
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/session-end.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "autoMemoryEnabled": false,
+  "permissions": {
+    "blockReadsOutsideWorkingDirectories": true,
+    "deny": [
+      "Bash",
+      "WebFetch",
+      "WebSearch",
+      "Read(**/.credentials.json)",
+      "Edit(**/.credentials.json)",
+      "Write(**/.credentials.json)"
+    ]
+  }
+}

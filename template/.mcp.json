@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "geldar": {
+      "type": "http",
+      "url": "${GELDAR_MCP_URL}",
+      "headers": {
+        "Authorization": "Bearer ${GELDAR_MCP_TOKEN}"
+      },
+      "timeout": 300000
+    },
+    "geldar_memory": {
+      "command": "geldar-memory",
+      "args": ["--root", "/player"]
+    },
+    "geldar_git": {
+      "command": "geldar-git",
+      "args": ["mcp", "--root", "/player"]
+    }
+  }
+}
