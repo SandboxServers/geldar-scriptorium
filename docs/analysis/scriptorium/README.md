@@ -108,12 +108,51 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-55a | 5 | S | Stub CLI over HTTP, stub image variant, in-test world | Sonnet (general-purpose) | Done | wave 4 |
 | SC-55b | 5 | S | End-to-end CI on the in-test world: `new` → `setup` → three `play` days → push, both launchers; Sonnet | Sonnet (general-purpose) | Done | SC-52b, SC-54b, SC-55a |
 | SC-55c | 5 | S | End-to-end CI against the mock world image | packet-coder | Done | SC-55b, SC-33 |
-| SC-60 | 6 | S | Hostile workspace tests, one per hardening item | packet-coder | BlockedDependency | SC-55b |
-| SC-61 | 6 | S+G | Malicious-book corpus as mock world scenarios | packet-coder | BlockedDependency | SC-32d |
-| SC-62 | 6 | S | Live malicious-book check, local only (script plus documented procedure; never in CI) with pinned Claude Code | packet-coder | Planned | SC-61 |
-| SC-63a | 6 | S | Template publish workflow: on a `kit-v*` tag, Azure OIDC sign-in, read `geldar-bot` key from Key Vault, mint an installation token, push `template/` to `geldar-player-template` as one commit (the first slice of SC-63) | packet-coder | BlockedDependency | SC-55b |
-| SC-63 | 6 | S | Release workflow: image, cosign, SBOM, scan, launcher assets, template publish | packet-coder | BlockedDependency (SC-60; D-SC-02 and D-SC-06 are Accepted) | SC-60, SC-63a |
-| SC-64 | 6 | S | `geldar-play upgrade`: kit bump as a PR | packet-coder | BlockedDependency | SC-63 |
+| SC-60 | 6 | S | Hostile workspace tests: umbrella for SC-60a to SC-60r (cards: [work-packets-wave6.md](work-packets-wave6.md)) | - | BlockedDependency (done when SC-60r is) | SC-60a to SC-60r |
+| SC-60a | 6 | S | Hostile harness (`attack`, host snapshot, refusal asserts) and the `hostile` parity group; gate | Sonnet (general-purpose) | Planned | wave 5 |
+| SC-60b | 6 | S | Case tables and suites: start-tree case collision (decision 28) and private-name `mcp_url` (N3); the message row; gate | packet-coder (Haiku) | Planned | wave 5 |
+| SC-60c | 6 | S | Hostile tests H-01 to H-05 | Sonnet (general-purpose) | BlockedDependency | SC-60a |
+| SC-60d | 6 | S | Hostile tests H-06, H-07, H-08, H-19 | Sonnet (general-purpose) | BlockedDependency | SC-60a |
+| SC-60e | 6 | S | Hostile tests H-09, H-10 | Sonnet (general-purpose) | BlockedDependency | SC-60a |
+| SC-60f | 6 | S | Hostile tests H-11 matrix, H-16 | Sonnet (general-purpose) | BlockedDependency | SC-60a |
+| SC-60g | 6 | S | Hostile tests H-12, H-13 | Sonnet (general-purpose) | BlockedDependency | SC-60a |
+| SC-60h | 6 | S | Hostile tests H-14, H-15, H-17 | Sonnet (general-purpose) | BlockedDependency | SC-60a |
+| SC-60i | 6 | S | Hostile tests H-18, H-20 (hooks, credential denies) | Sonnet (general-purpose) | BlockedDependency | SC-60a |
+| SC-60j | 6 | S | `geldar-git`: hash each file from an O_NOFOLLOW descriptor; symlink-swap test (wave 2 gap) | Sonnet (general-purpose) | Planned | wave 2 |
+| SC-60k | 6 | S | Start-tree case-collision check in the host re-check, bash | Sonnet (general-purpose) | BlockedDependency | SC-60a, SC-60b |
+| SC-60l | 6 | S | Start-tree case-collision check in the host re-check, PowerShell | Sonnet (general-purpose) | BlockedDependency | SC-60a, SC-60b |
+| SC-60m | 6 | S | N3: refuse local and private names in `mcp_url`, bash | packet-coder (Haiku) | BlockedDependency | SC-60b |
+| SC-60n | 6 | S | N3: same, PowerShell | packet-coder (Haiku) | BlockedDependency | SC-60b |
+| SC-60o | 6 | S | N4: state and session directories 0700, only the allowlist world-readable, bash | Sonnet (general-purpose) | BlockedDependency | SC-60a |
+| SC-60p | 6 | S | N4 (non-Windows) and N6 (`.cmd` shim quoting), PowerShell | Sonnet (general-purpose) | BlockedDependency | SC-60a |
+| SC-60q | 6 | S | N8: every `GELDAR_` variable is classified and gated or documented | packet-coder (Haiku) | BlockedDependency | SC-60a |
+| SC-60r | 6 | S | Docs: hardening map, residual risks, launcher README; join | packet-coder (Haiku) | BlockedDependency | SC-60c to SC-60q |
+| SC-61 | 6 | S+G | Malicious-book corpus: umbrella for SC-61a to SC-61h (cards: [work-packets-wave6b.md](work-packets-wave6b.md)) | - | BlockedDependency (done when SC-61h is) | SC-61a to SC-61h |
+| SC-61a | 6 | G | Corpus loader and structural checks in the mock world; gate | Sonnet (general-purpose) | Planned | SC-32d (done) |
+| SC-61b | 6 | G | Corpus books MB-01 to MB-05 | Sonnet (general-purpose) | BlockedDependency | SC-61a |
+| SC-61c | 6 | G | Corpus books MB-06 to MB-09 | Sonnet (general-purpose) | BlockedDependency | SC-61a |
+| SC-61d | 6 | G | Bake the corpus into the mock image; world-side test (hostile text stays untrusted); new image digest to this repo | Sonnet (general-purpose) | BlockedDependency | SC-61b, SC-61c |
+| SC-61e | 6 | S | Corpus manifest, coverage test and gullible-session runner; gate | Sonnet (general-purpose) | BlockedDependency | SC-60a |
+| SC-61f | 6 | S | Gullible sessions MB-01 to MB-05 through the real launcher and gate | Sonnet (general-purpose) | BlockedDependency | SC-61e |
+| SC-61g | 6 | S | Gullible sessions MB-06 to MB-09 (and the enforcing-test markers) | Sonnet (general-purpose) | BlockedDependency | SC-61e |
+| SC-61h | 6 | S | Stub session against each corpus scenario in the mock image (real Docker); pins the corpus image digest | Sonnet (general-purpose) | BlockedDependency | SC-61d, SC-61e |
+| SC-62 | 6 | S | Live malicious-book check, local only (D-SC-01): umbrella for SC-62a to SC-62c (cards: [work-packets-wave6b.md](work-packets-wave6b.md)) | - | BlockedDependency (done when SC-62c is) | SC-62a to SC-62c |
+| SC-62a | 6 | S | Live check: the pure evidence evaluator; gate | packet-coder (Haiku) | Planned | wave 5 |
+| SC-62b | 6 | S | Live check: `scriptorium.ps1 live-check` runner with the CI refusal | Sonnet (general-purpose) | BlockedDependency | SC-62a |
+| SC-62c | 6 | S | Live check: the written procedure | packet-coder (Haiku) | BlockedDependency | SC-62b, SC-61h |
+| SC-63a | 6 | S | Template publish workflow: on a `kit-v*` tag, Azure OIDC sign-in, `geldar-bot` key from Key Vault (masked), installation token, push `template/` to `geldar-player-template` as one commit naming the release triple; dry run | Sonnet (general-purpose) | BlockedDependency | SC-63b, SC-63c |
+| SC-63b | 6 | S | Template publish tool (`tools/release`): assemble, one commit, tag, dry run, no force; gate | Sonnet (general-purpose) | Planned | wave 5 |
+| SC-63c | 6 | S | Workflow check: pins, permissions, triggers, secrets, masking, no model use, tag guard; gate | Sonnet (general-purpose) | Planned | wave 5 |
+| SC-63d | 6 | S | Image workflow: build, push to GHCR, trivy and grype (fail on critical), cosign sign, SBOM | Sonnet (general-purpose) | BlockedDependency | SC-63c |
+| SC-63e | 6 | S | Launcher assets: reproducible tarball and checksums | Sonnet (general-purpose) | BlockedDependency | SC-63b |
+| SC-63g | 6 | S | Image scan on pull requests, `main` and weekly (no push, no credential) | packet-coder (Haiku) | BlockedDependency | SC-63c |
+| SC-63f | 6 | S | Release wiring: launcher signing, template call, GitHub release, `docs/release.md`; join | Sonnet (general-purpose) | BlockedDependency | SC-63a, SC-63d, SC-63e, SC-63g, SC-60r, SC-61h, SC-62c |
+| SC-63 | 6 | S | Release workflow: umbrella for SC-63a to SC-63g (cards: [work-packets-wave6c.md](work-packets-wave6c.md)); D-SC-02 and D-SC-06 Accepted | - | BlockedDependency (done when SC-63f is; the first tag is an owner event) | SC-63a to SC-63g |
+| SC-64 | 6 | S | `geldar-play upgrade`: umbrella for SC-64a to SC-64d | - | BlockedDependency (done when SC-64d is) | SC-64a to SC-64d |
+| SC-64a | 6 | S | Upgrade: messages, fake `gh` release, release fixture and shared suite; gate | packet-coder (Haiku) | Planned | wave 5 |
+| SC-64b | 6 | S | Upgrade: kit bump as a pull request, bash | Sonnet (general-purpose) | BlockedDependency | SC-64a |
+| SC-64c | 6 | S | Upgrade: PowerShell | Sonnet (general-purpose) | BlockedDependency | SC-64a |
+| SC-64d | 6 | S | Upgrade docs (launcher README, release guide) | packet-coder (Haiku) | BlockedDependency | SC-64b, SC-64c, SC-63f |
 | SC-70 | 7 | S | Template README (the Patron guide), onboarding and troubleshooting docs | packet-coder | BlockedDependency | wave 6 |
 | SC-71 | 7 | S | Codex CLI support | packet-coder | BlockedDecision | D-SC-08 |
 | SC-72 | 7 | S | Acceptance runs on Windows and Linux; measure Haiku-low turns; owner inputs: the real MCP host (`launcher/config/world.conf` mcp_base) and the private-only shard list | owner + main session | BlockedDependency | SC-70 |
