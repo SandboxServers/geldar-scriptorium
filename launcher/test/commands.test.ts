@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import {
   appendFileSync,
   chmodSync,
@@ -10,7 +11,9 @@ import {
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  bashExe,
   bashPath,
+  childEnv,
   forGroup,
   git,
   type Launcher,
@@ -45,6 +48,15 @@ git clone -q __ORIGIN__ "$OTHER/o"
 (cd "$OTHER/o" && echo other > memory/other.md && git add -A && git commit -q -m other && git push -q origin main)
 `;
 
+// The fake gh as each launcher names it: pwsh on Windows runs a .cmd shim around the sh script.
+function ghFor(l: Launcher, w: World): string {
+  if (l.name === 'bash') return bashPath(join(w.fakeDir, 'gh'));
+  if (process.platform !== 'win32') return join(w.fakeDir, 'gh');
+  const cmd = join(w.fakeDir, 'gh.cmd');
+  if (!existsSync(cmd)) writeFileSync(cmd, `@"${bashExe}" "${fakeGh}" %*\r\n`);
+  return cmd;
+}
+
 function prep(l: Launcher, w: World, script = benign, id = ID, extra: Record<string, string> = {}) {
   const p = makePlayer(w, { id });
   const sf = join(w.root, `session-${id}.sh`);
@@ -55,10 +67,11 @@ function prep(l: Launcher, w: World, script = benign, id = ID, extra: Record<str
   const ghRoot = join(w.root, 'gh');
   writeFileSync(join(w.fakeDir, 'gh'), `#!/bin/sh\nexec sh "${fakeGh}" "$@"\n`);
   chmodSync(join(w.fakeDir, 'gh'), 0o755);
+  const gh = ghFor(l, w);
   const env = {
     ...(l.name === 'bash' ? w.env : w.envPwsh),
     GELDAR_SHARE: share,
-    GELDAR_GH: bashPath(join(w.fakeDir, 'gh')),
+    GELDAR_GH: gh,
     FAKE_GH_ROOT: bashPath(ghRoot),
     FAKE_SESSION: bashPath(sf),
     ...extra,
@@ -234,7 +247,7 @@ describe.each(forGroup('commands'))('resolve, archive, status ($name)', (l) => {
       env: {
         ...(l.name === 'bash' ? w.env : w.envPwsh),
         GELDAR_SHARE: share,
-        GELDAR_GH: bashPath(join(w.fakeDir, 'gh')),
+        GELDAR_GH: ghFor(l, w),
       },
     });
     expect(r.status, r.stderr).toBe(0);
@@ -302,3 +315,22 @@ describe.each(forGroup('commands'))('resolve, archive, status ($name)', (l) => {
     expect(dockerRuns(w).length).toBe(before);
   });
 });
+
+describe.each(forGroup('commands').filter((l) => l.name === 'pwsh'))(
+  'status bytes ($name)',
+  (l) => {
+    it('the output is plain bytes: no BOM, LF endings only', () => {
+      const w = makeWorld();
+      const { env } = prep(l, w, benign, 'rdy');
+      makePlayer(w, { id: 'unb' });
+      const r = spawnSync('pwsh', ['-NoProfile', '-File', l.entry, 'status', 'rdy', 'ghost'], {
+        env: childEnv(env),
+      });
+      expect(r.status, String(r.stderr)).toBe(0);
+      const b = r.stdout;
+      expect([...b.subarray(0, 4)]).toEqual([0x72, 0x64, 0x79, 0x09]);
+      expect(b.includes(0x0d)).toBe(false);
+      expect(b.toString('latin1')).toBe('rdy\tunborn\tmain\nghost\tmissing\n');
+    });
+  },
+);

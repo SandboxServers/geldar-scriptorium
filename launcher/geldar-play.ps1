@@ -8,7 +8,8 @@ $utf8 = [System.Text.UTF8Encoding]::new($false)
 $OutputEncoding = $utf8
 
 $GP_DIR = $PSScriptRoot
-foreach ($f in (Get-ChildItem -LiteralPath (Join-Path $GP_DIR 'lib') -Filter '*.ps1' | Sort-Object Name)) {
+. (Join-Path $GP_DIR 'lib/common.ps1')
+foreach ($f in (Get-ChildItem -LiteralPath (Join-Path $GP_DIR 'lib') -Filter '*.ps1' | Where-Object { $_.Name -ne 'common.ps1' } | Sort-Object Name)) {
   . $f.FullName
 }
 Import-Messages
@@ -79,6 +80,12 @@ if ($verb -in 'new', 'setup', 'play') { $gpArgs = @((@(Read-CliOption $rest))[0]
 
 if ($verb -cne 'status' -and $gpArgs.Count -lt 1) { Die 2 usage }
 if ($gpArgs.Count -ge 1 -and -not (Test-PlayerId $gpArgs[0])) { Die 2 bad_player_id $gpArgs[0] }
+if ($verb -ceq 'play' -and $gpArgs.Count -ge 2) {
+  foreach ($id in $gpArgs) {
+    if (-not (Test-PlayerId $id)) { Die 2 bad_player_id $id }
+  }
+  $verb = 'play_many'
+}
 
 $needs = @(Get-VerbNeeds $verb)
 Need @needs
