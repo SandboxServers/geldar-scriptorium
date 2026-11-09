@@ -1,6 +1,7 @@
 # After the session: bundle, verify, host re-check, fetch, push, fast-forward, hold (H-09 to H-17).
 # Sourced; bash 3.2 syntax only. finish_session is the one function the play and the
 # crash-recovery paths share; it uses only <state>/<id>/{start,mode,branch}.
+GP_GROUPS="$GP_GROUPS finish"
 
 # A failure after the session: the bundle and the workspace stay, the host branch is untouched.
 finish_hold() {

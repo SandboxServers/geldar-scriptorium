@@ -174,7 +174,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     const w = makeWorld();
     const r = run(launcher, ['play', 'abc'], { env: envOf(launcher, w) });
     expect(w.calls().some((c) => c[0] === 'compose' && c[1] === 'version')).toBe(true);
-    expect(r.stderr).toContain('This command is not available');
+    expect(r.stderr).toContain('No player named abc');
     const gone = run(launcher, ['play', 'abc'], {
       env: envOf(launcher, w, { GELDAR_DOCKER: join(w.root, 'no-such-docker') }),
     });
@@ -192,7 +192,8 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     expect(bogus.status).toBe(2);
     expect(bogus.stderr).toContain('Usage:');
     const claude = run(launcher, ['play', 'abc', '--cli', 'claude'], { env: envOf(launcher, w) });
-    expect(claude.stderr).toContain('This command is not available');
+    expect(claude.stderr).toContain('No player named abc');
+    expect(claude.stderr).not.toContain('Usage:');
   }, 60_000);
 
   timingIt(
@@ -241,7 +242,8 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
           GELDAR_TOOL_PATH: launcher.name === 'bash' ? bashPath(empty) : empty,
         }),
       });
-      expect(tp.stderr).toContain('This command is not available');
+      expect(tp.stderr).toContain('No player named abc');
+      expect(tp.stderr).not.toContain('is needed and was not found');
       // GELDAR_HELPER_TIMEOUT_SEC does not shorten run_bounded.
       const t = (internal: string) =>
         runLib(
@@ -328,7 +330,8 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     const args = (v: string) => (v === 'status' ? [v] : [v, 'abc']);
     for (const [verb, list] of Object.entries(needs)) {
       const ok = run(launcher, args(verb), { env: base(shims(all)) });
-      expect(ok.stderr, verb).toContain('This command is not available');
+      expect(ok.stderr, verb).not.toContain('is needed and was not found');
+      expect(ok.stderr, verb).not.toContain('is too old');
       for (const tool of list) {
         const env = base(shims(all.filter((t) => t !== tool)));
         if (tool === 'docker') env.GELDAR_DOCKER = join(w.root, 'missing');
@@ -344,7 +347,8 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     expect(old.status).toBe(1);
     expect(old.stderr).toContain('git 2.39 is too old');
     const fine = run(launcher, ['status'], { env: base(shims(all, '2.40.0')) });
-    expect(fine.stderr).toContain('This command is not available');
+    expect(fine.stderr).not.toContain('is too old');
+    expect(fine.stderr).not.toContain('is needed and was not found');
   }, 180_000);
 
   it('12. --capabilities lists exactly the enabled groups', () => {
