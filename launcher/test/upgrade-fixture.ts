@@ -91,6 +91,17 @@ function put(root: Dir, path: string[], leaf: Node): void {
   cur.dir.set(path[path.length - 1] ?? '', leaf);
 }
 
+// Identical content in one repository is written once, so a repository with many versions stays cheap.
+function blob(repo: string, body: Buffer): string {
+  const key = `${repo}|${createHash('sha256').update(body).digest('hex')}`;
+  let sha = blobs.get(key);
+  if (!sha) {
+    sha = gitRun(repo, ['hash-object', '-w', '--stdin'], body);
+    blobs.set(key, sha);
+  }
+  return sha;
+}
+
 function writeTree(repo: string, d: Dir): string {
   const entries: Entry[] = [];
   for (const [name, node] of d.dir) {
@@ -99,7 +110,7 @@ function writeTree(repo: string, d: Dir): string {
       entries.push({
         mode: node.mode,
         name,
-        sha: gitRun(repo, ['hash-object', '-w', '--stdin'], node.file),
+        sha: blob(repo, node.file),
       });
     } else if ('link' in node) {
       entries.push({
@@ -121,6 +132,8 @@ function writeTree(repo: string, d: Dir): string {
     Buffer.concat(parts),
   );
 }
+
+const blobs = new Map<string, string>();
 
 let counter = 0;
 
