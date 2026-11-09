@@ -15,6 +15,7 @@
     "typecheck": "tsc -p . --noEmit"
   },
   "devDependencies": {
+    "@geldar/scriptorium-git": "workspace:*",
     "@geldar/scriptorium-memory": "workspace:*"
   },
   "dependencies": {
