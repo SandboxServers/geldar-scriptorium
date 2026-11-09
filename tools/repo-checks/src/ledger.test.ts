@@ -36,4 +36,15 @@ describe('setLedgerStatus', () => {
     const out = setLedgerStatus(`${row}\n`, 'SC-1', 'done');
     expect(out).toBe('| SC-1 | 4 | S | a \\| b | packet-coder | done | - |\n');
   });
+  it('accepts ids with a trailing digit and rejects malformed ids', () => {
+    const d = '| SC-60b1 | 6 | S | gate | packet-coder | Ready | - |
+| SC-60b2 | 6 | S | gate | packet-coder | Ready | - |
+';
+    const out = setLedgerStatus(d, 'SC-60b1', 'Done').split('
+');
+    expect(out[0]).toContain('Done');
+    expect(out[1]).toContain('Ready');
+    expect(() => setLedgerStatus(d, 'SC-60b12', 'Done')).toThrow(/not a ledger id/);
+    expect(() => setLedgerStatus(d, 'SC-60bb', 'Done')).toThrow(/not a ledger id/);
+  });
 });
