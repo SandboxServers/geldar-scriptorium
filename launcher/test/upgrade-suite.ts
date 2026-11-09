@@ -170,6 +170,15 @@ export function upgradeSuite(l: Launcher): void {
       const argv = pr[0] ?? [];
       expect(argv[argv.indexOf('--base') + 1]).toBe('main');
       expect(argv[argv.indexOf('--head') + 1]).toBe('kit-upgrade/0.2.0');
+      // The printed verify command is complete for keyless verification (needs both flags).
+      const rec = argv.join(' ');
+      expect(rec).toContain(`geldar-kit@${r.digest('0.2.0')}`);
+      expect(rec).toContain('cosign verify');
+      expect(rec).toContain('--certificate-identity-regexp');
+      expect(rec).toContain('geldar-scriptorium/[.]github/workflows/release[.]yml@refs/tags/kit-v');
+      expect(rec).toContain(
+        '--certificate-oidc-issuer https://token.actions.githubusercontent.com',
+      );
     });
 
     it('2. the same version is current, a lower one is refused', () => {
