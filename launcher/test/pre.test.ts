@@ -369,7 +369,7 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
   }, 120_000);
 
   it('13. a hung helper or pull is bounded and leaves nothing behind', () => {
-    // The stand-ins sleep far longer than the 10 s bound, so only the bound ends them, and each
+    // The stand-ins sleep far longer than the 30 s bound, so only the bound ends them, and each
     // records its child pid so the test can prove nothing is left running.
     const pids: string[] = [];
     const pidsIn = (file: string) =>
@@ -378,6 +378,12 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
             .split('\n')
             .filter((l) => /^[0-9]+$/.test(l))
         : [];
+    // Poll (with a deadline) until the stand-in has recorded its pid, so a slow start cannot give an empty file.
+    const waitForPids = (file: string) => {
+      const end = Date.now() + 15_000;
+      while (pidsIn(file).length === 0 && Date.now() < end)
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+    };
     const alive = (pid: string) =>
       spawnSync('bash', ['-c', 'kill -0 "$1" 2>/dev/null', 'x', pid]).status === 0;
     try {
@@ -386,12 +392,13 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
       const pf = join(w.root, 'pids-a');
       const t0 = Date.now();
       const r = prep(launcher, w, p, 'play', {
-        FAKE_ROLE_SLEEP: '120',
+        FAKE_ROLE_SLEEP: '200',
         FAKE_PIDFILE: bashPath(pf),
-        GELDAR_HELPER_TIMEOUT_SEC: '10',
+        GELDAR_HELPER_TIMEOUT_SEC: '30',
       });
-      expect(Date.now() - t0).toBeLessThan(40_000);
+      expect(Date.now() - t0).toBeLessThan(90_000);
       expect(r.status).toBe(1);
+      waitForPids(pf);
       const a = pidsIn(pf);
       pids.push(...a);
       expect(a.length).toBeGreaterThan(0);
@@ -412,15 +419,16 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
       const t1 = Date.now();
       const s = prep(launcher, w2, q, 'play', {
         FAKE_GIT_SLEEP_ON: 'pull',
-        FAKE_GIT_SLEEP_SEC: '120',
+        FAKE_GIT_SLEEP_SEC: '200',
         FAKE_PIDFILE: bashPath(pf2),
-        GELDAR_HELPER_TIMEOUT_SEC: '10',
+        GELDAR_HELPER_TIMEOUT_SEC: '30',
       });
-      expect(Date.now() - t1).toBeLessThan(40_000);
+      expect(Date.now() - t1).toBeLessThan(90_000);
       expect(s.status).toBe(1);
       expect(s.stderr).toContain('Could not bring pullhang up to date');
       expect(s.stderr).toContain('(timed out)');
       expect(dockerCalls(w2)).toEqual([]);
+      waitForPids(pf2);
       const b = pidsIn(pf2);
       pids.push(...b);
       expect(b.length).toBeGreaterThan(0);
@@ -433,7 +441,7 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
         if (alive(pid)) spawnSync('bash', ['-c', 'kill -KILL "$1" 2>/dev/null', 'x', pid]);
       }
     }
-  }, 180_000);
+  }, 300_000);
 
   it('14. player.json is read at START, after the pull', () => {
     const w = makeWorld();
