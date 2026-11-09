@@ -5,7 +5,13 @@ import { describe, expect, it } from 'vitest';
 type Settings = {
   model?: string;
   effortLevel?: string;
-  permissions?: { allow?: string[]; deny?: string[] };
+  autoMemoryEnabled?: boolean;
+  permissions?: {
+    allow?: string[];
+    deny?: string[];
+    defaultMode?: string;
+    blockReadsOutsideWorkingDirectories?: boolean;
+  };
   hooks?: Record<string, { matcher: string; hooks: { type: string; command: string }[] }[]>;
 };
 
@@ -49,6 +55,14 @@ const allowedPathRules = new Set([
   'Write(/skills/**)',
   'Read(/**)',
 ]);
+const kitPaths = [
+  '/.claude/**',
+  '/CLAUDE.md',
+  '/AGENTS.md',
+  '/.mcp.json',
+  '/player.json',
+  '/.gitattributes',
+];
 
 describe('Claude Code settings layers', () => {
   it('managed denies Bash, WebFetch and WebSearch', () => {
@@ -104,5 +118,55 @@ describe('Claude Code settings layers', () => {
 
   it('setup denies every Geldar world tool', () => {
     expect(setup.permissions?.deny).toContain('mcp__geldar__*');
+  });
+
+  it('project denies Edit and Write on every kit file', () => {
+    for (const path of kitPaths) {
+      expect(project.permissions?.deny).toContain(`Edit(${path})`);
+      expect(project.permissions?.deny).toContain(`Write(${path})`);
+    }
+  });
+
+  it('project runs in dontAsk mode', () => {
+    expect(project.permissions?.defaultMode).toBe('dontAsk');
+  });
+
+  it('managed blocks reads outside the working directory and disables auto memory', () => {
+    expect(managed.permissions?.blockReadsOutsideWorkingDirectories).toBe(true);
+    expect(managed.autoMemoryEnabled).toBe(false);
+  });
+
+  it('managed denies reading, editing and writing credentials', () => {
+    expect(managed.permissions?.deny).toEqual(
+      expect.arrayContaining([
+        'Read(**/.credentials.json)',
+        'Edit(**/.credentials.json)',
+        'Write(**/.credentials.json)',
+      ]),
+    );
+  });
+
+  it('every Edit rule has a matching Write rule in the same list', () => {
+    for (const [name, settings] of Object.entries(layers)) {
+      for (const list of [settings.permissions?.allow ?? [], settings.permissions?.deny ?? []]) {
+        for (const rule of list) {
+          if (rule.startsWith('Edit(')) {
+            const write = `Write${rule.slice('Edit'.length)}`;
+            expect(list, `${name} has ${rule} without ${write}`).toContain(write);
+          }
+        }
+      }
+    }
+  });
+
+  it('rejects bare Edit, Write and Read allows and mcp wildcard allows in every layer', () => {
+    for (const [name, settings] of Object.entries(layers)) {
+      for (const rule of settings.permissions?.allow ?? []) {
+        expect(['Edit', 'Write', 'Read'], `${name} allows bare ${rule}`).not.toContain(rule);
+        expect(rule.startsWith('mcp__') && rule.includes('*'), `${name} allows ${rule}`).toBe(
+          false,
+        );
+      }
+    }
   });
 });
