@@ -13,7 +13,7 @@ helper_flags() {
 # The pipeline body: the container writes the bundle to stdout, head keeps at most cap+1 bytes.
 # When head stops at the cap the container is killed by name (it could otherwise write on).
 bundle_pipe() {
-  local name=$1 out=$2 rcf=$3 image=$4 branch=$5 id=$6 f size
+  local name=$1 out=$2 rcf=$3 image=$4 branch=$5 id=$6 f size tries
   local -a flags
   flags=()
   while IFS= read -r f; do
@@ -30,7 +30,14 @@ bundle_pipe() {
     head -c $((GP_BUNDLE_CAP + 1)) > "$out"
     size=$(wc -c < "$out" | tr -d ' ')
     if [ "${size:-0}" -gt "$GP_BUNDLE_CAP" ]; then
-      docker_cmd kill "$name" > /dev/null 2>&1
+      # One kill can land before the container exists or is blocked (it may still be dying of the
+      # closed pipe), so repeat until docker run has ended and written its status.
+      tries=0
+      while [ ! -f "$rcf" ] && [ "$tries" -lt 300 ]; do
+        docker_cmd kill "$name" > /dev/null 2>&1
+        [ -f "$rcf" ] || sleep 0.2
+        tries=$((tries + 1))
+      done
     fi
   }
 }
