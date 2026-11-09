@@ -451,7 +451,7 @@ SC-10 first. Then SC-11, SC-12, SC-13, SC-14 and SC-16 in parallel. SC-15 after 
 
 ## Wave 2 — companion servers and the gate (ships as one PR from `scriptorium/wave2`)
 
-SC-20 first. Then SC-21, SC-22 and SC-23a in parallel from the wave branch after SC-20 merges into it. SC-23b after SC-23a. SC-24a after SC-21. SC-24b after SC-24a and SC-22. Nothing in this wave touches `template/`, so dispatch rule 7 does not apply, but the strings the servers return to the character stay plain and short.
+SC-20 first. Then SC-21, SC-22a and SC-23a in parallel from the wave branch after SC-20 merges into it. SC-22b after SC-22a. SC-23b after SC-23a. SC-24a after SC-21. SC-24b after SC-24a and SC-22b. SC-22a, SC-23a and SC-24a are the large packets: budget one retry for each. Nothing in this wave touches `template/`, so dispatch rule 7 does not apply, but the strings the servers return to the character stay plain and short.
 
 Parallel packets each change `pnpm-lock.yaml`. If a merge conflicts there, the orchestrator keeps the wave branch's lockfile and runs `./scriptorium.ps1 pnpm install --no-frozen-lockfile`; nobody merges it by hand.
 
@@ -516,12 +516,14 @@ import { z } from 'zod';
 - A dependency on another package of this repo is written by hand as `"@geldar/scriptorium-path-rule": "workspace:*"`. Pinned third-party dependencies go in with `./scriptorium.ps1 pnpm add -E --filter <package-name> <pkg>@<version>` (runtime dependencies, so no `-D`). A package that adds no third-party dependency still registers itself in the lockfile with `./scriptorium.ps1 pnpm install --no-frozen-lockfile`. Commit `pnpm-lock.yaml` with the packet.
 - Each `cli.ts` starts with `#!/usr/bin/env node`, uses `parseArgs` from `node:util`, and runs as plain TypeScript under Node 22's type stripping. That is why imports end in `.ts` and why enums, namespaces and parameter properties are banned.
 - `noUncheckedIndexedAccess` is on: `array[0]` is `T | undefined`. `exactOptionalPropertyTypes` is on: don't assign `undefined` to an optional property.
-- Tests that need git use the real `git` on PATH (2.30 or newer) and never read the machine's git config: every git call in a test sets `GIT_CONFIG_GLOBAL` to the null device and `GIT_CONFIG_NOSYSTEM=1`. The null device is `NUL` on Windows and `/dev/null` elsewhere. **Do not use `os.devNull` for this: on Windows it is `\\.\nul`, which git rejects.**
+- Everything that runs git (the servers, the verifier and every test) uses the real `git` on PATH, **2.40 or newer** (the dev machine has 2.52; SC-40 puts 2.40 or newer in the image). Nothing may read the machine's git config: every git call sets `GIT_CONFIG_GLOBAL` to the null device and `GIT_CONFIG_NOSYSTEM=1`, and also sets `HOME`, `XDG_CONFIG_HOME` and `USERPROFILE` to an empty temp folder (made once per process with `mkdtempSync`, removed at process exit). The null device is `NUL` on Windows and `/dev/null` elsewhere. **Do not use `os.devNull` for this: on Windows it is `\.
+ul`, which git rejects.**
+- Import types with `import type { ... }` (`verbatimModuleSyntax` is on): `Mode`, `GitIdentity`, `Step`, `Reason`, `Verdict` and the like.
 - Run `./scriptorium.ps1 pnpm format` before the final `check`, so Biome's formatting doesn't fail the lint step.
 
 **Wave 2 contract notes (the launcher and image packets rely on these):**
 
-- **Mode.** `geldar-git` learns whether this is a `play` or a `setup` session from the environment variable `GELDAR_MODE` (`play` or `setup`; unset means `play`; any other value is a refusal). The launcher sets it on the session container (SC-50, SC-52), so the MCP server and the `session-end` hook both see it. Whether the pinned CLI passes that variable on to its MCP servers is checked in SC-42. Until then the failure is safe: an unset mode is `play`, which can't stage `memory/identity.md`.
+- **Mode.** `geldar-git` learns whether this is a `play` or a `setup` session from the environment variable `GELDAR_MODE` (`play` or `setup`; unset means `play`; any other value is a refusal, `bad_session_mode`). The launcher sets it on the session container (SC-50, SC-52), so the MCP server and the `session-end` hook both see it. Whether the pinned CLI passes that variable on to its MCP servers is checked in SC-42. Until then the failure is safe: an unset mode is `play`, which can't stage `memory/identity.md`.
 - **Player ID.** `geldar-git` reads `player_id` from `<root>/player.json` (a kit file, read-only in the session container, H-06). `geldar-verify` gets it as `--player-id` and never reads a repo.
 - **Bundles are full-history.** SC-51 creates the bundle with `git bundle create <file> refs/heads/<branch>`, so it holds START and everything after it. `geldar-verify` treats `START..<tip>` as the new range. A bundle that doesn't contain START is `not_fast_forward`.
 - **Verdict.** `geldar-verify` prints one line of JSON, `{"ok":true,"reasons":[]}` or `{"ok":false,"reasons":["path_not_allowed"]}`, to stdout and nothing else there. Exit code 0 for ok, 1 for a rejection, 2 for bad arguments (the verdict is still printed, with `bad_arguments`). Reasons are only the fixed identifiers below. They never carry text from the bundle (H-16).
@@ -530,11 +532,12 @@ import { z } from 'zod';
   | Reason | Meaning |
   |---|---|
   | `bad_arguments` | A required argument is missing, unknown or malformed |
-  | `verify_error` | The checker itself failed (git missing, a scratch folder error). Fails closed |
+  | `verify_error` | The checker itself failed (git missing, a scratch folder error, a git call that timed out or returned no status). Fails closed |
   | `bundle_too_large` | The bundle file is over 50 MiB (H-10) |
   | `bundle_unreadable` | Missing, not a regular file, or not a git bundle |
   | `bundle_refs_unexpected` | Not exactly one ref, or the ref isn't `refs/heads/<branch>` |
   | `bundle_fetch_failed` | The fetch into the scratch repo failed, including an object-check (fsck) failure |
+  | `too_many_commits` | `START..tip` holds more than 2000 commits (`MAX_COMMITS`) |
   | `not_fast_forward` | START isn't an ancestor of the branch tip |
   | `merge_commit` | A commit in `START..tip` has more than one parent |
   | `identity_mismatch` | An author or committer isn't the player's noreply identity |
@@ -566,8 +569,9 @@ import { z } from 'zod';
   2. If `isIdentityPath(path)`: return `path === IDENTITY_PATH && !identityLocked(mode)`. (The case-insensitive match matters: on Windows and macOS `memory/Identity.md` is the same file as `memory/identity.md`.)
   3. If `path` is exactly `memory/people/.gitkeep` or `memory/journal/current.md`: return `true`.
   4. The path must match `^(memory|skills)/[A-Za-z0-9._/-]+\.(md|js|json)$` (the H-11 regex, case-sensitive).
-  5. Split on `/`. Every component must be non-empty, must not start with `.` (this also rejects `.` and `..`), must not end with `.`, and its part before the first `.` must not match `/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i`.
-  6. Otherwise `true`.
+  5. Split on `/`. Every component must be non-empty, must not start with `.` (this also rejects `.` and `..`), must not end with `.`, and its part before the first `.` must not match `/^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i` (`com0` and `lpt0` are reserved on recent Windows).
+  6. Length caps (orchestrator-accepted, stricter than the H-11 lower bound, so the Windows host merge at H-14 cannot hit MAX_PATH): `path.length > 200` is `false`, and so is any component longer than 64 characters.
+  7. Otherwise `true`.
 - **`src/identity.ts`** exports (geldar 0011's fixed identity; the player ID is checked against `player.schema.json`'s pattern):
 
   ```ts
@@ -590,7 +594,7 @@ import { z } from 'zod';
     ['skills/farm.js', 'play', true], ['skills/farm.json', 'setup', true],
     ['skills/notes/farm-v2.md', 'play', true],
     // names that only look reserved
-    ['skills/console.js', 'play', true], ['skills/com0.md', 'play', true], ['skills/conf.md', 'play', true],
+    ['skills/console.js', 'play', true], ['skills/com10.md', 'play', true], ['skills/conf.md', 'play', true],
     // identity: write-once
     ['memory/identity.md', 'play', false], ['memory/identity.md', 'setup', true],
     ['memory/Identity.md', 'play', false], ['memory/Identity.md', 'setup', false],
@@ -617,12 +621,18 @@ import { z } from 'zod';
     // Windows names
     ['skills/CON.md', 'play', false], ['skills/con.md', 'play', false], ['skills/NUL.json', 'play', false],
     ['skills/aux.d/x.md', 'play', false], ['memory/COM1.md', 'play', false], ['skills/LPT9.js', 'play', false],
-    ['memory/people/con.md', 'play', false], ['memory/a./b.md', 'play', false],
+    ['memory/people/con.md', 'play', false], ['skills/com0.md', 'play', false], ['skills/LPT0.md', 'play', false],
+    ['memory/a./b.md', 'play', false],
     ['memory/a.md::$DATA', 'play', false], ['memory/a b.md', 'play', false], ['memory/a.md ', 'play', false],
     // control and non-ASCII characters
     ['memory/a\n.md', 'play', false], ['memory/é.md', 'play', false],
+    // length caps (a component is the whole name with its extension)
+    [`skills/${'a'.repeat(61)}.md`, 'play', true], [`skills/${'a'.repeat(62)}.md`, 'play', false],
+    [longPath(200), 'play', true], [longPath(201), 'play', false],
   ];
   ```
+
+  `longPath(n)` is a small helper in the test: `skills/`, then components of 60 characters joined with `/`, then a last component of the remaining length ending in `.md`, so the whole string is exactly `n` characters (the helper asserts `length === n` and that every component is at most 64 characters).
 
   Also assert `identityLocked('play') === true` and `identityLocked('setup') === false`.
 
@@ -631,8 +641,9 @@ import { z } from 'zod';
   - remove step 2: the identity rows fail (the regex alone allows `memory/identity.md` in play and `memory/Identity.md` anywhere);
   - remove the dot check in step 5: `memory/.hidden/a.md`, `memory/people/.x.md`, `memory/../CLAUDE.md`, `memory/./a.md` and `memory//a.md` flip to allowed (all match the regex);
   - remove the trailing-dot check: `memory/a./b.md` flips;
-  - remove the reserved-name check: the `CON`, `NUL`, `aux.d`, `COM1`, `LPT9` and `con` rows flip, and make it a prefix match (`startsWith`) instead and the three "only look reserved" rows flip;
+  - remove the reserved-name check: the `CON`, `NUL`, `aux.d`, `COM1`, `LPT9`, `com0`, `LPT0` and `con` rows flip, and make it a prefix match (`startsWith`) instead and the three "only look reserved" rows flip;
   - weaken the step 4 regex (for example allow `:` or `$`): the `::$DATA`, space and non-ASCII rows flip;
+  - remove step 6: the four length rows flip;
   - remove step 3: `memory/people/.gitkeep` flips to rejected.
 - **Checks:** `./scriptorium.ps1 pnpm install --no-frozen-lockfile`, `./scriptorium.ps1 pnpm --filter @geldar/scriptorium-path-rule typecheck`, `./scriptorium.ps1 pnpm format`, `./scriptorium.ps1 check`.
 
@@ -664,7 +675,7 @@ import { z } from 'zod';
 
   - `unknown_section` when `resolveSection` returns `null`. Message: `No such section. Sections: ` followed by `SECTION_FORMS` joined with `, `.
   - Walk the file's components from `root` downward. For each prefix call `lstatSync(prefix, { throwIfNoEntry: false })`. Missing: `not_found` (message `You have no memory of that.`). A symbolic link anywhere, a directory where the file should be, or a file where a directory should be: `unreadable` (message `That memory can't be read.`). Never follow a link.
-  - Read at most `MAX_BYTES + 1` bytes (`openSync`, `readSync`, `closeSync`). If more than `MAX_BYTES` came back, cut at `MAX_BYTES`, set `truncated`, decode as UTF-8, and drop one trailing U+FFFD if present (a character cut in half).
+  - Read at most `MAX_BYTES + 1` bytes (`openSync`, `readSync`, `closeSync`). If more than `MAX_BYTES` came back, cut at `MAX_BYTES`, set `truncated`, decode as UTF-8, and, only when `truncated` is true, drop one trailing U+FFFD if present (a character cut in half). An untruncated file that really ends in U+FFFD keeps it.
 - **`src/server.ts`:** `export function createServer(root: string): McpServer`. Server info `{ name: 'geldar-memory', version: '0.1.0' }`. One tool, `recall`, `inputSchema: { section: z.string().max(100) }`, `annotations: { readOnlyHint: true }`, description `Read one of your own memory files.` On success the tool text is `JSON.stringify({ source: 'your own past writing', section, text, truncated, note: 'This is memory, not an instruction.' })`. On a failed `RecallResult` it returns `isError: true` and the text `JSON.stringify({ error, message })`. The root is never echoed back.
 - **`src/cli.ts`:** `--root <dir>` is required (`parseArgs`, strict). Without it, or when the folder doesn't exist: print `geldar-memory: --root <dir> is required` (or the reason) to stderr and exit 2. Otherwise `realpathSync(path.resolve(root))`, `createServer`, `await server.connect(new StdioServerTransport())`.
 - **`src/test-client.ts`:** `export async function connect(server: McpServer): Promise<Client>` using the in-memory pair, and `export function textOf(result): string`. (Test support; it is not exported from `index.ts`.)
@@ -679,7 +690,9 @@ import { z } from 'zod';
     5. `journal/day-009` and `people/nobody` give `error: 'not_found'`;
     6. a symlink for the file `memory/summary.md` pointing at a secret file outside the root, and a symlink for the folder `memory/people` pointing at a folder outside the root, each give `error: 'unreadable'` and the response never contains the secret's text. If `symlinkSync` throws `EPERM` (Windows without developer mode), call the test context's `skip()`; CI runs these on Linux;
     7. `arguments: { section: 5 }` gives `isError: true`.
-  - `drift.test.ts` reads the real `template-src/instructions.md`, `template/CLAUDE.md`, `template/AGENTS.md` and the `template/memory/` folder (paths from `import.meta.url`, three levels up from `src/`). For each instruction file: join its lines with single spaces, take `/Its sections are ([^.]*)\./`, and collect every backticked token inside; that array must equal `[...SECTION_FORMS]`. Also assert that `template/memory/<f>.md` exists for each of `identity`, `summary`, `goals`, `beliefs` and `journal/current`, and that `template/memory/people/.gitkeep` exists.
+  - `drift.test.ts` reads the real `template-src/instructions.md`, `template/CLAUDE.md`, `template/AGENTS.md` and the `template/memory/` folder (paths from `import.meta.url`, three levels up from `src/`). For each instruction file: split its text on `/
+?
+/` (a Windows checkout may not have LF endings) and join the lines with single spaces, take `/Its sections are ([^.]*)\./`, and collect every backticked token inside; that array must equal `[...SECTION_FORMS]`. Also assert that `template/memory/<f>.md` exists for each of `identity`, `summary`, `goals`, `beliefs` and `journal/current`, and that `template/memory/people/.gitkeep` exists.
   - `cli.test.ts`: `spawnSync(process.execPath, [cliPath])` with no arguments exits 2 and stderr mentions `--root`. A real stdio round trip: `StdioClientTransport({ command: process.execPath, args: [cliPath, '--root', tmpRoot] })`, call `recall` for `summary`, check the text, close. Give this test a 30 s timeout.
 - **Why each test fails on revert:**
   - drop the symlink walk: case 6 returns the secret;
@@ -689,71 +702,93 @@ import { z } from 'zod';
   - rename or reorder an entry in `SECTION_FORMS`, or edit the sentence in `template-src/instructions.md` (in a scratch copy): `drift.test.ts` fails.
 - **Checks:** `./scriptorium.ps1 pnpm --filter @geldar/scriptorium-memory typecheck`, `./scriptorium.ps1 pnpm format`, `./scriptorium.ps1 check`.
 
-### SC-22 — `geldar-git`: `commit_memory` and `commit`
+### SC-22a — `geldar-git`, part 1: `commitMemory` and the git runner
 
-- **Branch** `scriptorium/sc-22-git`, worktree `sc-22`. Commit: `feat(git): add the geldar-git commit_memory server and commit command`.
-- **Create** `packages/git/` with `package.json` (name `@geldar/scriptorium-git`, `bin` `geldar-git`), `tsconfig.json`, and in `src/`: `index.ts`, `run-git.ts`, `message.ts`, `commit.ts`, `server.ts`, `cli.ts`, `repo-fixture.ts`, `message.test.ts`, `commit.test.ts`, `server.test.ts`, `cli.test.ts`. **Change** `pnpm-lock.yaml`. Nothing else.
-- **Dependencies.** `"@geldar/scriptorium-path-rule": "workspace:*"` by hand, then `./scriptorium.ps1 pnpm add -E --filter @geldar/scriptorium-git @modelcontextprotocol/sdk@1.32.2 zod@4.6.7`.
+- **Branch** `scriptorium/sc-22a-git-commit`, worktree `sc-22a`. Commit: `feat(git): add the geldar-git runner and commit_memory logic`.
+- **Create** `packages/git/` with `package.json` (name `@geldar/scriptorium-git`; **no** `bin` and no `./cli` export yet, SC-22b adds them), `tsconfig.json`, and in `src/`: `index.ts`, `run-git.ts`, `message.ts`, `commit.ts`, `repo-fixture.ts`, `message.test.ts`, `run-git.test.ts`, `commit.test.ts`. **Change** `pnpm-lock.yaml`. Nothing else.
+- **Dependencies.** `"@geldar/scriptorium-path-rule": "workspace:*"` by hand, then `./scriptorium.ps1 pnpm install --no-frozen-lockfile` (SC-22b adds the SDK and zod).
+- **Step 0: the filter experiment (do this before writing any code).** In a temp repo outside the repo under test, with git 2.40 or newer, prove the staging design below: `git init -b main`, commit a tracked `memory/summary.md`, then set the traps: `git config filter.x.clean "sh -c 'echo ran >> <marker>; cat'"`, and `* filter=x` in the worktree `.gitattributes`, in `memory/.gitattributes` and in `.git/info/attributes`; change `memory/summary.md`, add `memory/new.md`, back-date the mtime of the changed file. Then run exactly the git calls of `commitMemory` steps 3 to 12 below, with the fixed options and environment of `runGit`. **The marker file must not exist afterwards.** If it does, stop and report `blocked` with the experiment output. Do not weaken the test, do not improvise a fallback.
+  - **The orchestrator already ran this on git 2.52.0 (2026-11-08).** The obvious design failed: `--attr-source=<empty tree>` plus `GIT_ATTR_NOSYSTEM=1` stops the worktree `.gitattributes` files from applying, but `.git/info/attributes` still applies, so `git add` ran the clean filter. `git status`, `git reset --quiet` and `git commit` also re-ran it for index entries without cached stat data. The design below (plumbing only: no `add`, `status`, `reset` or `commit`) passed with no marker. Keep `--attr-source` and `GIT_ATTR_NOSYSTEM` as defence in depth.
 - **`src/run-git.ts`:**
 
   ```ts
   export const NULL_DEVICE: string;                       // 'NUL' on win32, '/dev/null' otherwise
+  export const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
   export class GitError extends Error { code: string }  // declare the field; no parameter properties
-  export function runGit(root: string, args: readonly string[], identity?: GitIdentity): string;
+  export function gitOptions(identity?: GitIdentity): string[];       // the fixed leading options, below
+  export function gitEnv(identity?: GitIdentity): NodeJS.ProcessEnv;  // the environment, below
+  export function runGit(root: string, args: readonly string[], identity?: GitIdentity, input?: string): string;
   ```
 
-  - Allowed subcommands (`args[0]`): `status`, `reset`, `add`, `diff`, `commit`, `rev-parse`. Anything else, including `push`, `fetch`, `remote`, `pull`, `clone` and `config`, throws `GitError` with code `git_subcommand_not_allowed` before anything runs.
-  - Runs `execFileSync('git', [...fixedOptions, ...args], { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024 })`. `fixedOptions` are `-c core.hooksPath=<NULL_DEVICE> -c core.attributesFile=<NULL_DEVICE> -c core.fileMode=false -c core.autocrlf=false -c core.fsmonitor=false -c commit.gpgsign=false --literal-pathspecs`, plus `-c user.name=<name> -c user.email=<email>` when an identity is given.
-  - `env` is `process.env` minus every key starting with `GIT_`, plus `GIT_CONFIG_GLOBAL=<NULL_DEVICE>`, `GIT_CONFIG_NOSYSTEM=1`, `GIT_TERMINAL_PROMPT=0`, and, with an identity, `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL`. So a host's `~/.gitconfig`, `GIT_DIR` or `GIT_AUTHOR_EMAIL` can't change what is committed.
+  - Allowed subcommands (`args[0]`): `rev-parse`, `read-tree`, `ls-tree`, `hash-object`, `update-index`, `diff`, `write-tree`, `commit-tree`, `update-ref`. Anything else, including `push`, `fetch`, `remote`, `pull`, `clone`, `config`, `add`, `status`, `reset` and `commit`, throws `GitError` with code `git_subcommand_not_allowed` before anything runs. Two more refusals with the same code: `hash-object` without `--no-filters`, and `diff` without `--cached` (nothing may compare or hash the worktree through filters).
+  - Runs `execFileSync('git', [...gitOptions(identity), ...args], { cwd: root, env: gitEnv(identity), input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 16 * 1024 * 1024 })`.
+  - `gitOptions` returns `--attr-source=<EMPTY_TREE> -c core.hooksPath=<NULL_DEVICE> -c core.attributesFile=<NULL_DEVICE> -c core.fileMode=false -c core.autocrlf=false -c core.fsmonitor=false -c commit.gpgsign=false --literal-pathspecs`, plus `-c user.name=<name> -c user.email=<email>` when an identity is given (each as separate array items).
+  - `gitEnv` is `process.env` minus every key starting with `GIT_`, plus `GIT_CONFIG_GLOBAL=<NULL_DEVICE>`, `GIT_CONFIG_NOSYSTEM=1`, `GIT_ATTR_NOSYSTEM=1`, `GIT_TERMINAL_PROMPT=0`, `HOME`, `XDG_CONFIG_HOME` and `USERPROFILE` set to one empty temp folder (§ Wave 2 shared shape), and, with an identity, `GIT_AUTHOR_NAME`, `GIT_AUTHOR_EMAIL`, `GIT_COMMITTER_NAME`, `GIT_COMMITTER_EMAIL`. So a host's `~/.gitconfig`, `GIT_DIR` or `GIT_AUTHOR_EMAIL` can't change what is committed.
   - On a non-zero exit throw `GitError` with code `git_failed` (message: the first stderr line).
-- **`src/message.ts`:** `export function sanitizeMessage(raw: string): string`. Replace `\r`, `\n` and `\t` with a space; delete every other control character (`\u0000-\u001f`, `\u007f-\u009f`), ` `, ` `, `‪-‮` and `⁦-⁩`; collapse runs of spaces; trim; keep at most 72 characters (`Array.from(s).slice(0, 72).join('')`), then trim again.
+- **`src/message.ts`:** `export function sanitizeMessage(raw: string): string`. Replace `\r`, `\n` and `\t` with a space; delete every other control character (`\u0000-\u001f`, `\u007f-\u009f`) and every one of: ` `, ` `, `‪-‮`, `⁦-⁩`, `​-‏`, `؜`, `﻿`. Write all of these as escapes in the source, never as raw characters. Then collapse runs of spaces; trim; keep at most 72 characters (`Array.from(s).slice(0, 72).join('')`), then trim again.
 - **`src/commit.ts`:**
 
   ```ts
-  export type CommitCode = 'nothing_to_commit' | 'empty_message' | 'no_player_id' | 'bad_mode' | 'not_a_repo' | 'unsafe_staging';
+  export type CommitCode = 'nothing_to_commit' | 'empty_message' | 'no_player_id' | 'bad_session_mode' | 'not_a_repo' | 'unsafe_staging';
   export class CommitRefusal extends Error { code: CommitCode }
   export interface CommitResult { sha: string; files: string[]; notSaved: string[] }
-  export function parseMode(value: string | undefined): Mode;     // undefined -> 'play'; other than play|setup -> CommitRefusal('bad_mode')
+  export function parseMode(value: string | undefined): Mode;     // undefined -> 'play'; other than play|setup -> CommitRefusal('bad_session_mode')
   export function commitMemory(opts: { root: string; message: string; mode: Mode }): CommitResult;
   ```
 
-  Steps of `commitMemory`, in order:
+  The design: git's own `add`, `status`, `reset` and `commit` can run `filter.*.clean` programs named in `.git/config` (the agent can write that file and `.git/info/attributes`). So `commitMemory` finds changes itself with file-system calls, hashes with `hash-object --no-filters`, and builds the commit with plumbing. Steps, in order:
   1. Read `player_id` from `<root>/player.json`: `lstatSync` must show a regular file, then `JSON.parse`. Missing, a link, bad JSON or `!isValidPlayerId` is `no_player_id`. `identity = noreplyIdentity(id)`.
   2. `subject = sanitizeMessage(message)`; empty is `empty_message`.
-  3. `runGit(root, ['rev-parse', '--verify', 'HEAD'])` failing is `not_a_repo`.
-  4. `runGit(root, ['reset', '--quiet'])`. This clears anything already staged, so only what step 6 stages can be committed.
-  5. `status --porcelain=v1 -z --untracked-files=all --no-renames`. Split on `\0`; each non-empty entry is two status characters, a space, then the path (`entry.slice(3)`).
-  6. For each path: it is stageable only if `isAllowedPath(path, mode)` and `lstatSync(join(root, path), { throwIfNoEntry: false })` is either `undefined` (a deletion) or a regular file (not a symlink or folder). The rest go in `notSaved`. If nothing is stageable throw `nothing_to_commit`. Stage with `add -A -- <paths>` in chunks of 100.
-  7. Re-read what is staged: `diff --cached --raw --no-renames --no-abbrev -z`. Tokens come as `:<oldmode> <newmode> <oldsha> <newsha> <status>` then the path. If any path fails `isAllowedPath` or any new mode isn't `100644` or `000000`, run `reset --quiet` and throw `unsafe_staging`. If nothing is staged, `nothing_to_commit`.
-  8. `commit --quiet --no-verify --no-gpg-sign --cleanup=whitespace -m <subject>` with `identity`. Return `{ sha: rev-parse HEAD, files, notSaved }`.
+  3. `old = runGit(root, ['rev-parse', '--verify', 'HEAD']).trim()` failing is `not_a_repo`.
+  4. `runGit(root, ['read-tree', 'HEAD'])`. The index becomes exactly HEAD (this does not look at the worktree), so only what step 10 stages can be committed.
+  5. `tracked`: `ls-tree -r -z --full-tree HEAD`. Entries are `<mode> <type> <sha>\t<path>` ending in `\0`; build a `Map<path, { mode, sha }>`.
+  6. `walked`: a recursive `readdirSync(dir, { withFileTypes: true })` from `root`, file-system calls only. Skip every entry named `.git`; do not descend into symbolic links or anything that is not a directory; record every other entry's relative path (with `/` separators). More than 20 000 entries throws `CommitRefusal('unsafe_staging')`. `candidates` is `walked` and `tracked` together, sorted.
+  7. `classify(path)`: walk the components from `root` with `lstatSync(prefix, { throwIfNoEntry: false })`, as `recall` does. The first missing component gives `'missing'`; a symbolic link or non-directory at a parent position, or a final component that is not a regular file, gives `'other'`; a regular file gives `'file'`.
+  8. Hash: the `'file'` candidates whose path has no `\r` or `\n`, in chunks of 200, with `runGit(root, ['hash-object', '--no-filters', '--stdin-paths'], undefined, paths.join('\n') + '\n')`, adding `-w` for the paths that satisfy `isAllowedPath(path, mode)` and none for the rest. One sha per line comes back, in order. (A candidate with a newline in its name is treated as changed and not allowed.)
+  9. Decide, per candidate (`head = tracked.get(path)`). It is **changed** when: class `'file'` and (`head` is missing, or its sha differs, or its mode isn't `100644`); class `'other'`; or class `'missing'` and `head` exists. Unchanged paths are ignored. A changed path is **staged** when `isAllowedPath(path, mode)` and its class isn't `'other'` (a `'file'` becomes a `100644 <sha>` line; a `'missing'` one becomes a deletion line with mode `0` and 40 zeros). Every other changed path goes into `notSaved`, sorted. If nothing is staged, throw `nothing_to_commit`.
+  10. Apply: `update-index -z --index-info` with the lines `<mode> <sha>\t<path>\0` on stdin, in chunks of 100 (this is the batched form of `update-index --add --cacheinfo 100644,<sha>,<path>`). The mode is the literal `100644`, never taken from the file's stat.
+  11. Re-read what is staged: `diff --cached --raw --no-renames --no-abbrev -z`. Tokens come as `:<oldmode> <newmode> <oldsha> <newsha> <status>` then the path. If any path fails `isAllowedPath` or any new mode isn't `100644` or `000000`, run `read-tree HEAD` and throw `unsafe_staging`. If nothing is staged, `nothing_to_commit`. `files` is the list of paths.
+  12. `tree = write-tree`; `sha = commit-tree <tree> -p <old> -m <subject>` with `identity`; `update-ref -m commit_memory HEAD <sha> <old>`. Return `{ sha, files, notSaved }`. (Neither `commit-tree` nor `update-ref` runs `pre-commit` or `post-commit`; `core.hooksPath` still covers `reference-transaction`, which `update-ref` triggers.)
 
   The module never calls anything but `runGit`, so it never runs `push`, `fetch` or `remote`.
-- **`src/server.ts`:** `export function createServer(root: string, mode: Mode): McpServer`. Server info `{ name: 'geldar-git', version: '0.1.0' }`. One tool, `commit_memory`, `inputSchema: { message: z.string().max(500) }`, description `Save your memory files with a short message.` Success text: `JSON.stringify({ saved: sha.slice(0, 7), files, not_saved: notSaved })`. A `CommitRefusal` gives `isError: true` and `JSON.stringify({ error: code, message })`; any other error gives `{ error: 'git_failed', message: 'The save did not work.' }`. The root is never echoed.
-- **`src/cli.ts`:** `geldar-git mcp --root <dir> [--mode play|setup]` and `geldar-git commit --root <dir> --message <m> [--if-changed] [--mode play|setup]`. The mode is `--mode`, else `process.env.GELDAR_MODE`, via `parseMode`. Exit codes: 0 done; 0 when `--if-changed` and the refusal is `nothing_to_commit` (print nothing); 1 for any other refusal or failure (message on stderr, `geldar-git: <code>`); 2 for usage errors (unknown subcommand, missing `--root`, missing `--message` for `commit`). `commit` prints `saved <sha7>: <n> file(s)` on success. `mcp` connects a `StdioServerTransport`; nothing else is written to stdout.
-- **`src/repo-fixture.ts`** (test support): `makeRepo(files: Record<string, string>, playerId = 'mmpr-red'): { root: string; cleanup(): void }` makes a temp folder, `git init -b main`, writes the files plus a `player.json` containing `{ "player_id": playerId }`, and makes the first commit with `-c user.name=Host -c user.email=host@example.test`, always with the null global config. Also export `git(root, args, env?)` to run any git command in tests and return stdout.
-- **`src/index.ts`:** `export * from './commit.ts'; export * from './message.ts'; export { createServer } from './server.ts'; export { runGit, NULL_DEVICE, GitError } from './run-git.ts';`.
+- **`src/repo-fixture.ts`** (test support): `makeRepo(files: Record<string, string>, playerId = 'mmpr-red'): { root: string; cleanup(): void }` makes a temp folder, `git init -b main`, writes the files plus a `player.json` containing `{ "player_id": playerId }`, and makes the first commit with `-c user.name=Host -c user.email=host@example.test`, always with the null global config (and `HOME` and friends pointed at an empty folder). Also export `git(root, args, env?)` to run any git command in tests and return stdout.
+- **`src/index.ts`:** `export * from './commit.ts'; export * from './message.ts'; export { runGit, gitEnv, gitOptions, NULL_DEVICE, GitError } from './run-git.ts';` (SC-22b adds `createServer`).
 - **Tests:**
-  - `message.test.ts`: `"a\u001b[31m\nb"` becomes `a[31m b`; 100 `x` becomes 72; `"‮ evil"` loses the override; `"\u0000\n"` becomes `''`; `"day 001: dawn"` is unchanged.
+  - `message.test.ts`: `"a\u001b[31m\nb"` becomes `a[31m b`; 100 `x` becomes 72; `"‮ evil"` loses the override; `"a​b c"` becomes `abc`; `"\u0000\n"` becomes `''`; `"day 001: dawn"` is unchanged.
+  - `run-git.test.ts`: (a) each of `['push']`, `['fetch']`, `['remote', '-v']`, `['config', '--list']`, `['add', '-A']`, `['status']`, `['reset']`, `['commit', '-m', 'x']`, `['hash-object', 'x']` (no `--no-filters`) and `['diff']` (no `--cached`) throws `git_subcommand_not_allowed`; (b) a scan: read every non-test `src/*.ts` file and assert none contains the quoted strings `'push'`, `'fetch'`, `'remote'` or `'pull'` (a regex over single quotes, double quotes and backticks; the runtime allowlist is the real control); (c) **identity layers:** with `GIT_AUTHOR_EMAIL=env@example.test`, `GIT_COMMITTER_EMAIL=env@example.test` and `GIT_DIR=<some other repo>` in `process.env` (restore in `afterEach`), `gitEnv(identity)` has all four `GIT_AUTHOR_*` and `GIT_COMMITTER_*` values equal to the noreply identity, has no `GIT_DIR`, and has `GIT_ATTR_NOSYSTEM === '1'`; `gitOptions(identity)` contains `user.name=player-mmpr-red` and `user.email=player-mmpr-red@users.noreply.github.com`, and `gitOptions()` contains no `user.` entry; (d) **global config:** a folder holding `.gitconfig` and `.config/git/config`, each with `[user] email = host@example.test`; set `process.env.HOME`, `USERPROFILE` and `XDG_CONFIG_HOME` to it (restore in `afterEach`); `spawnSync('git', ['config', 'user.email'], { env: gitEnv() })` exits 1 with empty stdout. This one is defence in depth: with git 2.40 or newer, `GIT_CONFIG_GLOBAL` alone already ignores those files, so the test can fail only if the `GIT_CONFIG_GLOBAL` setting and the `HOME` overrides are both dropped; say so in the report.
   - `commit.test.ts` (each in a `makeRepo` with `CLAUDE.md`, `memory/identity.md`, `memory/summary.md`, `memory/people/.gitkeep`):
-    1. **Only allowed paths are staged:** edit `CLAUDE.md` and `memory/summary.md`, add `memory/.gitattributes`, `skills/farm.js` and `.mcp.json`; the commit's files (`git show --name-only --format=`) are exactly `memory/summary.md` and `skills/farm.js`; `notSaved` lists the other three; `git status --porcelain` still shows `CLAUDE.md` modified.
-    2. **Identity:** with a global config file holding `user.email = host@example.test` and `GIT_CONFIG_GLOBAL` pointed at it, and `GIT_AUTHOR_EMAIL=env@example.test` and `GIT_DIR` pointing at some other repo in `process.env` (restore them in `afterEach`), `git log -1 --format='%an <%ae>|%cn <%ce>'` is `player-mmpr-red <player-mmpr-red@users.noreply.github.com>|` followed by the same again.
-    3. **Hooks:** a `.git/hooks/pre-commit` (mode 0755) that writes `ran` to a marker file and exits 1 does not stop the commit and leaves no marker.
+    1. **Only allowed paths are staged:** edit `CLAUDE.md` and `memory/summary.md`, add `memory/.gitattributes`, `skills/farm.js` and `.mcp.json`; the commit's files (`git show --name-only --format=`) are exactly `memory/summary.md` and `skills/farm.js`; `notSaved` is exactly `.mcp.json`, `CLAUDE.md`, `memory/.gitattributes`; `git status --porcelain` still shows `CLAUDE.md` modified.
+    2. **Identity end to end:** with `GIT_AUTHOR_EMAIL=env@example.test` and `GIT_DIR` pointing at some other repo in `process.env` (restore in `afterEach`), `git log -1 --format='%an <%ae>|%cn <%ce>'` is `player-mmpr-red <player-mmpr-red@users.noreply.github.com>|` followed by the same again. (The two layers are tested apart in `run-git.test.ts` (c); with the env layer present, the `-c user.*` options layer cannot fail this test on its own.)
+    3. **Hooks (Linux only; skip on win32):** write `.git/hooks/pre-commit`, `.git/hooks/post-commit` and `.git/hooks/reference-transaction`, each `#!/bin/sh`, mode 0755, each appending its own name to its own marker file; `pre-commit` also does `exit 1`. After `commitMemory` the commit exists and no marker file exists. (`reference-transaction` is the hook that `update-ref` does run; the other two are never run by plumbing.)
     4. **Nothing to commit:** only `CLAUDE.md` changed gives `nothing_to_commit` and `HEAD` is unchanged. No changes at all gives the same.
     5. **Messages:** a message of 100 characters with an escape sequence and a newline gives a subject of at most 72 characters with no control characters; `"\n\u0000"` gives `empty_message`.
     6. **Identity file:** with `memory/identity.md` edited, mode `play` leaves it in `notSaved`; mode `setup` commits it. A deletion of `memory/people/x.md` (committed beforehand) is staged and committed.
-    7. **Links:** where `symlinkSync` works (skip on `EPERM`), a symlink at `memory/link.md` is in `notSaved` and not committed.
-    8. **Player ID:** a `player.json` with `player_id: ''`, with bad JSON, or missing gives `no_player_id`. `parseMode('x')` throws `bad_mode`; `parseMode(undefined)` is `'play'`.
-    9. **No network commands:** `runGit(root, ['push'])`, `['fetch']`, `['remote', '-v']` and `['config', '--list']` each throw `git_subcommand_not_allowed`. And a scan: read every non-test `src/*.ts` file and assert none contains the quoted strings `'push'`, `'fetch'`, `'remote'` or `'pull'` (a regex over single quotes, double quotes and backticks).
-  - `server.test.ts`: tool list is `['commit_memory']`; a call after editing `memory/summary.md` returns JSON with `saved`, `files` and `not_saved`; an immediate second call is `isError` with `nothing_to_commit`.
-  - `cli.test.ts` (`spawnSync(process.execPath, [cli, …])`, cwd anywhere): `commit --root R --message m --if-changed` with no changes exits 0 and prints nothing; the same without `--if-changed` exits 1; with a change it exits 0 and a commit exists; `GELDAR_MODE=x` exits 1 with `bad_mode`; no subcommand exits 2.
-- **Why each test fails on revert:** drop the allowlist check in step 6: case 1 stages `CLAUDE.md` or `.mcp.json`; drop `-c user.email`/env identity or the `GIT_` stripping: case 2; drop `core.hooksPath`: case 3; drop `reset --quiet` (step 4): add a pre-staged `CLAUDE.md` change to case 1 (`git add CLAUDE.md` before calling) and it lands in the commit; drop the lstat check: case 7 (on CI); drop the subcommand allowlist: case 9; drop the 72 cut or the control strip: case 5.
+    7. **Links (skip on `EPERM`):** a symlink at `memory/link.md` is in `notSaved` and not committed. A symlinked parent: replace the folder `memory/people` with a symlink to a folder outside the repo that holds `x.md`, and edit `memory/summary.md`; the call does not throw, the commit holds only `memory/summary.md`, and `memory/people/.gitkeep` is in `notSaved`.
+    8. **Player ID and mode:** a `player.json` with `player_id: ''`, with bad JSON, or missing gives `no_player_id`. `parseMode('x')` throws `bad_session_mode`; `parseMode(undefined)` is `'play'`.
+    9. **Filter drivers do not run (Linux only; skip on win32):** `git config --local filter.x.clean "sh -c 'echo ran >> <marker>; cat'"`; write `memory/.gitattributes` and `.git/info/attributes` as `* filter=x`; back-date the mtime of `memory/summary.md` (`utimesSync`) and change it, and add `memory/notes.md`; call `commitMemory`. The marker file does not exist, and `git cat-file -p HEAD:memory/summary.md` equals the bytes written. **If this cannot be made to pass, stop and report; do not weaken it.**
+    10. **Executable bit (Linux only):** a new `memory/exec.md` with `chmod 755` is committed; `git ls-tree HEAD memory/exec.md` shows `100644`.
+    11. **Pre-staged changes are dropped:** edit `CLAUDE.md` and run `git add CLAUDE.md`, also edit `memory/summary.md`, then call `commitMemory`; the commit holds only `memory/summary.md`.
+- **Why each test fails on revert:** drop the allowlist check in step 9: case 1 stages `CLAUDE.md` or `.mcp.json`; drop the `GIT_` stripping or the identity env: `run-git.test.ts` (c) and case 2; drop the `-c user.*` options: `run-git.test.ts` (c); drop the `GIT_CONFIG_GLOBAL` and `HOME` settings together: (d); drop `core.hooksPath`: case 3 (the `reference-transaction` marker appears); drop `read-tree` (step 4): case 11; drop the lstat and classify check: case 7 (on CI); drop the subcommand allowlist: `run-git.test.ts` (a); drop the 72 cut or the control strip: case 5; replace `hash-object --no-filters` with `git add`: case 9 (the marker appears); take the mode from the file's stat instead of the literal `100644`: case 10 (`unsafe_staging`).
+- **Checks:** `./scriptorium.ps1 pnpm --filter @geldar/scriptorium-git typecheck`, `./scriptorium.ps1 pnpm format`, `./scriptorium.ps1 check`.
+
+### SC-22b — `geldar-git`, part 2: the MCP server and the command line
+
+- **Branch** `scriptorium/sc-22b-git-server`, worktree `sc-22b`, branched from the wave branch after SC-22a has merged. Commit: `feat(git): add the geldar-git MCP server and command line`.
+- **Create** `packages/git/src/server.ts`, `src/cli.ts`, `src/server.test.ts`, `src/cli.test.ts`. **Change** `packages/git/package.json` (add `"bin": { "geldar-git": "./src/cli.ts" }` and `"./cli": "./src/cli.ts"` to `exports`), `packages/git/src/index.ts` (add `export { createServer } from './server.ts';`) and `pnpm-lock.yaml`. Nothing else.
+- **Dependencies.** `./scriptorium.ps1 pnpm add -E --filter @geldar/scriptorium-git @modelcontextprotocol/sdk@1.32.2 zod@4.6.7`.
+- **`src/server.ts`:** `export function createServer(root: string, mode: Mode): McpServer`. Server info `{ name: 'geldar-git', version: '0.1.0' }`. One tool, `commit_memory`, `inputSchema: { message: z.string().max(500) }`, description `Save your memory files with a short message.` Success text: `JSON.stringify({ saved: sha.slice(0, 7), files, not_saved: notSaved })`. A `CommitRefusal` gives `isError: true` and `JSON.stringify({ error: code, message })`; any other error gives `{ error: 'git_failed', message: 'The save did not work.' }`. The root is never echoed.
+- **`src/cli.ts`:** `geldar-git mcp --root <dir> [--mode play|setup]` and `geldar-git commit --root <dir> --message <m> [--if-changed] [--mode play|setup]`. The mode is `--mode`, else `process.env.GELDAR_MODE`, via `parseMode` (so a bad `--mode` or `GELDAR_MODE` is `bad_session_mode`). Exit codes: 0 done; 0 when `--if-changed` and the refusal is `nothing_to_commit` (print nothing); 1 for any other refusal or failure (message on stderr, `geldar-git: <code>`); 2 for usage errors (unknown subcommand, missing `--root`, missing `--message` for `commit`). `commit` prints `saved <sha7>: <n> file(s)` on success. `mcp` connects a `StdioServerTransport`; nothing else is written to stdout.
+- **Tests:**
+  - `server.test.ts` (in-memory client, `makeRepo` from SC-22a's `repo-fixture.ts`): tool list is `['commit_memory']`; a call after editing `memory/summary.md` returns JSON with `saved`, `files` and `not_saved`; an immediate second call is `isError` with `nothing_to_commit`.
+  - `cli.test.ts` (`spawnSync(process.execPath, [cli, …])`, cwd anywhere): `commit --root R --message m --if-changed` with no changes exits 0 and prints nothing; the same without `--if-changed` exits 1; with a change it exits 0 and a commit exists; `GELDAR_MODE=x` exits 1 with `bad_session_mode` on stderr; no subcommand exits 2. Give the spawning tests a 30 s timeout.
+- **Why each test fails on revert:** drop the `isError` wrapping of refusals: the second `server.test.ts` call; ignore `--if-changed`: the first `cli.test.ts` case; ignore `GELDAR_MODE`: the `x` case.
 - **Checks:** `./scriptorium.ps1 pnpm --filter @geldar/scriptorium-git typecheck`, `./scriptorium.ps1 pnpm format`, `./scriptorium.ps1 check`.
 
 ### SC-23a — `geldar-verify`, part 1: bundle intake and verdict
 
 - **Branch** `scriptorium/sc-23a-verify-intake`, worktree `sc-23a`. Commit: `feat(verify): add the geldar-verify bundle intake and verdict`.
 - Implements H-10 (size) and the bundle-structure half of H-11 (one ref, fast-forward, no merges). SC-23b adds the history checks.
-- **Create** `packages/verify/` with `package.json` (name `@geldar/scriptorium-verify`, `bin` `geldar-verify`), `tsconfig.json`, and in `src/`: `index.ts`, `reasons.ts`, `args.ts`, `run-git.ts`, `verify.ts`, `history.ts`, `cli.ts`, `fixture.ts`, `reasons.test.ts`, `args.test.ts`, `verify.test.ts`, `cli.test.ts`. **Change** `pnpm-lock.yaml`. Nothing else.
+- **Create** `packages/verify/` with `package.json` (name `@geldar/scriptorium-verify`; **no** `bin` and no `./cli` export yet, SC-23b adds them), `tsconfig.json`, and in `src/`: `index.ts`, `reasons.ts`, `args.ts`, `run-git.ts`, `verify.ts`, `history.ts`, `fixture.ts`, `reasons.test.ts`, `args.test.ts`, `run-git.test.ts`, `verify.test.ts`. **Change** `pnpm-lock.yaml`. Nothing else. The command line (`cli.ts`) belongs to SC-23b.
 - **Dependencies.** `"@geldar/scriptorium-path-rule": "workspace:*"` by hand, then `./scriptorium.ps1 pnpm install --no-frozen-lockfile`. The verifier needs no third-party package: no SDK, no zod.
 - **`src/reasons.ts`:** `export const REASONS = [...] as const` in the table's order (§ Wave 2 contract notes); `export type Reason = (typeof REASONS)[number]`; `export interface Verdict { ok: boolean; reasons: Reason[] }`; `export function verdict(found: Iterable<Reason>): Verdict` (deduplicated, in `REASONS` order, `ok` only when empty).
 - **`src/args.ts`:**
@@ -763,15 +798,15 @@ import { z } from 'zod';
   export function parseVerifyArgs(argv: readonly string[]): VerifyInput | null;   // null = bad_arguments
   ```
 
-  `parseArgs` strict, all five options required, one value each. `bundle` becomes `path.resolve(value)`. `start` must match `^[0-9a-f]{40}$`. `branch` must match `^[A-Za-z0-9][A-Za-z0-9._/-]{0,100}$`, contain no `..`, and not end in `/` or `.lock`. `mode` is `play` or `setup`. `playerId` passes `isValidPlayerId`. Any problem, including an unknown option, returns `null`.
-- **`src/run-git.ts`:** `export function git(repo: string, args: readonly string[]): { status: number; stdout: string }` using `spawnSync('git', [...fixed, ...args], { cwd: repo, env, encoding: 'utf8', maxBuffer: 64 MiB })`. It never throws on a non-zero exit (it throws only if git can't be started). `fixed` is `-c core.hooksPath=<NULL> -c core.attributesFile=<NULL>`; `env` is `process.env` minus every `GIT_` key, plus `GIT_CONFIG_GLOBAL=<NULL>`, `GIT_CONFIG_NOSYSTEM=1`, `GIT_TERMINAL_PROMPT=0` (`NULL` is `NUL` on win32, `/dev/null` elsewhere). This duplicates a few lines of `packages/git`; that is deliberate, so the gate depends on nothing but the path rule.
-- **`src/history.ts`** (SC-23b replaces the body; the signature is final):
+  The five options are `--bundle <file> --start <sha> --branch <name> --mode play|setup --player-id <id>` (SC-51 and SC-60 use these names). `parseArgs` strict, all five required, one value each. `bundle` becomes `path.resolve(value)`. `start` must match `^[0-9a-f]{40}$`. `branch` must match `^[A-Za-z0-9][A-Za-z0-9._/-]{0,100}$`, contain no `..`, and not end in `/` or `.lock`. `mode` is `play` or `setup`. `playerId` passes `isValidPlayerId`. Any problem, including an unknown option, returns `null`.
+- **`src/run-git.ts`:** `export function gitEnv(): NodeJS.ProcessEnv` and `export function git(repo: string, args: readonly string[]): { status: number; stdout: string }` using `spawnSync('git', [...fixed, ...args], { cwd: repo, env: gitEnv(), encoding: 'utf8', maxBuffer: 64 MiB, timeout: 60000 })`. `fixed` is `-c core.hooksPath=<NULL> -c core.attributesFile=<NULL>`; `gitEnv()` is `process.env` minus every `GIT_` key, plus `GIT_CONFIG_GLOBAL=<NULL>`, `GIT_CONFIG_NOSYSTEM=1`, `GIT_TERMINAL_PROMPT=0`, and `HOME`, `XDG_CONFIG_HOME` and `USERPROFILE` set to one empty temp folder (§ Wave 2 shared shape; `NULL` is `NUL` on win32, `/dev/null` elsewhere). A non-zero exit is returned, not thrown. It **throws** when git can't be started and when `result.error` is set (this covers the 60 s timeout and a `maxBuffer` overflow, which leave `status` null). The return value uses `status: result.status ?? -1`. `verify` turns every throw into `verify_error`, so a hostile bundle that makes git slow or noisy fails closed. This duplicates a few lines of `packages/git`; that is deliberate, so the gate depends on nothing but the path rule.
+- **`src/history.ts`** (SC-23b replaces the body; the signature is final; `run` is injectable so SC-23b can test the exact git calls):
 
   ```ts
   export interface HistoryContext { repo: string; start: string; tip: string; mode: Mode; playerId: string }
-  export function checkHistory(ctx: HistoryContext): Reason[] { return []; }   // SC-23a: placeholder
+  export function checkHistory(ctx: HistoryContext, run: typeof git = git): Reason[] { return []; }   // SC-23a: placeholder
   ```
-- **`src/verify.ts`:** `export const MAX_BUNDLE_BYTES = 50 * 1024 * 1024; export function verify(input: VerifyInput): Verdict` (synchronous). Everything runs inside `try`, with the scratch folder removed in `finally`; any thrown error yields `verdict(['verify_error'])`. Steps, each stopping with its reason unless it says "continue":
+- **`src/verify.ts`:** `export const MAX_BUNDLE_BYTES = 50 * 1024 * 1024; export const MAX_COMMITS = 2000; export function verify(input: VerifyInput, maxCommits = MAX_COMMITS): Verdict` (synchronous; the second parameter exists so a test can use a small cap). Everything runs inside `try`, with the scratch folder removed in `finally`; any thrown error (including a git call that timed out) yields `verdict(['verify_error'])`. Steps, each stopping with its reason unless it says "continue":
   1. `lstatSync(bundle, { throwIfNoEntry: false })`: missing or not a regular file is `bundle_unreadable`. `size > MAX_BUNDLE_BYTES` (strictly greater) is `bundle_too_large`.
   2. `scratch = mkdtempSync(join(tmpdir(), 'geldar-verify-'))`, then `git init --bare -q <scratch>/repo`; all later calls use `<scratch>/repo` as `repo`.
   3. `git bundle list-heads <bundle>`: non-zero is `bundle_unreadable`. Parse lines `<sha> <ref>`. Anything other than exactly one line whose ref is `refs/heads/<branch>` is `bundle_refs_unexpected`.
@@ -779,10 +814,10 @@ import { z } from 'zod';
   5. `tip = git rev-parse --verify --quiet refs/launcher/incoming^{commit}`; failure is `bundle_fetch_failed`.
   6. If `tip === start`: return ok (a session with no new commits changes nothing).
   7. `git merge-base --is-ancestor <start> <tip>`: any non-zero status (including START missing from the repo) is `not_fast_forward`.
-  8. `git rev-list --min-parents=2 <start>..<tip>`: any output adds `merge_commit` (continue).
-  9. `reasons = [...merge, ...checkHistory({ repo, start, tip, mode, playerId })]`; return `verdict(reasons)`.
-- **`src/cli.ts`:** `parseVerifyArgs(process.argv.slice(2))`; `null` prints `{"ok":false,"reasons":["bad_arguments"]}` and exits 2. Otherwise print `JSON.stringify(verify(input))` and a newline, exit 0 if ok, else 1. Nothing else on stdout.
-- **`src/fixture.ts`** (test support, also used by SC-23b): `makeFixture(playerId = 'mmpr-red'): Fixture`.
+  8. `git rev-list --count <start>..<tip>`: a non-numeric answer is a thrown error; a count greater than `maxCommits` is `too_many_commits`. (A pack can hold hundreds of thousands of commits in 50 MiB; this bounds the per-commit work in SC-23b.)
+  9. `git rev-list --min-parents=2 <start>..<tip>`: any output adds `merge_commit` (continue).
+  10. `reasons = [...merge, ...checkHistory({ repo, start, tip, mode, playerId })]`; return `verdict(reasons)`.
+- **`src/fixture.ts`** (test support, also used by SC-23b): `makeFixture(playerId = 'mmpr-red'): Fixture`. It runs `git init -b main` (the tests rely on `refs/heads/main`).
 
   ```ts
   export interface Fixture {
@@ -818,27 +853,30 @@ import { z } from 'zod';
   | unrelated START | `start: 'f'.repeat(40)` on a clean bundle | `['not_fast_forward']` |
   | merge commit | branch `side` from START with a commit touching `memory/people/side.md`; back on `main`, `commitAll` a goals edit; `git merge --no-ff side -m merge` (noreply identity); bundle main | `['merge_commit']` |
   | corrupt object | best effort: `git hash-object -t commit --literally -w --stdin` of `tree <empty tree sha>\ncommitter x <x@example.test> 0 +0000\n\nm\n` (no author line; parent line pointing at START), `update-ref refs/heads/main`, bundle | `['bundle_fetch_failed']`. If `git bundle create` itself refuses, delete this one case and say so in the report |
+  | too many commits | clean bundle of 3 commits after START; `verify(input, 2)` | `['too_many_commits']` |
+  | exactly the commit cap | the same bundle; `verify(input, 3)` | `ok: true` |
   | scratch removed | list `geldar-verify-*` in `os.tmpdir()` before and after a run | no new entry, for both an ok and a rejected run |
 
-  Also: `reasons.test.ts` (`verdict(['path_not_allowed', 'bundle_too_large', 'path_not_allowed'])` is `['bundle_too_large', 'path_not_allowed']`, `ok: false`; empty is `ok: true`); `args.test.ts` (a valid set parses; each of: a missing option, `--mode other`, `--start abc`, `--branch ../x`, `--branch a..b`, `--branch x.lock`, `--player-id A`, an unknown `--force`, is `null`); `cli.test.ts` through `spawnSync(process.execPath, [cli, …])`: no arguments exits 2 with exactly `{"ok":false,"reasons":["bad_arguments"]}`; a clean bundle exits 0 with stdout exactly `{"ok":true,"reasons":[]}\n`; the two-refs bundle exits 1 with `bundle_refs_unexpected`.
-- **Why each test fails on revert:** `>` to `>=` in step 1: the exact-cap row; skip step 3's count: two-refs and wrong-ref rows; remove step 7: the two `not_fast_forward` rows; remove step 8: the merge row; drop the fsck `-c` options: the corrupt-object row (if present); skip the `finally` cleanup: the scratch row.
+  Also: `reasons.test.ts` (`verdict(['path_not_allowed', 'bundle_too_large', 'path_not_allowed'])` is `['bundle_too_large', 'path_not_allowed']`, `ok: false`; empty is `ok: true`; `REASONS` equals the table's order, `too_many_commits` after `bundle_fetch_failed`); `args.test.ts` (a valid set parses; each of: a missing option, `--mode other`, `--start abc`, `--branch ../x`, `--branch a..b`, `--branch x.lock`, `--player-id A`, an unknown `--force`, is `null`); `run-git.test.ts` (**global config:** a folder holding `.gitconfig` and `.config/git/config` with `[user] email = host@example.test`; set `process.env.HOME`, `USERPROFILE` and `XDG_CONFIG_HOME` to it, restore in `afterEach`; `spawnSync('git', ['config', 'user.email'], { env: gitEnv() })` exits 1 with empty stdout (defence in depth: with git 2.40 or newer `GIT_CONFIG_GLOBAL` alone already does this); and `git(repo, ['rev-parse', '--verify', 'nope'])` returns a non-zero `status` without throwing).
+- **Why each test fails on revert:** `>` to `>=` in step 1: the exact-cap row; skip step 3's count: two-refs and wrong-ref rows; remove step 7: the two `not_fast_forward` rows; remove step 8: the too-many-commits row; `>` to `>=` there: the exact-commit-cap row; remove step 9: the merge row; drop the fsck `-c` options: the corrupt-object row (if present); skip the `finally` cleanup: the scratch row. The `timeout` option has no test (it would be slow); keep both as written.
 - **Checks:** `./scriptorium.ps1 pnpm install --no-frozen-lockfile`, `./scriptorium.ps1 pnpm --filter @geldar/scriptorium-verify typecheck`, `./scriptorium.ps1 pnpm format`, `./scriptorium.ps1 check`.
 
 ### SC-23b — `geldar-verify`, part 2: history, paths, modes, identity
 
 - **Branch** `scriptorium/sc-23b-verify-history`, worktree `sc-23b`, branched from the wave branch after SC-23a has merged. Commit: `feat(verify): add the history, path, mode and identity checks`.
-- Implements the rest of H-11. **Change** `packages/verify/src/history.ts` (replace the placeholder body) and **create** `packages/verify/src/history.test.ts`. Nothing else; the fixture already has everything the tests need.
-- **`history.ts`** keeps the exported signature and adds an internal `parseRaw(out: string): RawEntry[]` (where `RawEntry = { oldMode: string; newMode: string; path: string }`). Algorithm of `checkHistory(ctx)`:
-  1. **Identities.** `git log -z --format=%H%x1f%P%x1f%an%x1f%ae%x1f%cn%x1f%ce <start>..<tip>`; split on `\0` for records and `\x1f` for fields. A record with other than 6 fields is a mismatch. For every record, author and committer must both equal `noreplyIdentity(playerId)` (name and email, exact). Any mismatch adds `identity_mismatch`. The shas of the records are the commit list.
-  2. **Each commit.** For every sha: `git diff-tree -r --raw --no-renames --no-abbrev -z --no-commit-id --root <sha>`. With `-z` the output is `:<oldmode> <newmode> <oldsha> <newsha> <status>` then the path, each ending in `\0`: a token starting with `:` is a header and the next token is its path. Merge commits show nothing here; step 8 of SC-23a already rejected them.
+- Implements the rest of H-11 and the command line. **Change** `packages/verify/src/history.ts` (replace the placeholder body) and `packages/verify/package.json` (add `"bin": { "geldar-verify": "./src/cli.ts" }` and `"./cli": "./src/cli.ts"` to `exports`). **Create** `packages/verify/src/cli.ts`, `packages/verify/src/history.test.ts` and `packages/verify/src/cli.test.ts`. Nothing else; the fixture already has everything the tests need.
+- **`src/cli.ts`:** (moved here from SC-23a) `parseVerifyArgs(process.argv.slice(2))`; `null` prints `{"ok":false,"reasons":["bad_arguments"]}` and exits 2. Otherwise print `JSON.stringify(verify(input))` and a newline, exit 0 if ok, else 1. Nothing else on stdout.
+- **`history.ts`** keeps the exported signature and adds three exports for tests: `parseRaw(out: string): RawEntry[]` (where `RawEntry = { oldMode: string; newMode: string; path: string }`), `parseLog(out: string): LogRecord[]` and `reasonsFor(entry: RawEntry, mode: Mode): Reason[]`. Algorithm of `checkHistory(ctx, run = git)` (every git call goes through `run`):
+  1. **Identities.** `git log -z --format=%H%x1f%P%x1f%an%x1f%ae%x1f%cn%x1f%ce <start>..<tip>`; `parseLog(out)` splits on `\0` for records and `\x1f` for fields. Because `-z` terminates each record, the split ends with one empty element: drop exactly one empty last element; any other record without exactly 6 fields is a mismatch (it adds `identity_mismatch`). For every record, author and committer must both equal `noreplyIdentity(playerId)` (name and email, exact). Any mismatch adds `identity_mismatch`. The shas of the records are the commit list.
+  2. **Each commit.** For every sha: `git diff-tree -r --raw --no-renames --no-abbrev -z --no-commit-id --root <sha>`. With `-z` the output is `:<oldmode> <newmode> <oldsha> <newsha> <status>` then the path, each ending in `\0`: a token starting with `:` is a header and the next token is its path. Merge commits show nothing here; step 9 of SC-23a already rejected them.
   3. **The net change.** `git diff-tree -r --raw --no-renames --no-abbrev -z <start> <tip>` (no `--no-commit-id`; with two trees there is no id line). Parse it the same way.
-  4. **Every entry from 2 and 3** goes through one function, `reasonsFor(entry, mode)`:
+  4. **Every entry from 2 and 3** goes through the one exported function `reasonsFor(entry, mode)`:
      - if `isIdentityPath(path)` and `identityLocked(mode)`: `identity_changed`; otherwise, if `!isAllowedPath(path, mode)`: `path_not_allowed`;
      - then by `newMode`: `100644` and `000000` (a deletion) add nothing; `120000` adds `symlink_not_allowed`; `160000` `gitlink_not_allowed`; `100755` `executable_not_allowed`; anything else `bad_mode`.
      Because the diffs use `--no-renames`, a rename shows as a deletion of the old path plus an addition of the new one, and both ends are checked.
-  5. Any git call with a non-zero status throws, and `verify` turns that into `verify_error`. Return the collected reasons (SC-23a's `verdict` deduplicates and orders them).
+  5. Any `run` result with a non-zero status throws, and `verify` turns that into `verify_error`. Return the collected reasons (SC-23a's `verdict` deduplicates and orders them).
 
-  The per-commit pass (2) is the one that catches a forbidden file added in one commit and removed in the next; the net pass (3) is the independent check H-11 asks for and the same function must serve both.
+  The per-commit pass (2) is the one that catches a forbidden file added in one commit and removed in the next; the net pass (3) is the independent check H-11 asks for and the same function must serve both. The net pass is tested with an injected runner (below), because with real git no case flips when it is removed.
 - **Hostile bundle list.** `history.test.ts`; each builds the bundle with the fixture, bundles `refs/heads/main`, and asserts the exact `reasons` array from `verify({ …, branch: 'main' })`. Paths for symlink, gitlink and executable are chosen so the path rule passes them and only the mode reason appears.
 
   | # | Case | How | Mode | Expect |
@@ -863,11 +901,17 @@ import { z } from 'zod';
   | 18 | merge plus path | merge-commit setup from SC-23a, with the side branch also editing `CLAUDE.md` | play | `['merge_commit', 'path_not_allowed']` |
 
   Cases 4 to 6 need `stageEntry` followed by `commitStaged` (not `commitAll`). START itself is authored by the host and is never inspected; only `START..tip` is.
-- **Why each case fails on revert:** remove the per-commit pass: case 10 returns `ok`; remove the net pass: no case flips (it is defence in depth, and the report says so); remove the `isIdentityPath` branch: cases 11 and 12 report `path_not_allowed` instead; remove the mode switch: cases 4 to 6; check only the author: case 14; compare only names: case 13; compare only emails: case 14; use rename detection (drop `--no-renames`): case 3 reports nothing for `CLAUDE.md`.
+- **Unit tests** (also in `history.test.ts`):
+  - `parseLog`: a clean `-z` output of two records returns two records; a record with 5 fields returns a short record that makes `checkHistory` report `identity_mismatch` (use the injected runner); the empty string returns `[]`.
+  - `reasonsFor` table (mode `play` unless noted): `memory/a.md` `100644` gives `[]`; deletion (`newMode` `000000`) of `memory/a.md` gives `[]`; `CLAUDE.md` `100644` gives `['path_not_allowed']`; `memory/identity.md` `100644` gives `['identity_changed']`, and in `setup` gives `[]`; `memory/a.md` with `120000`, `160000`, `100755` and `100664` give `symlink_not_allowed`, `gitlink_not_allowed`, `executable_not_allowed` and `bad_mode`; `CLAUDE.md` with `120000` gives both `path_not_allowed` and `symlink_not_allowed`.
+  - **Both call shapes, with an injected `run`:** a fake that records its arguments and answers `git log` with one valid noreply record for sha `aaa…`, the per-commit `diff-tree` with an empty output, and the two-tree `diff-tree` with an entry for `CLAUDE.md`. Assert the recorded calls include `['diff-tree', '-r', '--raw', '--no-renames', '--no-abbrev', '-z', '--no-commit-id', '--root', '<sha>']` (per commit) and `['diff-tree', '-r', '--raw', '--no-renames', '--no-abbrev', '-z', '<start>', '<tip>']` (net, no `--no-commit-id`), and that the result is `['path_not_allowed']` (so the net pass alone produced it). Compare only the arguments `checkHistory` passes (the real runner adds its own `-c` options).
+  - `cli.test.ts` through `spawnSync(process.execPath, [cli, …])`: no arguments exits 2 with exactly `{"ok":false,"reasons":["bad_arguments"]}`; a clean bundle exits 0 with stdout exactly `{"ok":true,"reasons":[]}\n`; the two-refs bundle exits 1 with `bundle_refs_unexpected`. Give each a 30 s timeout.
+- **Why each case fails on revert:** remove the per-commit pass: case 10 returns `ok`; remove the net pass: the injected-runner test fails (the real-git cases cannot show it); remove the `isIdentityPath` branch: cases 11 and 12 report `path_not_allowed` instead; remove the mode switch: cases 4 to 6 and the `reasonsFor` table; check only the author: case 14; compare only names: case 13; compare only emails: case 14; keep the trailing empty element in `parseLog`: every clean bundle gets `identity_mismatch`; use rename detection (drop `--no-renames`): case 3 reports nothing for `CLAUDE.md`.
 - **Checks:** `./scriptorium.ps1 pnpm --filter @geldar/scriptorium-verify typecheck`, `./scriptorium.ps1 pnpm format`, `./scriptorium.ps1 check`.
 
 ### SC-24a — `stub-cli`, part 1: the scenario runner
 
+- **Size.** This is a large packet (three modules, three test files, real stdio spawns). Budget one retry: if the first session runs out, the orchestrator re-dispatches the remaining files to a second session.
 - **Branch** `scriptorium/sc-24a-stub-cli`, worktree `sc-24a`. Commit: `feat(stub-cli): add the scripted stand-in CLI and scenario runner`.
 - D-SC-10: a fake `claude` for deterministic CI. It does what a scenario says, in order, and enforces nothing: no permissions, no settings. Letting it attempt forbidden things is the point, because the gate (SC-23) and the servers must be the ones that stop them (SC-60 builds attacks on it). It is used only in CI and never shipped in a release image.
 - **Create** `packages/stub-cli/` with `package.json` (name `@geldar/scriptorium-stub-cli`, `bin` `claude`, dependencies `@modelcontextprotocol/sdk` and `zod` pinned, `devDependencies` `"@geldar/scriptorium-memory": "workspace:*"`), `tsconfig.json`, and in `src/`: `index.ts`, `scenario.ts`, `mcp-config.ts`, `run.ts`, `cli.ts`, `scenario.test.ts`, `run.test.ts`, `cli.test.ts`. **Change** `pnpm-lock.yaml`. Nothing else.
@@ -928,7 +972,7 @@ import { z } from 'zod';
 
 ### SC-24b — `stub-cli`, part 2: a birth and a reflect
 
-- **Branch** `scriptorium/sc-24b-stub-scenarios`, worktree `sc-24b`, branched from the wave branch after SC-24a and SC-22 have merged. Commit: `test(stub-cli): drive a birth and a reflect through the companion servers`.
+- **Branch** `scriptorium/sc-24b-stub-scenarios`, worktree `sc-24b`, branched from the wave branch after SC-24a and SC-22b have merged. Commit: `test(stub-cli): drive a birth and a reflect through the companion servers`.
 - **Create** `packages/stub-cli/src/scenarios/birth.jsonl`, `packages/stub-cli/src/scenarios/reflect.jsonl` and `packages/stub-cli/src/birth-reflect.test.ts`. **Change** `packages/stub-cli/package.json` (add `"@geldar/scriptorium-git": "workspace:*"` to `devDependencies`) and `pnpm-lock.yaml` (`./scriptorium.ps1 pnpm install --no-frozen-lockfile`). Nothing else.
 - **`birth.jsonl`** (setup session; each line is one step, written as valid JSON on one line):
   1. `call` `geldar_memory` `recall` `{"section":"identity"}`, `includes: ["Written once, at your birth"]`;
@@ -976,6 +1020,7 @@ import { z } from 'zod';
   - Base: a pinned Node 22 slim image by digest, plus git, jq and bash.
   - The pinned Claude Code CLI (D-SC-07), and the companion packages from `packages/`.
   - **Carried from wave 1:** `image/settings/managed.json` currently denies only `**/.credentials.json`. Add concrete `Read`, `Edit` and `Write` denies for the CLI home (`CLAUDE_CONFIG_DIR`) to match § Settings layers and hardening item H-20.
+  - **From wave 2:** git 2.40 or newer in the image (`geldar-git` and `geldar-verify` rely on it); the session container user has the **same uid** as the workspace owner (git's `safe.directory` check cannot be set from `-c` or a nulled global config, so a different owner makes every git call fail).
   - A non-root `player` user. Marker file `/etc/geldar-kit`. Settings at `/etc/geldar/settings/`, with managed settings at the CLI's managed path. Workdir `/player`.
   - Built in CI on every PR; no push until SC-63.
 - **SC-41 egress.**
@@ -1000,6 +1045,7 @@ Both launchers implement docs/launcher-hardening.md item by item, citing the H-n
 - **SC-52 bash, commands:**
   - `new <player_id> [--private] [--mock <url>]`: `gh repo create --template SandboxServers/geldar-player-template`, public unless `--private` (geldar 0013, 0015), clone, fill `player.json`, first commit;
   - `setup`: setup mode; refuses if `memory/identity.md` has content; the gate allows `identity.md` once (geldar 0011, 0015);
+  - **Launcher requirements from wave 2:** start setup mode (`GELDAR_MODE=setup`) only for an unborn player. Setup mode lets `memory/identity.md` change at any time, so write-once rests entirely on this check. The workspace folder is owned by the same uid the session container runs as.
   - `resolve [--discard]`: retry a held bundle's push after pulling, or discard it (geldar 0011);
   - `archive`: final push, then `gh repo archive`;
   - `status`;

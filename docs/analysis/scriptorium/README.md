@@ -42,12 +42,11 @@ Spec-level decisions are records in the **geldar** repo (`docs/decisions/`). Thi
 | D-SC-07 | Exact current Claude Code syntax for settings, permissions, hooks and skills; the CLI version itself is pinned in SC-40 (at least 2.1.257) | Accepted | SC-12 | geldar [0016](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0016-claude-code-settings-errata.md), work-packets.md § Claude Code syntax |
 | D-SC-08 | Codex CLI: current terms and MCP support (the Codex half of spec open decision 2g) | **Open (owner)** | SC-71 | geldar 0010 |
 | D-SC-09 | Prerequisites on the human's machine: Docker (D-SC-03), git, GitHub CLI `gh` (for `new` and `upgrade`), PowerShell 7 on Windows | Proposed (orchestrator) | SC-50 | — |
-| D-SC-10 | A scripted **stub CLI** (`packages/stub-cli`) stands in for the vendor CLI in deterministic CI. Real models run only in the live malicious-book job. | Accepted (orchestrator) | SC-24a | 2 | S | `stub-cli`: scenario runner | packet-coder | BlockedDependency | SC-21 |
-| SC-24b | 2 | S | `stub-cli`: birth and reflect scenarios | packet-coder | BlockedDependency | SC-24a, SC-22 |
+| D-SC-10 | A scripted **stub CLI** (`packages/stub-cli`) stands in for the vendor CLI in deterministic CI. Real models run only in the live malicious-book job. | Accepted (orchestrator) | SC-24a | — |
 | D-SC-11 | The post-session gate is TypeScript (`geldar-verify`) running in a network-less container from the pinned image. The launcher's bash and PowerShell shims stay thin and re-check only the cheap invariants on the host. | Accepted (orchestrator) | SC-23, SC-51 | geldar 0011 |
 | D-SC-12 | Mock world auth: a static bearer token per player. The real OAuth flow and its loopback callback wait for Threshold. | Accepted (owner) | SC-31 | — |
 | D-SC-13 | Package names: `@geldar/scriptorium-<name>`; binaries `geldar-memory`, `geldar-git`, `geldar-verify` | Accepted (orchestrator) | SC-20 | — |
-| D-SC-14 | Mode reaches `geldar-git` through a `GELDAR_MODE` environment variable (`play` or `setup`; unset means `play`), set by the launcher; whether the pinned CLI passes it on to MCP servers is checked in SC-42 and a failure is safe (play mode is the stricter one for identity). | Proposed (orchestrator) | SC-22 | work-packets.md § Wave 2 |
+| D-SC-14 | Mode reaches `geldar-git` through a `GELDAR_MODE` environment variable (`play` or `setup`; unset means `play`), set by the launcher; whether the pinned CLI passes it on to MCP servers is checked in SC-42 and a failure is safe (play mode is the stricter one for identity). | Accepted (orchestrator) | SC-22a, SC-22b | work-packets.md § Wave 2 |
 
 ## Packets
 
@@ -69,10 +68,12 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-16 | 1 | S | Hooks with the container guard, and their tests | packet-coder | Done (merged into wave1) | SC-10 |
 | SC-20 | 2 | S | `path-rule` package: allowed paths, modes, write-once identity | packet-coder | BlockedDependency | wave 1 |
 | SC-21 | 2 | S | `geldar-memory` MCP server (`recall`) | packet-coder | BlockedDependency | SC-20 |
-| SC-22 | 2 | S | `geldar-git` MCP server and CLI (`commit_memory`) | packet-coder | BlockedDependency | SC-20 |
-| SC-23a | 2 | S | `geldar-verify`: bundle intake and verdict | packet-coder | BlockedDependency | SC-20 |
-| SC-23b | 2 | S | `geldar-verify`: history, path, mode and identity checks, hostile bundles | packet-coder | BlockedDependency | SC-23a |
-| SC-24 | 2 | S | `stub-cli`: scripted stand-in for the vendor CLI | packet-coder | BlockedDependency | SC-21 |
+| SC-22a | 2 | S | `geldar-git`: runner, filter-safe `commitMemory`, message, fixture and tests | packet-coder | BlockedDependency | SC-20 |
+| SC-22b | 2 | S | `geldar-git`: MCP server and CLI (`commit_memory`) | packet-coder | BlockedDependency | SC-22a |
+| SC-23a | 2 | S | `geldar-verify`: bundle intake, caps and verdict | packet-coder | BlockedDependency | SC-20 |
+| SC-23b | 2 | S | `geldar-verify`: history, path, mode and identity checks, CLI, hostile bundles | packet-coder | BlockedDependency | SC-23a |
+| SC-24a | 2 | S | `stub-cli`: scripted stand-in for the vendor CLI (scenario runner; large, budget a retry) | packet-coder | BlockedDependency | SC-21 |
+| SC-24b | 2 | S | `stub-cli`: birth and reflect scenarios | packet-coder | BlockedDependency | SC-24a, SC-22b |
 | SC-30 | 3 | G | Contract: MCP tool and result schemas (5.15.3, Appendix K as fixed by 0009) | packet-coder | BlockedDependency | geldar P0-01 |
 | SC-31 | 3 | G | `threshold/mcp-mock`: Streamable HTTP per player, bearer auth, tools, resources, prompts | packet-coder | BlockedDependency | SC-30 |
 | SC-32 | 3 | G | Mock world: day clock, events, `wait` cursor, `act` validation, `sleep` digest, books | packet-coder | BlockedDependency | SC-31 |
