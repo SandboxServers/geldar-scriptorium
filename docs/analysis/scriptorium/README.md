@@ -59,7 +59,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-04 | 0 | S | Docs: architecture, clients matrix, releases, decisions index | packet-coder | Done (merged into wave0) | SC-01 |
 | SC-05 | 0 | S | Kit threat model and launcher hardening checklist | Sonnet (general-purpose) | Done (merged into wave0) | SC-01 |
 | SC-10 | 1 | S | Template skeleton, `player.json` schema, boundary test | packet-coder | Done (merged into wave1) | wave 0 |
-| SC-11 | 1 | S | One instructions source, generated `CLAUDE.md` and `AGENTS.md`, drift check | packet-coder | Writing | SC-10 |
+| SC-11 | 1 | S | One instructions source, generated `CLAUDE.md` and `AGENTS.md`, drift check | packet-coder | Done (merged into wave1) | SC-10 |
 | SC-12 | 1 | S | Play-mode `.claude/settings.json`, `.mcp.json`, policy test | packet-coder | Writing | SC-10 |
 | SC-13 | 1 | S | Skills: `play`, `reflect` | packet-coder | Done (merged into wave1) | SC-10 |
 | SC-14 | 1 | S | Skills: `trade`, `author`, `moot` | packet-coder | Done (merged into wave1) | SC-10 |
