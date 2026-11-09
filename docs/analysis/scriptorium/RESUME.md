@@ -2,24 +2,27 @@
 
 Read this, then [README.md](README.md) (the ledger), before acting. Rewrite at every wave boundary, in 40 lines at most.
 
-**State (2026-11-08):** waves 0 and 1 are merged to `main` (PRs #1, #2). Wave 2 (companion servers and the gate, SC-20 to SC-24b) is done and in PR #4 (`scriptorium/wave2` to `main`): every packet passed its own review, the wave review fixes are applied, the docs pass and retro are in, CI is green. The kit's decisions (geldar 0007-0016) are in geldar PR #3, owned by the planning session; don't touch it or geldar `docs/decisions/`.
+**State (2026-11-08):** waves 0, 1 and 2 are merged to `main` (PRs #1, #2, #4). Wave 4 (the kit image, SC-40a to SC-42b) has all six packets merged on `scriptorium/wave4`; the wave review and the wave PR are pending (the orchestrator finishes them). The docs pass, [retro-wave-4.md](worknotes/retro-wave-4.md) and dispatch rules 16 and 17 are in the wave. The kit's decisions (geldar 0007-0016) are in geldar PR #3, owned by the planning session; don't touch it or geldar `docs/decisions/`.
 
 **Next action:**
 
-1. PR #4: confirm `ci gate` is green on the latest push, take it out of draft (`gh pr ready 4`) and merge (`gh pr merge 4 --merge --delete-branch`; the owner authorised merging once ready). Then remove the sc-20..sc-24b, wave2-fix and wave2-docs worktrees and branches.
-2. Wave 3 (the mock world, repo G, SC-30 to SC-33) needs geldar P0-01 (`@geldar/contract`): check geldar `origin/main` first. Wave 4 (kit image, SC-40 to SC-42) needs only wave 2 and can start now. Write the chosen wave's scope cards out in full in `work-packets.md` first, and spec-review them before dispatch (this paid off in wave 2).
-3. Every wave closes with docs, a retro and process changes (skill § 6, dispatch rule 15). Retro so far: `worknotes/retro-waves-0-2.md`; its "Proposed next" list (merge helper, ledger helper, spec lint incl. control characters, shared git runner, fixture helper) is the first process work for wave 3 or 4.
+1. Finish wave 4: wave review (fresh `packet-reviewer`), fix passes, open the PR from `scriptorium/wave4` and read the Linux CI log (the Docker tests must have run, not skipped), merge on a green `check` on the wave branch (rule 16), remove worktrees.
+2. Then rewrite this card and ask the owner to `/compact`.
+3. Wave 3 (mock world, repo G, SC-30 to SC-33) is not started. Readiness: geldar PR #3 (decisions 0007-0016) is still open; `contract/` on geldar `main` has `@geldar/contract` but lacks the `mcp-*` schemas; the Wave 3 cards follow the spec's intent model. Ask the owner before writing in the geldar repo.
+4. Process work from the retro's "Proposed next": merge-packet helper that gates on a green wave-branch check, ledger helper, spec lint, shared git runner, fixture helper, and why a check inside a worktree passes while the wave branch fails.
+5. Wave 5 (launcher) cards are written in full once wave 4 closes.
 
-**Agents:** `.claude/agents/` exists. Dispatch with the Agent tool as `general-purpose` (coders `haiku`, reviewers `sonnet`, packet writers and docs `sonnet`), pasting the agent rules into each brief. Haiku coders often hit the context cap near 90k: tell them to write a stub report first and commit as soon as checks pass (rule 12).
+**Agents:** dispatch with the Agent tool as `general-purpose` (coders `haiku` for small packets, `sonnet` for packets with a CLI-behavior test matrix; reviewers, packet writers and docs `sonnet`), pasting the agent rules into each brief. Haiku coders often hit the context cap near 90k: stub report first, commit as soon as checks pass (rule 12). Docker packets use `KIT_IMAGE=geldar-kit:<packet>` (rule 17).
 
 **Follow-ups (not blocking):**
 
 - Dedupe `tests/template/skills.test.ts` and `world-skills.test.ts`.
 - Threat model: control row for "other players' data" once the MCP servers exist.
 - Dependabot header comment names directories this repo doesn't have.
-- `geldar-git` and `geldar-verify` run-git wrappers drifted (shared module); fixtures lack `--no-replace-objects`; `verify` args accept `--mode=a --mode=b`.
+- `geldar-git` and `geldar-verify` run-git wrappers drifted; fixtures lack `--no-replace-objects`; `verify` args accept `--mode=a --mode=b`.
+- H-20 live deny check is SC-62 (local only); until it runs, H-20 is structural only.
 - Confirm no one commits the untracked `.agents/` and `.codex/` folders.
 
-**Open owner decisions:** D-SC-01 (CI API key), D-SC-05 (license; `LICENSE` absent), D-SC-06 (GHCR visibility; repo is public so public images are the easy answer), D-SC-08 (Codex terms). Accepted since last card: D-SC-02 (`geldar-bot` via Key Vault OIDC), D-SC-07, D-SC-14.
+**Open owner decisions:** D-SC-05 (license; `LICENSE` absent), D-SC-06 (GHCR visibility; the repo is public so public images are the easy answer), D-SC-08 (Codex terms). Settled: D-SC-01 (no CI API key; live checks local only), D-SC-02, D-SC-07, D-SC-14.
 
-**Worktrees:** sc-20..sc-24b, wave2-fix, wave2-docs (all merged, remove after PR #4 merges).
+**Worktrees:** none expected; check `git worktree list`.

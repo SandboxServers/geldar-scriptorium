@@ -2,7 +2,7 @@
 
 Ledger and status: [README.md](README.md). Resume card: [RESUME.md](RESUME.md).
 
-Waves 0 to 2 are written out in full. Waves 3–7 are **scope cards**: files, test and acceptance. Each card is written out in full when the wave before it closes, against what actually merged.
+Unsuffixed SC-40, SC-41 and SC-42 in older text mean the a/b packets in [work-packets-wave4.md](work-packets-wave4.md). Waves 0 to 2 are written out in full. Wave 4 is in [work-packets-wave4.md](work-packets-wave4.md). Waves 3 and 5–7 are **scope cards**: files, test and acceptance. Each card is written out in full when the wave before it closes, against what actually merged.
 
 ## Dispatch rules (every packet)
 
@@ -27,6 +27,8 @@ Each packet is self-contained: the coder skips CLAUDE.md, so these rules travel 
 13. **Shared files have one owner.** Lists many packets append to (`tests/template/allowed-files.ts`, `pnpm-lock.yaml`, root `package.json`) conflict on merge. The orchestrator resolves them: take the wave branch's version, re-apply the packet's one-line change, and regenerate the lockfile with `./scriptorium.ps1 pnpm install --no-frozen-lockfile`. Never merge or push a wave branch on a failing `./scriptorium.ps1 check`.
 14. **Platform.** The author machine is Windows without `jq` and without a Linux shell. Tests that need Linux or `jq` skip locally and must run in CI. For a packet with such tests, open a draft PR from the wave branch early to get the Linux run, and read the CI log to confirm they ran.
 15. **Wave close.** Every wave ends with a docs pass, a retro and process changes (campaign-packet skill § 6), shipped in the wave PR.
+16. **Green means green on the wave branch.** A packet is green only when `check` passes on the wave branch after the merge; a check run inside a worktree is not the gate.
+17. **Docker packets isolate their image.** Packets that touch Docker use an isolated image tag via `KIT_IMAGE=geldar-kit:<packet>`; the kit image is built once per vitest run by the global setup.
 
 **Branches.** Wave integration branch `scriptorium/wave<N>` from `main`. Packet branch `scriptorium/sc-NN-<slug>`, worktree `.claude/worktrees/sc-NN`, branched from the wave branch. Reports go to `.claude/reports/scriptorium/<packet>-<role>.md`. Repo **G** packets use the geldar repo's own rules (its `work-packets.md` dispatch rules, `./geldar.ps1`) and branch `scriptorium/sc-NN-<slug>` from geldar `main`.
 
@@ -118,7 +120,7 @@ template/skills/README.md
 
 ### Claude Code syntax (D-SC-07, verified 2026-11-08 against code.claude.com/docs)
 
-Use exactly these forms. Each item marked *(test in SC-42)* is checked inside the image against the pinned CLI with `/permissions` and `/status`.
+Use exactly these forms. Each item marked *(test in SC-42a/SC-42b)* is checked inside the image against the pinned CLI with `/permissions` and `/status`.
 
 - **Model and effort:** `"model": "haiku"` and `"effortLevel": "low"` (not `effort`). Thinking can't be turned off on Haiku 5.5; don't set `alwaysThinkingEnabled`.
 - **Auto memory off:** `"autoMemoryEnabled": false`.
@@ -126,7 +128,7 @@ Use exactly these forms. Each item marked *(test in SC-42)* is checked inside th
   - `"defaultMode": "dontAsk"`: anything not on the allow list is denied without a prompt.
   - `"blockReadsOutsideWorkingDirectories": true`: needs Claude Code 2.1.257 or later.
   - Deny tools with bare names: `"Bash"`, `"WebFetch"`, `"WebSearch"`.
-  - Path rules starting with `/` are anchored at the project root: `Edit(/memory/**)`, `Read(/**)`. Whether `Edit` rules also cover the `Write` tool is unverified, so deny and allow `Write(...)` alongside every `Edit(...)` rule *(test in SC-42)*.
+  - Path rules starting with `/` are anchored at the project root: `Edit(/memory/**)`, `Read(/**)`. Whether `Edit` rules also cover the `Write` tool is unverified, so deny and allow `Write(...)` alongside every `Edit(...)` rule *(test in SC-42a/SC-42b)*.
   - Deny always wins and lists merge across settings files, so a `--settings` file can add denies but never remove one.
 - **MCP tool names:** `mcp__<server>__<tool>`. Allow every tool on one server with `mcp__geldar__*`, but list each tool explicitly anyway, so a new server-side tool isn't allowed by accident. Server keys use underscores (geldar 0009): `geldar`, `geldar_memory`, `geldar_git`.
 - **`.mcp.json` entries:**
@@ -139,7 +141,7 @@ Use exactly these forms. Each item marked *(test in SC-42)* is checked inside th
   - `PostToolUse` receives `tool_name`, `tool_input` and `tool_response` on stdin. Plain stdout from `SessionStart` is added to context.
 - **Skills:** `.claude/skills/<name>/SKILL.md`, with frontmatter `name`, `description`, and optionally `disable-model-invocation: true` (only the human can run it, as `/name`).
 - **Setup mode:** the launcher starts the CLI with `--settings /etc/geldar/settings/setup.json`. Play mode uses `--settings /etc/geldar/settings/play.json`.
-- **Managed settings:** the strongest layer, which nothing can override. The image ships the core denies as managed settings. The exact Linux path of the managed settings file is checked against the pinned CLI *(test in SC-42)*.
+- **Managed settings:** the strongest layer, which nothing can override. The image ships the core denies as managed settings. The exact Linux path of the managed settings file is checked against the pinned CLI *(test in SC-42a/SC-42b)*.
 - **CLI home:** `CLAUDE_CONFIG_DIR` points at the per-player, per-vendor volume (geldar 0011). The login is in `.credentials.json` there.
 
 ### Settings layers (who owns what)
@@ -1005,6 +1007,8 @@ import { z } from 'zod';
 ## Wave 3 — the mock world (repo G; scope cards; needs geldar P0-01)
 
 - **SC-30 (G) contract.** `contract/schemas/mcp-*.schema.json`: the inputs and results of the 14 tools from 5.15.3, as fixed by geldar 0009 (a 240 s cap, `cursor`, `interests`), the `act` result, the `untrusted_world_text` wrapper, the `sleep` digest and the `status` result. Generated, with fixtures.
+  - **`act` input** is generated from the intent and action schemas (spec Appendix C and K): `reasoning` (string, max 600), `say` (string or null, max 256), `intent` (`goal`, `program`, `arguments`, `preconditions`, `wake_on`, `limits`), `actions` (array, max 6), and `anyOf` required `intent` | `actions` | `say`.
+  - **Fixtures** include an intent-only call (no `actions`, no `say`) and a rejected call with none of the three.
 - **SC-31 (G) `threshold/mcp-mock`.** MCP Streamable HTTP at `/p/<player_id>`.
   - **Auth:** a static bearer token per player, from a file (D-SC-12). Resources and prompts as 5.15.3 lists them.
   - **Validation:** every tool input and output is validated with the contract validators.
@@ -1015,31 +1019,19 @@ import { z } from 'zod';
   - books;
   - events.
 
+  Principle: deterministic code does the driving; the model is woken only for decisions, goals, conversation and reflection (spec 5.3.1, 5.3.2). The simulation therefore includes:
+  - **Scripted intent executor:** advances an accepted intent each tick, with no real pathing; it records progress and finishes with `goal_completed`.
+  - **`wake_on` evaluation** against scenario events (`directly_addressed`, `precondition_failed`, `unexpected_damage`, `goal_completed`, `new_agent_within_8`).
+  - **Minimum wakeup spacing** (default 20 s) and an **intent-run-too-long fallback wakeup**, both configurable to seconds for CI.
+  - **One scripted reflex:** eat when hungry, done by the simulation and reported in the next `wait`.
+  - **Test:** scripted chatter not directly addressed does NOT wake an agent running an intent; `directly_addressed` does, and the `wake_reason` names it. Suppressed wakeups are recorded with a reason.
+
   `wait` long-polls on the cursor and returns coalesced events and a `wake_reason`. `act` and `say` accept or reject with reasons and count budget. `sleep` returns the day digest.
 - **SC-33 (G) image.** `ghcr.io/sandboxservers/geldar-mcp-mock`, built and pushed from geldar `main` (visibility per D-SC-06), with a compose snippet.
 
-## Wave 4 — the kit image (scope cards)
+## Wave 4 — the kit image
 
-- **SC-40 `image/Dockerfile`.**
-  - Base: a pinned Node 22 slim image by digest, plus git, jq and bash.
-  - The pinned Claude Code CLI (D-SC-07), and the companion packages from `packages/`.
-  - **Carried from wave 1:** `image/settings/managed.json` currently denies only `**/.credentials.json`. Add concrete `Read`, `Edit` and `Write` denies for the CLI home (`CLAUDE_CONFIG_DIR`) to match § Settings layers and hardening item H-20.
-  - **From wave 2:** git 2.40 or newer in the image (`geldar-git` and `geldar-verify` rely on it); the session container user has the **same uid** as the workspace owner (git's `safe.directory` check cannot be set from `-c` or a nulled global config, so a different owner makes every git call fail).
-  - A non-root `player` user. Marker file `/etc/geldar-kit`. Settings at `/etc/geldar/settings/`, with managed settings at the CLI's managed path. Workdir `/player`.
-  - Built in CI on every PR; no push until SC-63.
-- **SC-41 egress.**
-  - `image/proxy/`: Squid pinned by digest (D-SC-04), with an allowlist file (vendor API and login hosts, the MCP host, the OAuth host) and `http_access deny all`.
-  - `image/compose/session.yml`: an internal network for the session container and the proxy, with the proxy also on an egress network. The session container has no DNS server.
-  - **Tests:** inside the session container, an allowed host (the mock world in CI) succeeds, while `github.com`, a raw IP and `nslookup` all fail.
-- **SC-42 image tests.** In the container:
-  - hooks act only with the marker;
-  - kit paths are read-only;
-  - `/permissions` shows the managed denies;
-  - reading the CLI home is denied (the whole `CLAUDE_CONFIG_DIR`, not only `.credentials.json`; see SC-40);
-  - `Write` is governed like `Edit`;
-  - the managed settings path is correct for the pinned CLI.
-  - `GELDAR_MODE` (D-SC-14) reaches the MCP servers the pinned CLI starts: with `GELDAR_MODE=setup` in the container environment, `commit_memory` of `memory/identity.md` succeeds, and in play mode (unset or `play`) it is refused. Report a mismatch as a new record.
-  Any mismatch with § Claude Code syntax goes to the orchestrator as a new record.
+Written out in full in [work-packets-wave4.md](work-packets-wave4.md) (this file is past its size cap): SC-40a, SC-40b, SC-41a, SC-41b, SC-42a, SC-42b.
 
 ## Wave 5 — the launcher (scope cards)
 
@@ -1056,6 +1048,7 @@ Both launchers implement docs/launcher-hardening.md item by item, citing the H-n
   - `status`;
   - `play <player_id>...`: one player, or several in tmux windows. Commands are verbs, so player IDs never collide with them (geldar 0015).
 - **SC-53 and SC-54 PowerShell:** the same behaviour and messages. Multi-player opens Windows Terminal tabs when `wt` exists, otherwise separate windows. Tests run the same scenarios through `pwsh`.
+- **Steering text (launcher and the CLAUDE.md it starts with):** steer the character to set durable intents and to `sleep` or `wait` rather than poll (spec 5.3.1).
 - **SC-55 end-to-end CI:** a local bare repo as `origin`, the mock world from SC-33, and the stub CLI image variant. It runs `new` → `setup` → three `play` days → push, then asserts the commit list, authors and paths on `origin`.
 
 ## Wave 6 — safety and release (scope cards)
@@ -1066,7 +1059,7 @@ Both launchers implement docs/launcher-hardening.md item by item, citing the H-n
   - exfiltrate through `say`;
   - plant standing instructions in memory;
   - read another player's repo, use web search, leak data through DNS, or read the CLI's credential files.
-- **SC-62 live malicious-book CI:** the pinned Claude Code runs in the image against that corpus, with an API key (D-SC-01). It runs weekly and on every release tag. It passes only if the proxy log shows nothing off the allowlist, no denied path was read, memory holds no copied instruction, and the gate accepted only allowed paths.
+- **SC-62 live malicious-book check (local only; D-SC-01: no API key, no model calls in CI):** the pinned Claude Code runs in the image against that corpus, driven by a `./scriptorium.ps1` script the owner runs with their own subscription login, plus a written procedure. It never runs in CI and needs no secret; the owner runs it before each release tag. It passes only if the proxy log shows nothing off the allowlist, no denied path was read, memory holds no copied instruction, and the gate accepted only allowed paths.
 - **SC-63 release workflow:**
   - on `kit-v*`: build and push the image, cosign sign, SBOM, then trivy and grype scans that fail on critical findings;
   - sign the launcher assets;

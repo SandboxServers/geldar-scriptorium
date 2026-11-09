@@ -25,8 +25,8 @@ This is the threat model for the Geldar player kit and its launcher. Each contro
 | Boundary | Control | Hardening item | Test |
 | --- | --- | --- | --- |
 | Container | Workspace-only mount, kit paths read-only, no Docker socket, no credentials | H-06, H-07, H-19 | T-06, T-07, T-19 |
-| Container | Reads of the CLI home and credentials denied by managed settings | H-20 | T-20 |
-| Egress proxy | Internal network, no DNS, allowlist-only egress | H-08 | T-08 |
+| Container | Reads of the CLI home and credentials denied by managed settings (rules and CLI acceptance tested in CI; live deny check is local only) | H-20 | T-20 |
+| Egress proxy | Internal network, no DNS, allowlist-only egress (`image/README.md`; tests in `tests/image/`) | H-08 | T-08 |
 | Bundle gate | Separate no-network bundle step, size cap, `geldar-verify` allow-list | H-09, H-10, H-11 | T-09, T-10, T-11 |
 | Bundle gate | Safe fetch, independent host re-check, fast-forward-only merge and push | H-12, H-13, H-14 | T-12, T-13, T-14 |
 | Bundle gate | In `geldar-verify`: replace objects ignored, attributes file off, 50 MiB and 2000-commit caps, per-commit and net `--no-renames` path checks, mode, identity and fast-forward checks (`packages/verify`) | H-10, H-11 | T-10, T-11 |

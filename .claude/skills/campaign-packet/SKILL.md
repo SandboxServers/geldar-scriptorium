@@ -64,7 +64,7 @@ Then ship with the `ship-pr` skill and update the ledger rows.
 
 ## 5. State on disk
 
-At every wave boundary rewrite `RESUME.md` and the ledger rows. The transcript is not the record: a compaction or a new session must be able to continue from the campaign folder alone.
+At every wave boundary rewrite `RESUME.md` and the ledger rows. The transcript is not the record: a compaction or a new session must be able to continue from the campaign folder alone. The owner wants the conversation compacted at every wave boundary: after rewriting `RESUME.md`, say so and ask them to run `/compact` (the orchestrator cannot run it).
 
 ## 6. Close the wave: docs, retro, process
 
@@ -75,3 +75,5 @@ Every wave ends with these three steps before its PR leaves draft. They are part
 3. **Process and scaffolding.** Turn the retro into changes and ship them in the same wave PR: edit the dispatch rules in `work-packets.md`, the agent files and skills under `.claude/`, `CLAUDE.md`/`AGENTS.md`, `scriptorium.ps1` helpers, the PR template, CI. Each change names the retro finding it answers. Prefer a guard that makes a mistake impossible (a script, a check, a template) over a rule people must remember. Record what you changed at the end of the retro.
 
 The retro and the process changes are reviewed like any other change (a fresh `packet-reviewer`).
+
+Rules from the wave 4 retro (dispatch rules 16 and 17): a packet is green only when `check` passes on the wave branch after the merge (a worktree check is not the gate), and packets that touch Docker use an isolated image tag via `KIT_IMAGE=geldar-kit:<packet>`, since the kit image is built once per vitest run by the global setup.

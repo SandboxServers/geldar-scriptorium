@@ -33,10 +33,10 @@ Spec-level decisions are records in the **geldar** repo (`docs/decisions/`). Thi
 
 | ID | Decision | Status | Needed by | Record |
 |---|---|---|---|---|
-| D-SC-01 | Model access for the live malicious-book CI: an Anthropic API key as a repo secret with a monthly spend cap. A subscription login can't be used for automation (spec 5.15.1). | **Open (owner)** | SC-62 | — |
+| D-SC-01 | Model access for the live malicious-book check: no API key in CI (owner, 2026-11-08: no API credits on CI runs). The live check is local only, run by the owner with a subscription login; CI never calls a model (spec 5.15.1). | **Accepted (local only)** | SC-62 | — |
 | D-SC-02 | Credential the release job uses to publish `template/` to `geldar-player-template`: the GitHub App `geldar-bot`, installed on that repo only (contents write, metadata read); its key and app ID are Key Vault secrets read through Azure OIDC | Accepted (owner, 2026-11-08) | SC-63 | geldar-infra `docs/release-identity.md` |
-| D-SC-03 | Container runtime for v1: Docker Desktop (Windows, macOS) and Docker Engine (Linux). Podman later. | Proposed (orchestrator) | SC-40 | — |
-| D-SC-04 | Egress proxy: Squid, pinned by digest, with a hostname allowlist and `http_access deny all`. The session container sits on an internal network with no DNS; Squid resolves names. | Proposed (orchestrator) | SC-41 | — |
+| D-SC-03 | Container runtime for v1: Docker Desktop (Windows, macOS) and Docker Engine (Linux). Podman later. | Proposed (orchestrator) | SC-40b | — |
+| D-SC-04 | Egress proxy: Squid, pinned by digest, with a hostname allowlist and `http_access deny all`. The session container sits on an internal network with no DNS; Squid resolves names. | Proposed (orchestrator) | SC-41a, SC-41b | — |
 | D-SC-05 | License for this repo and the template | **Open (owner)** | SC-02 | — |
 | D-SC-06 | GHCR visibility for the kit image and the mock world image (this repo is now public, so public images are the straightforward answer) | **Open (owner to confirm)** | SC-33, SC-63 | — |
 | D-SC-07 | Exact current Claude Code syntax for settings, permissions, hooks and skills; the CLI version itself is pinned in SC-40 (at least 2.1.257) | Accepted | SC-12 | geldar [0016](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0016-claude-code-settings-errata.md), work-packets.md § Claude Code syntax |
@@ -46,7 +46,7 @@ Spec-level decisions are records in the **geldar** repo (`docs/decisions/`). Thi
 | D-SC-11 | The post-session gate is TypeScript (`geldar-verify`) running in a network-less container from the pinned image. The launcher's bash and PowerShell shims stay thin and re-check only the cheap invariants on the host. | Accepted (orchestrator) | SC-23, SC-51 | geldar 0011 |
 | D-SC-12 | Mock world auth: a static bearer token per player. The real OAuth flow and its loopback callback wait for Threshold. | Accepted (owner) | SC-31 | — |
 | D-SC-13 | Package names: `@geldar/scriptorium-<name>`; binaries `geldar-memory`, `geldar-git`, `geldar-verify` | Accepted (orchestrator) | SC-20 | — |
-| D-SC-14 | Mode reaches `geldar-git` through a `GELDAR_MODE` environment variable (`play` or `setup`; unset means `play`), set by the launcher; whether the pinned CLI passes it on to MCP servers is checked in SC-42 and a failure is safe (play mode is the stricter one for identity). | Accepted (orchestrator) | SC-22a, SC-22b | work-packets.md § Wave 2 |
+| D-SC-14 | Mode reaches `geldar-git` through a `GELDAR_MODE` environment variable (`play` or `setup`; unset means `play`), set by the launcher; whether the pinned CLI passes it on to MCP servers is checked in SC-42b and a failure is safe (play mode is the stricter one for identity). | Accepted (orchestrator) | SC-22a, SC-22b | work-packets.md § Wave 2 |
 
 ## Packets
 
@@ -78,9 +78,12 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-31 | 3 | G | `threshold/mcp-mock`: Streamable HTTP per player, bearer auth, tools, resources, prompts | packet-coder | BlockedDependency | SC-30 |
 | SC-32 | 3 | G | Mock world: day clock, events, `wait` cursor, `act` validation, `sleep` digest, books | packet-coder | BlockedDependency | SC-31 |
 | SC-33 | 3 | G | Mock world image, published to GHCR from `main` | packet-coder | BlockedDecision | SC-32, D-SC-06 |
-| SC-40 | 4 | S | Kit image: Dockerfile, pinned CLI, companions, marker, non-root | packet-coder | BlockedDependency | wave 2 |
-| SC-41 | 4 | S | Egress proxy and session networking, with allow and deny tests | packet-coder | BlockedDependency | SC-40 |
-| SC-42 | 4 | S | Image tests: marker, mounts, settings, hooks guard | packet-coder | BlockedDependency | SC-40 |
+| SC-40a | 4 | S | Managed and play settings (CLI-home denies), Docker test support | packet-coder | Done | wave 2 |
+| SC-40b | 4 | S | Kit image Dockerfile: pinned CLI, companions, marker, non-root; build test; CI Docker step | packet-coder | Done | SC-40a |
+| SC-41a | 4 | S | Squid proxy config and allowlist, with config tests | packet-coder | Done | SC-40a |
+| SC-41b | 4 | S | Session compose (internal network, no external DNS) and egress allow/deny tests | packet-coder | Done | SC-40b, SC-41a |
+| SC-42a | 4 | S | Image contract tests: marker, hooks guard, read-only kit paths, uid and git | packet-coder | Done | SC-40b |
+| SC-42b | 4 | S | Pinned-CLI tests: managed path, tool denies, GELDAR_MODE (D-SC-14) | packet-coder | Done | SC-40a, SC-40b |
 | SC-50 | 5 | S | Launcher (bash): pre-session (state, export, workspace) | packet-coder | BlockedDependency | wave 4 |
 | SC-51 | 5 | S | Launcher (bash): post-session (bundle, verify, fetch, push, failure paths) | packet-coder | BlockedDependency | SC-50 |
 | SC-52 | 5 | S | Launcher (bash): `new`, `setup`, `archive`, `status`, multi-player | packet-coder | BlockedDependency | SC-51 |
@@ -89,7 +92,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-55 | 5 | S | End-to-end CI: `new` → `setup` → `play` → push, stub CLI against the mock world | packet-coder | BlockedDependency | SC-52, SC-33 |
 | SC-60 | 6 | S | Hostile workspace tests, one per hardening item | packet-coder | BlockedDependency | SC-55 |
 | SC-61 | 6 | S+G | Malicious-book corpus as mock world scenarios | packet-coder | BlockedDependency | SC-32 |
-| SC-62 | 6 | S | Live malicious-book CI with pinned Claude Code | packet-coder | BlockedDecision | SC-61, D-SC-01 |
+| SC-62 | 6 | S | Live malicious-book check, local only (script plus documented procedure; never in CI) with pinned Claude Code | packet-coder | Planned | SC-61 |
 | SC-63 | 6 | S | Release workflow: image, cosign, SBOM, scan, launcher assets, template publish | packet-coder | BlockedDecision (D-SC-06 only; D-SC-02 is Accepted) | SC-60, D-SC-06 |
 | SC-64 | 6 | S | `geldar-play upgrade`: kit bump as a PR | packet-coder | BlockedDependency | SC-63 |
 | SC-70 | 7 | S | Template README (the Patron guide), onboarding and troubleshooting docs | packet-coder | BlockedDependency | wave 6 |

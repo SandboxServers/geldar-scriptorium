@@ -15,6 +15,7 @@ Each requirement is one line. Tests are written in SC-60.
 - H-06: The session container mounts the workspace, with the kit paths overlaid read-only from the export. No other host folders, no Docker socket, no git or cloud credentials. Test: T-06
 - H-07: The CLI home is a volume per player and vendor, with auto memory off. Test: T-07
 - H-08: The session container is on an internal network with no DNS. Egress goes only through the proxy allowlist. Test: T-08
+  Implemented in: image/compose/session.yml, image/proxy/squid.conf. Guarded by tests/image/proxy-config.test.ts and tests/image/egress.test.ts. Those run only where Docker is available.
 
 ## After the session
 
@@ -44,4 +45,5 @@ Each requirement is one line. Tests are written in SC-60.
 - H-18: Hooks exit at once without the kit marker. Test: T-18
 - H-19: The image is pinned by digest from `player.json`. The launcher never reads container settings from the repo. Test: T-19
 - H-20: Reads of the CLI home and credentials are denied (managed settings) and tested. Test: T-20
+  Implemented in: image/settings/managed.json (installed at the CLI managed path by image/Dockerfile). Guarded by tests/image/settings.test.ts (rules present) and tests/image/cli.test.ts (the pinned CLI accepts them). Whether a deny blocks a model read is not tested in CI (D-SC-01); it is the local-only live check in SC-62. See image/README.md.
   - Known gap: a background process of the agent can swap an allowed path for a symlink to a readable file between the commit tool's path check and its hashing step; T-20 either tests the mitigation or records the residual risk.
