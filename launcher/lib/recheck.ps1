@@ -36,21 +36,9 @@ function Invoke-GitRaw([string[]]$GitArgs) {
   if ($found) { $exe = $found.Source }
   $hooks = Join-Path (Get-StateDir) 'empty-hooks'
   if (-not (Test-Path -LiteralPath $hooks)) { New-Item -ItemType Directory -Path $hooks -Force | Out-Null }
-  $psi = [System.Diagnostics.ProcessStartInfo]::new()
-  $psi.UseShellExecute = $false
+  $psi = New-CmdShimStartInfo $exe (@('-c', "core.hooksPath=$hooks") + @($GitArgs | ForEach-Object { [string]$_ }))
   $psi.RedirectStandardOutput = $true
   $psi.RedirectStandardError = $true
-  if ($exe -match '\.(cmd|bat)\z') {
-    $psi.FileName = 'cmd.exe'
-    $psi.ArgumentList.Add('/d')
-    $psi.ArgumentList.Add('/c')
-    $psi.ArgumentList.Add($exe)
-  } else {
-    $psi.FileName = $exe
-  }
-  $psi.ArgumentList.Add('-c')
-  $psi.ArgumentList.Add("core.hooksPath=$hooks")
-  foreach ($a in $GitArgs) { $psi.ArgumentList.Add($a) }
   $psi.Environment['GIT_NO_REPLACE_OBJECTS'] = '1'
   $psi.Environment['GIT_TERMINAL_PROMPT'] = '0'
   try {

@@ -119,7 +119,22 @@ function Get-ToolHint([string]$Tool) {
 function Invoke-Docker {
   $exe = $env:GELDAR_DOCKER
   if (-not $exe) { $exe = 'docker' }
-  & $exe @args
+  Invoke-ShimAware $exe @args
+}
+
+# Runs a native command; a resolved .cmd or .bat goes through Start-CmdShim so cmd.exe never
+# reads an argument as syntax. Output lines go to the pipeline, stderr to the console's stderr,
+# and LASTEXITCODE is set.
+function Invoke-ShimAware([string]$Exe) {
+  $found = Get-Command $Exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($found -and $found.Source -match '\.(cmd|bat)\z') {
+    $r = Start-CmdShim $found.Source @($args | ForEach-Object { [string]$_ })
+    if ($r.StdErr) { [Console]::Error.Write($r.StdErr) }
+    $global:LASTEXITCODE = $r.ExitCode
+    if ($r.StdOut) { $r.StdOut -split "`r?`n" | Where-Object { $_ -ne '' } }
+    return
+  }
+  & $Exe @args
 }
 
 # git through GELDAR_GIT or the plain name, with the shared-shape flags: no replace objects,
@@ -132,7 +147,7 @@ function Invoke-Git {
   New-PrivateDir $hooks
   $env:GIT_NO_REPLACE_OBJECTS = '1'
   $env:GIT_TERMINAL_PROMPT = '0'
-  & $exe -c "core.hooksPath=$hooks" @args
+  Invoke-ShimAware $exe -c "core.hooksPath=$hooks" @args
 }
 
 function Get-GitVersionText {
