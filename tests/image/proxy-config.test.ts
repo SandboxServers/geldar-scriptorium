@@ -81,7 +81,7 @@ describe('squid policy (structure)', () => {
 
   it('a vendor list with a wildcard, an IP literal or no api.anthropic.com is rejected', () => {
     expect(vendorProblems(`${vendor}.anthropic.com\n`).length).toBeGreaterThan(0);
-    expect(vendorProblems(`${vendor}10.0.0.1\n`).length).toBeGreaterThan(0);
+    expect(vendorProblems(`${vendor}192.0.2.1\n`).length).toBeGreaterThan(0);
     expect(vendorProblems('claude.ai\n').length).toBeGreaterThan(0);
   }, 120_000);
 
