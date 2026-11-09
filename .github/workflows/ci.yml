@@ -49,6 +49,16 @@ jobs:
         run: pnpm check:repo
       - name: spec references (ledger ids, line-broken code spans)
         run: pnpm check:specs
+      - name: workflow policy (pins, permissions, triggers)
+        run: pnpm check:workflows
+      - name: actionlint (pinned, checksum verified)
+        run: |
+          set -euo pipefail
+          dir="$(mktemp -d)"
+          curl -fsSL -o "$dir/actionlint.tar.gz" https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $dir/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf "$dir/actionlint.tar.gz" -C "$dir" actionlint
+          "$dir/actionlint" -color .github/workflows/*.yml
       - name: template checks
         if: hashFiles('tests/template/check.ts') != ''
         run: pnpm check:template
