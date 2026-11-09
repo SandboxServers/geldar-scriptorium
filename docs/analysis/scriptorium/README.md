@@ -81,7 +81,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-31c | 3 | G | `mcp-mock`: resources, prompts, app, command line | packet-coder | Done (geldar PR #10, 9d9d337) | SC-31b |
 | SC-32a | 3 | G | Mock world: clock, scenario file, pure wake policy | packet-coder (Sonnet) | Done (geldar PR #9, 7da2abc) | SC-31a |
 | SC-32b | 3 | G | Mock world: event log, scripted intent executor, eat reflex, player sim | packet-coder (Sonnet) | Done (geldar PR #11, 6d179c6) | SC-32a, SC-31b |
-| SC-32c | 3 | G | Mock world: hub, `wait` long-poll with wake policy, look, status, sleep, journal | packet-coder (Sonnet) | BlockedDependency | SC-32b, SC-31b |
+| SC-32c | 3 | G | Mock world: hub, `wait` long-poll with wake policy, look, status, sleep, journal | packet-coder (Sonnet) | Done (geldar PR #12, 8e32ee2) | SC-32b, SC-31b |
 | SC-32d | 3 | G | Mock world: act and say with budget, books and skills, sim world, CLI scenario flags, real-time end-to-end | packet-coder (Sonnet) | BlockedDependency | SC-32c, SC-31c |
 | SC-33 | 3 | G | Mock world image, published to GHCR from `main` (public, D-SC-06) | packet-coder (Sonnet) | BlockedDependency | SC-32d |
 | SC-40a | 4 | S | Managed and play settings (CLI-home denies), Docker test support | packet-coder | Done | wave 2 |
