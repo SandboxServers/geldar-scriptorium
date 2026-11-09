@@ -132,10 +132,12 @@ verb_new() {
   if [ -e "$players/$name" ] || [ -e "$d/clone" ]; then
     die 1 repo_exists "$id"
   fi
-  mkdir -p "$players"
   gh=${GELDAR_GH:-gh}
   [ "$NEW_VIS" = "private" ] || say public_notice
 
+  # The human's own clone and directory keep the user's normal modes.
+  umask 022
+  mkdir -p "$players"
   (cd "$players" && run_bounded 120 "$gh" repo create "$name" \
     --template SandboxServers/geldar-player-template "--$NEW_VIS") > /dev/null 2>&1 ||
     die 1 gh_failed "$id" 'create'
@@ -162,7 +164,8 @@ verb_new() {
   run_bounded 120 git_cmd -C "$clone" push -q origin HEAD > /dev/null 2>&1 ||
     die 1 gh_failed "$id" 'push'
 
-  mkdir -p "$d"
+  umask 077
+  private_mkdir "$d"
   printf '%s\n' "$clone" > "$d/clone"
   git_cmd -C "$clone" symbolic-ref --short HEAD > "$d/branch" 2> /dev/null || printf 'main\n' > "$d/branch"
   if [ -n "$NEW_TOKEN" ]; then

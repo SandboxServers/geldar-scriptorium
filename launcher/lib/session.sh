@@ -37,6 +37,7 @@ write_allowlist() {
   host=${url#*://}
   host=${host%%/*}
   host=${host%%:*}
+  mkdir -p "$sd"
   chmod 755 "$sd"
   printf '%s\n' "$host" > "$sd/allowlist-world.txt"
   chmod 644 "$sd/allowlist-world.txt"
@@ -47,7 +48,6 @@ write_override() {
   local id=$1 sd=$2 mcp=$3 f="$sd/override.yml" entry name v
   [ -d "$sd/export" ] || die 1 no_such_player "$id" "$id"
   (
-    umask 022
     {
       printf 'services:\n  session:\n    volumes:\n'
       printf '      - type: volume\n        source: geldar_ws\n        target: /player\n'
@@ -101,7 +101,8 @@ start_session() {
   esac
   share=$(share_dir)
 
-  write_allowlist "$sd" "$PL_MCP_URL"
+  private_mkdir "$sd"
+  write_allowlist "$d/pub" "$PL_MCP_URL"
   docker_cmd volume create "geldar-cli-$id-claude" > /dev/null 2>&1 ||
     die 1 workspace_failed "$id" 'the CLI volume could not be created'
   write_override "$id" "$sd" "$PL_MCP_URL"
@@ -111,7 +112,7 @@ start_session() {
     words+=("$word")
   done < <(harness_command claude "$mode")
   ov="$sd/override.yml"
-  wl="$sd/allowlist-world.txt"
+  wl="$d/pub/allowlist-world.txt"
   files=(-f "$share/compose/session.yml" -f "$ov")
   extra=$(gp_env GELDAR_EXTRA_COMPOSE)
   if [ -n "$extra" ]; then

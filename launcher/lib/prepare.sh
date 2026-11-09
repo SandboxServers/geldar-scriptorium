@@ -89,7 +89,7 @@ prepare_session() {
 
   # H-02
   out=$(mktemp "${TMPDIR:-/tmp}/gp-pull.XXXXXX")
-  run_bounded 120 git_cmd -C "$clone" pull --ff-only > "$out" 2>&1
+  run_bounded 120 git_host -C "$clone" pull --ff-only > "$out" 2>&1
   rc=$?
   rm -f "$out"
   if [ "$rc" -ne 0 ]; then
@@ -104,7 +104,7 @@ prepare_session() {
   # H-03
   start=$(git_cmd -C "$clone" rev-parse HEAD 2> /dev/null)
   [[ $start =~ ^[0-9a-f]{40}$ ]] || die 1 pull_failed "$id" 'no commit'
-  mkdir -p "$sd"
+  private_mkdir "$sd"
   printf '%s\n' "$start" > "$d/start"
   printf '%s\n' "$mode" > "$d/mode"
   PREP_OWNS=1
@@ -124,7 +124,7 @@ prepare_session() {
 
   # H-04
   rm -rf "$sd/export" "$sd/start.bundle" "$sd/running"
-  mkdir -p "$sd/export"
+  private_mkdir "$sd/export"
   entries=()
   while IFS= read -r -d '' entry; do
     case $entry in
@@ -148,6 +148,8 @@ prepare_session() {
   if [ -n "$(find "$sd/export" ! -type f ! -type d -print -quit)" ]; then
     die 1 export_symlink "$id"
   fi
+  # N4: the container reads the kit overlays as uid 1000, who need not be this user.
+  chmod -R a+rX "$sd/export"
   git_cmd -C "$clone" bundle create "$sd/start.bundle" "refs/heads/$PL_BRANCH" > /dev/null 2>&1 ||
     die 1 workspace_failed "$id" 'the start bundle could not be made'
 

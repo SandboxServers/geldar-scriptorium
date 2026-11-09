@@ -100,10 +100,23 @@ docker_cmd() {
   "${GELDAR_DOCKER:-docker}" "$@"
 }
 
+# N4: mkdir -p, then 0700 on the leaf too (it may exist from an older, looser layout).
+private_mkdir() {
+  mkdir -p "$1" && chmod 700 "$1"
+}
+
+# git on the human's own clone: the files it writes keep the user's normal modes.
+git_host() {
+  (
+    umask 022
+    git_cmd "$@"
+  )
+}
+
 git_cmd() {
   local hooks
   hooks="$(state_dir)/empty-hooks"
-  [ -d "$hooks" ] || mkdir -p "$hooks"
+  [ -d "$hooks" ] || private_mkdir "$hooks"
   GIT_NO_REPLACE_OBJECTS=1 GIT_TERMINAL_PROMPT=0 "${GELDAR_GIT:-git}" -c "core.hooksPath=$hooks" "$@"
 }
 
@@ -187,7 +200,7 @@ lock_release() {
 lock_acquire() {
   local id=$1 d pid
   d="$(player_dir "$id")/lock"
-  mkdir -p "$(player_dir "$id")"
+  private_mkdir "$(state_dir)" && private_mkdir "$(player_dir "$id")"
   if ! mkdir "$d" 2> /dev/null; then
     pid=$(cat "$d/pid" 2> /dev/null)
     if [ -n "$pid" ] && ! kill -0 "$pid" 2> /dev/null; then

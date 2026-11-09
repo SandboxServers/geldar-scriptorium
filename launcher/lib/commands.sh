@@ -120,7 +120,7 @@ resolve_held() {
   [ "$remote" = "$head" ] || die 3 resolve_diverged "$id"
   # Still at START: retry from the held state (finish re-verifies and pushes).
   case $mode in play | setup) ;; *) mode=play ;; esac
-  mkdir -p "$d/session"
+  private_mkdir "$d/session"
   [ ! -f "$d/held/bundle.bundle" ] || cp "$d/held/bundle.bundle" "$d/session/bundle.bundle"
   printf '%s\n' "$start" > "$d/start"
   printf '%s\n' "$mode" > "$d/mode"
