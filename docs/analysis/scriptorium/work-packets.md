@@ -2,7 +2,7 @@
 
 Ledger and status: [README.md](README.md). Resume card: [RESUME.md](RESUME.md).
 
-Waves 0 and 1 are written out in full. Waves 2–7 are **scope cards**: files, test and acceptance. Each card is written out in full when the wave before it closes, against what actually merged.
+Waves 0 to 2 are written out in full. Waves 3–7 are **scope cards**: files, test and acceptance. Each card is written out in full when the wave before it closes, against what actually merged.
 
 ## Dispatch rules (every packet)
 
