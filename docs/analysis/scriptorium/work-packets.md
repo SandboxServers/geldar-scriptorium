@@ -2,7 +2,7 @@
 
 Ledger and status: [README.md](README.md). Resume card: [RESUME.md](RESUME.md).
 
-Waves 0 to 2 are written out in full. Wave 4 is in [work-packets-wave4.md](work-packets-wave4.md). Waves 3 and 5–7 are **scope cards**: files, test and acceptance. Each card is written out in full when the wave before it closes, against what actually merged.
+Unsuffixed SC-40, SC-41 and SC-42 in older text mean the a/b packets in [work-packets-wave4.md](work-packets-wave4.md). Waves 0 to 2 are written out in full. Wave 4 is in [work-packets-wave4.md](work-packets-wave4.md). Waves 3 and 5–7 are **scope cards**: files, test and acceptance. Each card is written out in full when the wave before it closes, against what actually merged.
 
 ## Dispatch rules (every packet)
 
@@ -118,7 +118,7 @@ template/skills/README.md
 
 ### Claude Code syntax (D-SC-07, verified 2026-11-08 against code.claude.com/docs)
 
-Use exactly these forms. Each item marked *(test in SC-42)* is checked inside the image against the pinned CLI with `/permissions` and `/status`.
+Use exactly these forms. Each item marked *(test in SC-42a/SC-42b)* is checked inside the image against the pinned CLI with `/permissions` and `/status`.
 
 - **Model and effort:** `"model": "haiku"` and `"effortLevel": "low"` (not `effort`). Thinking can't be turned off on Haiku 5.5; don't set `alwaysThinkingEnabled`.
 - **Auto memory off:** `"autoMemoryEnabled": false`.
@@ -126,7 +126,7 @@ Use exactly these forms. Each item marked *(test in SC-42)* is checked inside th
   - `"defaultMode": "dontAsk"`: anything not on the allow list is denied without a prompt.
   - `"blockReadsOutsideWorkingDirectories": true`: needs Claude Code 2.1.257 or later.
   - Deny tools with bare names: `"Bash"`, `"WebFetch"`, `"WebSearch"`.
-  - Path rules starting with `/` are anchored at the project root: `Edit(/memory/**)`, `Read(/**)`. Whether `Edit` rules also cover the `Write` tool is unverified, so deny and allow `Write(...)` alongside every `Edit(...)` rule *(test in SC-42)*.
+  - Path rules starting with `/` are anchored at the project root: `Edit(/memory/**)`, `Read(/**)`. Whether `Edit` rules also cover the `Write` tool is unverified, so deny and allow `Write(...)` alongside every `Edit(...)` rule *(test in SC-42a/SC-42b)*.
   - Deny always wins and lists merge across settings files, so a `--settings` file can add denies but never remove one.
 - **MCP tool names:** `mcp__<server>__<tool>`. Allow every tool on one server with `mcp__geldar__*`, but list each tool explicitly anyway, so a new server-side tool isn't allowed by accident. Server keys use underscores (geldar 0009): `geldar`, `geldar_memory`, `geldar_git`.
 - **`.mcp.json` entries:**
@@ -139,7 +139,7 @@ Use exactly these forms. Each item marked *(test in SC-42)* is checked inside th
   - `PostToolUse` receives `tool_name`, `tool_input` and `tool_response` on stdin. Plain stdout from `SessionStart` is added to context.
 - **Skills:** `.claude/skills/<name>/SKILL.md`, with frontmatter `name`, `description`, and optionally `disable-model-invocation: true` (only the human can run it, as `/name`).
 - **Setup mode:** the launcher starts the CLI with `--settings /etc/geldar/settings/setup.json`. Play mode uses `--settings /etc/geldar/settings/play.json`.
-- **Managed settings:** the strongest layer, which nothing can override. The image ships the core denies as managed settings. The exact Linux path of the managed settings file is checked against the pinned CLI *(test in SC-42)*.
+- **Managed settings:** the strongest layer, which nothing can override. The image ships the core denies as managed settings. The exact Linux path of the managed settings file is checked against the pinned CLI *(test in SC-42a/SC-42b)*.
 - **CLI home:** `CLAUDE_CONFIG_DIR` points at the per-player, per-vendor volume (geldar 0011). The login is in `.credentials.json` there.
 
 ### Settings layers (who owns what)
@@ -1047,7 +1047,7 @@ Both launchers implement docs/launcher-hardening.md item by item, citing the H-n
   - exfiltrate through `say`;
   - plant standing instructions in memory;
   - read another player's repo, use web search, leak data through DNS, or read the CLI's credential files.
-- **SC-62 live malicious-book CI:** the pinned Claude Code runs in the image against that corpus, with an API key (D-SC-01). It runs weekly and on every release tag. It passes only if the proxy log shows nothing off the allowlist, no denied path was read, memory holds no copied instruction, and the gate accepted only allowed paths.
+- **SC-62 live malicious-book check (local only; D-SC-01: no API key, no model calls in CI):** the pinned Claude Code runs in the image against that corpus, driven by a `./scriptorium.ps1` script the owner runs with their own subscription login, plus a written procedure. It never runs in CI and needs no secret; the owner runs it before each release tag. It passes only if the proxy log shows nothing off the allowlist, no denied path was read, memory holds no copied instruction, and the gate accepted only allowed paths.
 - **SC-63 release workflow:**
   - on `kit-v*`: build and push the image, cosign sign, SBOM, then trivy and grype scans that fail on critical findings;
   - sign the launcher assets;

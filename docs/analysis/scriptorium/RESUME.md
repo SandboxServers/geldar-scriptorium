@@ -2,7 +2,7 @@
 
 Read this, then [README.md](README.md) (the ledger), before acting. Rewrite at every wave boundary, in 40 lines at most.
 
-**State (2026-11-08):** waves 0, 1 and 2 are merged to `main` (PRs #1, #2, #4); `main` passes the full check; wave 0-2 worktrees and branches are removed. Wave 4 (the kit image, SC-40 to SC-42) is starting: branch `scriptorium/wave4` is created from `main` and pushed, and its packets are NOT yet written out in full. The kit's decisions (geldar 0007-0016) are in geldar PR #3, owned by the planning session; don't touch it or geldar `docs/decisions/`.
+**State (2026-11-08):** waves 0, 1 and 2 are merged to `main` (PRs #1, #2, #4); `main` passes the full check; wave 0-2 worktrees and branches are removed. Wave 4 (the kit image, SC-40 to SC-42) is starting: branch `scriptorium/wave4` is created from `main` and pushed, its packets are now written in full (work-packets-wave4.md) and the spec review is in progress (fixes from review 1 applied). The kit's decisions (geldar 0007-0016) are in geldar PR #3, owned by the planning session; don't touch it or geldar `docs/decisions/`.
 
 **Next action:**
 
@@ -21,6 +21,6 @@ Read this, then [README.md](README.md) (the ledger), before acting. Rewrite at e
 - `geldar-git` and `geldar-verify` run-git wrappers drifted (shared module); fixtures lack `--no-replace-objects`; `verify` args accept `--mode=a --mode=b`.
 - Confirm no one commits the untracked `.agents/` and `.codex/` folders.
 
-**Open owner decisions:** D-SC-01 (CI API key), D-SC-05 (license; `LICENSE` absent), D-SC-06 (GHCR visibility; repo is public so public images are the easy answer), D-SC-08 (Codex terms). Accepted since last card: D-SC-02 (`geldar-bot` via Key Vault OIDC), D-SC-07, D-SC-14.
+**Open owner decisions:** D-SC-05 (license; `LICENSE` absent), D-SC-06 (GHCR visibility; repo is public so public images are the easy answer), D-SC-08 (Codex terms). Accepted since last card: D-SC-01 (no CI API key; live checks are local only), D-SC-02 (`geldar-bot` via Key Vault OIDC), D-SC-07, D-SC-14.
 
 **Worktrees:** none.

@@ -42,21 +42,24 @@ The Dockerfile and compose files carry each pin as `image:tag@sha256:digest` wit
 | Workdir | `/player` (the workspace mount) |
 | CLI home | `/cli-home` (`CLAUDE_CONFIG_DIR`), a per-player, per-vendor volume mounted by the launcher |
 | Marker | `/etc/geldar-kit`, root-owned, mode 0444 |
-| Settings | `/etc/geldar/settings/play.json` and `setup.json`; managed settings at `/etc/claude-code/managed-settings.json` (all root-owned, `a=rX`) |
+| Settings | `/etc/geldar/settings/play.json` and `setup.json`; managed settings at `/etc/claude-code/managed-settings.json` (all root-owned, files 0444, directories 0555) |
 | Binaries | `claude` (the real CLI), `geldar-memory`, `geldar-git`, `geldar-verify` in `/usr/local/bin`. **Never** `stub-cli` (its bin is also named `claude`) |
 | Code | `/opt/geldar` (workspace copy with production dependencies; the wrappers run `node /opt/geldar/packages/<p>/src/cli.ts`, which works because Node 22.23 strips types and the files are not under a `node_modules` path) |
 | Build target | `--target kit` (the last production stage); the `nettest` stage is for tests only and is never released |
 
 **Test support** (`tests/image/docker.ts`, created by SC-40a): see SC-40a step 3. All image tests import it and use `describe.skipIf(!ready)`.
 
+**Timeouts (every packet with image tests):** Vitest's default is 5 s, so every `it` and every `beforeAll`/`afterAll` in `tests/image` takes an explicit timeout as its last argument: `it` 120_000; `beforeAll(buildKit)` 900_000; compose `up` 300_000; `afterAll` (compose `down`) 120_000. The `run(...)` timeout is separate (the `spawnSync` limit). Vitest runs the test files in parallel workers and each calls `buildKit()` (the once-flag is per process), so concurrent `docker build` of one tag happens; BuildKit tolerates it, and the 900 s hook budget must cover a cold build under that contention (the CI job timeout of 25 min is enough).
+
 **Open items needing the orchestrator or the owner (do not decide in a packet):**
-1. **Path-deny behavior needs a model.** Whether `Read(//cli-home/**)`, `Edit`/`Write` of the same, and play.json's identity denies actually bite can only be shown with a live model call (`/permissions` is interactive-only). Needs D-SC-01 (CI API key) or an owner-run check; until then SC-40a/SC-42b test structure and CLI acceptance, and H-20's "tested" is partial. SC-62 should carry the live case.
+1. **Path-deny behavior needs a model.** Whether `Read(//cli-home/**)`, `Edit`/`Write` of the same, and play.json's identity denies actually bite can only be shown with a live model call (`/permissions` is interactive-only). D-SC-01 is settled: no API key in CI, so this is an owner-run local check (SC-62); until then SC-40a/SC-42b test structure and CLI acceptance, and H-20's "tested" is partial. SC-62 should carry the live case.
 2. **`--settings` path anchoring.** `play.json` uses `Edit(/memory/identity.md)`. The docs say a single `/` anchors at the *settings source*; for a `--settings` file that may not be the project root. SC-40a therefore adds the absolute `//player/memory/identity.md` twins (belt and braces); the orchestrator should confirm in the live job.
-3. **D-SC-04 wording "no DNS".** Docker's embedded resolver (127.0.0.11) cannot be removed from a user-defined network; on an `internal` network it answers only the compose service names and returns SERVFAIL for everything else (verified). The packets implement and test "no DNS for external names". Owner to accept that reading.
-4. **D-SC-06 (GHCR visibility)** and **D-SC-01** are not needed by this wave (nothing is pushed); only noting that SC-63 will.
+3. **D-SC-04 wording "no DNS".** Docker's embedded resolver cannot be removed from a user-defined network; on an `internal` network it answers only the compose service names and returns SERVFAIL for everything else (verified). The packets implement and test "no DNS for external names". Owner to accept that reading.
+4. **D-SC-06 (GHCR visibility)** is not needed by this wave (nothing is pushed); only noting that SC-63 will.
 5. **Allowlist vendor hosts** (`api.anthropic.com`, `claude.ai`, `platform.claude.com`) come from strings in the binary, not from a live login; the live job (SC-62) confirms the set is enough and no more.
 6. **Squid image provenance.** `ubuntu/squid` is Canonical's Docker Hub image. The alternative is a small Dockerfile on the pinned Debian base running `apt install squid`; the orchestrator may prefer that for SC-63's SBOM and scan.
 7. **Windows bind mounts.** Docker Desktop reports bind-mounted files with uids that do not follow the host, so the uid-match test (SC-42a case 8) runs only on Linux; the Windows launcher (SC-53) must be tested for the same-uid rule separately.
+8. **Follow-ups for SC-60 and SC-63 (recorded, not built here).** The session service has no `read_only: true` root and no `pids_limit`. Squid has no source-address ACL (any container on `outside` can use the proxy, still limited to the two allowlists). `dstdomain` allows any address an allowed name resolves to (fine for owner-controlled names). The `/cli-home` volume is read-write by design and its denies are structural only (open item 1).
 
 ---
 
@@ -69,19 +72,21 @@ The Dockerfile and compose files carry each pin as `image:tag@sha256:digest` wit
 - **Step 2, `play.json`.** Keep the two existing rules and add `"Edit(//player/memory/identity.md)"` and `"Write(//player/memory/identity.md)"` (workdir `/player`). Do not touch `setup.json`.
 - **Step 3, `tests/image/docker.ts`.** Exports, with one-line comments:
   - `KIT_IMAGE`: `process.env.KIT_IMAGE ?? 'geldar-kit:test'`.
+  - `SQUID_IMAGE`: the string `ubuntu/squid@sha256:6a097f68bae708cedbabd6188d68c7e2e7a38cedd05a176e1cc0ba29e3bbe029` (the one Squid pin; SC-41a and SC-41b import it from here, never from a test file).
   - `repoRoot`: absolute path of the repo root, from `import.meta.url`.
   - `dockerReady(): boolean`: true when `docker info --format {{.OSType}}` prints `linux`. If false and `process.env.CI === 'true'`, throw an Error naming Docker; if false locally, `console.warn` once and return false.
   - `buildKit(): void`: runs `docker build --target kit -f image/Dockerfile -t KIT_IMAGE .` with cwd `repoRoot`, once per process (module flag), throwing with stderr on failure. (Used from SC-40b on; here it is only defined.)
-  - `run(args: string[], opts?: { input?: string; timeoutMs?: number }): { status: number; stdout: string; stderr: string }`: `spawnSync('docker', args, { encoding: 'utf8', timeout: opts?.timeoutMs ?? 120000 })`; a null status becomes 124 (timeout).
+  - `run(args: string[], opts?: { input?: string; timeoutMs?: number }): { status: number; stdout: string; stderr: string }`: `spawnSync('docker', args, { encoding: 'utf8', input: opts?.input, timeout: opts?.timeoutMs ?? 120000 })`; a null status becomes 124 (timeout).
   - `dockerPath(p: string): string`: the path as Docker wants it for `-v` (on Windows keep the native `C:\...` form; no change needed, but the function exists so tests have one place to adjust).
-  Under 80 lines. No other exports.
+  Under 80 lines. No other exports besides these.
 - **Step 4, `tests/image/settings.test.ts`** (reads the two JSON files with `readFileSync`; needs no Docker). Cases:
   1. managed denies `Read`, `Edit` and `Write` of `//cli-home/**` and of `//cli-home` (six rules present).
   2. managed still denies `Bash`, `WebFetch`, `WebSearch` and the three `**/.credentials.json` rules.
   3. play.json denies `Edit` and `Write` of both `/memory/identity.md` and `//player/memory/identity.md`.
   4. no rule in managed or play contains `allow`-style widening: `permissions.allow` is absent from both.
   5. every deny rule in managed, play and setup is a string that is either a bare tool name or `Tool(pattern)` (regex `^[A-Za-z_*]+(\(.+\))?$`), so a typo like `Read //x` fails.
-- **Revert check (rule 9, name it in the report):** remove `"Write(//cli-home/**)"` from managed.json: case 1 fails. Remove the `//player/...` twins from play.json: case 3 fails. Restore both.
+  6. `SQUID_IMAGE` (imported from `./docker.ts`) matches `^ubuntu/squid(:[^@]+)?@sha256:[0-9a-f]{64}$`.
+- **Revert check (rule 9, name it in the report):** remove `"Write(//cli-home/**)"` from managed.json: case 1 fails. Remove the `//player/...` twins from play.json: case 3 fails. Change `SQUID_IMAGE` to a string without a digest: case 6 fails. Restore all.
 - **Checks:** `./scriptorium.ps1 pnpm vitest run tests/image`, then `./scriptorium.ps1 check`. `tests/template/settings.test.ts` must still pass unchanged.
 
 ### SC-40b — The Dockerfile and its build test
@@ -115,7 +120,9 @@ The Dockerfile and compose files carry each pin as `image:tag@sha256:digest` wit
   COPY image/settings/managed.json /etc/claude-code/managed-settings.json
   COPY image/settings/play.json image/settings/setup.json /etc/geldar/settings/
   RUN printf 'geldar kit\n' > /etc/geldar-kit \
-   && chmod -R a=rX /etc/geldar /etc/claude-code /etc/geldar-kit \
+   && find /etc/geldar /etc/claude-code -type f -exec chmod 0444 {} + \
+   && find /etc/geldar /etc/claude-code -type d -exec chmod 0555 {} + \
+   && chmod 0444 /etc/geldar-kit \
    && mkdir -p /player /cli-home && chown player:player /player /cli-home
   ENV CLAUDE_CONFIG_DIR=/cli-home DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
   USER player
@@ -129,14 +136,14 @@ The Dockerfile and compose files carry each pin as `image:tag@sha256:digest` wit
   ```
 
   Keep the stage order (the default target must not be `nettest`; builds always pass `--target`). Add header comments: what the image is for; that the pins are exact; the git-version floor; that `nettest` is test-only.
-- **Step 3, `tests/image/build.test.ts`.** `const ready = dockerReady()`; `beforeAll(buildKit, 900_000)`. Cases (each `run(['run','--rm',KIT_IMAGE,'sh','-c',...])`, 60 s):
+- **Step 3, `tests/image/build.test.ts`.** `const ready = dockerReady()`; `beforeAll(buildKit, 900_000)`; every `it` takes 120_000 (see Timeouts in the shared shape). Cases (each `run(['run','--rm',KIT_IMAGE,'sh','-c',...], { timeoutMs: 60000 })`):
   1. `claude --version` starts with the version in the Dockerfile's `ARG CLAUDE_CODE_VERSION=` line (read the Dockerfile with a regex, so one edit moves both).
   2. the Dockerfile text contains `@sha256:` on every `FROM` line (regex over the lines), and no `:latest`.
   3. `git --version` is 2.40 or newer (parse; compare numerically).
   4. `id -un` is `player` and `pwd` is `/player` with no `--user`.
   5. `/usr/local/bin/claude` resolves (`readlink -f`) to a path containing `claude-code`, and `ls /opt/geldar/packages` shows `git memory path-rule verify` and **not** `stub-cli`.
   6. the three companions run: `geldar-verify` with no arguments exits 2; `geldar-memory --root /player </dev/null` exits 0; `geldar-git` with no arguments exits non-zero with a usage line.
-  7. `node -v` is `v22.23.2` and equals `.nvmrc` (trim).
+  7. `node -v` minus the leading `v` equals the trimmed content of `.nvmrc` (`22.23.2`, no `v` in the file).
   8. `DISABLE_AUTOUPDATER` is `1` in `env`.
 - **Step 4, `ci.yml`:** in the `typescript` job add a step before `test (vitest)`: `name: docker is available (image tests need it)`, `run: docker version --format '{{.Server.Os}} {{.Server.Version}}'`. Change `timeout-minutes` to `25`. Change nothing else; do not add a push step.
 - **Revert checks:** change the base `FROM` in `kit` to the bookworm tag: case 3 fails (git 2.39) and the `RUN` version check breaks the build. Change `CLAUDE_CODE_VERSION` in the Dockerfile only: case 1 stays green (it reads the same line), so instead edit the `npm install` to a different literal version: case 1 fails. Delete `USER player`: case 4 fails. Remove `!packages/verify` from `.dockerignore`: the build fails. Restore all.
@@ -170,12 +177,12 @@ The Dockerfile and compose files carry each pin as `image:tag@sha256:digest` wit
   (No `access_log stdio:/dev/stdout`: Squid's `proxy` user cannot open it and exits. Default logging to `/var/log/squid/access.log` is kept.)
 - **`allowlist-vendor.txt`:** a comment line, then `api.anthropic.com`, `claude.ai`, `platform.claude.com`, one per line (exact hosts; no leading dot, so no subdomains). The world allowlist (`allowlist-world.txt`: the MCP host from `player.json`) is **not** committed; the launcher writes it per session (SC-50) and compose mounts it.
 - **`README.md`** (developer doc, under 40 lines): the two allowlists, why `deny all` is last, the port limits, how to add a host (PR + a test line), and that Squid resolves names so the session container needs no DNS.
-- **Tests (`proxy-config.test.ts`)**, structure plus Squid's own parser (`docker run --rm -v <conf>:/etc/squid/squid.conf:ro -v <vendor>:/etc/squid/allowlist-vendor.txt:ro -v <empty temp file>:/etc/squid/allowlist-world.txt:ro --entrypoint squid ubuntu/squid@sha256:6a09... -k parse`):
-  1. `squid -k parse` exits 0 for the shipped config (skipped without Docker).
+- **Tests (`proxy-config.test.ts`)**, structure plus Squid's own parser (`docker run --rm -v <conf>:/etc/squid/squid.conf:ro -v <vendor>:/etc/squid/allowlist-vendor.txt:ro -v <empty temp file>:/etc/squid/allowlist-world.txt:ro --entrypoint squid SQUID_IMAGE -k parse`):
+  1. `squid -k parse` (image reference: `SQUID_IMAGE` imported from `./docker.ts`) exits 0 for the shipped config (skipped without Docker); every `it` takes the explicit timeout from the shared shape.
   2. the last `http_access` line is `http_access deny all`, and no `http_access allow` line appears after a `deny all`.
   3. there is no `http_access allow all` and no `allow localnet`/`allow localhost` line anywhere.
   4. `allowlist-vendor.txt` has no wildcard-leading entry (no line starting with `.` or `*`), no IP-literal entry (regex `^\d+\.\d+\.\d+\.\d+$` fails every line), and contains `api.anthropic.com`.
-  5. the squid image reference in the test is the same string as in `session.yml` once SC-41b lands: for now the test asserts the constant `SQUID_IMAGE` it exports matches `^ubuntu/squid:[^@]+@sha256:[0-9a-f]{64}$`. (SC-41b imports it.)
+  5. `SQUID_IMAGE` (from `./docker.ts`; this file exports nothing) matches `^ubuntu/squid(:[^@]+)?@sha256:[0-9a-f]{64}$`. The link to `session.yml` is SC-41b's case 10.
   6. a config with `http_access allow all` appended before `deny all` fails case 2's rule: write that variant to a temp string and assert the same checker function rejects it (the checker is a local function so the test can test itself).
 - **Revert checks:** change `deny all` to `allow all` in `squid.conf`: cases 2 and 3 fail. Add `.anthropic.com` to the vendor list: case 4 fails. Break the config syntax (`acl` typo): case 1 fails. Restore.
 - **Checks:** `./scriptorium.ps1 pnpm vitest run tests/image/proxy-config.test.ts`, `./scriptorium.ps1 check`.
@@ -185,24 +192,26 @@ The Dockerfile and compose files carry each pin as `image:tag@sha256:digest` wit
 - **Branch** `scriptorium/sc-41b-egress`, worktree `sc-41b`. Commit: `feat(image): internal session network behind the proxy, with allow and deny tests`. Depends on: SC-40b, SC-41a.
 - **Files (4):** `image/compose/session.yml`, `image/compose/session.test.yml`, `tests/image/fixtures/allowlist-world.txt`, `tests/image/egress.test.ts`.
 - **`session.yml`** (no IP addresses anywhere; names only):
-  - `proxy`: image from `SQUID_IMAGE` (same pinned string, written literally), volumes `../proxy/squid.conf:/etc/squid/squid.conf:ro`, `../proxy/allowlist-vendor.txt:/etc/squid/allowlist-vendor.txt:ro`, `${GELDAR_WORLD_ALLOWLIST:?}:/etc/squid/allowlist-world.txt:ro`; networks `inside` and `outside`; `cap_drop: [ALL]` plus `cap_add: [SETUID, SETGID, CHOWN, DAC_OVERRIDE]` only if Squid fails to start without them (try dropping all first and report what you needed).
+  - `proxy`: `image:` is the exact `SQUID_IMAGE` string from `tests/image/docker.ts`, written literally (case 10 compares it), volumes `../proxy/squid.conf:/etc/squid/squid.conf:ro`, `../proxy/allowlist-vendor.txt:/etc/squid/allowlist-vendor.txt:ro`, `${GELDAR_WORLD_ALLOWLIST:?}:/etc/squid/allowlist-world.txt:ro`; networks `inside` and `outside`; `cap_drop: [ALL]` plus `cap_add: [SETUID, SETGID, CHOWN, DAC_OVERRIDE]` only if Squid fails to start without them (try dropping all first and report what you needed).
   - `session`: image `${KIT_IMAGE:?}`, `user: "${GELDAR_UID:?}:${GELDAR_GID:?}"`, `working_dir: /player`, volumes `${GELDAR_WORKSPACE:?}:/player` and `${GELDAR_CLI_HOME:?}:/cli-home`, environment `HOME: /tmp`, `HTTP_PROXY`/`HTTPS_PROXY`/`http_proxy`/`https_proxy`: `http://proxy:3128`, `NO_PROXY: ""`, `GELDAR_MODE: ${GELDAR_MODE:-play}`; network `inside` only; `cap_drop: [ALL]`; `security_opt: [no-new-privileges:true]`; `depends_on: [proxy]`; `tty`/`stdin_open: true`.
   - networks: `inside: { internal: true }`, `outside: {}`.
   - Lowercase `http_proxy` matters: curl ignores uppercase `HTTP_PROXY`.
-- **`session.test.yml`** (overlay, test only): service `world` from `${KIT_IMAGE}` with `user: root`, command `node -e "require('http').createServer((q,r)=>r.end('world ok')).listen(80)"`, on `outside` with alias `world.test`; and `session` using `image: ${KIT_IMAGE}`-derived `nettest` build: set `session.image` to `${NETTEST_IMAGE:?}` and `command: ["sleep","600"]`.
+- **`session.test.yml`** (overlay, test only): service `world` from `${KIT_IMAGE}` with `user: root`, command `node -e "require('http').createServer((q,r)=>r.end('world ok')).listen(80)"`, on `outside` with alias `world.test`; and `session` overridden with `image: ${NETTEST_IMAGE:?}` and `command: ["sleep","600"]`. The test still exports `KIT_IMAGE` too, because `session.yml` requires it.
 - **`fixtures/allowlist-world.txt`:** the single line `world.test`.
-- **`egress.test.ts`:** build both targets (`docker build --target nettest -t geldar-kit-nettest:test` after `buildKit()`), then `docker compose -p geldar-egress-<pid> -f session.yml -f session.test.yml up -d --wait`, with the env vars set to temp directories and `process.getuid?.() ?? 1000`; `afterAll` runs `down -v`. Exec helper `inSession(cmd)`. Cases (all inside the session container):
+- **`egress.test.ts`:** build both targets (`docker build --target nettest -t geldar-kit-nettest:test` after `buildKit()`), with `beforeAll` 900_000 for the builds and 300_000 for `up`, `it` 120_000, `afterAll` 120_000 (see Timeouts), then `docker compose -p geldar-egress-<pid> -f session.yml -f session.test.yml up -d --wait`, with the env vars set to temp directories and `process.getuid?.() ?? 1000`; `afterAll` runs `down -v`. Exec helper `inSession(cmd)`. Cases (all inside the session container):
   1. **allowed host works:** `curl -sS -m 10 http://world.test/` prints `world ok`, exit 0.
   2. **`github.com` fails through the proxy:** `curl -sS -m 10 -o /dev/null -w '%{http_code}' http://github.com/` prints `403`; `https://github.com/` fails with `CONNECT tunnel failed, response 403`.
   3. **raw IP fails:** read the world container's own address at runtime (`docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}' <world>`; keep only the first token, never write it to a file) and request `http://<that>/` through the proxy: `403`.
-  4. **direct (proxy variables removed) fails:** `env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY curl -sS -m 6 http://world.test/` exits non-zero (could not resolve).
+  4. **direct (proxy variables removed) fails:** `env -u http_proxy -u https_proxy -u HTTP_PROXY -u HTTPS_PROXY curl --noproxy '*' -sS -m 6 http://world.test/` exits non-zero (could not resolve), and so does `curl --noproxy '*' -sS -m 6 https://example.com/` (a name that resolves from a non-internal network, so it fails only because `inside` is `internal: true`).
   5. **`nslookup github.com` fails:** non-zero exit, output contains `SERVFAIL` or `can't find` and no `Address:` answer line after the server block.
   6. **`nslookup world.test` also fails** (the session cannot resolve the egress side's names; only Squid can).
   7. **a non-standard port to an allowed host is refused:** `curl http://world.test:8080/` prints `403` (`Safe_ports`).
-  8. **the allowlist changes the answer:** with `fixtures/allowlist-world.txt` replaced by an empty file (use a second compose project, or `docker compose exec proxy` after rewriting the mounted file and `squid -k reconfigure`), case 1 now returns `403`. This proves the allow comes from the allowlist, not from the network shape.
-  9. **the session runs unprivileged:** `id -u` equals `GELDAR_UID`, `cat /proc/self/status` shows `CapEff: 0000000000000000`.
-- **Revert checks:** remove `internal: true` from `inside`: cases 4 and 5 fail. Change the squid `deny all`: cases 2 and 3 fail. Drop the `http_proxy` lowercase variables: case 1 fails. Remove `cap_drop`: case 9 fails.
+  8. **the allowlist changes the answer:** with `fixtures/allowlist-world.txt` replaced by an empty file (use a second compose project with the empty file; do not reconfigure the running one), case 1 now returns `403`. This proves the allow comes from the allowlist, not from the network shape.
+  9. **the session runs unprivileged:** `id -u` equals `GELDAR_UID`; `cat /proc/self/status` shows `CapBnd: 0000000000000000` (what `cap_drop: [ALL]` changes; a non-root user has `CapEff` 0 regardless) and also `CapEff: 0000000000000000`.
+  10. **`session.yml` uses the pinned Squid:** its text contains the exact `SQUID_IMAGE` string (import it from `./docker.ts`).
+- **Revert checks:** remove `internal: true` from `inside`: cases 4 and 5 fail (case 4 through the `example.com` request). Change the squid `deny all`: cases 2 and 3 fail. Drop the `http_proxy` lowercase variables: case 1 fails. Remove `cap_drop` from `session`: case 9 fails (`CapBnd`). Change the digest in `session.yml`: case 10 fails.
 - **Checks:** `./scriptorium.ps1 pnpm vitest run tests/image/egress.test.ts`, `./scriptorium.ps1 check`. Report compose startup time and the capabilities Squid needed.
+- **Size note:** this is the largest packet. Budget one retry; if the coder is still stuck after it, the orchestrator splits it: compose files and cases 1-4 first, cases 5-10 as a follow-up.
 
 ### SC-42a — Image contract tests
 
@@ -212,21 +221,21 @@ The Dockerfile and compose files carry each pin as `image:tag@sha256:digest` wit
 - Cases:
   1. **marker:** `/etc/geldar-kit` exists, is owned by root and is not writable by `player` (`test ! -w`).
   2. **settings in place and unwritable:** `/etc/geldar/settings/play.json`, `setup.json` and `/etc/claude-code/managed-settings.json` equal the repo's files byte for byte (`docker run ... cat` compared with `readFileSync`), and `test ! -w` holds for each and for their directories.
-  3. **hooks act only with the marker:** mount `template/.claude/hooks` read-only at `/hooks` and the temp workspace at `/player`. With the marker present, `CLAUDE_PROJECT_DIR=/player /hooks/session-start.sh` prints text starting `You are `. With `-e GELDAR_KIT_MARKER=/nonexistent`, it prints nothing and exits 0. The same pair for `post-tool-use.sh` (stdin `{"tool_name":"mcp__geldar__say","tool_input":{"text":"hi"}}`): with the marker it exits 0; without it, stdout and stderr are empty and no file changes in `/player` (`git status --porcelain` is empty).
-  4. **hooks never run as root:** `id -u` is non-zero in the same invocation.
-  5. **kit paths are read-only when overlaid:** mount a temp file at `/player/CLAUDE.md` with `:ro`; `echo x >> /player/CLAUDE.md` fails; `echo x >> /player/memory/identity.md` succeeds (the workspace itself is writable; run with `--user` your uid on Linux).
+  3. **hooks act only with the marker:** mount `template/.claude/hooks` read-only at `/hooks` and the temp workspace at `/player`, and run every workspace-mounting case with `--user <uid>:<gid> -e HOME=/tmp` (your uid on Linux; on Windows use the default and skip the git assertions). Execute the hooks as `bash /hooks/session-start.sh` so a lost exec bit on a Windows mount cannot fail the case. With the marker present, `CLAUDE_PROJECT_DIR=/player bash /hooks/session-start.sh` prints text starting `You are `. With `-e GELDAR_KIT_MARKER=/nonexistent`, it prints nothing and exits 0. The same pair for `post-tool-use.sh` (stdin `{"tool_name":"mcp__geldar__say","tool_input":{"text":"hi"}}`): with the marker it exits 0 and `memory/journal/current.md` exists in the workspace and contains `say`; without it, stdout and stderr are empty, `memory/journal/current.md` does not exist, and `git status --porcelain` exits 0 with empty output (assert the exit status, so a failing git cannot pass as empty).
+  4. **hooks never run as root:** `id -u` is non-zero in the same invocation as case 3 (cheap; SC-40b case 4 checks the image default).
+  5. **harness smoke check (not an image test):** with the workspace mounted and `--user` your uid on Linux, `echo x >> /player/memory/identity.md` succeeds, so the workspace is writable for the process uid. The real read-only overlay of kit paths belongs to SC-50 and SC-60, not here; do not test a `:ro` mount (it only tests Docker).
   6. **the player cannot become root:** `sudo` does not exist, `su` fails, and `docker run --security-opt no-new-privileges --cap-drop ALL ... id -u` is non-zero.
   7. **no secrets baked in:** `env` in the image contains none of `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `GH_TOKEN`, `AWS_`, `AZURE_`; `ls -A /cli-home` is empty; `ls -A /home/player` shows no `.gitconfig`, `.ssh` or `.claude`.
   8. **same uid as the workspace owner (Linux only, `describe.skipIf(process.platform !== 'linux')`):** run `git -C /player status --porcelain` with `--user <your uid>:<your gid>` and `-e HOME=/tmp`: exit 0. With `--user <uid+1>:<gid+1>`: non-zero and stderr contains `dubious ownership`. (This documents why the launcher must pass its own uid.)
   9. **geldar-git works in the image at the workspace uid** (Linux only): a one-file change under `memory/` is committed by `geldar-git commit --root /player --message "test"` run as your uid; `git log -1 --format=%an` is the player's noreply name from `player.json` (copy the expectation from `packages/git/src/commit.test.ts`).
-- **Revert checks (name them):** delete the `printf ... > /etc/geldar-kit` line locally: case 1 fails and case 3's first half fails. Change the hooks' marker default in a temp copy: case 3 second half fails. Run case 8's second run as the same uid: it must pass `git status`, so the case fails (proves the check is live). Restore.
+- **Revert checks (name them):** delete the `printf ... > /etc/geldar-kit` line locally: case 1 fails and case 3's first half fails. Change the marker default in `session-start.sh` in a temp copy and mount that: case 3's first half fails. Run case 8's second run as the same uid: it must pass `git status`, so the case fails (proves the check is live). Restore.
 - **Checks:** `./scriptorium.ps1 pnpm vitest run tests/image/contract.test.ts`, `./scriptorium.ps1 check`.
 
 ### SC-42b — Pinned CLI behavior tests (no login, no model)
 
 - **Branch** `scriptorium/sc-42b-cli`, worktree `sc-42b`. Commit: `test(image): managed settings path, tool denies and GELDAR_MODE under the pinned CLI`. Depends on: SC-40a, SC-40b.
 - **Files (1):** `tests/image/cli.test.ts`. Same rule as SC-42a for failing cases.
-- Common: run with `-e HOME=/tmp -e CLAUDE_CONFIG_DIR=/tmp/cfg -e ANTHROPIC_API_KEY=sk-ant-fake` (a fake key makes the CLI emit its init line, then fail with a 401; no network is used or needed, and no real key ever appears in the repo). Helper `initLine(extraArgs, extraDockerArgs)` runs `claude -p hi --output-format stream-json --verbose --max-turns 1 ...` in a temp workspace mounted at `/player` and returns `JSON.parse` of the first stdout line (`type: "system"`, `subtype: "init"`). Timeout 90 s per case.
+- Common: run with `-e HOME=/tmp -e CLAUDE_CONFIG_DIR=/tmp/cfg -e ANTHROPIC_API_KEY=sk-ant-fake` (a fake key makes the CLI emit its init line, then fail with a 401; no network is used or needed, and no real key ever appears in the repo). Helper `initLine(extraArgs, extraDockerArgs)` runs `claude -p hi --output-format stream-json --verbose --max-turns 1 ...` in a temp workspace mounted at `/player` and returns `JSON.parse` of the first stdout line (`type: "system"`, `subtype: "init"`). Each `it` takes 120_000 and each `run(...)` timeoutMs 90000 (see Timeouts in the shared shape).
 - Cases:
   1. **managed path:** mount a temp file containing `{"model": 5}` at `/etc/claude-code/managed-settings.json:ro` (overriding the image's) and run `claude doctor`: output contains `/etc/claude-code/managed-settings.json (model): Failed schema validation`. Proves the CLI reads that exact path.
   2. **shipped managed settings are valid for the pinned CLI:** `claude doctor` in the plain image prints no `Invalid settings` and no `Managed settings contain invalid entries`.
@@ -236,7 +245,7 @@ The Dockerfile and compose files carry each pin as `image:tag@sha256:digest` wit
   6. **the real companions start under the CLI:** `--mcp-config` with `geldar_memory` (`geldar-memory --root /player`) and `geldar_git` (`geldar-git mcp --root /player`) entries, plus `--strict-mcp-config`; the init `mcp_servers` shows both `connected`, and `tools` includes `mcp__geldar_memory__recall` and `mcp__geldar_git__commit_memory`. The workspace must contain `player.json` (`{}` is enough) and a `memory/` directory.
   7. **`GELDAR_MODE` reaches the MCP servers (D-SC-14):** a probe server entry `{"command":"sh","args":["-c","env > /tmp/envdump; sleep 5"]}`; with `-e GELDAR_MODE=setup` the dump (read after the CLI exits, in the same container command) contains `GELDAR_MODE=setup`; with the variable unset it contains no `GELDAR_MODE=`. (The probe's status is `failed` because it is not an MCP server; ignore it.)
   8. **setup mode lets the identity commit through; play and unset refuse (D-SC-14, end to end in the image):** a temp repo, built as in SC-42a, with `memory/identity.md` committed, then modified in the working tree. Run `geldar-git commit --root /player --message "identity"`: with `-e GELDAR_MODE=setup` it exits 0 and `git show --stat HEAD` lists `memory/identity.md`; with `-e GELDAR_MODE=play` and with nothing set, it exits non-zero, stderr is non-empty, and `git rev-parse HEAD` is unchanged. Use `--user` your uid on Linux (skip this case on Windows; it runs in CI).
-  9. **setup mode only for an unborn player is the launcher's rule, not the image's:** no test; the report says so (SC-52 covers it). Do not add one.
+- **Note (not a case):** setup mode only for an unborn player is the launcher's rule, not the image's; there is no test here and the report says so (SC-52 covers it). Do not add one.
 - **Revert checks:** remove `Bash` from `managed.json`'s deny list: case 3 fails. Mount the settings at `/etc/claude/managed-settings.json` in case 1's expectation instead of `/etc/claude-code/`: it fails. In `packages/git/src/cli.ts` ignoring `process.env.GELDAR_MODE` (local, restore after): case 8's setup run fails. Drop `-e GELDAR_MODE=setup`: case 7 fails.
 - **Anything surprising** (a mismatch with § Claude Code syntax, an unknown settings key, a changed init shape) goes in the report as a proposed record for the orchestrator; do not work around it.
 - **Checks:** `./scriptorium.ps1 pnpm vitest run tests/image/cli.test.ts`, `./scriptorium.ps1 check`.
