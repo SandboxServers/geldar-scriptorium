@@ -1,6 +1,6 @@
 # Decisions
 
-One line per geldar record that shapes this kit (0007 to 0016). The records live in the geldar repo; the spec stays the design. **Kind** is what the record does to the spec: `Changes` departs from the plan, `Fixes` corrects it, `Settles` fills a gap, `Process` is about how we work.
+One line per geldar record that shapes this kit (0007 to 0015). The records live in the geldar repo; the spec stays the design. Record 0016 is pending in the geldar repo and will be added to this index when it lands. **Kind** is what the record does to the spec: `Changes` departs from the plan, `Fixes` corrects it, `Settles` fills a gap, `Process` is about how we work.
 
 - [0007](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0007-spec-frozen-at-v0.8.md): The spec is frozen at v0.8; changes are recorded here (Process, Accepted)
 - [0008](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0008-companion-servers-own-repo.md): The player kit's companion servers live in their own repo and ship in the kit's container image (Changes, Accepted)
