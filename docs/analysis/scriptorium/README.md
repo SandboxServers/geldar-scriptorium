@@ -71,7 +71,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-22a | 2 | S | `geldar-git`: runner, filter-safe `commitMemory`, message, fixture and tests | packet-coder | Writing | SC-20 |
 | SC-22b | 2 | S | `geldar-git`: MCP server and CLI (`commit_memory`) | packet-coder | BlockedDependency | SC-22a |
 | SC-23a | 2 | S | `geldar-verify`: bundle intake, caps and verdict | packet-coder | Done (merged into wave2) | SC-20 |
-| SC-23b | 2 | S | `geldar-verify`: history, path, mode and identity checks, CLI, hostile bundles | packet-coder | BlockedDependency | SC-23a |
+| SC-23b | 2 | S | `geldar-verify`: history, path, mode and identity checks, CLI, hostile bundles | packet-coder | Writing | SC-23a |
 | SC-24a | 2 | S | `stub-cli`: scripted stand-in for the vendor CLI (scenario runner; large, budget a retry) | packet-coder | BlockedDependency | SC-21 |
 | SC-24b | 2 | S | `stub-cli`: birth and reflect scenarios | packet-coder | BlockedDependency | SC-24a, SC-22b |
 | SC-30 | 3 | G | Contract: MCP tool and result schemas (5.15.3, Appendix K as fixed by 0009) | packet-coder | BlockedDependency | geldar P0-01 |
