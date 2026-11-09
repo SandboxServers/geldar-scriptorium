@@ -62,7 +62,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-11 | 1 | S | One instructions source, generated `CLAUDE.md` and `AGENTS.md`, drift check | packet-coder | Writing | SC-10 |
 | SC-12 | 1 | S | Play-mode `.claude/settings.json`, `.mcp.json`, policy test | packet-coder | Writing | SC-10 |
 | SC-13 | 1 | S | Skills: `play`, `reflect` | packet-coder | Writing | SC-10 |
-| SC-14 | 1 | S | Skills: `trade`, `author`, `moot` | packet-coder | Writing | SC-10 |
+| SC-14 | 1 | S | Skills: `trade`, `author`, `moot` | packet-coder | Done (merged into wave1) | SC-10 |
 | SC-15 | 1 | S | `setup` skill and setup-mode settings | packet-coder | BlockedDependency | SC-12 |
 | SC-16 | 1 | S | Hooks with the container guard, and their tests | packet-coder | Writing | SC-10 |
 | SC-20 | 2 | S | `path-rule` package: allowed paths, modes, write-once identity | packet-coder | BlockedDependency | wave 1 |
