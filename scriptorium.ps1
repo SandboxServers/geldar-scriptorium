@@ -9,6 +9,9 @@ Runs on PowerShell 7 on Windows and Linux.
   ./scriptorium.ps1 setup            Install workspace dependencies (frozen lockfile once pnpm-lock.yaml exists)
   ./scriptorium.ps1 pnpm <args...>   Run pnpm with the pinned version on PATH, nested calls included
   ./scriptorium.ps1 check            Every check CI runs, in CI's order
+  ./scriptorium.ps1 merge-packet <branch>   From a scriptorium/wave<N> branch: merge --no-ff, then check on the wave branch; reverts the merge if red
+  ./scriptorium.ps1 push-verified    Push the current branch to origin <same name>, then verify ls-remote equals HEAD
+  ./scriptorium.ps1 ledger set SC-NN <status>   Edit one ledger row status in the campaign README
   ./scriptorium.ps1 help             Show this help
 #>
 [CmdletBinding()]
@@ -42,12 +45,16 @@ function Invoke-Step([string] $Name, [scriptblock] $Block) {
 }
 
 function Invoke-Check {
+  if (($Root -replace '\\', '/') -match '/\.claude/worktrees/') {
+    Write-Warning "check is running inside a worktree ($Root). A green result here is NOT the gate: SC-42a passed in a worktree and failed on the wave branch. Run check on the wave branch (merge-packet does)."
+  }
   Push-Location $Root
   try {
     Invoke-Step 'lint (biome)' { pnpm lint }
     Invoke-Step 'typecheck' { pnpm typecheck }
     Invoke-Step 'test (vitest)' { pnpm test }
     Invoke-Step 'repo checks (line caps, LF)' { pnpm check:repo }
+    Invoke-Step 'spec checks (campaign docs)' { pnpm check:specs }
     $pkg = Get-Content -Raw (Join-Path $Root 'package.json') | ConvertFrom-Json
     if ($pkg.scripts.PSObject.Properties.Name -contains 'check:template') {
       Invoke-Step 'template checks' { pnpm check:template }
@@ -64,5 +71,9 @@ switch ($Command) {
   }
   'pnpm' { Push-Location $Root; try { pnpm @Rest; exit $LASTEXITCODE } finally { Pop-Location } }
   'check' { Invoke-Check }
+  { $_ -in 'merge-packet', 'push-verified', 'ledger' } {
+    node (Join-Path $Root 'tools/repo-checks/src/process-cli.ts') $Command @Rest
+    exit $LASTEXITCODE
+  }
   default { Get-Help $PSCommandPath -Detailed | Out-Host }
 }

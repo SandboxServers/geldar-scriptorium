@@ -76,4 +76,4 @@ Every wave ends with these three steps before its PR leaves draft. They are part
 
 The retro and the process changes are reviewed like any other change (a fresh `packet-reviewer`).
 
-Rules from the wave 4 retro (dispatch rules 16 and 17): a packet is green only when `check` passes on the wave branch after the merge (a worktree check is not the gate), and packets that touch Docker use an isolated image tag via `KIT_IMAGE=geldar-kit:<packet>`, since the kit image is built once per vitest run by the global setup.
+Rules from the wave 4 retro (dispatch rules 16 and 17): merge packets with `./scriptorium.ps1 merge-packet <branch>` from the wave branch (it runs `check` there and reverts a red merge), push with `./scriptorium.ps1 push-verified`, update ledger rows with `./scriptorium.ps1 ledger set SC-NN <status>`; `check` includes `check:specs` over the campaign docs. a packet is green only when `check` passes on the wave branch after the merge (a worktree check is not the gate), and packets that touch Docker use an isolated image tag via `KIT_IMAGE=geldar-kit:<packet>`, since the kit image is built once per vitest run by the global setup.

@@ -255,3 +255,5 @@ The Dockerfile and compose files carry each pin as `image:tag@sha256:digest` wit
 ### Wave 4 close (rule 15)
 
 After all six merge into `scriptorium/wave4`: the orchestrator opens the draft PR early (for the Linux run), then a docs pass (`docs/architecture.md` image section, `docs/launcher-hardening.md` H-06/H-07/H-08/H-18/H-19/H-20 "Implemented in" lines, `docs/threat-model.md` control rows), a retro, and RESUME.md. Sonnet spec-reviewers read the packets for gaps before any dispatch.
+
+<!-- legacy-ids: SC-50, SC-52 -->
