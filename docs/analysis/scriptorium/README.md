@@ -79,7 +79,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-32 | 3 | G | Mock world: day clock, events, `wait` cursor, `act` validation, `sleep` digest, books | packet-coder | BlockedDependency | SC-31 |
 | SC-33 | 3 | G | Mock world image, published to GHCR from `main` | packet-coder | BlockedDecision | SC-32, D-SC-06 |
 | SC-40a | 4 | S | Managed and play settings (CLI-home denies), Docker test support | packet-coder | Done | wave 2 |
-| SC-40b | 4 | S | Kit image Dockerfile: pinned CLI, companions, marker, non-root; build test; CI Docker step | packet-coder | BlockedDependency | SC-40a |
+| SC-40b | 4 | S | Kit image Dockerfile: pinned CLI, companions, marker, non-root; build test; CI Docker step | packet-coder | Done | SC-40a |
 | SC-41a | 4 | S | Squid proxy config and allowlist, with config tests | packet-coder | BlockedDependency | SC-40a |
 | SC-41b | 4 | S | Session compose (internal network, no external DNS) and egress allow/deny tests | packet-coder | BlockedDependency | SC-40b, SC-41a |
 | SC-42a | 4 | S | Image contract tests: marker, hooks guard, read-only kit paths, uid and git | packet-coder | BlockedDependency | SC-40b |
