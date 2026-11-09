@@ -44,7 +44,7 @@ describe('instructions source', () => {
     cpSync(path.join(repoRoot, 'template'), dir, { recursive: true });
     const claude = path.join(dir, 'CLAUDE.md');
     const original = readFileSync(claude, 'utf8');
-    writeFileSync(claude, original.replace('Do little.', 'Do much.'));
+    writeFileSync(claude, original.replace('Decide once,', 'Decide twice,'));
     const problems = checkInstructions(dir);
     expect(problems).toEqual([
       'CLAUDE.md is out of date; run `node tests/template/instructions.ts --write`',
@@ -52,7 +52,7 @@ describe('instructions source', () => {
   });
 
   it('flags both files when the source body changes', () => {
-    const changed = readFileSync(sourcePath, 'utf8').replace('Do little.', 'Do much.');
+    const changed = readFileSync(sourcePath, 'utf8').replace('Decide once,', 'Decide twice,');
     const problems = checkInstructions(path.join(repoRoot, 'template'), changed);
     expect(problems).toEqual([
       'CLAUDE.md is out of date; run `node tests/template/instructions.ts --write`',
