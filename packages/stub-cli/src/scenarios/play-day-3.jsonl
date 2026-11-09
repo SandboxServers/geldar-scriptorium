@@ -1,6 +1,6 @@
 {"op":"call","server":"geldar_memory","tool":"recall","args":{"section":"summary"},"expect":{"includes":["Recent days"]}}
 {"op":"call","server":"geldar","tool":"status","args":{},"expect":{"includes":["day"]}}
-{"op":"call","server":"geldar","tool":"wait","args":{"max_seconds":1},"expect":{"includes":["wake_reason"]}}
+{"op":"call","server":"geldar","tool":"wait","args":{"max_seconds":5},"expect":{"includes":["wake_reason"]}}
 {"op":"write","path":"memory/journal/day-003.md","content":"# Day 3\n\nThe bees were quiet today.\n"}
 {"op":"write","path":"memory/summary.md","content":"# Recent days\n\nYou are Wren. You keep bees. Day 3 passed quietly.\n"}
 {"op":"call","server":"geldar_git","tool":"commit_memory","args":{"message":"day 003: quiet"},"expect":{"includes":["memory/journal/day-003.md","memory/summary.md"]}}

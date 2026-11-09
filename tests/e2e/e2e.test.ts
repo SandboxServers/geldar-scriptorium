@@ -3,11 +3,14 @@
 // Only `gh` is faked. Heavy: it builds two images and starts containers, so locally it runs only
 // with GELDAR_E2E=1 (CI always runs it). Needs Linux containers.
 //   GELDAR_E2E=1 KIT_IMAGE=geldar-kit:sc-55b ./scriptorium.ps1 pnpm vitest run tests/e2e
+// GELDAR_E2E_WORLD=mock swaps the in-test world for the geldar mock image (SC-55c, pinned by digest,
+// pulled from GHCR) and adds a wrong-token case.
 // Both launchers run, bash where bash exists and PowerShell where pwsh exists; in CI a missing
 // shell fails the run.
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import {
+  appendFileSync,
   chmodSync,
   existsSync,
   mkdirSync,
@@ -21,7 +24,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bashPath, type Launcher, launchers, repoRoot, run } from '../../launcher/test/harness.ts';
 import { parseScenario } from '../../packages/stub-cli/src/scenario.ts';
 import { buildKit, dockerReady, KIT_IMAGE } from '../image/docker.ts';
-import { cleanPlayer, docker, writeExtraCompose } from './world.ts';
+import { cleanPlayer, docker, MOCK_IMAGE, mockMode, writeExtraCompose } from './world.ts';
 
 const SCEN = 'packages/stub-cli/src/scenarios';
 const IN_IMAGE = '/opt/geldar-stub/packages/stub-cli/src/scenarios';
@@ -58,6 +61,10 @@ const allIds: { id: string; vols: string[] }[] = [];
 beforeAll(() => {
   if (!ready) return;
   buildKit();
+  if (mockMode) {
+    const pull = docker(['pull', MOCK_IMAGE], 600_000);
+    if (pull.status !== 0) throw new Error(`mock image pull failed: ${pull.stderr}`);
+  }
   const r = spawnSync(
     'docker',
     [
@@ -117,11 +124,23 @@ describe.each(['bash', 'pwsh'] as const)('end to end (%s)', (name) => {
   const suffix = `${bash ? 'b' : 'p'}${process.pid}`;
 
   // One player: its own id, scenario folder, extra compose file and environment.
-  function player(tag: string) {
+  function player(tag: string, mockToken: string = token) {
     const id = `e2e${tag}${suffix}`;
     const scen = join(root, `scen-${tag}`);
     mkdirSync(scen, { recursive: true });
-    const extra = writeExtraCompose({ dir: scen, image: STUB_IMAGE, scenarioDir: scen, id });
+    // Mock mode: the mock reads its tokens from a file the container user (uid 1000) can read.
+    const tokensFile = join(scen, 'mcp-tokens.json');
+    if (mockMode) {
+      writeFileSync(tokensFile, JSON.stringify({ [id]: mockToken }));
+      chmodSync(tokensFile, 0o644);
+    }
+    const extra = writeExtraCompose({
+      dir: scen,
+      image: STUB_IMAGE,
+      scenarioDir: scen,
+      id,
+      ...(mockMode ? { tokensFile } : {}),
+    });
     allIds.push({ id, vols: [extra.proxyLogVolume] });
     const env = (scenario?: string): Record<string, string> => ({
       GELDAR_STATE_DIR: p(state),
@@ -142,6 +161,16 @@ describe.each(['bash', 'pwsh'] as const)('end to end (%s)', (name) => {
     const go = (args: string[], scenario?: string, timeoutMs = 280_000) => {
       const r = run(launcher, args, { env: env(scenario), timeoutMs });
       outputs.push(r.stdout, r.stderr);
+      // Diagnostic: GELDAR_E2E_DUMP=<file> keeps every launcher call's output for a failed run.
+      if (process.env.GELDAR_E2E_DUMP) {
+        appendFileSync(
+          process.env.GELDAR_E2E_DUMP,
+          `=== ${args.join(' ')} exit ${r.status}
+${r.stdout}
+${r.stderr}
+`,
+        );
+      }
       return r;
     };
     const origin = join(ghRoot, `player-${id}.git`);
@@ -196,6 +225,8 @@ describe.each(['bash', 'pwsh'] as const)('end to end (%s)', (name) => {
         if (!ready) return;
         const r = a.go(['play', a.id], `${IN_IMAGE}/play-day-${n}.jsonl`);
         expect(r.status, r.stdout + r.stderr).toBe(0);
+        // The stub exits 0 even when a step fails (it enforces nothing), so look at the steps.
+        expect(r.stdout, r.stdout + r.stderr).not.toContain('FAIL');
       });
     }
 
@@ -279,6 +310,40 @@ describe.each(['bash', 'pwsh'] as const)('end to end (%s)', (name) => {
       expect(gitDir(t.origin, ['show', 'main:CLAUDE.md'])).toBe(before);
       const changed = gitDir(t.origin, ['log', '--name-only', '--format=', '-n', '2', 'main']);
       expect(changed).not.toContain('CLAUDE.md');
+    });
+  });
+
+  describe.runIf(mockMode)('the mock rejects a wrong token', () => {
+    const w = player('w', randomBytes(24).toString('base64url'));
+
+    it('the status step fails, nothing is saved or pushed', { timeout: 600_000 }, () => {
+      if (!ready) return;
+      expect(w.newPlayer().status).toBe(0);
+      expect(w.birth().status).toBe(0);
+      const r = w.go(['play', w.id], `${IN_IMAGE}/play-day-1.jsonl`);
+      // Rejection specifically: the stub's connect to the mock fails, no world call ran, and the
+      // proxy log shows the mock answered 401 or 403 (the SDK error text itself carries no status).
+      const out = r.stdout + r.stderr;
+      expect(out).toContain('Streamable HTTP error');
+      expect(r.stdout, out).not.toContain('call ok');
+      const log = docker([
+        'run',
+        '--rm',
+        '--user',
+        '0',
+        '-v',
+        `${w.extra.proxyLogVolume}:/l:ro`,
+        STUB_IMAGE,
+        'cat',
+        '/l/access.log',
+      ]);
+      expect(log.status, log.stderr).toBe(0);
+      expect(log.stdout).toMatch(/TCP_MISS\/40[13]/);
+      expect(afterLauncher(w.origin, w.id).map((c) => c.subject)).toEqual(['birth: Wren']);
+      const tree = gitDir(w.origin, ['ls-tree', '-r', '--name-only', 'main']).split('\n');
+      expect(tree).not.toContain('memory/journal/day-001.md');
+      expect(existsSync(join(state, w.id, 'held'))).toBe(false);
+      expect(r.stdout + r.stderr).not.toContain(token);
     });
   });
 
