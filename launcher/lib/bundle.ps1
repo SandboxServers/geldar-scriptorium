@@ -35,66 +35,66 @@ function Start-DockerProcess([string[]]$DockerArgs) {
   $psi.RedirectStandardError = $true
   $job = [IntPtr]::Zero
   try {
-    if ($IsWindows) { Initialize-JobType; $job = [GeldarJob]::Create() }
-    $p = [System.Diagnostics.Process]::Start($psi)
-    if ($IsWindows -and ($job -eq [IntPtr]::Zero -or -not [GeldarJob]::Assign($job, $p.Handle))) {
-      if ($job -ne [IntPtr]::Zero) { [GeldarJob]::Close($job) }
-      $job = [IntPtr]::Zero
+      if ($IsWindows) { Initialize-JobType; $job = [GeldarJob]::Create() }
+      $p = [System.Diagnostics.Process]::Start($psi)
+      if ($IsWindows -and ($job -eq [IntPtr]::Zero -or -not [GeldarJob]::Assign($job, $p.Handle))) {
+        if ($job -ne [IntPtr]::Zero) { [GeldarJob]::Close($job) }
+        $job = [IntPtr]::Zero
+      }
+    } catch {
+      return $null
     }
-  } catch {
-    return $null
+    return @{ P = $p; Job = $job; Err = $p.StandardError.ReadToEndAsync() }
   }
-  return @{ P = $p; Job = $job; Err = $p.StandardError.ReadToEndAsync() }
-}
 
-# Ends the process tree, then (named container) docker kill, and docker rm -f when asked.
-function Stop-DockerProcess($H, [string]$Name, [bool]$Remove) {
-  if ($IsWindows -and $H.Job -ne [IntPtr]::Zero) { [GeldarJob]::Kill($H.Job) } else { try { $H.P.Kill($true) } catch {} }
-  [void]$H.P.WaitForExit(10000)
-  Invoke-Docker kill $Name *> $null
-  if ($Remove) { Invoke-Docker rm -f $Name *> $null }
-}
-
-function Close-DockerProcess($H) {
-  if ($IsWindows -and $H.Job -ne [IntPtr]::Zero) { [GeldarJob]::Close($H.Job) }
-  if ($H.Err.Wait(2000)) {
-    $t = $H.Err.Result
-    if ($t) { [Console]::Error.Write($t) }
+  # Ends the process tree, then (named container) docker kill, and docker rm -f when asked.
+  function Stop-DockerProcess($H, [string]$Name, [bool]$Remove) {
+    if ($IsWindows -and $H.Job -ne [IntPtr]::Zero) { [GeldarJob]::Kill($H.Job) } else { try { $H.P.Kill($true) } catch {} }
+    [void]$H.P.WaitForExit(10000)
+    Invoke-Docker kill $Name *> $null
+    if ($Remove) { Invoke-Docker rm -f $Name *> $null }
   }
-  $H.P.Dispose()
-}
 
-# make_bundle id: needs Read-Player. Returns $true, or $false with GP_FAIL set.
-function New-Bundle([string]$Id) {
-  $sd = Join-Path (Get-PlayerDir $Id) 'session'
-  $out = Join-Path $sd 'bundle.bundle'
-  $name = "geldar-bundle-$Id-$PID"
-  Remove-Item -LiteralPath $out -Force -ErrorAction SilentlyContinue
-  $dargs = @('run') + (Get-HelperFlags) + @('--label', 'geldar.role=bundle', '--name', $name,
-    '-e', 'HOME=/tmp', '-e', 'GIT_CONFIG_GLOBAL=/dev/null', '-e', 'GIT_CONFIG_NOSYSTEM=1', '-e', 'GIT_NO_REPLACE_OBJECTS=1',
-    '-e', 'GIT_CONFIG_COUNT=1', '-e', 'GIT_CONFIG_KEY_0=safe.directory', '-e', 'GIT_CONFIG_VALUE_0=/player',
-    '-v', "geldar-ws-${Id}:/player:ro", '-e', "GELDAR_BRANCH=$($script:PL_BRANCH)",
-    $script:PL_KIT_IMAGE, 'sh', '-c', 'git -C /player bundle create - refs/heads/$GELDAR_BRANCH')
-  $h = Start-DockerProcess $dargs
-  if ($null -eq $h) { $script:GP_FAIL = 'bundle_failed'; return $false }
-  $limit = [int64]$script:GP_BUNDLE_CAP + 1
-  $total = [int64]0
-  $timedOut = $false
-  $deadline = [DateTime]::UtcNow.AddSeconds((Get-HelperSeconds))
-  $buf = [byte[]]::new(65536)
-  $fs = [System.IO.File]::Create($out)
-  try {
-    $stdout = $h.P.StandardOutput.BaseStream
-    while ($total -lt $limit) {
-      $want = [int][Math]::Min([int64]$buf.Length, $limit - $total)
-      $t = $stdout.ReadAsync($buf, 0, $want)
-      $left = [int][Math]::Ceiling(($deadline - [DateTime]::UtcNow).TotalMilliseconds)
-      if ($left -le 0 -or -not $t.Wait($left)) { $timedOut = $true; break }
-      $n = $t.Result
-      if ($n -le 0) { break }
-      $fs.Write($buf, 0, $n)
-      $total += $n
+  function Close-DockerProcess($H) {
+    if ($IsWindows -and $H.Job -ne [IntPtr]::Zero) { [GeldarJob]::Close($H.Job) }
+    if ($H.Err.Wait(2000)) {
+      $t = $H.Err.Result
+      if ($t) { [Console]::Error.Write($t) }
     }
+    $H.P.Dispose()
+  }
+
+  # make_bundle id: needs Read-Player. Returns $true, or $false with GP_FAIL set.
+  function New-Bundle([string]$Id) {
+    $sd = Join-Path (Get-PlayerDir $Id) 'session'
+    $out = Join-Path $sd 'bundle.bundle'
+    $name = "geldar-bundle-$Id-$PID"
+    Remove-Item -LiteralPath $out -Force -ErrorAction SilentlyContinue
+    $dargs = @('run') + (Get-HelperFlags) + @('--label', 'geldar.role=bundle', '--name', $name,
+      '-e', 'HOME=/tmp', '-e', 'GIT_CONFIG_GLOBAL=/dev/null', '-e', 'GIT_CONFIG_NOSYSTEM=1', '-e', 'GIT_NO_REPLACE_OBJECTS=1',
+      '-e', 'GIT_CONFIG_COUNT=1', '-e', 'GIT_CONFIG_KEY_0=safe.directory', '-e', 'GIT_CONFIG_VALUE_0=/player',
+      '-v', "geldar-ws-${Id}:/player:ro", '-e', "GELDAR_BRANCH=$($script:PL_BRANCH)",
+      $script:PL_KIT_IMAGE, 'sh', '-c', 'git -C /player bundle create - refs/heads/$GELDAR_BRANCH')
+    $h = Start-DockerProcess $dargs
+    if ($null -eq $h) { $script:GP_FAIL = 'bundle_failed'; return $false }
+    $limit = [int64]$script:GP_BUNDLE_CAP + 1
+    $total = [int64]0
+    $timedOut = $false
+    $deadline = [DateTime]::UtcNow.AddSeconds((Get-HelperSeconds))
+    $buf = [byte[]]::new(65536)
+    $fs = [System.IO.File]::Create($out)
+    try {
+      $stdout = $h.P.StandardOutput.BaseStream
+      while ($total -lt $limit) {
+        $want = [int][Math]::Min([int64]$buf.Length, $limit - $total)
+        $t = $stdout.ReadAsync($buf, 0, $want)
+        $left = [int][Math]::Ceiling(($deadline - [DateTime]::UtcNow).TotalMilliseconds)
+        if ($left -le 0 -or -not $t.Wait($left)) { $timedOut = $true; break }
+        $n = $t.Result
+        if ($n -le 0) { break }
+        $fs.Write($buf, 0, $n)
+        $total += $n
+      }
   } finally {
     $fs.Dispose()
   }
@@ -149,14 +149,20 @@ function Write-Reasons([string]$List) {
 function Test-BundleVerified([string]$Id, [string]$Start, [string]$Mode) {
   $sd = Join-Path (Get-PlayerDir $Id) 'session'
   $name = "geldar-verify-$Id-$PID"
-  $bundle = (Join-Path $sd 'bundle.bundle').Replace([char]92, [char]47)
+  $stage = New-StagedBundle (Join-Path $sd 'bundle.bundle') 'bundle.bundle'
+  if (-not $stage) {
+    $script:GP_FAIL = 'verify_unreadable'
+    return $false
+  }
+  $bundle = $stage.Replace([char]92, [char]47)
   $dargs = @('run') + (Get-HelperFlags) + @('--label', 'geldar.role=verify', '--name', $name,
     '-e', 'HOME=/tmp', '-e', 'GIT_CONFIG_GLOBAL=/dev/null', '-e', 'GIT_CONFIG_NOSYSTEM=1', '-e', 'GIT_NO_REPLACE_OBJECTS=1',
-    '--read-only', '--tmpfs', '/tmp:size=256m', '-v', "${bundle}:/in/bundle.bundle:ro",
+    '--read-only', '--tmpfs', '/tmp:size=256m', '-v', "${bundle}:/in:ro",
     $script:PL_KIT_IMAGE, 'geldar-verify', '--bundle', '/in/bundle.bundle', '--start', $Start,
     '--branch', $script:PL_BRANCH, '--mode', $Mode, '--player-id', $Id)
   $rc = 124
   $out = ''
+  try {
   $h = Start-DockerProcess $dargs
   if ($null -ne $h) {
     $outTask = $h.P.StandardOutput.ReadToEndAsync()
@@ -168,6 +174,9 @@ function Test-BundleVerified([string]$Id, [string]$Start, [string]$Mode) {
     }
     if ($IsWindows -and $h.Job -ne [IntPtr]::Zero) { [GeldarJob]::Close($h.Job) }
     $h.P.Dispose()
+  }
+  } finally {
+    Remove-StagedBundle $stage
   }
   $out = $out.TrimEnd("`n")
   if ($rc -eq 0 -and $out -ceq '{"ok":true,"reasons":[]}') { return $true }

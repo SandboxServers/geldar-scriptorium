@@ -62,23 +62,18 @@ describe.each(forGroup('hostile'))('H-04 export ($name)', (launcher) => {
     expectKitEqualsStart(p, start);
   });
 
-  // FINDING (reproduced by the reviewer, see the SC-60c report): git archive honours the
-  // tree's own .gitattributes, so export-ignore drops CLAUDE.md from the export. it.fails
-  // keeps the suite green until a fix card makes prepare write the blobs itself.
-  it.fails('FINDING: START with CLAUDE.md export-ignore still exports CLAUDE.md', {
-    timeout: T,
-  }, () => {
+  // S4: git archive honours the tree's own .gitattributes (export-ignore drops CLAUDE.md,
+  // export-subst rewrites it), so prepare refuses such a START before exporting anything.
+  it('START with CLAUDE.md export-ignore is refused (export_attributes)', { timeout: T }, () => {
     const w = makeWorld();
     const p = makePlayer(w, { id: 'abc' });
     commit(w, p, { '.gitattributes': 'CLAUDE.md export-ignore\n' });
     const r = prep(launcher, w);
-    if (r.status !== 0) return; // a refusal is also acceptable
-    expectKitEqualsStart(p, git(p.clone, ['rev-parse', 'HEAD']));
+    expectRefusal(r, 'export_attributes', { status: 1 });
+    expectNoDockerCall(w);
   });
 
-  it.fails('FINDING: START with CLAUDE.md export-subst exports the exact blob', {
-    timeout: T,
-  }, () => {
+  it('START with CLAUDE.md export-subst is refused (export_attributes)', { timeout: T }, () => {
     const w = makeWorld();
     const p = makePlayer(w, { id: 'abc' });
     commit(w, p, {
@@ -86,8 +81,16 @@ describe.each(forGroup('hostile'))('H-04 export ($name)', (launcher) => {
       'CLAUDE.md': 'commit $Format:%H$\n',
     });
     const r = prep(launcher, w);
-    if (r.status !== 0) return;
-    expectKitEqualsStart(p, git(p.clone, ['rev-parse', 'HEAD']));
+    expectRefusal(r, 'export_attributes', { status: 1 });
+    expectNoDockerCall(w);
+  });
+
+  it('a .gitattributes without an export attribute does not block START', { timeout: T }, () => {
+    const w = makeWorld();
+    const p = makePlayer(w, { id: 'abc' });
+    commit(w, p, { '.gitattributes': '* text=auto\n' });
+    const r = prep(launcher, w);
+    expect(r.status, r.stderr).toBe(0);
   });
 
   it('a START where CLAUDE.md is a symlink is refused (export_symlink)', { timeout: T }, () => {

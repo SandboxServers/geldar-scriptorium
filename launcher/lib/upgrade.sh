@@ -126,6 +126,8 @@ EOT
       case $c in
         '' | . | .. | .[gG][iI][tT] | [gG][iI][tT]~*) return 1 ;;
       esac
+      # N-e: NTFS drops trailing dots and spaces, so .git. and ".git " are .git there.
+      [[ $c =~ ^\.[gG][iI][tT][.\ ]+$ ]] && return 1
     done
     n=$((n + 1))
     total=$((total + size))
@@ -133,11 +135,14 @@ EOT
     [ "$total" -le 5242880 ] || return 1
   done < "$listing"
   [ "$n" -ge 1 ] || return 1
+  ! tree_has_export_attrs "$rel" HEAD || return 1
   text=$(git_cmd -C "$rel" show HEAD:player.json 2> /dev/null) || return 1
   kv=$(up_pj_value "$text" kit_version) || return 1
   ki=$(up_pj_value "$text" kit_image) || return 1
   [ "$kv" = "$ver" ] || return 1
   valid_kit_image "$ki" || return 1
+  # S6: only the kit repository the printed cosign command checks.
+  case $ki in ghcr.io/sandboxservers/geldar-kit@sha256:*) ;; *) return 1 ;; esac
   dig=${ki#*@}
   msg=$(git_cmd -C "$rel" log -1 --format=%B HEAD 2> /dev/null) || return 1
   tail3=$(printf '%s\n' "$msg" | tail -n 3)

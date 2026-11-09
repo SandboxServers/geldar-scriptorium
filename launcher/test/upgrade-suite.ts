@@ -125,6 +125,11 @@ const HOSTILE: Hostile[] = [
   'big-file',
   'version-mismatch',
   'image-mismatch',
+  'other-registry',
+  'other-repo',
+  'ntfs-dot-git',
+  'ntfs-dot-git-space',
+  'export-attrs',
 ];
 
 const branchName = (c: string) => git(c, ['rev-parse', '--abbrev-ref', 'HEAD']);

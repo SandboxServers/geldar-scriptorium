@@ -105,6 +105,42 @@ private_mkdir() {
   mkdir -p "$1" && chmod 700 "$1"
 }
 
+# H-04 (S4): git archive honours in-tree .gitattributes export-ignore and export-subst, so the
+# mounted kit could differ from the commit the gate trusts. Status 0 when the tree of <rev> holds
+# any .gitattributes naming one of them (the caller refuses).
+tree_has_export_attrs() {
+  local clone=$1 rev=$2 meta path sha
+  while IFS= read -r -d '' meta; do
+    path=${meta#*$'\t'}
+    case ${path##*/} in
+      [.][gG][iI][tT][aA][tT][tT][rR][iI][bB][uU][tT][eE][sS]) ;;
+      *) continue ;;
+    esac
+    sha=${meta%%$'\t'*}
+    sha=${sha##* }
+    if git_cmd -C "$clone" cat-file blob "$sha" 2> /dev/null | grep -q -E 'export-(ignore|subst)'; then
+      return 0
+    fi
+  done < <(git_cmd -C "$clone" ls-tree -r -z "$rev" 2> /dev/null)
+  return 1
+}
+
+# B1: the helper containers run as uid 1000, who need not be this user, so they cannot read the
+# 0700 session dir or the 0600 bundles. stage_bundle src name sets STAGE_DIR to a fresh 0755
+# directory holding a 0644 copy as <name>; the caller mounts it and runs unstage_bundle at once.
+STAGE_DIR=
+stage_bundle() {
+  STAGE_DIR=$(mktemp -d "$(state_dir)/stage.XXXXXX") || return 1
+  chmod 755 "$STAGE_DIR" && cp "$1" "$STAGE_DIR/$2" && chmod 644 "$STAGE_DIR/$2" || {
+    unstage_bundle
+    return 1
+  }
+}
+unstage_bundle() {
+  [ -z "$STAGE_DIR" ] || rm -rf "$STAGE_DIR"
+  STAGE_DIR=
+}
+
 # git on the human's own clone: the files it writes keep the user's normal modes.
 git_host() {
   (

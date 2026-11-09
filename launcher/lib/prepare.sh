@@ -123,6 +123,9 @@ prepare_session() {
   esac
 
   # H-04
+  if tree_has_export_attrs "$clone" "$start"; then
+    die 1 export_attributes "$id"
+  fi
   rm -rf "$sd/export" "$sd/start.bundle" "$sd/running"
   private_mkdir "$sd/export"
   entries=()
@@ -162,10 +165,13 @@ prepare_session() {
     die 1 workspace_failed "$id" 'the volume could not be created'
   PREP_VOL=1
   name="geldar-workspace-init-$id-$$"
+  stage_bundle "$sd/start.bundle" start.bundle ||
+    die 1 workspace_failed "$id" 'the start bundle could not be staged'
   helper_run workspace-init "$name" "$PL_KIT_IMAGE" \
-    -e "GELDAR_BRANCH=$PL_BRANCH" -v "$sd:/in:ro" -v "geldar-ws-$id:/player" \
+    -e "GELDAR_BRANCH=$PL_BRANCH" -v "$STAGE_DIR:/in:ro" -v "geldar-ws-$id:/player" \
     -- "$WS_INIT" > /dev/null 2>&1
   rc=$?
+  unstage_bundle
   [ "$rc" -eq 0 ] || die 1 workspace_failed "$id" "$([ "$rc" -eq 124 ] && echo 'timed out' || echo 'it failed')"
   helper_run workspace-init "$name-check" "$PL_KIT_IMAGE" \
     -v "geldar-ws-$id:/player:ro" -- "$WS_CHECK" > /dev/null 2>&1 ||

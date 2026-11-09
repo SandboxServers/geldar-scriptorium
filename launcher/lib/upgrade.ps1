@@ -133,6 +133,7 @@ function Get-ValidRelease([string]$Dir, [string]$Version) {
     if ($files.Count -gt 200 -or $total -gt 5MB) { return $null }
   }
   if ($files.Count -eq 0) { return $null }
+  if (Test-ExportAttrs $Dir 'HEAD') { return $null }
   # player.json: the same shape the launcher reads from a player, and bound to this tag.
   $pj = Invoke-GitOut $Dir 60 @('show', 'HEAD:player.json')
   if ($pj.Code -ne 0) { return $null }
@@ -149,6 +150,8 @@ function Get-ValidRelease([string]$Dir, [string]$Version) {
   }
   if ($v['kit_version'] -cne $Version) { return $null }
   if (-not (Test-KitImage $v['kit_image'])) { return $null }
+  # S6: only the kit repository the printed cosign command checks.
+  if (-not $v['kit_image'].StartsWith('ghcr.io/sandboxservers/geldar-kit@sha256:', [StringComparison]::Ordinal)) { return $null }
   $digest = $v['kit_image'].Substring($v['kit_image'].IndexOf('@') + 1)
   $lg = Invoke-GitOut $Dir 60 @('log', '-1', '--format=%B', 'HEAD')
   if ($lg.Code -ne 0) { return $null }
