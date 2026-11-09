@@ -78,12 +78,12 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-30b | 3 | G | Contract: schemas for the other ten tools | packet-coder | Done (geldar PR #7, 587b5db) | SC-30a |
 | SC-31a | 3 | G | `threshold/mcp-mock` package: bearer auth, HTTP sessions, supersede | packet-coder (Sonnet) | Done (geldar PR #6, d5a52c1) | — |
 | SC-31b | 3 | G | `mcp-mock`: contract-validated tool registry, ids, snapshot builder, fake world | packet-coder (Sonnet) | Done (geldar PR #8, c764f8c) | SC-30b, SC-31a |
-| SC-31c | 3 | G | `mcp-mock`: resources, prompts, app, command line | packet-coder | BlockedDependency | SC-31b |
-| SC-32a | 3 | G | Mock world: clock, scenario file, pure wake policy | packet-coder (Sonnet) | BlockedDependency | SC-31a |
-| SC-32b | 3 | G | Mock world: event log, scripted intent executor, eat reflex, player sim | packet-coder (Sonnet) | BlockedDependency | SC-32a, SC-31b |
-| SC-32c | 3 | G | Mock world: hub, `wait` long-poll with wake policy, look, status, sleep, journal | packet-coder (Sonnet) | BlockedDependency | SC-32b, SC-31b |
-| SC-32d | 3 | G | Mock world: act and say with budget, books and skills, sim world, CLI scenario flags, real-time end-to-end | packet-coder (Sonnet) | BlockedDependency | SC-32c, SC-31c |
-| SC-33 | 3 | G | Mock world image, published to GHCR from `main` (public, D-SC-06) | packet-coder (Sonnet) | BlockedDependency | SC-32d |
+| SC-31c | 3 | G | `mcp-mock`: resources, prompts, app, command line | packet-coder | Done (geldar PR #10, 9d9d337) | SC-31b |
+| SC-32a | 3 | G | Mock world: clock, scenario file, pure wake policy | packet-coder (Sonnet) | Done (geldar PR #9, 7da2abc) | SC-31a |
+| SC-32b | 3 | G | Mock world: event log, scripted intent executor, eat reflex, player sim | packet-coder (Sonnet) | Done (geldar PR #11, 6d179c6) | SC-32a, SC-31b |
+| SC-32c | 3 | G | Mock world: hub, `wait` long-poll with wake policy, look, status, sleep, journal | packet-coder (Sonnet) | Done (geldar PR #12, 8e32ee2) | SC-32b, SC-31b |
+| SC-32d | 3 | G | Mock world: act and say with budget, books and skills, sim world, CLI scenario flags, real-time end-to-end | packet-coder (Sonnet) | Done (geldar PR #14, 19a4678) | SC-32c, SC-31c |
+| SC-33 | 3 | G | Mock world image, published to GHCR from `main` (public, D-SC-06) | packet-coder (Sonnet) | Done (geldar PR #15, 608d7f3; image digest sha256:fa442113...e1e9d; package PRIVATE until an org admin makes it public) | SC-32d |
 | SC-40a | 4 | S | Managed and play settings (CLI-home denies), Docker test support | packet-coder | Done | wave 2 |
 | SC-40b | 4 | S | Kit image Dockerfile: pinned CLI, companions, marker, non-root; build test; CI Docker step | packet-coder | Done | SC-40a |
 | SC-41a | 4 | S | Squid proxy config and allowlist, with config tests | packet-coder | Done | SC-40a |
@@ -98,7 +98,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-51b | 5 | S | Launcher (bash): fetch, push, fast-forward, hold, crash recovery (H-12, H-14, H-15, H-17); Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-51a |
 | SC-52a | 5 | S | Launcher (bash): `new` and `setup` | Sonnet (general-purpose) | BlockedDependency | SC-51b |
 | SC-52b | 5 | S | Launcher (bash): `resolve`, `archive`, `status`, multi-player `play` | Sonnet (general-purpose) | BlockedDependency | SC-52a |
-| SC-53a | 5 | S | Launcher (PowerShell): dispatcher and common functions | packet-coder | BlockedDependency | SC-50a |
+| SC-53a | 5 | S | Launcher (PowerShell): dispatcher and common functions | packet-coder | Done | SC-50a |
 | SC-53b | 5 | S | Launcher (PowerShell): pre-session parity | packet-coder | BlockedDependency | SC-50b, SC-53a |
 | SC-53c | 5 | S | Launcher (PowerShell): session start parity | packet-coder | BlockedDependency | SC-50c, SC-53b |
 | SC-53d | 5 | S | Launcher (PowerShell): bundle, verify, host re-check parity | packet-coder | BlockedDependency | SC-51a, SC-53c |

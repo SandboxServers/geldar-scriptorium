@@ -178,6 +178,8 @@ export function makeWorld(): World {
   chmodSync(join(fakeDir, 'git-wrap'), 0o755);
   if (win && bashExe) {
     writeFileSync(join(fakeDir, 'docker.cmd'), `@"${bashExe}" "${fakeDocker}" %*\r\n`);
+    const wrap = bashPath(join(fakeDir, 'git-wrap'));
+    writeFileSync(join(fakeDir, 'git.cmd'), `@"${bashExe}" "${wrap}" %*\r\n`);
   }
   const common = {
     FAKE_DOCKER_ROOT: bashPath(dockerRoot),
@@ -205,12 +207,12 @@ export function makeWorld(): World {
     },
     envPwsh: {
       ...common,
-      FAKE_DOCKER_ROOT: dockerRoot,
-      GELDAR_TEST_GITLOG: gitLog,
+      // The fakes are shell scripts: they see bash-style paths even when pwsh launches them.
+      FAKE_DOCKER_ROOT: bashPath(dockerRoot),
       GELDAR_STATE_DIR: join(root, 'state'),
       GELDAR_PLAYERS_DIR: join(root, 'players'),
       GELDAR_DOCKER: join(fakeDir, win ? 'docker.cmd' : 'docker'),
-      GELDAR_GIT: join(fakeDir, 'git-wrap'),
+      GELDAR_GIT: join(fakeDir, win ? 'git.cmd' : 'git-wrap'),
     },
     calls: () => readLog(join(dockerRoot, 'calls.log')),
     gitCalls: () => readLog(gitLog),
@@ -313,6 +315,35 @@ export function runBash(script: string, opts: RunOptions = {}): RunResult {
   if (!bashExe) throw new Error('bash is not available');
   const bash: Launcher = { name: 'bash', command: bashExe, prefix: ['-c'], entry: script };
   return run(bash, [], opts);
+}
+
+// Runs a snippet with the launcher's own common functions loaded: bash sources lib/common.sh,
+// pwsh dot-sources lib/common.ps1 (and loads the messages). The snippets do the same job.
+export function runLib(
+  launcher: Launcher,
+  scripts: { bash: string; pwsh: string },
+  opts: RunOptions = {},
+): RunResult {
+  if (launcher.name === 'bash') {
+    const lib = bashPath(join(repoRoot, 'launcher', 'lib', 'common.sh'));
+    return runBash(`. '${lib}'; ${scripts.bash}`, opts);
+  }
+  const dir = join(repoRoot, 'launcher').replace(/'/g, "''");
+  const prelude = [
+    "$ErrorActionPreference = 'Stop'",
+    '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)',
+    '[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)',
+    `$GP_DIR = '${dir}'`,
+    ". (Join-Path $GP_DIR 'lib/common.ps1')",
+    'Import-Messages',
+  ].join('\n');
+  const ps: Launcher = {
+    name: 'pwsh',
+    command: 'pwsh',
+    prefix: ['-NoProfile', '-Command'],
+    entry: `${prelude}\n${scripts.pwsh}`,
+  };
+  return run(ps, [], opts);
 }
 
 function auditCalls(world: World): void {
