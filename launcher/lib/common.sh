@@ -1,6 +1,6 @@
 # Shared functions for geldar-play. Sourced; bash 3.2 syntax only.
 
-GP_GROUPS=""
+GP_GROUPS="${GP_GROUPS-}"
 GP_DIR="${GP_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}"
 
 # Test-only variables are read only through this function (decision 9): the value of the
