@@ -110,7 +110,15 @@ function New-Bundle([string]$Id) {
   }
   $dockrc = -1
   if ($total -gt $script:GP_BUNDLE_CAP) {
-    # The container could otherwise write on: kill it by name.
+    # The container could otherwise write on: close our end of the pipe, so the writer sees it
+    # closed, then kill it by name until docker run has ended. Only then the process tree.
+    try { $stdout.Dispose() } catch {}
+    $tries = 0
+    while (-not $h.P.HasExited -and $tries -lt 50) {
+      Invoke-Docker kill $name *> $null
+      [void]$h.P.WaitForExit(200)
+      $tries++
+    }
     Stop-DockerProcess $h $name $false
   } elseif ($timedOut) {
     Stop-DockerProcess $h $name $true

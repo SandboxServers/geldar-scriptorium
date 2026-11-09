@@ -28,6 +28,9 @@ bundle_pipe() {
     echo $? > "$rcf"
   } | {
     head -c $((GP_BUNDLE_CAP + 1)) > "$out"
+    # This stage still holds the pipe's read end after head is gone. Drop it, or the writer blocks
+    # on a full pipe that nobody reads and never sees the pipe close (so it never ends).
+    exec 0< /dev/null
     size=$(wc -c < "$out" | tr -d ' ')
     if [ "${size:-0}" -gt "$GP_BUNDLE_CAP" ]; then
       # One kill can land before the container exists or is blocked (it may still be dying of the

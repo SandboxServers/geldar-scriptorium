@@ -1,6 +1,7 @@
 # After the session: bundle, verify, host re-check, hold. Dot-sourced; the twin of lib/finish.sh.
 # Fetch, push by SHA, then fast-forward the host branch (H-12 to H-17).
 
+$GP_GROUPS += 'finish'
 # A failure after the session: the bundle and the workspace stay, the host branch is untouched.
 function Suspend-Finish([string]$Id, [string]$Reason) {
   $d = Get-PlayerDir $Id
