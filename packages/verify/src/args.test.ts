@@ -13,7 +13,7 @@ function valid(overrides: Record<string, string> = {}): string[] {
     '--player-id': 'mmpr-red',
     ...overrides,
   };
-  return Object.entries(options).flatMap(([key, value]) => [key, value]);
+  return Object.entries(options).flat();
 }
 
 describe('parseVerifyArgs', () => {

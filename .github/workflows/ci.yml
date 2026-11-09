@@ -115,8 +115,9 @@ jobs:
       - name: test (vitest, end to end)
         env:
           GELDAR_E2E: '1'
+          E2E_FILE: ${{ matrix.file }}
         run: |
-          pnpm vitest run "tests/e2e/${{ matrix.file }}"
+          pnpm vitest run "tests/e2e/$E2E_FILE"
 
   gate:
     name: ci gate

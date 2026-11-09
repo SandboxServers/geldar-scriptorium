@@ -1,3 +1,4 @@
+// biome-ignore-all lint/style/useTemplate: the text built here must not hold a literal expression opener, so it is joined in pieces
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

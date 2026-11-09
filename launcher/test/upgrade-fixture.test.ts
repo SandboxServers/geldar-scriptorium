@@ -68,6 +68,6 @@ describe('template release fixture', () => {
     const msg = git(imgMis, ['log', '-1', '--format=%B', t]);
     expect(msg).toContain(`image: sha256:${'f'.repeat(64)}`);
     expect(show(imgMis, t, 'player.json')).not.toContain('f'.repeat(64));
-    expect(readFileSync(w.root + '/gitconfig', 'utf8')).toContain('user');
+    expect(readFileSync(`${w.root}/gitconfig`, 'utf8')).toContain('user');
   });
 });

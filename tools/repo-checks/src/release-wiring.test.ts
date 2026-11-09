@@ -147,7 +147,7 @@ describe('release.yml wiring (SC-63f)', () => {
 
   const lint = spawnSync('actionlint', ['-version'], { encoding: 'utf8' });
   it.skipIf(lint.status !== 0)('lints clean with actionlint', () => {
-    const r = spawnSync('actionlint', [root + '.github/workflows/release.yml'], {
+    const r = spawnSync('actionlint', [`${root}.github/workflows/release.yml`], {
       encoding: 'utf8',
     });
     expect(r.stdout + r.stderr).toBe('');

@@ -84,7 +84,7 @@ export function makeFixture(playerId = 'mmpr-red'): Fixture {
   // The first commit: START, made by Host and holding the kit's files.
   git(['init', '-q', '-b', 'main', dir]);
   write('CLAUDE.md', '# Character\n');
-  write('player.json', JSON.stringify({ player_id: playerId }) + '\n');
+  write('player.json', `${JSON.stringify({ player_id: playerId })}\n`);
   write('memory/identity.md', 'name: Test\n');
   write('memory/summary.md', 'summary\n');
   write('memory/goals.md', 'goals\n');

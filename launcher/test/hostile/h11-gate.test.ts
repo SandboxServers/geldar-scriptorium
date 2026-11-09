@@ -159,17 +159,21 @@ describe.each(forGroup('hostile'))('H-11 gate verdicts ($name)', (launcher) => {
   });
 
   describe('text mapping (forged verdicts)', () => {
-    it.each(['bundle_refs_unexpected', 'bundle_unreadable', 'bad_mode'])('%s', { timeout: T }, (id) => {
-      const a = attack(launcher, {
-        session: benign,
-        until: 'verify',
-        env: { FAKE_VERIFY_STDOUT: `{"ok":false,"reasons":["${id}"]}`, FAKE_VERIFY_RC: '1' },
-      });
-      expect(a.finish.status, a.finish.stderr).toBe(3);
-      expectRefusal(a.finish, `reason_${id}`, { status: 3 });
-      expect(a.finish.stderr).not.toContain(id);
-      expect(heldInfo(a)).toContain('reason=verify_rejected');
-      expectHostUnchanged(a.before, { ...a.after, stateFiles: a.before.stateFiles });
-    });
+    it.each(['bundle_refs_unexpected', 'bundle_unreadable', 'bad_mode'])(
+      '%s',
+      { timeout: T },
+      (id) => {
+        const a = attack(launcher, {
+          session: benign,
+          until: 'verify',
+          env: { FAKE_VERIFY_STDOUT: `{"ok":false,"reasons":["${id}"]}`, FAKE_VERIFY_RC: '1' },
+        });
+        expect(a.finish.status, a.finish.stderr).toBe(3);
+        expectRefusal(a.finish, `reason_${id}`, { status: 3 });
+        expect(a.finish.stderr).not.toContain(id);
+        expect(heldInfo(a)).toContain('reason=verify_rejected');
+        expectHostUnchanged(a.before, { ...a.after, stateFiles: a.before.stateFiles });
+      },
+    );
   });
 });

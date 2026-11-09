@@ -57,7 +57,7 @@ describe('ci test groups', () => {
         .sort(),
     );
     expect(ci.jobs.tests.strategy['fail-fast']).toBe(false);
-    expect(JSON.stringify(ci.jobs.e2e)).toContain('files e2e');
+    expect(JSON.stringify(ci.jobs.e2e)).toContain('tests/e2e/$E2E_FILE');
   });
 
   it('gates on every job', () => {
