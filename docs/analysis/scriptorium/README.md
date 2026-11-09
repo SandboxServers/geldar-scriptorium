@@ -66,7 +66,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-14 | 1 | S | Skills: `trade`, `author`, `moot` | packet-coder | Done (merged into wave1) | SC-10 |
 | SC-15 | 1 | S | `setup` skill and setup-mode settings | packet-coder | Done (merged into wave1) | SC-12 |
 | SC-16 | 1 | S | Hooks with the container guard, and their tests | packet-coder | Done (merged into wave1) | SC-10 |
-| SC-20 | 2 | S | `path-rule` package: allowed paths, modes, write-once identity | packet-coder | BlockedDependency | wave 1 |
+| SC-20 | 2 | S | `path-rule` package: allowed paths, modes, write-once identity | packet-coder | Writing | wave 1 |
 | SC-21 | 2 | S | `geldar-memory` MCP server (`recall`) | packet-coder | BlockedDependency | SC-20 |
 | SC-22a | 2 | S | `geldar-git`: runner, filter-safe `commitMemory`, message, fixture and tests | packet-coder | BlockedDependency | SC-20 |
 | SC-22b | 2 | S | `geldar-git`: MCP server and CLI (`commit_memory`) | packet-coder | BlockedDependency | SC-22a |
