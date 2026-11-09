@@ -13,6 +13,7 @@ function Test-PathAllowed([string]$Path, [string]$Mode) {
   if ((ConvertTo-AsciiLower $Path) -ceq 'memory/identity.md') {
     return ($Path -ceq 'memory/identity.md' -and $Mode -ceq 'setup')
   }
+  if ((ConvertTo-AsciiLower $Path).StartsWith('memory/identity.md/', [StringComparison]::Ordinal)) { return $false }
   if ($Path -ceq 'memory/people/.gitkeep' -or $Path -ceq 'memory/journal/current.md') { return $true }
   if (-not [regex]::IsMatch($Path, '^(memory|skills)/[A-Za-z0-9._/-]+\.(md|js|json)\z')) { return $false }
   if ($Path.Length -gt 200) { return $false }

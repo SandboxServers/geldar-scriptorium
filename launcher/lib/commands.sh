@@ -50,7 +50,7 @@ held_count() {
     return 0
   }
   if git_cmd init --bare -q "$sc" > /dev/null 2>&1 &&
-    git_cmd -C "$sc" fetch --no-tags "$(player_dir "$id")/held/bundle.bundle" \
+    git_cmd -C "$sc" -c fetch.fsckObjects=true -c transfer.fsckObjects=true fetch --no-tags "$(player_dir "$id")/held/bundle.bundle" \
       "refs/heads/$PL_BRANCH:refs/held" > /dev/null 2>&1; then
     n=$(git_cmd -C "$sc" rev-list --count refs/held --not "$start" 2> /dev/null) || n="?"
   fi

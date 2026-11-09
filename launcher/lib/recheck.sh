@@ -11,6 +11,7 @@ path_allowed() {
     [ "$p" = "memory/identity.md" ] && [ "$mode" = "setup" ]
     return
   fi
+  case $lower in memory/identity.md/*) return 1 ;; esac
   case $p in
     memory/people/.gitkeep | memory/journal/current.md) return 0 ;;
   esac

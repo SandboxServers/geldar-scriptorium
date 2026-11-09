@@ -404,3 +404,19 @@ describe.each(forGroup('session'))('session ($name)', (launcher) => {
     for (const b of binds) expect(b).toContain('/st$$ate/eleven/session/export/');
   });
 });
+
+describe('yaml_q (bash)', () => {
+  it('rejects a backslash and a quote, accepts a plain value, doubles a dollar sign', () => {
+    if (!bashExe) return;
+    const bs = String.fromCharCode(92);
+    const lib = bashPath(join(repoRoot, 'launcher', 'lib', 'session.sh'));
+    const run = (v: string) =>
+      spawnSync(bashExe, ['-c', `. "$1"; yaml_q "$2"`, 'x', lib, v], { encoding: 'utf8' });
+    expect(run(`a${bs}b`).status).toBe(1);
+    expect(run(`a${bs}`).status).toBe(1);
+    expect(run('a"b').status).toBe(1);
+    const ok = run('a*b$c');
+    expect(ok.status).toBe(0);
+    expect(ok.stdout).toBe('"a*b$$c"');
+  });
+});
