@@ -39,6 +39,8 @@ jobs:
         run: pnpm test
       - name: repo checks (line caps, LF line endings)
         run: pnpm check:repo
+      - name: spec references (ledger ids, line-broken code spans)
+        run: pnpm check:specs
       - name: template checks
         if: hashFiles('tests/template/check.ts') != ''
         run: pnpm check:template

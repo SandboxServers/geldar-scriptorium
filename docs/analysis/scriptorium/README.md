@@ -40,7 +40,7 @@ Spec-level decisions are records in the **geldar** repo (`docs/decisions/`). Thi
 | D-SC-05 | License for this repo and the template: an open license (owner, 2026-11-09). Orchestrator chose **Apache-2.0** (patent grant, widely understood); `LICENSE` added at the repo root. Owner may swap it. The template folder carries no license file of its own; player repos choose theirs. | **Accepted (owner: open license; orchestrator: Apache-2.0)** | SC-02 | — |
 | D-SC-06 | GHCR visibility for the kit image and the mock world image: **public** (owner, 2026-11-09). | **Accepted** | SC-33, SC-63 | — |
 | D-SC-07 | Exact current Claude Code syntax for settings, permissions, hooks and skills; the CLI version itself is pinned in SC-40 (at least 2.1.257) | Accepted | SC-12 | geldar [0016](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0016-claude-code-settings-errata.md), work-packets.md § Claude Code syntax |
-| D-SC-08 | Codex CLI: current terms and MCP support (the Codex half of spec open decision 2g) | **Direction set (owner, 2026-11-09): Codex at parity with Claude where possible; terms and MCP support being researched, see worknotes/codex-parity.md** | SC-71 | geldar 0010 |
+| D-SC-08 | Codex CLI. Owner direction (2026-11-09): parity with Claude where possible. Research: worknotes/codex-parity.md. Orchestrator ruling: build CLI-neutral now; Codex ships (SC-71) only after owner calls C1 (terms) and C3 (credential exposure) are answered, and never claims parity without a local live proof of the path denies. | **Gated (owner calls C1, C3)** | SC-71 | geldar 0010 |
 | D-SC-09 | Prerequisites on the human's machine: Docker (D-SC-03), git, GitHub CLI `gh` (for `new` and `upgrade`), PowerShell 7 on Windows | Proposed (orchestrator) | SC-50 | — |
 | D-SC-10 | A scripted **stub CLI** (`packages/stub-cli`) stands in for the vendor CLI in deterministic CI. Real models run only in the live malicious-book job. | Accepted (orchestrator) | SC-24a | — |
 | D-SC-11 | The post-session gate is TypeScript (`geldar-verify`) running in a network-less container from the pinned image. The launcher's bash and PowerShell shims stay thin and re-check only the cheap invariants on the host. | Accepted (orchestrator) | SC-23, SC-51 | geldar 0011 |
@@ -107,3 +107,5 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-73 | 7 | S | Campaign review | packet-reviewer | BlockedDependency | SC-72 |
 
 **Cross-campaign dependency:** wave 3 needs `@geldar/contract` from geldar Phase 0 packet P0-01. Waves 0–2 and 4 don't need wave 3. Wave 5's end-to-end test (SC-55) does.
+
+<!-- legacy-ids: SC-23, SC-40 -->
