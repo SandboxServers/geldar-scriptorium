@@ -360,7 +360,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
       launcher,
       [
         '__bounded',
-        launcher.name === 'pwsh' && win ? '8' : '2',
+        win ? '8' : '2',
         '--container',
         'geldar-t-1',
         docker as string,

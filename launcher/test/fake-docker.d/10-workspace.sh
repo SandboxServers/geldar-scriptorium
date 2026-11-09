@@ -85,7 +85,9 @@ fake_run() {
   shift # the image
   if [ -n "${FAKE_ROLE_SLEEP:-}" ]; then
     trap '' PIPE
-    sleep "$FAKE_ROLE_SLEEP"
+    sleep "$FAKE_ROLE_SLEEP" &
+    [ -z "${FAKE_PIDFILE:-}" ] || echo "$!" >> "$FAKE_PIDFILE"
+    wait
   fi
   fn="fake_role_$(printf '%s' "$role" | tr -c 'A-Za-z0-9' '_')"
   if [ -z "$role" ] || ! type "$fn" > /dev/null 2>&1; then

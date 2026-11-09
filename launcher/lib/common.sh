@@ -204,7 +204,7 @@ lock_acquire() {
 # runs as a job in its own process group; on expiry the group gets TERM then KILL and a named
 # container gets docker kill then docker rm -f. Returns the command's status, or 124.
 run_bounded() {
-  local secs=$1 name="" pid i=0 limit rc override
+  local secs=$1 name="" pid t0 rc override
   shift
   if [ "${1:-}" = "--container" ]; then
     name=$2
@@ -218,13 +218,13 @@ run_bounded() {
   case $secs in
     '' | 0 | 0* | *[!0-9]*) die 2 usage ;;
   esac
-  limit=$((secs * 10))
   set -m
   "$@" &
   pid=$!
+  t0=$SECONDS
   set +m
   while kill -0 "$pid" 2> /dev/null; do
-    if [ "$i" -ge "$limit" ]; then
+    if [ $((SECONDS - t0)) -gt "$secs" ]; then
       kill -TERM -- "-$pid" 2> /dev/null
       kill -TERM "$pid" 2> /dev/null
       sleep 1
@@ -238,7 +238,6 @@ run_bounded() {
       return 124
     fi
     sleep 0.1
-    i=$((i + 1))
   done
   wait "$pid"
   rc=$?
