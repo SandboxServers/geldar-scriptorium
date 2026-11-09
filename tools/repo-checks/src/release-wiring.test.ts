@@ -35,14 +35,24 @@ describe('release.yml wiring (SC-63f)', () => {
     expect(checkWorkflow({ path: '.github/workflows/release.yml', text: TEXT })).toEqual([]);
   });
 
-  it('has exactly the seven jobs with the right needs', () => {
+  it('has exactly the eight jobs with the right needs', () => {
     const j = jobs();
     expect(Object.keys(j).sort()).toEqual(
-      ['build', 'launcher', 'rehearse', 'release', 'scan', 'sign', 'template'].sort(),
+      [
+        'build',
+        'launcher',
+        'launcher-sign',
+        'rehearse',
+        'release',
+        'scan',
+        'sign',
+        'template',
+      ].sort(),
     );
     expect(needsOf(j.launcher)).toEqual(['sign']);
+    expect(needsOf(j['launcher-sign'])).toEqual(['launcher']);
     expect(needsOf(j.template)).toEqual(['build', 'sign']);
-    expect(needsOf(j.release)).toEqual(['build', 'sign', 'launcher', 'template']);
+    expect(needsOf(j.release)).toEqual(['build', 'sign', 'launcher-sign', 'template']);
     expect(needsOf(j.rehearse)).toEqual([]);
   });
 
@@ -71,7 +81,8 @@ describe('release.yml wiring (SC-63f)', () => {
       .filter(([, j]) => j.permissions?.contents === 'write')
       .map(([n]) => n);
     expect(writers).toEqual(['release']);
-    expect(jobs().launcher.permissions).toEqual({ contents: 'read', 'id-token': 'write' });
+    expect(jobs().launcher.permissions).toEqual({ contents: 'read' });
+    expect(jobs()['launcher-sign'].permissions).toEqual({ contents: 'read', 'id-token': 'write' });
   });
 
   it('calls the template workflow with no secrets', () => {
@@ -86,10 +97,13 @@ describe('release.yml wiring (SC-63f)', () => {
   });
 
   it('signs both launcher assets with --bundle', () => {
-    const r = runs('launcher').join('\n');
-    expect(r).toContain('geldar-play-*.tar.gz SHA256SUMS');
+    const r = runs('launcher-sign').join('\n');
+    expect(r).toContain('geldar-play-*.tar.gz SHA256SUMS sbom.spdx.json');
     expect(r).toContain('cosign sign-blob --yes --bundle "$f.sigstore.json" "$f"');
-    expect(r).toContain('package-launcher.ts');
+    expect(r).not.toContain('package-launcher.ts');
+    const p = runs('launcher').join('\n');
+    expect(p).toContain('package-launcher.ts');
+    expect(p).toContain('sha256sum sbom.spdx.json >> SHA256SUMS');
   });
 
   it('checks the template tag before the release, names the digest and marks prereleases', () => {

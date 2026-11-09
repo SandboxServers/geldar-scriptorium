@@ -24,7 +24,7 @@ type Add = (rule: string, message: string, line?: number) => void;
 /** Which jobs of which workflow file may hold each credential. */
 const ID_TOKEN_JOBS: Record<string, string[]> = {
   'publish-template.yml': ['publish'],
-  'release.yml': ['sign', 'launcher', 'template'],
+  'release.yml': ['sign', 'launcher-sign', 'template'],
 };
 const PACKAGES_WRITE_JOBS: Record<string, string[]> = { 'release.yml': ['build', 'sign'] };
 const CONTENTS_WRITE_JOBS: Record<string, string[]> = { 'release.yml': ['release'] };
@@ -160,6 +160,23 @@ function checkPermissions(name: string, data: Obj, jobs: Job[], add: Add) {
         add('permissions', `job ${j.name} in ${name} may not set ${key}: write`);
     const idt = j.perms['id-token'] === 'write';
     const pkg = j.perms.packages === 'write';
+    if (idt && name === 'release.yml') {
+      for (const st of j.steps) {
+        const runsRepo =
+          /(^|[\s;&|])(node|pnpm|npm|npx|tsx|bash|sh|python3?)\s+\S|(^|[\s;&|])\.\//m.test(
+            st.run ?? '',
+          );
+        if (
+          st.uses?.startsWith('actions/checkout@') ||
+          st.uses?.startsWith('actions/setup-node@') ||
+          runsRepo
+        )
+          add(
+            'idtoken-repo-code',
+            `job ${j.name} holds id-token: write and may not check out or run repo code`,
+          );
+      }
+    }
     if (!idt && !pkg) continue;
     const uses = [j.data.uses, ...j.steps.map((s) => s.uses)].filter(
       (u): u is string => typeof u === 'string',

@@ -152,6 +152,36 @@ const rows: Row[] = [
     text: GOOD_PUBLISH + `      - uses: docker/login-action@${SHA} # v3.0.0\n`,
   },
   {
+    rule: 'idtoken-repo-code',
+    label: 'checkout in an id-token job of release',
+    file: rel,
+    text:
+      GOOD_RELEASE +
+      `  launcher-sign:
+    ${TAG_IF}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@${SHA} # v7.0.1
+`,
+  },
+  {
+    rule: 'idtoken-repo-code',
+    label: 'repo script in an id-token job of release',
+    file: rel,
+    text:
+      GOOD_RELEASE +
+      `  launcher-sign:
+    ${TAG_IF}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - run: node tools/release/src/package-launcher.ts
+`,
+  },
+  {
     rule: 'idtoken-uses',
     label: 'trivy with packages write',
     file: rel,
@@ -297,6 +327,7 @@ describe('workflow lint: one named finding per hostile fixture', () => {
       'pin',
       'permissions',
       'idtoken-uses',
+      'idtoken-repo-code',
       'triggers',
       'no-workflow-call-if',
       'secrets',
