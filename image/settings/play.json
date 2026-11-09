@@ -1,0 +1,5 @@
+{
+  "permissions": {
+    "deny": ["Edit(/memory/identity.md)", "Write(/memory/identity.md)"]
+  }
+}

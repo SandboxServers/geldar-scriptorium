@@ -2,26 +2,25 @@
 
 Read this, then [README.md](README.md) (the ledger), before acting. Rewrite at every wave boundary, in 40 lines at most.
 
-**State (2026-11-08):** wave 0 (SC-01 to SC-05) is done and merged into `scriptorium/wave0`, wave review verdict `ship` (pass 2). The PR from `scriptorium/wave0` to `main` is open and waiting for the owner's go; don't merge without it. The kit's decisions (geldar 0007–0016) are in geldar PR #3, owned by the planning session; don't touch it or geldar `docs/decisions/`.
-
-**Current wave:** 0 done, PR open. Wave 1 (the template, SC-10 to SC-16) starts after wave 0 merges to `main`.
+**State (2026-11-08):** wave 0 is merged to `main` (PR #1). Wave 1 (the template, SC-10 to SC-16) is done and merged into `scriptorium/wave1`; every packet passed its own review, and the wave review fix (a docs note for SC-40/42) is applied. The wave 1 PR to `main` is the next step or already open: check `gh pr list`. The kit's decisions (geldar 0007-0016) are in geldar PR #3, owned by the planning session; don't touch it or geldar `docs/decisions/`.
 
 **Next action:**
 
-1. Wait for the owner to say merge. Then merge the PR (`gh pr merge --merge`), remove the sc-01..sc-05 and wave0-fix worktrees and branches, and rewrite this card for wave 1.
-2. Wave 1 is already written in `work-packets.md`. SC-12, SC-15 and SC-16 wait on D-SC-07 being marked Accepted.
+1. Wave 1 PR: wait for `ci gate`, merge with `gh pr merge --merge --delete-branch` (the owner authorised merging once ready), remove the sc-10..sc-16 worktrees and branches.
+2. Wave 2 (companion servers and the gate, SC-20 to SC-24) is a scope card. Write it out in full in `work-packets.md` against what wave 1 merged, then dispatch (SC-20 first).
 
-**Agents:** `.claude/agents/` now exists (SC-03). Until a session has them loaded, dispatch with the Agent tool as `general-purpose` (coders `haiku`, reviewers `sonnet`), pasting the rules from the agent files into each brief.
+**Agents:** `.claude/agents/` exists. Dispatch with the Agent tool as `general-purpose` (coders `haiku`, reviewers `sonnet`), pasting the agent rules into each brief.
 
-**Rulings so far:** `worknotes/SC-04.md` (decisions index lists 0007–0015; add 0016 when it lands in geldar).
+**Lessons:** parallel packets that edit `tests/template/allowed-files.ts` conflict on merge; resolve by hand, then run `./scriptorium.ps1 check` before committing. Hook tests need `jq` and skip locally without it; CI runs them (`CI=true` makes missing tools fail).
 
-**Follow-ups (not blocking wave 0):**
+**Follow-ups (not blocking):**
 
-- The packet that adds `tests/template/check.ts` must also add the `check:template` script.
+- Dedupe `tests/template/skills.test.ts` and `world-skills.test.ts` (overlapping frontmatter checks).
 - Threat model: add a control row for "other players' data" once the kit's MCP servers exist.
 - Dependabot header comment names directories this repo doesn't have.
-- Add the 0016 line to `docs/decisions.md` when geldar PR #3 lands.
+- Hook tests have never run locally (no jq); confirm they pass in CI on the wave 1 PR.
+- CLI-home deny gap is recorded under SC-40 and SC-42.
 
 **Open owner decisions:** D-SC-01 (CI API key), D-SC-02 (template publish credential), D-SC-05 (license; `LICENSE` is absent until then), D-SC-06 (GHCR visibility), D-SC-08 (Codex terms).
 
-**Worktrees:** sc-01..sc-05 (all merged, remove after the PR merges), wave0-fix.
+**Worktrees:** sc-10..sc-16 (all merged, remove after the PR merges).

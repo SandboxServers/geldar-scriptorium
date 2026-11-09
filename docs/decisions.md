@@ -1,6 +1,6 @@
 # Decisions
 
-One line per geldar record that shapes this kit (0007 to 0015). The records live in the geldar repo; the spec stays the design. Record 0016 is pending in the geldar repo and will be added to this index when it lands. **Kind** is what the record does to the spec: `Changes` departs from the plan, `Fixes` corrects it, `Settles` fills a gap, `Process` is about how we work.
+One line per geldar record that shapes this kit (0007 to 0016). The records live in the geldar repo; the spec stays the design.
 
 - [0007](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0007-spec-frozen-at-v0.8.md): The spec is frozen at v0.8; changes are recorded here (Process, Accepted)
 - [0008](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0008-companion-servers-own-repo.md): The player kit's companion servers live in their own repo and ship in the kit's container image (Changes, Accepted)
@@ -11,3 +11,4 @@ One line per geldar record that shapes this kit (0007 to 0015). The records live
 - [0013](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0013-public-player-repos.md): Living player repos may be public; the agent is confined to its own repo, enforced and tested (Changes, Accepted)
 - [0014](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0014-template-source-in-geldar-scriptorium.md): The template is player-facing only; it is developed in `geldar-scriptorium` and published from there (Changes, Accepted)
 - [0015](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0015-player-birth-and-setup-session.md): Until the Allocator exists, a player is born through the launcher and a one-time setup session (Changes, Accepted)
+- [0016](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0016-claude-code-settings-errata.md): Appendix J's Claude Code settings, corrected against Claude Code 2.1 (`effortLevel`, per-server MCP timeout, read blocking, settings layers).
