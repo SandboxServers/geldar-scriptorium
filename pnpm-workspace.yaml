@@ -1,0 +1,7 @@
+# Workspace packages (work-packets.md § Repo layout). Missing directories are ignored.
+packages:
+  - packages/*
+  - tools/*
+
+# Exact versions only.
+saveExact: true
