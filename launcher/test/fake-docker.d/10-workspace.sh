@@ -45,7 +45,17 @@ fake_subst() {
     -e 's#(^|[^A-Za-z0-9_./-])/in/#\1@@IN@@/#g' \
     -e 's#(^|[^A-Za-z0-9_./-])/player([^A-Za-z0-9_.-]|$)#\1@@PL@@\2#g' \
     -e 's#(^|[^A-Za-z0-9_./-])/tmp([^A-Za-z0-9_.-]|$)#\1@@TMP@@\2#g' |
+    fake_fill "${2:-}"
+}
+
+# The tokens become the real paths, or (for a script that sh will run) references to variables
+# holding them, so a path with a dollar sign or backslash is never read again as shell syntax.
+fake_fill() {
+  if [ "$1" = ref ]; then
+    sed -e 's#@@IN@@#${FAKE_IN}#g' -e 's#@@PL@@#${FAKE_PL}#g' -e 's#@@TMP@@#${FAKE_TMP}#g'
+  else
     sed -e "s#@@IN@@#$FAKE_IN#g" -e "s#@@PL@@#$FAKE_PL#g" -e "s#@@TMP@@#$FAKE_TMP#g"
+  fi
 }
 
 fake_run() {
@@ -143,8 +153,9 @@ fake_exec_script() {
     echo "fake docker: a helper role runs sh -c <script> only" >&2
     return 99
   fi
-  script=$(fake_subst "$3")
+  script=$(fake_subst "$3" ref)
   cd "$FAKE_TMP" || return 99
+  export FAKE_IN FAKE_PL FAKE_TMP
   sh -c "$script"
 }
 
