@@ -30,8 +30,6 @@ export const allowedFiles: readonly string[] = [
 // Listed above but shipped by later packets: allowed, not yet required.
 // Each packet removes the files it ships from this list.
 export const pendingFiles: readonly string[] = [
-  'template/CLAUDE.md',
-  'template/AGENTS.md',
   'template/.mcp.json',
   'template/.claude/settings.json',
   'template/.claude/hooks/session-start.sh',

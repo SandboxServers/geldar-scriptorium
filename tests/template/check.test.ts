@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -34,6 +34,15 @@ describe('template boundary check', () => {
     unlinkSync(path.join(copy, 'memory', 'summary.md'));
     const problems = checkTemplate(copy, schemaPath);
     expect(problems.some((p) => p.includes('memory/summary.md'))).toBe(true);
+  });
+
+  it('reports a stale CLAUDE.md through the template check', () => {
+    const claude = path.join(copy, 'CLAUDE.md');
+    writeFileSync(claude, readFileSync(claude, 'utf8').replace('Do little.', 'Do much.'));
+    const problems = checkTemplate(copy, schemaPath);
+    expect(problems).toContain(
+      'CLAUDE.md is out of date; run `node tests/template/instructions.ts --write`',
+    );
   });
 
   it('reports player.json with harness gemini', () => {

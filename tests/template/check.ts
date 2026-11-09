@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Ajv2020, type ErrorObject } from 'ajv/dist/2020.js';
 import { allowedFiles, pendingFiles } from './allowed-files.ts';
+import { checkInstructions } from './instructions.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(here, '../..');
@@ -45,6 +46,8 @@ export function checkTemplate(
       if (text.includes(word)) problems.push(`template/${rel} contains forbidden text "${word}"`);
     }
   }
+
+  problems.push(...checkInstructions(templateDir));
 
   if (have.has('template/player.json')) {
     problems.push(...checkPlayer(path.join(templateDir, 'player.json'), schemaPath));
