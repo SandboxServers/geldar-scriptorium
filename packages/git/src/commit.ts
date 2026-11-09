@@ -1,7 +1,8 @@
-import { lstatSync, readdirSync, readFileSync } from 'node:fs';
+import { lstatSync, readdirSync, readFileSync, type Stats } from 'node:fs';
 import { join } from 'node:path';
 import type { Mode } from '@geldar/scriptorium-path-rule';
 import { isAllowedPath, isValidPlayerId, noreplyIdentity } from '@geldar/scriptorium-path-rule';
+import { HashRefusal, hashRegularFile } from './hash-file.ts';
 import { sanitizeMessage } from './message.ts';
 import { GitError, runGit } from './run-git.ts';
 
@@ -30,7 +31,6 @@ export interface CommitResult {
 }
 
 const MAX_WALKED = 20000;
-const HASH_CHUNK = 200;
 const STAGE_CHUNK = 100;
 const ZERO_SHA = '0'.repeat(40);
 
@@ -80,58 +80,50 @@ function walk(root: string): string[] {
 
 type Kind = 'missing' | 'other' | 'file';
 
+export interface CommitTestHooks {
+  afterClassify?: (relPath: string) => void;
+}
+
 // Walks the components with lstat, so a symbolic link or file in a parent position is never followed.
-function classify(root: string, path: string): Kind {
+function classify(root: string, path: string, ids: Map<string, Stats>): Kind {
   const parts = path.split('/');
   let prefix = root;
   for (let i = 0; i < parts.length; i++) {
     prefix = join(prefix, parts[i] ?? '');
     const st = lstatSync(prefix, { throwIfNoEntry: false });
     if (!st) return 'missing';
-    if (i === parts.length - 1) return st.isFile() ? 'file' : 'other';
+    if (i === parts.length - 1) {
+      if (!st.isFile()) return 'other';
+      ids.set(path, st);
+      return 'file';
+    }
     if (!st.isDirectory()) return 'other';
   }
   return 'other';
 }
 
-function hashOnce(root: string, paths: string[], write: boolean): string[] {
-  const args = ['hash-object', '--no-filters', ...(write ? ['-w'] : []), '--stdin-paths'];
-  const out = runGit(root, args, undefined, `${paths.join('\n')}\n`);
-  const shas = out.split('\n').filter((line) => line.length > 0);
-  if (shas.length !== paths.length) throw new GitError('git_failed', 'hash-object count');
-  return shas;
-}
-
-// Hashes the paths; a path missing from the result could not be hashed (treated as changed, not allowed).
-function hashAll(root: string, paths: string[], mode: Mode): Map<string, string> {
+// Hashes each file from one O_NOFOLLOW descriptor; a path that cannot be hashed is left out
+// of the result (treated as changed, not allowed).
+function hashAll(
+  root: string,
+  paths: string[],
+  mode: Mode,
+  ids: Map<string, Stats>,
+): Map<string, string> {
   const result = new Map<string, string>();
-  const eligible = paths.filter(
-    (p) => !p.includes('\n') && !p.includes('\r') && !p.startsWith('"'),
-  );
-  for (let i = 0; i < eligible.length; i += HASH_CHUNK) {
-    const chunk = eligible.slice(i, i + HASH_CHUNK);
-    const groups = [
-      { write: true, paths: chunk.filter((p) => isAllowedPath(p, mode)) },
-      { write: false, paths: chunk.filter((p) => !isAllowedPath(p, mode)) },
-    ];
-    for (const group of groups) {
-      if (group.paths.length === 0) continue;
-      try {
-        hashOnce(root, group.paths, group.write).forEach((sha, j) => {
-          const path = group.paths[j];
-          if (path !== undefined) result.set(path, sha);
-        });
-      } catch (err) {
-        if (!(err instanceof GitError)) throw err;
-        for (const path of group.paths) {
-          try {
-            const [sha] = hashOnce(root, [path], group.write);
-            if (sha !== undefined) result.set(path, sha);
-          } catch (single) {
-            if (!(single instanceof GitError)) throw single;
-          }
-        }
-      }
+  for (const path of paths) {
+    if (/[\r\n]/.test(path) || path.startsWith('"')) continue;
+    const st = ids.get(path);
+    try {
+      result.set(
+        path,
+        hashRegularFile(root, join(root, ...path.split('/')), {
+          write: isAllowedPath(path, mode),
+          ...(st ? { expect: { dev: st.dev, ino: st.ino } } : {}),
+        }),
+      );
+    } catch (err) {
+      if (!(err instanceof HashRefusal) && !(err instanceof GitError)) throw err;
     }
   }
   return result;
@@ -161,7 +153,10 @@ function stagedEntries(out: string): { newMode: string; path: string }[] {
   return entries;
 }
 
-export function commitMemory(opts: { root: string; message: string; mode: Mode }): CommitResult {
+export function commitMemory(
+  opts: { root: string; message: string; mode: Mode },
+  testHooks?: CommitTestHooks,
+): CommitResult {
   const { root, mode } = opts;
 
   // 1. identity
@@ -189,11 +184,15 @@ export function commitMemory(opts: { root: string; message: string; mode: Mode }
   const candidates = [...new Set([...walk(root), ...tracked.keys()])].sort();
 
   // 7. classify each candidate
-  const kinds = new Map(candidates.map((path) => [path, classify(root, path)] as const));
+  const ids = new Map<string, Stats>();
+  const kinds = new Map(candidates.map((path) => [path, classify(root, path, ids)] as const));
+  if (testHooks?.afterClassify) {
+    for (const path of candidates) testHooks.afterClassify(path);
+  }
 
   // 8. hash the regular files
   const filePaths = candidates.filter((path) => kinds.get(path) === 'file');
-  const shas = hashAll(root, filePaths, mode);
+  const shas = hashAll(root, filePaths, mode, ids);
 
   // 9. decide what changed, what is staged and what is not saved
   const stage: string[] = [];

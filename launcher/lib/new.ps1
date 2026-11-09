@@ -159,7 +159,8 @@ function Verb-new {
   $n = 0
   while ($true) {
     $n++
-    $ok = (Invoke-InDir $players @($gh, 'repo', 'clone', $name)) -eq 0
+    $oldMask = Set-Umask 0x12 # the human's clone keeps the user's normal modes
+    try { $ok = (Invoke-InDir $players @($gh, 'repo', 'clone', $name)) -eq 0 } finally { [void](Set-Umask $oldMask) }
     if ($ok -and (Test-Path -LiteralPath (Join-Path $clone '.git'))) { break }
     Remove-Item -LiteralPath $clone -Recurse -Force -ErrorAction SilentlyContinue
     if ($n -ge 5) { Die 1 clone_timeout $id }
@@ -189,7 +190,8 @@ function Verb-new {
   $words = Get-GitWords -C $clone push -q origin HEAD
   if ((Invoke-BoundedQuiet 120 @words) -ne 0) { Die 1 gh_failed $id 'push' }
 
-  New-Item -ItemType Directory -Path $d -Force | Out-Null
+  New-PrivateDir (Get-StateDir)
+  New-PrivateDir $d
   $utf8 = [System.Text.UTF8Encoding]::new($false)
   [System.IO.File]::WriteAllText((Join-Path $d 'clone'), "$clone`n", $utf8)
   $br = @(Invoke-Git -C $clone symbolic-ref --short HEAD 2> $null)

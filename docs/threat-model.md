@@ -40,3 +40,32 @@ This is the threat model for the Geldar player kit and its launcher. Each contro
 - In-game manipulation (Principle 5): a prompt injection may make a player do something unwise in the game. The controls above keep it from reaching the machine.
 - Human puppeteering (spec 5.15.9): labelled, not prevented.
 - A malicious kit release: mitigated by signatures, not prevented. The launcher pins the image by digest (H-19) and exports the kit from the stored START (H-04).
+
+## Residual risks and closed items
+
+| Item | Status | Owner and fix card |
+| --- | --- | --- |
+| Symlink swap between the commit tool's path check and hashing | Closed by SC-60j (`O_NOFOLLOW`, `fstat`, dev/ino check); Linux cases run in CI | none |
+| Case-folded path collision with a START path | Closed by SC-60k (bash) and SC-60l (PowerShell) in the host re-check | none |
+| MB-05: a planted standing instruction the model recalls | Accepted risk (in-game manipulation, Principle 5); it can only become a memory commit that the gate checks | none |
+| H-04: `git archive` honours `export-ignore` and `export-subst` | Open, real | `launcher/lib/prepare.sh`, `prepare.ps1`; fix card not yet assigned |
+| H-10: no per-blob size cap | Open, real | `packages/verify/src`, `launcher/lib/recheck.*`; fix card not yet assigned |
+| H-16: bidi and zero-width characters pass the sanitiser | Open, real, low | `launcher/lib/common.sh`, `common.ps1`; fix card not yet assigned |
+| H-20: other credential path spellings have no deny rule | By design: `blockReadsOutsideWorkingDirectories`; live check in SC-62 | `image/settings/*.json` if the check shows a gap |
+| Helper container (uid 1000) reading a 0700 session directory on a host with another uid | Open design question (follow-up 11) | SC-60o follow-up |
+| H-09, H-14 | Not reproduced; regression guards only | `launcher/lib/bundle.*`, `finish.*` if they ever fail |
+| H-14 hook control assertion removed | The case can pass vacuously (follow-up 1) | wave-end fix pass |
+
+### Corpus to hardening items
+
+| Corpus id | Class | Hardening items |
+| --- | --- | --- |
+| MB-01 | run commands | H-06, H-09, H-10, H-11 |
+| MB-02 | fetch URLs | H-08, H-11 |
+| MB-03 | edit config | H-11, H-13 |
+| MB-04 | exfiltrate through say | H-08, H-20 |
+| MB-05 | plant standing instructions | accepted risk |
+| MB-06 | read another player's repo | H-06 |
+| MB-07 | web search or fetch | H-08, H-20 |
+| MB-08 | leak through DNS | H-08 |
+| MB-09 | read the CLI's credentials | H-20 |

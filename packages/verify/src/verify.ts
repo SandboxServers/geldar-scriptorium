@@ -8,13 +8,39 @@ import { verdict } from './reasons.ts';
 import { git } from './run-git.ts';
 
 export const MAX_BUNDLE_BYTES = 50 * 1024 * 1024;
+const NL = String.fromCharCode(10);
 export const MAX_COMMITS = 2000;
+// Per-blob cap (H-10). A memory, skill or journal file is a few KiB of text; 2 MiB is far above
+// any of them. Without it a 200 MiB blob of zeros fits a tiny bundle and then fills the human's
+// disk on the fast-forward. Reported as bundle_too_large (the card already says "far too much").
+export const MAX_BLOB_BYTES = 2 * 1024 * 1024;
 
 // Runs one git call and throws on a non-zero exit. A throw becomes verify_error.
 function must(repo: string, args: readonly string[]): string {
   const result = git(repo, args);
   if (result.status !== 0) throw new Error(`git ${args[0] ?? ''} failed`);
   return result.stdout;
+}
+
+// Step 9b: no new blob may exceed MAX_BLOB_BYTES. Sizes come from the object headers
+// (cat-file --batch-check), so nothing is inflated.
+function hasOversizeBlob(repo: string, start: string, tip: string): boolean {
+  const objects = must(repo, ['rev-list', '--objects', tip, '--not', start]);
+  const ids = objects
+    .split(NL)
+    .map((line) => line.split(' ')[0] ?? '')
+    .filter((id) => id !== '');
+  if (ids.length === 0) return false;
+  const sized = git(
+    repo,
+    ['cat-file', '--batch-check=%(objecttype) %(objectsize)'],
+    `${ids.join(NL)}${NL}`,
+  );
+  if (sized.status !== 0) throw new Error('git cat-file failed');
+  return sized.stdout.split(NL).some((line) => {
+    const [type, size] = line.split(' ');
+    return type === 'blob' && Number(size) > MAX_BLOB_BYTES;
+  });
 }
 
 // Steps 2 to 10 of the verify procedure. Returns the reasons found; [] means no problem.
@@ -70,6 +96,9 @@ function inspect(input: VerifyInput, scratch: string, maxCommits: number): Reaso
   // Step 9: merge commits are a reason, and the checks continue.
   const merges = must(repo, ['rev-list', '--min-parents=2', `${input.start}..${tip}`]);
   const reasons: Reason[] = merges.trim() === '' ? [] : ['merge_commit'];
+
+  // Step 9b: per-blob cap.
+  if (hasOversizeBlob(repo, input.start, tip)) return ['bundle_too_large'];
 
   // Step 10: history checks (SC-23b).
   const history = checkHistory({

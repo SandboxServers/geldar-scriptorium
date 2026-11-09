@@ -1,3 +1,4 @@
+// corpus: MB-04
 // End to end through real containers (SC-55b): the real launcher, the compose project with the
 // real Squid, the stub variant of the kit image, an in-test world and a real geldar-verify.
 // Only `gh` is faked. Heavy: it builds two images and starts containers, so locally it runs only
@@ -354,15 +355,20 @@ ${r.stderr}
       if (!ready) return;
       expect(z.newPlayer().status).toBe(0);
       expect(z.birth().status).toBe(0);
-      const big = randomBytes(56 * 1024 * 1024).toString('base64url');
+      // Many blobs, each under the 1 MiB per-file cap of the git tool, together above the 50 MiB bundle cap.
+      const names = Array.from({ length: 80 }, (_, i) => `memory/journal/big-${i}.md`);
       const lines = [
-        { op: 'write', path: 'memory/journal/big.md', content: big },
+        ...names.map((path) => ({
+          op: 'write',
+          path,
+          content: randomBytes(700 * 1024).toString('base64url'),
+        })),
         {
           op: 'call',
           server: 'geldar_git',
           tool: 'commit_memory',
           args: { message: 'day 001: big' },
-          expect: { includes: ['memory/journal/big.md'] },
+          expect: { includes: ['memory/journal/big-79.md'] },
         },
       ];
       const text = lines.map((x) => JSON.stringify(x)).join('\n');

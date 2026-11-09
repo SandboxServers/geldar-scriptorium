@@ -103,10 +103,15 @@ function Invoke-PrepareBody([string]$Id, [string]$Mode, [string]$d, [string]$sd)
   $gitExe = $env:GELDAR_GIT
   if (-not $gitExe) { $gitExe = 'git' }
   $hooks = Join-Path (Get-StateDir) 'empty-hooks'
-  New-Item -ItemType Directory -Path $hooks -Force | Out-Null
+  New-PrivateDir (Get-StateDir)
+  New-PrivateDir $hooks
   $env:GIT_NO_REPLACE_OBJECTS = '1'
   $env:GIT_TERMINAL_PROMPT = '0'
-  $rc = Invoke-BoundedQuiet 120 $gitExe -c "core.hooksPath=$hooks" -C $clone pull --ff-only
+  # The human's clone keeps the user's normal modes: the pull runs under umask 022.
+  $oldMask = Set-Umask 0x12
+  try {
+    $rc = Invoke-BoundedQuiet 120 $gitExe -c "core.hooksPath=$hooks" -C $clone pull --ff-only
+  } finally { [void](Set-Umask $oldMask) }
   if ($rc -ne 0) {
     $tag = "git exit status $rc"
     if ($rc -eq 124) { $tag = 'timed out' }
@@ -118,7 +123,8 @@ function Invoke-PrepareBody([string]$Id, [string]$Mode, [string]$d, [string]$sd)
   $start = ''
   if ($LASTEXITCODE -eq 0 -and $startOut.Count -eq 1) { $start = [string]$startOut[0] }
   if (-not [regex]::IsMatch($start, '^[0-9a-f]{40}\z')) { Die 1 pull_failed $Id 'no commit' }
-  New-Item -ItemType Directory -Path $sd -Force | Out-Null
+  New-PrivateDir $d
+  New-PrivateDir $sd
   $utf8 = [System.Text.UTF8Encoding]::new($false)
   [System.IO.File]::WriteAllText((Join-Path $d 'start'), "$start`n", $utf8)
   [System.IO.File]::WriteAllText((Join-Path $d 'mode'), "$Mode`n", $utf8)
@@ -139,6 +145,7 @@ function Invoke-PrepareBody([string]$Id, [string]$Mode, [string]$d, [string]$sd)
   if ([regex]::IsMatch($chk, '[\x00-\x1F\x7F:,]')) { Die 1 bad_state_path }
 
   # H-04
+  if (Test-ExportAttrs $clone $start) { Die 1 export_attributes $Id }
   $exp = Join-Path $sd 'export'
   foreach ($x in 'export', 'start.bundle', 'running', 'export.tar') {
     Remove-Item -LiteralPath (Join-Path $sd $x) -Recurse -Force -ErrorAction SilentlyContinue
@@ -164,6 +171,8 @@ function Invoke-PrepareBody([string]$Id, [string]$Mode, [string]$d, [string]$sd)
       } finally { Pop-Location }
     }
     Remove-Item -LiteralPath $tarFile -Force -ErrorAction SilentlyContinue
+    # The container reads export/ as uid 1000 through bind mounts: a+rX after the umask-077 extraction.
+    if ($gitRc -eq 0 -and $tarRc -eq 0 -and -not $IsWindows) { & chmod -R a+rX $exp *> $null }
     if ($gitRc -ne 0 -or $tarRc -ne 0) { Die 1 workspace_failed $Id 'the kit files could not be exported' }
   }
   foreach ($item in (Get-ChildItem -LiteralPath $exp -Recurse -Force)) {
@@ -183,7 +192,13 @@ function Invoke-PrepareBody([string]$Id, [string]$Mode, [string]$d, [string]$sd)
   if ($LASTEXITCODE -ne 0) { Die 1 workspace_failed $Id 'the volume could not be created' }
   $script:PREP_VOL = $true
   $name = "geldar-workspace-init-$Id-$PID"
-  $rc = Invoke-HelperRun 'workspace-init' $name $script:PL_KIT_IMAGE @('-e', "GELDAR_BRANCH=$branch", '-v', "$($sd.Replace([char]92, [char]47)):/in:ro", '-v', "${vol}:/player") $script:WS_INIT
+  $stage = New-StagedBundle (Join-Path $sd 'start.bundle') 'start.bundle'
+  if (-not $stage) { Die 1 workspace_failed $Id 'the start bundle could not be staged' }
+  try {
+    $rc = Invoke-HelperRun 'workspace-init' $name $script:PL_KIT_IMAGE @('-e', "GELDAR_BRANCH=$branch", '-v', "$($stage.Replace([char]92, [char]47)):/in:ro", '-v', "${vol}:/player") $script:WS_INIT
+  } finally {
+    Remove-StagedBundle $stage
+  }
   if ($rc -ne 0) {
     $why = 'it failed'
     if ($rc -eq 124) { $why = 'timed out' }

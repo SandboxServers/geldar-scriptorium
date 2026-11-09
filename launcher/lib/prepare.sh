@@ -89,7 +89,7 @@ prepare_session() {
 
   # H-02
   out=$(mktemp "${TMPDIR:-/tmp}/gp-pull.XXXXXX")
-  run_bounded 120 git_cmd -C "$clone" pull --ff-only > "$out" 2>&1
+  run_bounded 120 git_host -C "$clone" pull --ff-only > "$out" 2>&1
   rc=$?
   rm -f "$out"
   if [ "$rc" -ne 0 ]; then
@@ -104,7 +104,9 @@ prepare_session() {
   # H-03
   start=$(git_cmd -C "$clone" rev-parse HEAD 2> /dev/null)
   [[ $start =~ ^[0-9a-f]{40}$ ]] || die 1 pull_failed "$id" 'no commit'
-  mkdir -p "$sd"
+  private_mkdir "$(state_dir)"
+  private_mkdir "$d"
+  private_mkdir "$sd"
   printf '%s\n' "$start" > "$d/start"
   printf '%s\n' "$mode" > "$d/mode"
   PREP_OWNS=1
@@ -123,8 +125,11 @@ prepare_session() {
   esac
 
   # H-04
+  if tree_has_export_attrs "$clone" "$start"; then
+    die 1 export_attributes "$id"
+  fi
   rm -rf "$sd/export" "$sd/start.bundle" "$sd/running"
-  mkdir -p "$sd/export"
+  private_mkdir "$sd/export"
   entries=()
   while IFS= read -r -d '' entry; do
     case $entry in
@@ -148,6 +153,8 @@ prepare_session() {
   if [ -n "$(find "$sd/export" ! -type f ! -type d -print -quit)" ]; then
     die 1 export_symlink "$id"
   fi
+  # N4: the container reads the kit overlays as uid 1000, who need not be this user.
+  chmod -R a+rX "$sd/export"
   git_cmd -C "$clone" bundle create "$sd/start.bundle" "refs/heads/$PL_BRANCH" > /dev/null 2>&1 ||
     die 1 workspace_failed "$id" 'the start bundle could not be made'
 
@@ -160,10 +167,13 @@ prepare_session() {
     die 1 workspace_failed "$id" 'the volume could not be created'
   PREP_VOL=1
   name="geldar-workspace-init-$id-$$"
+  stage_bundle "$sd/start.bundle" start.bundle ||
+    die 1 workspace_failed "$id" 'the start bundle could not be staged'
   helper_run workspace-init "$name" "$PL_KIT_IMAGE" \
-    -e "GELDAR_BRANCH=$PL_BRANCH" -v "$sd:/in:ro" -v "geldar-ws-$id:/player" \
+    -e "GELDAR_BRANCH=$PL_BRANCH" -v "$STAGE_DIR:/in:ro" -v "geldar-ws-$id:/player" \
     -- "$WS_INIT" > /dev/null 2>&1
   rc=$?
+  unstage_bundle
   [ "$rc" -eq 0 ] || die 1 workspace_failed "$id" "$([ "$rc" -eq 124 ] && echo 'timed out' || echo 'it failed')"
   helper_run workspace-init "$name-check" "$PL_KIT_IMAGE" \
     -v "geldar-ws-$id:/player:ro" -- "$WS_CHECK" > /dev/null 2>&1 ||

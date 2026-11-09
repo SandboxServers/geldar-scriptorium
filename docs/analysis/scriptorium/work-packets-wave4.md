@@ -19,7 +19,7 @@ Dispatch notes:
 
 | Thing | Pin | How verified |
 |---|---|---|
-| Base image | `node:22.23.2-trixie-slim@sha256:c5849ff9c9ebcd66615412f0b548ca5b8ecaef84003dc9ac2e077ebe46aaa3f6` | `docker buildx imagetools inspect node:22.23.2-trixie-slim` (an index digest, multi-arch). Node 22.23.2 matches `.nvmrc`. Debian 13 (trixie), chosen because bookworm's git is **2.39.5**, too old |
+| Base image | `node:22.23.4-trixie-slim@sha256:be1e2a3dc2c4fd68cdfadad2a696a280e0d2749098bee509230174d72fb768c6` | `docker buildx imagetools inspect node:22.23.4-trixie-slim` (an index digest, multi-arch). Node 22.23.4 matches `.nvmrc`. Debian 13 (trixie), chosen because bookworm's git is **2.39.5**, too old |
 | git in that base | Debian `git` **2.47.3** (apt, unpinned; any trixie build is at least 2.47) | `docker run ... git --version` in the built image. The Dockerfile build fails if `git` is older than 2.40 (a `RUN` check, step 3 below) |
 | Claude Code CLI | `@anthropic-ai/claude-code@2.1.310`, published 2026-10-23T21:20:46Z (16 days old on 2026-11-08) | `npm view @anthropic-ai/claude-code time`; also `claude --version` prints `2.1.310 (Claude Code)` in the built image. npm `stable` is 2.1.311 (2026-10-26, 13 days old: too new), `latest` 2.1.319. The floor is 2.1.257. Fallback if 2.1.310 is ever yanked: 2.1.309 (2026-10-22) |
 | pnpm (build stage only) | `pnpm@12.15.0` | the repo's `packageManager`; `pnpm install --frozen-lockfile --prod --filter "./packages/{path-rule,memory,git,verify}"` works with the other packages absent from the build context |
@@ -100,14 +100,14 @@ The Dockerfile and compose files carry each pin as `image:tag@sha256:digest` wit
 
   ```
   # syntax=docker/dockerfile:1
-  FROM node:22.23.2-trixie-slim@sha256:c5849ff9c9ebcd66615412f0b548ca5b8ecaef84003dc9ac2e077ebe46aaa3f6 AS deps
+  FROM node:22.23.4-trixie-slim@sha256:be1e2a3dc2c4fd68cdfadad2a696a280e0d2749098bee509230174d72fb768c6 AS deps
   RUN npm install -g pnpm@12.15.0
   WORKDIR /opt/geldar
   COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
   COPY packages ./packages
   RUN pnpm install --frozen-lockfile --prod --filter "./packages/{path-rule,memory,git,verify}"
 
-  FROM node:22.23.2-trixie-slim@sha256:c5849ff9c9ebcd66615412f0b548ca5b8ecaef84003dc9ac2e077ebe46aaa3f6 AS kit
+  FROM node:22.23.4-trixie-slim@sha256:be1e2a3dc2c4fd68cdfadad2a696a280e0d2749098bee509230174d72fb768c6 AS kit
   ARG CLAUDE_CODE_VERSION=2.1.310
   RUN apt-get update \
    && apt-get install -y --no-install-recommends git jq bash ca-certificates \
@@ -145,7 +145,7 @@ The Dockerfile and compose files carry each pin as `image:tag@sha256:digest` wit
   4. `id -un` is `player` and `pwd` is `/player` with no `--user`.
   5. `/usr/local/bin/claude` resolves (`readlink -f`) to a path containing `claude-code`, and `ls /opt/geldar/packages` shows `git memory path-rule verify` and **not** `stub-cli`.
   6. the three companions run: `geldar-verify` with no arguments exits 2; `geldar-memory --root /player </dev/null` exits 0; `geldar-git` with no arguments exits non-zero with a usage line.
-  7. `node -v` minus the leading `v` equals the trimmed content of `.nvmrc` (`22.23.2`, no `v` in the file).
+  7. `node -v` minus the leading `v` equals the trimmed content of `.nvmrc` (`22.23.4`, no `v` in the file).
   8. `DISABLE_AUTOUPDATER` is `1` in `env`.
 - **Step 4, `ci.yml`:** in the `typescript` job add a step before `test (vitest)`: `name: docker is available (image tests need it)`, `run: docker version --format '{{.Server.Os}} {{.Server.Version}}'`. Change `timeout-minutes` to `25`. Change nothing else; do not add a push step.
 - **Revert checks:** change the base `FROM` in `kit` to the bookworm tag: case 3 fails (git 2.39) and the `RUN` version check breaks the build. Change `CLAUDE_CODE_VERSION` in the Dockerfile only: case 1 stays green (it reads the same line), so instead edit the `npm install` to a different literal version: case 1 fails. Delete `USER player`: case 4 fails. Remove `!packages/verify` from `.dockerignore`: the build fails. Restore all.

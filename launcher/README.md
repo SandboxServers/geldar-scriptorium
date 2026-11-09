@@ -31,6 +31,10 @@ Verify gate, fetch with fsck to a local ref, host re-check, push the exact verif
 
 If any finish step fails (verify rejected, fetch, re-check, bundle too large, host moved, push or fast-forward failed), the bundle is kept under the player's state directory and the run exits 3 with a reason. `play` refuses to start while a session is held; `resolve <id>` fetches first and decides from the refs (a diverged origin never moves the host branch), and `resolve <id> --discard` drops the held bundle, and `status` lists held players. A crash mid-finish is recovered by the next `play` from the stored START.
 
+## State layout
+
+Under `<state>/<id>`: `start` (the stored START), `session/` (the held bundle and helper input, 0700), `pub/` (0755, holds only `allowlist-world.txt`, which the proxy reads) and `export/` (the kit overlays from `git archive`, world readable so the session container can read them as uid 1000). Everything else is 0700 for directories and 0600 for files. Modes apply on POSIX hosts; on Windows the state is under `%LOCALAPPDATA%` with a user-private ACL. Open question: the helper container's access to `session/` on a host whose uid is not 1000.
+
 ## Test-only variables
 
 Every `GELDAR_*` variable that changes behavior for tests is read through `gp_env` (bash) or `Get-GatedEnv` (PowerShell), which return nothing unless `GELDAR_INTERNAL=1`. Ungated by design, as seams for a human's own environment: `GELDAR_DOCKER`, `GELDAR_GIT`, `GELDAR_GH`, `GELDAR_SHARE`, `GELDAR_STATE_DIR`, `GELDAR_PLAYERS_DIR`. `GELDAR_KIT_IMAGE` is accepted only as a digest-pinned reference, unless both `GELDAR_INTERNAL=1` and `GELDAR_UNSAFE_IMAGE=1`. The gated ones include `GELDAR_TOOL_PATH`, `GELDAR_SLEEP`, `GELDAR_HELPER_TIMEOUT_SEC`, `GELDAR_TEST_*` and `GELDAR_UNSAFE_IMAGE`. Grep `gp_env` for the full list; the Wave 5 security review checked that no other test variable is ungated. The `__prepare`, `__session`, `__finish` and `__bounded` verbs also need `GELDAR_INTERNAL=1`.

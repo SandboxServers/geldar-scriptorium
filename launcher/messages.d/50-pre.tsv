@@ -2,6 +2,7 @@ held	A session for %s is being held (%s). Run: geldar-play resolve %s
 already_born	%s already has an identity. setup runs once.
 bad_branch	The branch name for %s is not allowed.
 export_symlink	%s holds a link where a file belongs. Nothing was started.
+export_attributes	%s holds a file that changes how its kit is exported. Nothing was started.
 bad_state_path	A folder name on this machine cannot be used here. Move it and try again.
 dirty	Your copy of %s has changes that are not saved. Commit or discard them, then try again.
 pull_failed	Could not bring %s up to date (%s). Nothing was started.

@@ -1,6 +1,8 @@
 # Runs on every PR and on main. `main` requires one check, `ci gate`, which
-# passes only when the typescript job passed. Mirrors `./scriptorium.ps1 check`
-# and adds the template checks once tests/template/ exists.
+# passes only when every job below passed: `static` (no Docker), `tests` (a
+# matrix of file groups from tools/repo-checks/src/ci-groups.ts; each test file
+# runs in exactly one group) and `e2e`. Together they cover what
+# `./scriptorium.ps1 check` runs, plus the CI-only checks.
 name: ci
 
 on:
@@ -17,10 +19,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  typescript:
-    name: typescript
+  static:
+    name: static
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -33,8 +35,75 @@ jobs:
         run: pnpm lint
       - name: typecheck
         run: pnpm typecheck
+      - name: repo checks (line caps, LF line endings)
+        run: pnpm check:repo
+      - name: test groups cover every test file
+        run: node tools/repo-checks/src/ci-groups-cli.ts check
+      - name: spec references (ledger ids, line-broken code spans)
+        run: pnpm check:specs
+      - name: workflow policy (pins, permissions, triggers)
+        run: pnpm check:workflows
+      - name: actionlint (pinned, checksum verified)
+        run: |
+          set -euo pipefail
+          dir="$(mktemp -d)"
+          curl -fsSL -o "$dir/actionlint.tar.gz" https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $dir/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf "$dir/actionlint.tar.gz" -C "$dir" actionlint
+          "$dir/actionlint" -color .github/workflows/*.yml
+      - name: template checks
+        if: hashFiles('tests/template/check.ts') != ''
+        run: pnpm check:template
+      - name: scriptorium.ps1 runs on Linux
+        run: pwsh -NoProfile -File ./scriptorium.ps1 pnpm --version
+
+  tests:
+    name: tests (${{ matrix.group }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [hostile, launcher-heavy, launcher, image, rest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: docker is available (image tests need it)
         run: docker version --format '{{.Server.Os}} {{.Server.Version}}'
+      - name: tool versions (the launcher tests use them)
+        run: |
+          docker compose version
+          git --version
+          bash --version
+          pwsh --version
+      - name: test (vitest, one group of files)
+        env:
+          GROUP: ${{ matrix.group }}
+        run: |
+          mapfile -t files < <(node tools/repo-checks/src/ci-groups-cli.ts files "$GROUP")
+          pnpm vitest run "${files[@]}"
+
+  e2e:
+    name: e2e (${{ matrix.file }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        file: [e2e.test.ts, malicious-world.test.ts]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: tool versions (the end to end tests use them)
         run: |
           docker version
@@ -43,22 +112,17 @@ jobs:
           bash --version
           pwsh --version
           gh --version
-      - name: test (vitest)
-        run: pnpm test
-      - name: repo checks (line caps, LF line endings)
-        run: pnpm check:repo
-      - name: spec references (ledger ids, line-broken code spans)
-        run: pnpm check:specs
-      - name: template checks
-        if: hashFiles('tests/template/check.ts') != ''
-        run: pnpm check:template
-      - name: scriptorium.ps1 runs on Linux
-        run: pwsh -NoProfile -File ./scriptorium.ps1 pnpm --version
+      - name: test (vitest, end to end)
+        env:
+          GELDAR_E2E: '1'
+          E2E_FILE: ${{ matrix.file }}
+        run: |
+          pnpm vitest run "tests/e2e/$E2E_FILE"
 
   gate:
     name: ci gate
     if: always()
-    needs: [typescript]
+    needs: [static, tests, e2e]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:

@@ -119,7 +119,22 @@ function Get-ToolHint([string]$Tool) {
 function Invoke-Docker {
   $exe = $env:GELDAR_DOCKER
   if (-not $exe) { $exe = 'docker' }
-  & $exe @args
+  Invoke-ShimAware $exe @args
+}
+
+# Runs a native command; a resolved .cmd or .bat goes through Start-CmdShim so cmd.exe never
+# reads an argument as syntax. Output lines go to the pipeline, stderr to the console's stderr,
+# and LASTEXITCODE is set.
+function Invoke-ShimAware([string]$Exe) {
+  $found = Get-Command $Exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($found -and $found.Source -match '\.(cmd|bat)\z') {
+    $r = Start-CmdShim $found.Source @($args | ForEach-Object { [string]$_ })
+    if ($r.StdErr) { [Console]::Error.Write($r.StdErr) }
+    $global:LASTEXITCODE = $r.ExitCode
+    if ($r.StdOut) { $r.StdOut -split "`r?`n" | Where-Object { $_ -ne '' } }
+    return
+  }
+  & $Exe @args
 }
 
 # git through GELDAR_GIT or the plain name, with the shared-shape flags: no replace objects,
@@ -128,10 +143,11 @@ function Invoke-Git {
   $exe = $env:GELDAR_GIT
   if (-not $exe) { $exe = 'git' }
   $hooks = Join-Path (Get-StateDir) 'empty-hooks'
-  if (-not (Test-Path -LiteralPath $hooks)) { New-Item -ItemType Directory -Path $hooks -Force | Out-Null }
+  New-PrivateDir (Get-StateDir)
+  New-PrivateDir $hooks
   $env:GIT_NO_REPLACE_OBJECTS = '1'
   $env:GIT_TERMINAL_PROMPT = '0'
-  & $exe -c "core.hooksPath=$hooks" @args
+  Invoke-ShimAware $exe -c "core.hooksPath=$hooks" @args
 }
 
 function Get-GitVersionText {
@@ -170,7 +186,8 @@ function Need {
 # mkdir is the lock; the owner's PID is stored inside. A dead owner's lock is never stolen.
 function Lock-Acquire([string]$Id) {
   $dir = Get-PlayerDir $Id
-  New-Item -ItemType Directory -Path $dir -Force | Out-Null
+  New-PrivateDir (Get-StateDir)
+  New-PrivateDir $dir
   $d = Join-Path $dir 'lock'
   try {
     New-Item -ItemType Directory -Path $d -ErrorAction Stop | Out-Null
@@ -190,6 +207,117 @@ function Lock-Release {
   if (-not $script:GP_LOCK_ID) { return }
   Remove-Item -LiteralPath (Join-Path (Get-PlayerDir $script:GP_LOCK_ID) 'lock') -Recurse -Force -ErrorAction SilentlyContinue
   $script:GP_LOCK_ID = ''
+}
+
+# N6: a .cmd or .bat shim runs under cmd.exe, which does not read a command line the way the
+# Windows C runtime does. Each argument is wrapped in double quotes (inside them & | < > ^ ! ( )
+# are literal; do not add carets). A percent sign is still expanded inside quotes on a command
+# line and doubling it is no escape; measured on Windows with a recording shim, closing the quote
+# around each percent sign ("a"%"TEMP"%"b") delivers a%TEMP%b byte for byte, so that is the form.
+# A run of backslashes before a closing quote is doubled (the shim's C runtime reads \" as a quote).
+# A double quote, CR, LF or NUL cannot be carried: refused as bad_state_path.
+function ConvertTo-CmdArgument([string]$Arg) {
+  if ($Arg -match '["\r\n\x00]') { Die 1 bad_state_path }
+  $segs = @($Arg.Split('%') | ForEach-Object { [regex]::Replace($_, '(\\+)\z', '$1$1') })
+  return '"' + ($segs -join '"%"') + '"'
+}
+
+# The start info for an executable and its arguments. A .cmd or .bat goes through
+# cmd.exe /d /s /c "<shim> <args>" built on psi.Arguments (ArgumentList would re-escape the quotes).
+function New-CmdShimStartInfo([string]$Exe, [string[]]$ArgList) {
+  $psi = [System.Diagnostics.ProcessStartInfo]::new()
+  $psi.UseShellExecute = $false
+  if ($Exe -match '\.(cmd|bat)\z') {
+    $parts = @(ConvertTo-CmdArgument $Exe) + @($ArgList | ForEach-Object { ConvertTo-CmdArgument ([string]$_) })
+    $psi.FileName = 'cmd.exe'
+    $psi.Arguments = '/d /s /c "' + ($parts -join ' ') + '"'
+  } else {
+    $psi.FileName = $Exe
+    foreach ($a in $ArgList) { $psi.ArgumentList.Add([string]$a) }
+  }
+  return $psi
+}
+
+# Starts the process described by a start info (the lower function Start-CmdShim also uses).
+function New-CmdShimProcess([System.Diagnostics.ProcessStartInfo]$Psi) {
+  return [System.Diagnostics.Process]::Start($Psi)
+}
+
+# Runs the command to the end within a bounded wait; returns @{ExitCode; StdOut; StdErr}.
+# ExitCode is 124 after the limit (the process is killed) and 127 when it cannot start.
+function Start-CmdShim([string]$Exe, [string[]]$ArgList, [int]$TimeoutSec = 120) {
+  $psi = New-CmdShimStartInfo $Exe $ArgList
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  try { $p = New-CmdShimProcess $psi } catch { return @{ ExitCode = 127; StdOut = ''; StdErr = '' } }
+  $o = $p.StandardOutput.ReadToEndAsync()
+  $e = $p.StandardError.ReadToEndAsync()
+  if (-not $p.WaitForExit($TimeoutSec * 1000)) {
+    try { $p.Kill($true) } catch {}
+    $p.WaitForExit()
+    $p.Dispose()
+    return @{ ExitCode = 124; StdOut = ''; StdErr = '' }
+  }
+  [void]$o.Wait(10000)
+  [void]$e.Wait(10000)
+  $r = @{ ExitCode = $p.ExitCode; StdOut = $o.Result; StdErr = $e.Result }
+  $p.Dispose()
+  return $r
+}
+
+# N4 (Linux and macOS; on Windows the state sits under LOCALAPPDATA, a user-private ACL, and
+# nothing changes). The launcher runs under umask 077 so every file it makes is 0600 and every
+# directory 0700; Set-Umask returns the old mask.
+function Set-Umask([int]$Mask) {
+  if ($IsWindows) { return 0 }
+  if (-not ('GeldarLibc' -as [type])) {
+    Add-Type -Namespace '' -Name GeldarLibc -MemberDefinition '[System.Runtime.InteropServices.DllImport("libc", EntryPoint = "umask")] public static extern uint Umask(uint m);'
+  }
+  return [int][GeldarLibc]::Umask([uint32]$Mask)
+}
+
+# A private directory: made if missing, and an existing one (wave 5 state) tightened to 0700.
+# H-04 (S4): git archive honours in-tree .gitattributes export-ignore and export-subst, so the
+# mounted kit could differ from the commit the gate trusts. $true when the tree of <Rev> holds
+# any .gitattributes naming one of them (the caller refuses).
+function Test-ExportAttrs([string]$Clone, [string]$Rev) {
+  $raw = (@(Invoke-Git -C $Clone ls-tree -r -z $Rev 2> $null)) -join "`n"
+  foreach ($rec in $raw.Split([char]0)) {
+    $m = [regex]::Match($rec.TrimStart("`r", "`n"), '^\d{6} \w+ ([0-9a-f]{40,64})\t(.+)\z', 'Singleline')
+    if (-not $m.Success) { continue }
+    if (-not [regex]::IsMatch($m.Groups[2].Value, '(^|/)\.gitattributes\z', 'IgnoreCase')) { continue }
+    $blob = (@(Invoke-Git -C $Clone cat-file blob $m.Groups[1].Value 2> $null)) -join "`n"
+    if ([regex]::IsMatch($blob, 'export-(ignore|subst)')) { return $true }
+  }
+  return $false
+}
+
+# B1: the helper containers run as uid 1000, who need not be this user, so they cannot read the
+# 0700 session dir or the 0600 bundles. New-StagedBundle returns a fresh 0755 directory holding a
+# 0644 copy of the file as <Name>, or $null; the caller mounts it and runs Remove-StagedBundle at once.
+function New-StagedBundle([string]$Source, [string]$Name) {
+  $dir = Join-Path (Get-StateDir) ('stage.' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+  try {
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    Copy-Item -LiteralPath $Source -Destination (Join-Path $dir $Name)
+    if (-not $IsWindows) {
+      [System.IO.File]::SetUnixFileMode($dir, [System.IO.UnixFileMode]0x1ED)
+      [System.IO.File]::SetUnixFileMode((Join-Path $dir $Name), [System.IO.UnixFileMode]0x1A4)
+    }
+  } catch {
+    Remove-StagedBundle $dir
+    return $null
+  }
+  return $dir
+}
+
+function Remove-StagedBundle([string]$Dir) {
+  if ($Dir) { Remove-Item -LiteralPath $Dir -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
+function New-PrivateDir([string]$Path) {
+  New-Item -ItemType Directory -Path $Path -Force | Out-Null
+  if (-not $IsWindows) { [System.IO.File]::SetUnixFileMode($Path, [System.IO.UnixFileMode]0x1C0) }
 }
 
 # Invoke-Bounded <seconds> [--container <name>] <cmd...>: the command runs as a child process.
@@ -212,17 +340,7 @@ function Invoke-Bounded {
   $cmdArgs = @($rest | Select-Object -Skip 1)
   $found = Get-Command $exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
   if ($found) { $exe = $found.Source }
-  $psi = [System.Diagnostics.ProcessStartInfo]::new()
-  $psi.UseShellExecute = $false
-  if ($exe -match '\.(cmd|bat)\z') {
-    $psi.FileName = 'cmd.exe'
-    $psi.ArgumentList.Add('/d')
-    $psi.ArgumentList.Add('/c')
-    $psi.ArgumentList.Add($exe)
-  } else {
-    $psi.FileName = $exe
-  }
-  foreach ($a in $cmdArgs) { $psi.ArgumentList.Add([string]$a) }
+  $psi = New-CmdShimStartInfo $exe @($cmdArgs | ForEach-Object { [string]$_ })
   try {
     $job = [IntPtr]::Zero
     if ($IsWindows) { Initialize-JobType; $job = [GeldarJob]::Create() }

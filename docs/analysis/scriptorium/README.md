@@ -42,7 +42,7 @@ Spec-level decisions are records in the **geldar** repo (`docs/decisions/`). Thi
 | D-SC-07 | Exact current Claude Code syntax for settings, permissions, hooks and skills; the CLI version itself is pinned in SC-40 (at least 2.1.257) | Accepted | SC-12 | geldar [0016](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0016-claude-code-settings-errata.md), work-packets.md § Claude Code syntax |
 | D-SC-08 | Codex CLI. Owner direction (2026-11-09): parity with Claude where possible. Research: worknotes/codex-parity.md. Orchestrator ruling: build CLI-neutral now; Codex ships (SC-71) only after owner calls C1 (terms) and C3 (credential exposure) are answered, and never claims parity without a local live proof of the path denies. | **Gated (owner calls C1, C3)** | SC-71 | geldar 0010 |
 | D-SC-09 | Prerequisites on the human's machine: Docker (D-SC-03), git, GitHub CLI `gh` (for `new` and `upgrade`), PowerShell 7 on Windows, `tar` (bsdtar ships with Windows), `tmux` (bash multi-player only) | Proposed (orchestrator) | SC-50 | — |
-| D-SC-10 | A scripted **stub CLI** (`packages/stub-cli`) stands in for the vendor CLI in deterministic CI. Real models run only in the live malicious-book job. | Accepted (orchestrator) | SC-24a | — |
+| D-SC-10 | A scripted **stub CLI** (`packages/stub-cli`) stands in for the vendor CLI in deterministic CI. Real models run only in the **local** live malicious-book check (owner-run, never in CI; D-SC-01). | Accepted (orchestrator) | SC-24a | — |
 | D-SC-11 | The post-session gate is TypeScript (`geldar-verify`) running in a network-less container from the pinned image. The launcher's bash and PowerShell shims stay thin and re-check only the cheap invariants on the host. | Accepted (orchestrator) | SC-23, SC-51 | geldar 0011 |
 | D-SC-12 | Mock world auth: a static bearer token per player. The real OAuth flow and its loopback callback wait for Threshold. | Accepted (owner) | SC-31a | — |
 | D-SC-13 | Package names: `@geldar/scriptorium-<name>`; binaries `geldar-memory`, `geldar-git`, `geldar-verify` | Accepted (orchestrator) | SC-20 | — |
@@ -108,16 +108,63 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-55a | 5 | S | Stub CLI over HTTP, stub image variant, in-test world | Sonnet (general-purpose) | Done | wave 4 |
 | SC-55b | 5 | S | End-to-end CI on the in-test world: `new` → `setup` → three `play` days → push, both launchers; Sonnet | Sonnet (general-purpose) | Done | SC-52b, SC-54b, SC-55a |
 | SC-55c | 5 | S | End-to-end CI against the mock world image | packet-coder | Done | SC-55b, SC-33 |
-| SC-60 | 6 | S | Hostile workspace tests, one per hardening item | packet-coder | BlockedDependency | SC-55b |
-| SC-61 | 6 | S+G | Malicious-book corpus as mock world scenarios | packet-coder | BlockedDependency | SC-32d |
-| SC-62 | 6 | S | Live malicious-book check, local only (script plus documented procedure; never in CI) with pinned Claude Code | packet-coder | Planned | SC-61 |
-| SC-63a | 6 | S | Template publish workflow: on a `kit-v*` tag, Azure OIDC sign-in, read `geldar-bot` key from Key Vault, mint an installation token, push `template/` to `geldar-player-template` as one commit (the first slice of SC-63) | packet-coder | BlockedDependency | SC-55b |
-| SC-63 | 6 | S | Release workflow: image, cosign, SBOM, scan, launcher assets, template publish | packet-coder | BlockedDependency (SC-60; D-SC-02 and D-SC-06 are Accepted) | SC-60, SC-63a |
-| SC-64 | 6 | S | `geldar-play upgrade`: kit bump as a PR | packet-coder | BlockedDependency | SC-63 |
+| SC-60 | 6 | S | Hostile workspace tests: umbrella for SC-60a to SC-60t (cards: [work-packets-wave6.md](work-packets-wave6.md)) | - | BlockedDependency (done when SC-60r is) | SC-60a to SC-60t |
+| SC-60a | 6 | S | Hostile harness (`attack`, host snapshot, refusal asserts) and the `hostile` parity group; gate | Sonnet (general-purpose) | Done | wave 5 |
+| SC-60b1 | 6 | S | URL case table and suite for the private-name check (N3); gate for SC-60m and SC-60n | packet-coder (Haiku) | Done | wave 5 |
+| SC-60b2 | 6 | S | Collision case table, suite and message row (decision 28); gate for SC-60k and SC-60l | packet-coder (Haiku) | Done | wave 5 |
+| SC-60t | 6 | S | `session.test.ts` made independent of where the allowlist lives; gate for SC-60o and SC-60p | packet-coder (Haiku) | Done | wave 5 |
+| SC-60c | 6 | S | Hostile tests H-01 to H-05 | Sonnet (general-purpose) | Done | SC-60a |
+| SC-60d | 6 | S | Hostile tests H-06, H-07, H-08, H-19 | Sonnet (general-purpose) | Done | SC-60a |
+| SC-60e | 6 | S | Hostile tests H-09, H-10 | Sonnet (general-purpose) | Done | SC-60a |
+| SC-60f | 6 | S | Hostile tests H-11 matrix, H-16 | Sonnet (general-purpose) | Done | SC-60a |
+| SC-60g | 6 | S | Hostile tests H-12, H-13 | Sonnet (general-purpose) | Done | SC-60a |
+| SC-60h | 6 | S | Hostile tests H-14, H-15, H-17 | Sonnet (general-purpose) | Done | SC-60a |
+| SC-60i | 6 | S | Hostile tests H-18, H-20 (hooks, credential denies) | Sonnet (general-purpose) | Done | SC-60a |
+| SC-60j | 6 | S | `geldar-git`: hash each file from an O_NOFOLLOW descriptor; symlink-swap test (wave 2 gap) | Sonnet (general-purpose) | Done | wave 2 |
+| SC-60k | 6 | S | Start-tree case-collision check in the host re-check, bash | Sonnet (general-purpose) | Done | SC-60a, SC-60b2 |
+| SC-60l | 6 | S | Start-tree case-collision check in the host re-check, PowerShell | Sonnet (general-purpose) | Done | SC-60a, SC-60b2 |
+| SC-60m | 6 | S | N3: refuse local and private names (and empty labels) in `mcp_url`, bash | packet-coder (Haiku) | Done | SC-60b1 |
+| SC-60n | 6 | S | N3: same, PowerShell | packet-coder (Haiku) | Done | SC-60b1 |
+| SC-60o | 6 | S | N4: state and session directories 0700, only the allowlist world-readable (export stays readable), bash | Sonnet (general-purpose) | Done | SC-60a, SC-60t |
+| SC-60p | 6 | S | N4 (non-Windows) and N6 (`.cmd` shim quoting), PowerShell | Sonnet (general-purpose) | Done | SC-60a, SC-60t |
+| SC-60q | 6 | S | N8: every `GELDAR_` variable is classified and gated or documented | packet-coder (Haiku) | Done | SC-60a |
+| SC-60s | 6 | S | N6: the remaining `.cmd` shim sites (`recheck.ps1`, call wrappers), PowerShell | Sonnet (general-purpose) | Done | SC-60l, SC-60p |
+| SC-60r | 6 | S | Docs: hardening map, residual risks, corpus mapping, launcher README; join | packet-coder (Haiku) | Done | SC-60c to SC-60q, SC-60s, SC-61e |
+| SC-61 | 6 | S+G | Malicious-book corpus: umbrella for SC-61a to SC-61h (cards: [work-packets-wave6b.md](work-packets-wave6b.md)) | - | BlockedDependency (done when SC-61h is) | SC-61a to SC-61h |
+| SC-61a | 6 | G | Corpus loader and structural checks in the mock world; gate (canaries fixed in the card, parallel with SC-61e) | Sonnet (general-purpose) | Planned | SC-32d (done) |
+| SC-61b | 6 | G | Corpus books MB-01 to MB-05 | Sonnet (general-purpose) | BlockedDependency | SC-61a |
+| SC-61c | 6 | G | Corpus books MB-06 to MB-09 | Sonnet (general-purpose) | BlockedDependency | SC-61a |
+| SC-61d | 6 | G | Mock world test: hostile book text stays untrusted; corpus README (no Dockerfile change needed); new image digest to this repo | Sonnet (general-purpose) | BlockedDependency | SC-61b, SC-61c |
+| SC-61e | 6 | S | Corpus manifest, coverage test and gullible-session runner; gate | Sonnet (general-purpose) | Done | SC-60a |
+| SC-61f | 6 | S | Gullible sessions MB-01 to MB-05 through the real launcher and gate | Sonnet (general-purpose) | Done | SC-61e |
+| SC-61g | 6 | S | Gullible session MB-06 and the enforcing-test markers (`tests/image/*`, `e2e.test.ts`) | Sonnet (general-purpose) | Done | SC-61e |
+| SC-61h | 6 | S | Stub session (generated per-entry scenario with `expect.includes` on the canary) against each corpus scenario in the mock image (real Docker); pins the corpus image digest | Sonnet (general-purpose) | Done | SC-61d, SC-61e |
+| SC-62 | 6 | S | Live malicious-book check, local only (D-SC-01): umbrella for SC-62a to SC-62c (cards: [work-packets-wave6b.md](work-packets-wave6b.md)) | - | BlockedDependency (done when SC-62c is) | SC-62a to SC-62c |
+| SC-62a | 6 | S | Live check: the pure evidence evaluator (five checks, deny-rule converter); gate | packet-coder (Haiku) | Done | wave 5 |
+| SC-62b | 6 | S | Live check: `scriptorium.ps1 live-check` runner with the CI refusal (own extra compose for the proxy log) | Sonnet (general-purpose) | BlockedDependency | SC-62a |
+| SC-62c | 6 | S | Live check: the written procedure | packet-coder (Haiku) | BlockedDependency | SC-62b, SC-61h |
+| SC-63a | 6 | S | Template publish workflow (`workflow_call` and dry run): Azure OIDC sign-in, `geldar-bot` key from Key Vault (masked), installation token, push `template/` to `geldar-player-template` as one commit naming the release triple | Sonnet (general-purpose) | Done | SC-63b, SC-63c |
+| SC-63b | 6 | S | Template publish tool (`tools/release`): assemble, one commit, tag, dry run, no force; gate | Sonnet (general-purpose) | Done | wave 5 |
+| SC-63c | 6 | S | Workflow check: pins, permissions per job, triggers, secrets, masking, no model use, tag guard, no `${{` in `run:`; gate | Sonnet (general-purpose) | Done | wave 5 |
+| SC-63d | 6 | S | Image workflow in three jobs: build and push to GHCR, trivy and grype (fail on critical) and SBOM, cosign sign and attest; public-package check; image `LABEL` | Sonnet (general-purpose) | Done | SC-63c |
+| SC-63e | 6 | S | Launcher assets: reproducible tarball and checksums | Sonnet (general-purpose) | Done | SC-63b |
+| SC-63g | 6 | S | Image scan on pull requests, `main` and weekly (no push, no credential) | packet-coder (Haiku) | Done | SC-63c |
+| SC-63f | 6 | S | Release wiring: launcher signing, template call, GitHub release with template-tag check, rehearsal job; join | Sonnet (general-purpose) | Done | SC-63a, SC-63d, SC-63e, SC-63g, SC-63h |
+| SC-63h | 6 | S | actionlint (pinned binary) and `check:workflows` in `ci.yml` | packet-coder (Haiku) | Done | SC-63c |
+| SC-63i | 6 | S | Release guide, rehearsal procedure and first-tag checklist (`docs/release.md`) | packet-coder (Haiku) | BlockedDependency | SC-63f, SC-60r, SC-61h, SC-62c |
+| SC-63 | 6 | S | Release workflow: umbrella for SC-63a to SC-63i (cards: [work-packets-wave6c.md](work-packets-wave6c.md)); D-SC-02 and D-SC-06 Accepted | - | BlockedDependency (done when SC-63i is; the first tag is an owner event) | SC-63a to SC-63i |
+| SC-64 | 6 | S | `geldar-play upgrade`: umbrella for SC-64a to SC-64d | - | BlockedDependency (done when SC-64d is) | SC-64a to SC-64d |
+| SC-64a | 6 | S | Upgrade: messages, fake `gh pr create`, template release fixture (many tags) and shared suite; gate | packet-coder (Haiku) | Done | wave 5 |
+| SC-64b | 6 | S | Upgrade: kit bump as a pull request, bash | Sonnet (general-purpose) | Done | SC-64a |
+| SC-64c | 6 | S | Upgrade: PowerShell | Sonnet (general-purpose) | Done | SC-64a |
+| SC-64d | 6 | S | Upgrade docs (launcher README, release guide) | packet-coder (Haiku) | BlockedDependency | SC-64b, SC-64c, SC-63i |
 | SC-70 | 7 | S | Template README (the Patron guide), onboarding and troubleshooting docs | packet-coder | BlockedDependency | wave 6 |
 | SC-71 | 7 | S | Codex CLI support | packet-coder | BlockedDecision | D-SC-08 |
 | SC-72 | 7 | S | Acceptance runs on Windows and Linux; measure Haiku-low turns; owner inputs: the real MCP host (`launcher/config/world.conf` mcp_base) and the private-only shard list | owner + main session | BlockedDependency | SC-70 |
 | SC-73 | 7 | S | Campaign review | packet-reviewer | BlockedDependency | SC-72 |
+| SC-74 | 7 | S | `geldar-play new --persona-dir <dir>`: seed memory/identity.md and goals.md for a new player from owner-approved files (`<id>/memory/identity.md`, `<id>/memory/goals.md`), both launchers; the card is written with the Wave 7 cards (owner requirement relayed by geldar 2026-11-09: six Power Rangers) | packet-coder | Planned | SC-52a, SC-54a |
+| SC-75 | 7 | S | Local-world dev override (owner decision relayed 2026-11-09: MCP tested on loopback first): a human-environment-only override for ranger #1 testing; exact design in the Wave 7 card (strict: http only, host exactly `host.docker.internal`, explicit port 1024-65535, path exactly `/p/<player_id>`; never read from player.json or any repo file; Squid allows exactly that host:port for the session; loud warning on every launch; both launchers; hostile tests). Needs a spec review before coding | packet-coder | Planned | SC-52b, SC-54b, SC-60o |
+| SC-76 | 7 | S | World port: the world's MCP is served on public port 18443 (owner decision 2026-11-09), not 80/443. The launcher accepts a non-default port only when it equals `mcp_port` in launcher/config/world.conf (owner-set, blank = 443 only), and the Squid allowlist and Safe_ports allow exactly that host:port; both launchers; hostile tests (any other port, a port from player.json, a port with a different host). Card written with the Wave 7 cards, spec-reviewed first | packet-coder | Planned | SC-52b, SC-54b, SC-60n |
 
 **Cross-campaign dependency:** wave 3 needs `@geldar/contract` from geldar Phase 0 packet P0-01. Waves 0–2 and 4 don't need wave 3. Only SC-55c (not SC-55b) needs wave 3.
 

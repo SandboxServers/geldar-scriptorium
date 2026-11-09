@@ -7,7 +7,7 @@ function splitRow(line: string): string[] {
 }
 
 export function setLedgerStatus(text: string, id: string, status: string): string {
-  if (!/^SC-\d+[a-z]?$/.test(id)) throw new Error(`not a ledger id: ${id}`);
+  if (!/^SC-\d+([a-z]\d?)?$/.test(id)) throw new Error(`not a ledger id: ${id}`);
   if (status.trim() === '' || /[|\r\n]/.test(status)) {
     throw new Error('status must be one line without |');
   }

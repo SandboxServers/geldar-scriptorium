@@ -14,6 +14,10 @@ foreach ($f in (Get-ChildItem -LiteralPath (Join-Path $GP_DIR 'lib') -Filter '*.
 }
 Import-Messages
 
+# N4: on Linux and macOS everything the launcher makes is private (umask 077); on Windows the
+# state under LOCALAPPDATA carries a user-private ACL and nothing changes.
+if (-not $IsWindows) { [void](Set-Umask 0x3F) }
+
 $GP_VERSION = '0.1.0'
 
 # The tools each verb needs on the human's machine (decision 10).
@@ -23,6 +27,7 @@ function Get-VerbNeeds([string]$Verb) {
     { $_ -in 'setup', 'play', '__prepare', '__session', '__finish' } { return @('docker', 'git', 'tar', 'perl') }
     'resolve' { return @('docker', 'git', 'perl') }
     'status' { return @('git') }
+    'upgrade' { return @('git', 'gh') }
   }
   return @()
 }
@@ -65,7 +70,7 @@ switch -CaseSensitive ($verb) {
   { $_ -in '__prepare', '__session', '__finish', '__bounded' } {
     if ((Get-GatedEnv 'GELDAR_INTERNAL') -ne '1') { Die 2 internal_only }
   }
-  { $_ -in 'new', 'setup', 'play', 'resolve', 'archive', 'status' } { }
+  { $_ -in 'new', 'setup', 'play', 'resolve', 'archive', 'status', 'upgrade' } { }
   default { Die 2 usage }
 }
 

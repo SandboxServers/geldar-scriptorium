@@ -2,6 +2,20 @@
 // twin adds the same names to `pwsh`. A group listed for pwsh means the pwsh launcher passes the
 // very test file the bash one does.
 export const enabled = {
-  bash: ['core', 'pre', 'session', 'bundle', 'finish', 'new', 'setup', 'commands'],
-  pwsh: ['core', 'pre', 'session', 'bundle', 'finish', 'new', 'setup', 'commands'],
+  bash: ['core', 'pre', 'session', 'bundle', 'finish', 'new', 'setup', 'commands', 'hostile'],
+  pwsh: [
+    'core',
+    'pre',
+    'session',
+    'bundle',
+    'finish',
+    'new',
+    'setup',
+    'commands',
+    'upgrade',
+    'hostile',
+  ],
 } satisfies Record<string, string[]>;
+
+// Groups that name a test file set, not a launcher capability: `--capabilities` never prints them.
+export const testOnlyGroups: string[] = ['hostile', 'upgrade'];

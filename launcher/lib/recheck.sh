@@ -75,5 +75,38 @@ host_recheck() {
       return 1
     }
   done < <(git_cmd -C "$clone" diff --raw -z --no-renames --no-textconv --no-ext-diff "$start" "$ref" 2> /dev/null; [ $? -eq 0 ] || printf 'x\0x\0')
-  [ -z "$RC_WHY" ]
+  [ -z "$RC_WHY" ] || return 1
+  recheck_collision "$clone" "$start" "$ref"
+}
+
+# recheck_collision clone start ref: rejects a spelling in the end tree that differs only by ASCII
+# case from another and is new (decision 28). Members are the files and every directory prefix.
+recheck_collision() {
+  local clone=$1 start=$2 ref=$3 hit
+  hit=$(
+    {
+      git_cmd -C "$clone" ls-tree -r -z --name-only "$start" 2> /dev/null | tr '\0' '\n' | sed 's/^/S\t/'
+      git_cmd -C "$clone" ls-tree -r -z --name-only "$ref" 2> /dev/null | tr '\0' '\n' | sed 's/^/E\t/'
+    } | LC_ALL=C awk -F'\t' '
+      function member(t, p,   i, n, parts, acc) {
+        n = split(p, parts, "/"); acc = ""
+        for (i = 1; i <= n; i++) {
+          acc = (i == 1) ? parts[1] : acc "/" parts[i]
+          if (t == "S") inS[acc] = 1
+          else if (!(acc in seen)) { seen[acc] = 1; ord[++cnt] = acc }
+        }
+      }
+      { member($1, $2) }
+      END {
+        for (i = 1; i <= cnt; i++) {
+          l = ord[i]; f = tolower(l)
+          if (!(f in first)) { first[f] = l; if (!(l in inS)) fresh[f] = l; continue }
+          if (!(l in inS)) { print l; exit }
+          if (f in fresh) { print fresh[f]; exit }
+        }
+      }'
+  ) || true
+  [ -z "$hit" ] && return 0
+  RC_WHY="$(msg_text recheck_case_collision): $(printf '%s' "$hit" | sanitize)"
+  return 1
 }

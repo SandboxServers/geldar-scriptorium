@@ -1,0 +1,153 @@
+[
+  {
+    "name": "Identity.md as a directory over identity.md (path rule refuses first; does not discriminate the new check)",
+    "start": ["memory/identity.md"],
+    "add": ["memory/Identity.md/x.md"],
+    "collides": true,
+    "pathRuleRejects": true
+  },
+  {
+    "name": "IDENTITY.md over identity.md (path rule refuses a different spelling of identity)",
+    "start": ["memory/identity.md"],
+    "add": ["memory/IDENTITY.md"],
+    "collides": true,
+    "pathRuleRejects": true
+  },
+  {
+    "name": "new directory Journal over journal",
+    "start": ["memory/journal/day-001.md"],
+    "add": ["memory/Journal/d.md"],
+    "collides": true
+  },
+  {
+    "name": "Host-Note.md as a directory over host-note.md (proves the new check)",
+    "start": ["memory/host-note.md"],
+    "add": ["memory/Host-Note.md/x.md"],
+    "collides": true
+  },
+  {
+    "name": "skills Foo.js and foo.js both added",
+    "start": [],
+    "add": ["skills/Foo.js", "skills/foo.js"],
+    "collides": true
+  },
+  {
+    "name": "Pike.md added next to kept pike.md",
+    "start": ["memory/people/pike.md"],
+    "add": ["memory/people/Pike.md"],
+    "collides": true
+  },
+  {
+    "name": "case-only rename",
+    "start": ["memory/people/pike.md"],
+    "delete": ["memory/people/pike.md"],
+    "add": ["memory/people/Pike.md"],
+    "collides": false
+  },
+  {
+    "name": "start tree already holds both spellings, unchanged",
+    "start": ["memory/a.md", "memory/A.md"],
+    "add": [],
+    "collides": false
+  },
+  {
+    "name": "start has both spellings, a third file added",
+    "start": ["memory/a.md", "memory/A.md"],
+    "add": ["memory/b.md"],
+    "collides": false
+  },
+  {
+    "name": "day-002 next to day-001",
+    "start": ["memory/journal/day-001.md"],
+    "add": ["memory/journal/day-002.md"],
+    "collides": false
+  },
+  {
+    "name": "same literal path modified",
+    "start": ["memory/notes.md"],
+    "add": ["memory/notes.md"],
+    "collides": false
+  },
+  {
+    "name": "200-path start, one new distinct file",
+    "start": "GEN200",
+    "add": ["memory/zz-new.md"],
+    "collides": false
+  },
+  {
+    "name": "200-path start, new file folds onto one of them",
+    "start": "GEN200",
+    "add": ["memory/N007.md"],
+    "collides": true
+  },
+  {
+    "name": "skills directory Tools over Tools in start, new tools directory",
+    "start": ["skills/Tools/a.js"],
+    "add": ["skills/tools/b.js"],
+    "collides": true
+  },
+  {
+    "name": "new People directory folds onto kept people directory",
+    "start": ["memory/people/pike.md"],
+    "add": ["memory/People/x.md"],
+    "collides": true
+  },
+  {
+    "name": "start has both directory spellings, add inside one",
+    "start": ["memory/Docs/a.md", "memory/docs/b.md"],
+    "add": ["memory/docs/c.md"],
+    "collides": false
+  },
+  {
+    "name": "both spellings new in one session, different directories",
+    "start": [],
+    "add": ["memory/x/A.md", "memory/y/a.md"],
+    "collides": false
+  },
+  {
+    "name": "both spellings new in the same directory",
+    "start": [],
+    "add": ["memory/x/A.md", "memory/x/a.md"],
+    "collides": true
+  },
+  {
+    "name": "delete the lower directory spelling and add the upper",
+    "start": ["memory/journal/d.md"],
+    "delete": ["memory/journal/d.md"],
+    "add": ["memory/Journal/d.md"],
+    "collides": false
+  },
+  {
+    "name": "only a deletion, nothing collides",
+    "start": ["memory/a.md", "memory/A.md"],
+    "delete": ["memory/A.md"],
+    "add": [],
+    "collides": false
+  },
+  {
+    "name": "mixed-case file name added over existing",
+    "start": ["memory/readme.md"],
+    "add": ["memory/ReadMe.md"],
+    "collides": true
+  },
+  {
+    "name": "memory/a.MD over memory/a.md (path rule refuses the extension)",
+    "start": ["memory/a.md"],
+    "add": ["memory/a.MD"],
+    "collides": true,
+    "launcher": false
+  },
+  {
+    "name": "Memory/Journal/d.md over memory/journal/d.md (outside the allowed roots)",
+    "start": ["memory/journal/d.md"],
+    "add": ["Memory/Journal/d.md"],
+    "collides": true,
+    "launcher": false
+  },
+  {
+    "name": "unrelated names with different letters",
+    "start": ["memory/abc.md"],
+    "add": ["memory/abd.md", "memory/ABE.md"],
+    "collides": false
+  }
+]

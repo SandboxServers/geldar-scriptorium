@@ -4,7 +4,8 @@
 # $FAKE_GH_ROOT/NAME.git from $FAKE_GH_TEMPLATE and records the visibility in NAME.vis.
 # `repo clone NAME` clones it into ./NAME. FAKE_GH_CLONE_FAILS=n makes the first n clones fail;
 # FAKE_GH_SLEEP=n makes every call sleep n seconds first (SIGPIPE ignored); FAKE_GH_CREATE_FAIL=1
-# makes create fail.
+# makes create fail. `pr create` appends its arguments to prs.log and prints FAKE_GH_PR_URL (default a
+# fake URL); FAKE_GH_PR_FAIL=1 makes it fail.
 : "${FAKE_GH_ROOT:?FAKE_GH_ROOT is not set}"
 mkdir -p "$FAKE_GH_ROOT"
 tab=$(printf '\t')
@@ -23,6 +24,22 @@ if [ -n "${FAKE_GH_SLEEP:-}" ]; then
   exit 1
 fi
 
+if [ "${1:-}" = "pr" ]; then
+  [ "${2:-}" = "create" ] || exit 99
+  [ -z "${FAKE_GH_PR_FAIL:-}" ] || exit 1
+  # One PR is one prs.log line: newlines in the body are written as a backslash and n, and a
+  # --body-file's contents are appended as a last field, so assertions see the whole body.
+  rec=$line
+  prev=""
+  for a in "$@"; do
+    if [ "$prev" = "--body-file" ] && [ -f "$a" ]; then rec="$rec${tab}BODYFILE=$(cat "$a")"; fi
+    prev=$a
+  done
+  printf '%s\n' "$rec" | awk 'BEGIN { ORS = "" } NR > 1 { print "\\n" } { print } END { print "\n" }' >> "$FAKE_GH_ROOT/prs.log"
+  printf '%s
+' "${FAKE_GH_PR_URL:-https://github.test/pull/1}"
+  exit 0
+fi
 [ "${1:-}" = "repo" ] || exit 99
 sub=${2:-}
 name=${3:-}

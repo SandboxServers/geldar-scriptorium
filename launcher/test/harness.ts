@@ -283,8 +283,8 @@ export function makePlayer(
   const stateDir = join(world.state, opts.id);
   mkdirSync(stateDir, { recursive: true });
   // Forward slashes: valid for both launchers (Git bash and pwsh) on Windows.
-  writeFileSync(join(stateDir, 'clone'), `${clone.replace(/\\/g, '/')}\n`);
-  writeFileSync(join(stateDir, 'branch'), 'main\n');
+  writeFileSync(join(stateDir, 'clone'), `${clone.replace(/\\/g, '/')}\n`, { mode: 0o600 });
+  writeFileSync(join(stateDir, 'branch'), 'main\n', { mode: 0o600 });
   return { id: opts.id, clone, origin, stateDir };
 }
 

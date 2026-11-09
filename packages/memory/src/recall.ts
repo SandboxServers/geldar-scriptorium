@@ -1,4 +1,4 @@
-import { closeSync, lstatSync, openSync, readSync } from 'node:fs';
+import { closeSync, constants, lstatSync, openSync, readSync } from 'node:fs';
 import path from 'node:path';
 import { resolveSection, SECTION_FORMS } from './sections.ts';
 
@@ -23,7 +23,8 @@ const UNREADABLE: RecallResult = {
 function readCapped(file: string): Buffer | null {
   let fd: number;
   try {
-    fd = openSync(file, 'r');
+    // O_NONBLOCK: a FIFO swapped in after the lstat must not block the read forever.
+    fd = openSync(file, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0));
   } catch {
     return null;
   }
