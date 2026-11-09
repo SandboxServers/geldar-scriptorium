@@ -5,12 +5,16 @@
   "description": "geldar-verify: checks a session bundle before the launcher accepts it",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./cli": "./src/cli.ts"
   },
   "dependencies": {
     "@geldar/scriptorium-path-rule": "workspace:*"
   },
   "scripts": {
     "typecheck": "tsc -p . --noEmit"
+  },
+  "bin": {
+    "geldar-verify": "./src/cli.ts"
   }
 }

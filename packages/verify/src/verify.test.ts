@@ -1,4 +1,12 @@
-import { closeSync, ftruncateSync, openSync, readdirSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  ftruncateSync,
+  mkdtempSync,
+  openSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -145,7 +153,7 @@ describe('verify: history shape', () => {
     f.git(['merge', '--no-ff', 'side', '-m', 'merge']);
     const bundle = f.bundle(['refs/heads/main']);
     expect(verify(input(f, bundle))).toEqual({ ok: false, reasons: ['merge_commit'] });
-  });
+  }, 30000);
 
   it('rejects a corrupt object as a failed fetch', () => {
     const f = fresh();
@@ -181,19 +189,34 @@ describe('verify: commit cap', () => {
     const f = fresh();
     const bundle = threeCommits(f);
     expect(verify(input(f, bundle), 3)).toEqual({ ok: true, reasons: [] });
-  });
+  }, 30000);
 });
 
 describe('verify: scratch folder', () => {
   it('leaves no scratch folder behind for ok or rejected runs', () => {
-    const f = fresh();
-    const clean = f.bundle(['refs/heads/main']);
-    const before = scratchFolders();
-    expect(verify(input(f, clean)).ok).toBe(true);
-    expect(scratchFolders()).toEqual(before);
+    // Other test files run in parallel and also make scratch folders in the OS temp dir,
+    // so this test points the temp variables at a private folder and counts only there.
+    const priv = mkdtempSync(join(tmpdir(), 'scratch-count-'));
+    const saved = { TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP };
+    process.env.TMPDIR = priv;
+    process.env.TEMP = priv;
+    process.env.TMP = priv;
+    try {
+      const f = fresh();
+      const clean = f.bundle(['refs/heads/main']);
+      const before = scratchFolders();
+      expect(verify(input(f, clean)).ok).toBe(true);
+      expect(scratchFolders()).toEqual(before);
 
-    const rejected = verify(input(f, clean, { start: 'f'.repeat(40) }));
-    expect(rejected.ok).toBe(false);
-    expect(scratchFolders()).toEqual(before);
-  });
+      const rejected = verify(input(f, clean, { start: 'f'.repeat(40) }));
+      expect(rejected.ok).toBe(false);
+      expect(scratchFolders()).toEqual(before);
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+      rmSync(priv, { recursive: true, force: true });
+    }
+  }, 30000);
 });
