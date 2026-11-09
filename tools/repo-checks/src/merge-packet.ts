@@ -39,11 +39,12 @@ export function mergePacket(cwd: string, branch: string, hooks: Hooks): void {
   if (git(cwd, ['status', '--porcelain']) !== '') {
     throw new Error('refusing: working tree is not clean');
   }
+  if (branch.startsWith('-')) throw new Error(`refusing: branch name starts with '-': ${branch}`);
   git(cwd, ['rev-parse', '--verify', `refs/heads/${branch}`]);
   if (branch === current) throw new Error('refusing: cannot merge a branch into itself');
   const before = git(cwd, ['rev-parse', 'HEAD']);
   try {
-    git(cwd, ['merge', '--no-ff', '--no-edit', branch]);
+    git(cwd, ['merge', '--no-ff', '--no-edit', '--', branch]);
   } catch {
     const conflicted = git(cwd, ['diff', '--name-only', '--diff-filter=U'])
       .split('\n')

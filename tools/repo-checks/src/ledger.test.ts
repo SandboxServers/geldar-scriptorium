@@ -31,4 +31,9 @@ describe('setLedgerStatus', () => {
   it('rejects a status that would break the table', () => {
     expect(() => setLedgerStatus(doc, 'SC-40a', 'a | b')).toThrow();
   });
+  it('keeps columns aligned when a cell holds an escaped pipe', () => {
+    const row = '| SC-1 | 4 | S | a \\| b | packet-coder | todo | - |';
+    const out = setLedgerStatus(`${row}\n`, 'SC-1', 'done');
+    expect(out).toBe('| SC-1 | 4 | S | a \\| b | packet-coder | done | - |\n');
+  });
 });

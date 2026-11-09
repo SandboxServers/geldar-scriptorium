@@ -55,6 +55,12 @@ describe('mergePacket', () => {
     expect(() => mergePacket(dir, 'p1', hooks())).toThrow(/not a wave branch/);
   });
 
+  it('refuses a branch name that starts with a dash', () => {
+    const dir = repo();
+    g(dir, 'update-ref', 'refs/heads/-x', 'HEAD');
+    expect(() => mergePacket(dir, '-x', hooks())).toThrow(/starts with '-'/);
+  });
+
   it('reverts the merge and throws when the check fails', () => {
     const dir = repo();
     packet(dir, 'p1', 'b.txt', 'b\n');
