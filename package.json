@@ -14,7 +14,8 @@
     "test": "vitest run",
     "check:repo": "node tools/repo-checks/src/cli.ts",
     "check:template": "node tests/template/check.ts",
-    "check:specs": "node tools/repo-checks/src/specs-cli.ts"
+    "check:specs": "node tools/repo-checks/src/specs-cli.ts",
+    "check:workflows": "node tools/repo-checks/src/workflows-cli.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.3",
