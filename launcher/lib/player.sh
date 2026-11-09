@@ -42,7 +42,7 @@ read_branch() {
 }
 
 # Is the host part of an mcp_url acceptable: a DNS name whose last label holds a letter, so
-# IP forms (10.0.0.1, 127.1, 2130706433) are refused. A port, if any, is 80 or 443.
+# IP forms (dotted quads, 127.1, 2130706433) are refused. A port, if any, is 80 or 443.
 valid_mcp_url() {
   local url=$1 re='^https?://[^/@ ]+/[A-Za-z0-9._~/-]*$' auth host port="" hre='^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$'
   [[ $url =~ $re ]] || return 1

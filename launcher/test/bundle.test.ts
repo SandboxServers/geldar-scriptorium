@@ -224,6 +224,14 @@ git commit -q -m big
         expect(f.status, f.stderr).toBe(3);
         expect(f.stderr).toContain(text);
         expect(f.stderr).not.toMatch(/path_not_allowed|merge_commit|identity_|symlink_not|reason_/);
+        expect(heldInfo(r.p)).toContain('reason=verify_rejected');
+        // The attack payload was really in the bundle, so the rejection is not a no-op script.
+        const heads = git(r.p.clone, [
+          'bundle',
+          'list-heads',
+          join(r.p.stateDir, 'held', 'bundle.bundle'),
+        ]);
+        expect(heads, 'the bundle holds the attack commit').toMatch(/^[0-9a-f]{40} refs\//m);
         expect(existsSync(join(r.p.stateDir, 'held', 'bundle.bundle'))).toBe(true);
       });
 

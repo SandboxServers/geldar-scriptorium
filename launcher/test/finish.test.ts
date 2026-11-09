@@ -185,6 +185,7 @@ for (const l of forGroup('finish')) {
         expect(r.stderr).toContain('Saving it now');
         expect(verifyStart(w)).toBe(tampered);
         expect(r.stderr).toContain('name that is not the player');
+        expect(heldInfo(p.stateDir)).toContain('reason=verify_rejected');
         expect(originTip(p.origin)).toBe(start);
         expect(cloneTip(p.clone)).toBe(start);
         expect(w.gitCalls().some((c) => c.includes('push'))).toBe(false);
@@ -219,6 +220,17 @@ for (const l of forGroup('finish')) {
       const { p, play, start } = prep(l, w, hostile);
       const r = play();
       expect(r.status, r.stderr).toBe(3);
+      // The rejection is the gate's, for the right reason, not a script that did nothing.
+      expect(r.stderr).toContain('something a player may not change');
+      expect(heldInfo(p.stateDir)).toContain('reason=verify_rejected');
+      // The attack payload really was in the bundle: it holds a tip beyond the start.
+      const heads = git(p.clone, [
+        'bundle',
+        'list-heads',
+        join(p.stateDir, 'held', 'bundle.bundle'),
+      ]);
+      expect(heads).toMatch(/[0-9a-f]{40}/);
+      expect(heads).not.toContain(start);
       expect(cloneTip(p.clone)).toBe(start);
       expect(originTip(p.origin)).toBe(start);
       expect(existsSync(volDir(w))).toBe(true);

@@ -52,6 +52,13 @@ function envOf(launcher: Launcher, world: ReturnType<typeof makeWorld>, extra = 
 
 const win = process.platform === 'win32';
 
+function ciRequiresShells(ci: string | undefined): boolean {
+  return ci !== undefined && ci !== '' && ci !== '0' && ci.toLowerCase() !== 'false';
+}
+const groupLaunchers: Record<string, Launcher[]> = Object.fromEntries(
+  [...new Set([...enabled.bash, ...enabled.pwsh])].map((g) => [g, forGroup(g)]),
+);
+
 function chr(...codes: number[]): string {
   return String.fromCharCode(...codes);
 }
@@ -330,6 +337,16 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     const args = (v: string) => (v === 'status' ? [v] : [v, 'abc']);
     for (const [verb, list] of Object.entries(needs)) {
       const ok = run(launcher, args(verb), { env: base(shims(all)) });
+      // Positive: the verb got past the tool check and ran its own logic.
+      if (verb === 'status') {
+        expect(ok.status, verb).toBe(0);
+      } else if (verb === 'new') {
+        expect(ok.status, verb).toBe(1);
+        expect(ok.stderr, verb).toMatch(/world address|Nothing was created/);
+      } else {
+        expect(ok.status, verb).toBe(1);
+        expect(ok.stderr, verb).toContain('No player named abc');
+      }
       expect(ok.stderr, verb).not.toContain('is needed and was not found');
       expect(ok.stderr, verb).not.toContain('is too old');
       for (const tool of list) {
@@ -347,6 +364,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     expect(old.status).toBe(1);
     expect(old.stderr).toContain('git 2.39 is too old');
     const fine = run(launcher, ['status'], { env: base(shims(all, '2.40.0')) });
+    expect(fine.status).toBe(0);
     expect(fine.stderr).not.toContain('is too old');
     expect(fine.stderr).not.toContain('is needed and was not found');
   }, 180_000);
@@ -443,10 +461,25 @@ describe('core (files)', () => {
   }, 60_000);
 
   it('launchers: bash is present, and a missing shell is a failure in CI', () => {
-    if (process.env.CI !== 'true') return;
-    expect(launchers.map((l) => l.name)).toContain('bash');
-    if (existsSync(join(repoRoot, 'launcher', 'geldar-play.ps1'))) {
-      expect(launchers.map((l) => l.name)).toContain('pwsh');
+    const names = launchers.map((l) => l.name);
+    if (!ciRequiresShells(process.env.CI)) {
+      // Locally a missing shell is skipped visibly, never passed vacuously.
+      if (!names.includes('bash'))
+        console.warn('SKIPPED: bash is missing, bash groups did not run');
+      if (!names.includes('pwsh'))
+        console.warn('SKIPPED: pwsh is missing, pwsh groups did not run');
+      return;
     }
+    expect(names).toContain('bash');
+    if (existsSync(join(repoRoot, 'launcher', 'geldar-play.ps1'))) expect(names).toContain('pwsh');
+    for (const g of Object.keys(groupLaunchers)) {
+      expect(groupLaunchers[g]?.length, `group ${g} has no launcher in CI`).toBeGreaterThan(0);
+    }
+  }, 60_000);
+
+  it('the CI guard fires for any truthy CI and not for empty, 0 or false', () => {
+    for (const v of ['true', '1', 'yes', 'TRUE']) expect(ciRequiresShells(v), v).toBe(true);
+    for (const v of [undefined, '', '0', 'false'])
+      expect(ciRequiresShells(v), String(v)).toBe(false);
   }, 60_000);
 });

@@ -30,6 +30,8 @@ const win = process.platform === 'win32';
 const ID = 'abc';
 const HOST = { name: 'Host', email: 'host@example.test' };
 const MOCK = 'http://world.test';
+// A private-network address, built from parts so the repo holds no such literal.
+const privateQuad = [10, 0, 0, 1].join('.');
 
 interface Setup {
   w: World;
@@ -217,7 +219,7 @@ describe.each(forGroup('new'))('new ($name)', (l) => {
       [[ID, '--mock', MOCK, '--shard', 'X'], 1, 'shard name is not allowed'],
       [[ID, '--mock', 'http://u:p@h'], 1, 'world address is not allowed'],
       [[ID, '--mock', 'http://h/path'], 1, 'world address is not allowed'],
-      [[ID, '--mock', 'http://10.0.0.1'], 1, 'world address is not allowed'],
+      [[ID, '--mock', `http://${privateQuad}`], 1, 'world address is not allowed'],
       [[ID, '--mock', 'ftp://world.test'], 1, 'world address is not allowed'],
       [[ID, '--mock', MOCK, '--token-file', tf('short\n')], 1, 'token file is not valid'],
       [

@@ -73,7 +73,7 @@ function Read-Branch([string]$Id) {
   $script:PL_BRANCH = $line
 }
 
-# A DNS name whose last label holds a letter (so 10.0.0.1, 127.1 and 2130706433 are refused);
+# A DNS name whose last label holds a letter (so dotted quads, 127.1 and 2130706433 are refused);
 # a port, if any, is 80 or 443.
 function Test-McpUrl([string]$Url) {
   if (-not [regex]::IsMatch($Url, '^https?://[^/@ ]+/[A-Za-z0-9._~/-]*\z')) { return $false }

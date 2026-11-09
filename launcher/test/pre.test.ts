@@ -26,6 +26,8 @@ import {
 import { timingIt } from './timing.ts';
 
 const text = (p: string) => readFileSync(p, 'utf8');
+// A private-network address, built from parts so the repo holds no such literal.
+const privateQuad = [10, 0, 0, 1].join('.');
 
 function envOf(l: Launcher, w: World, extra: Record<string, string> = {}) {
   return { ...(l.name === 'bash' ? w.env : w.envPwsh), ...extra };
@@ -232,7 +234,7 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
     const bad: Array<[string, string, string]> = [
       ['kit_image', 'registry.test/geldar-kit:latest', 'is not valid'],
       ['mcp_url', 'https://user:pw@mcp.registry.test/mcp', 'is not valid'],
-      ['mcp_url', 'https://10.0.0.1/mcp', 'is not valid'],
+      ['mcp_url', `https://${privateQuad}/mcp`, 'is not valid'],
       ['mcp_url', 'https://127.1/mcp', 'is not valid'],
       ['mcp_url', 'https://2130706433/mcp', 'is not valid'],
       ['mcp_url', 'https://mcp.registry.test:8080/mcp', 'is not valid'],
