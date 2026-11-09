@@ -1,0 +1,20 @@
+{
+  "name": "@geldar/scriptorium-verify",
+  "version": "0.1.0",
+  "private": true,
+  "description": "geldar-verify: checks a session bundle before the launcher accepts it",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cli": "./src/cli.ts"
+  },
+  "dependencies": {
+    "@geldar/scriptorium-path-rule": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "bin": {
+    "geldar-verify": "./src/cli.ts"
+  }
+}

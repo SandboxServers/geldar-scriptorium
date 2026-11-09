@@ -2,25 +2,24 @@
 
 Read this, then [README.md](README.md) (the ledger), before acting. Rewrite at every wave boundary, in 40 lines at most.
 
-**State (2026-11-08):** wave 0 is merged to `main` (PR #1). Wave 1 (the template, SC-10 to SC-16) is done and merged into `scriptorium/wave1`; every packet passed its own review, and the wave review fix (a docs note for SC-40/42) is applied. The wave 1 PR to `main` is the next step or already open: check `gh pr list`. The kit's decisions (geldar 0007-0016) are in geldar PR #3, owned by the planning session; don't touch it or geldar `docs/decisions/`.
+**State (2026-11-08):** waves 0 and 1 are merged to `main` (PRs #1, #2). Wave 2 (companion servers and the gate, SC-20 to SC-24b) is done and in PR #4 (`scriptorium/wave2` to `main`): every packet passed its own review, the wave review fixes are applied, the docs pass and retro are in, CI is green. The kit's decisions (geldar 0007-0016) are in geldar PR #3, owned by the planning session; don't touch it or geldar `docs/decisions/`.
 
 **Next action:**
 
-1. Wave 1 PR: wait for `ci gate`, merge with `gh pr merge --merge --delete-branch` (the owner authorised merging once ready), remove the sc-10..sc-16 worktrees and branches.
-2. Wave 2 (companion servers and the gate, SC-20 to SC-24) is a scope card. Write it out in full in `work-packets.md` against what wave 1 merged, then dispatch (SC-20 first).
+1. PR #4: confirm `ci gate` is green on the latest push, take it out of draft (`gh pr ready 4`) and merge (`gh pr merge 4 --merge --delete-branch`; the owner authorised merging once ready). Then remove the sc-20..sc-24b, wave2-fix and wave2-docs worktrees and branches.
+2. Wave 3 (the mock world, repo G, SC-30 to SC-33) needs geldar P0-01 (`@geldar/contract`): check geldar `origin/main` first. Wave 4 (kit image, SC-40 to SC-42) needs only wave 2 and can start now. Write the chosen wave's scope cards out in full in `work-packets.md` first, and spec-review them before dispatch (this paid off in wave 2).
+3. Every wave closes with docs, a retro and process changes (skill § 6, dispatch rule 15). Retro so far: `worknotes/retro-waves-0-2.md`; its "Proposed next" list (merge helper, ledger helper, spec lint incl. control characters, shared git runner, fixture helper) is the first process work for wave 3 or 4.
 
-**Agents:** `.claude/agents/` exists. Dispatch with the Agent tool as `general-purpose` (coders `haiku`, reviewers `sonnet`), pasting the agent rules into each brief.
-
-**Lessons:** parallel packets that edit `tests/template/allowed-files.ts` conflict on merge; resolve by hand, then run `./scriptorium.ps1 check` before committing. Hook tests need `jq` and skip locally without it; CI runs them (`CI=true` makes missing tools fail).
+**Agents:** `.claude/agents/` exists. Dispatch with the Agent tool as `general-purpose` (coders `haiku`, reviewers `sonnet`, packet writers and docs `sonnet`), pasting the agent rules into each brief. Haiku coders often hit the context cap near 90k: tell them to write a stub report first and commit as soon as checks pass (rule 12).
 
 **Follow-ups (not blocking):**
 
-- Dedupe `tests/template/skills.test.ts` and `world-skills.test.ts` (overlapping frontmatter checks).
-- Threat model: add a control row for "other players' data" once the kit's MCP servers exist.
+- Dedupe `tests/template/skills.test.ts` and `world-skills.test.ts`.
+- Threat model: control row for "other players' data" once the MCP servers exist.
 - Dependabot header comment names directories this repo doesn't have.
-- Hook tests have never run locally (no jq); confirm they pass in CI on the wave 1 PR.
-- CLI-home deny gap is recorded under SC-40 and SC-42.
+- `geldar-git` and `geldar-verify` run-git wrappers drifted (shared module); fixtures lack `--no-replace-objects`; `verify` args accept `--mode=a --mode=b`.
+- Confirm no one commits the untracked `.agents/` and `.codex/` folders.
 
-**Open owner decisions:** D-SC-01 (CI API key), D-SC-02 (template publish credential), D-SC-05 (license; `LICENSE` is absent until then), D-SC-06 (GHCR visibility), D-SC-08 (Codex terms).
+**Open owner decisions:** D-SC-01 (CI API key), D-SC-05 (license; `LICENSE` absent), D-SC-06 (GHCR visibility; repo is public so public images are the easy answer), D-SC-08 (Codex terms). Accepted since last card: D-SC-02 (`geldar-bot` via Key Vault OIDC), D-SC-07, D-SC-14.
 
-**Worktrees:** sc-10..sc-16 (all merged, remove after the PR merges).
+**Worktrees:** sc-20..sc-24b, wave2-fix, wave2-docs (all merged, remove after PR #4 merges).

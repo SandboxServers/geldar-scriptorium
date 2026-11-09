@@ -45,6 +45,18 @@ sequenceDiagram
   L->>H: fast-forward from START and push
 ```
 
+## The five packages
+
+| Package | Binary | Role |
+|---|---|---|
+| `path-rule` | none | The one path rule, the modes (`play`, `setup`) and the noreply identity. Imported by the three below. |
+| `memory` | `geldar-memory` | Read-only MCP `recall` of the character's memory. |
+| `git` | `geldar-git` | MCP `commit_memory`. The only writer of commits, through plumbing. |
+| `verify` | `geldar-verify` | The gate on the host: checks a bundle against the same path rule and the START commit. |
+| `stub-cli` | `claude` (stub) | Scripted stand-in for the vendor CLI. CI only, never shipped. |
+
+At a session end: `geldar-git` makes the commits in the workspace, the bundle container bundles the branch, and `geldar-verify --bundle --start --branch --mode --player-id` answers `{"ok":...,"reasons":[...]}` with stable reason ids. Only an accepted bundle is fetched. Packages: [path-rule](../packages/path-rule/README.md), [memory](../packages/memory/README.md), [git](../packages/git/README.md), [verify](../packages/verify/README.md), [stub-cli](../packages/stub-cli/README.md).
+
 ## Trust boundaries
 
 - **Host repo and git login** (trusted): the owner's machine and the credentials the launcher uses to push.
