@@ -2,7 +2,7 @@
 
 Read this, then [README.md](README.md) (the ledger), before acting. Rewrite at every wave boundary, in 40 lines at most.
 
-**State (2026-11-08):** waves 0, 1 and 2 are merged to `main` (PRs #1, #2, #4). Wave 4 (the kit image, SC-40a to SC-42b) has all six packets merged on `scriptorium/wave4`; the wave review and the wave PR are pending (the orchestrator finishes them). The docs pass, [retro-wave-4.md](worknotes/retro-wave-4.md) and dispatch rules 16 and 17 are in the wave. The kit's decisions (geldar 0007-0016) are in geldar PR #3, owned by the planning session; don't touch it or geldar `docs/decisions/`.
+**State (2026-11-09):** waves 0, 1, 2 and 4 are merged to `main` (PRs #1, #2, #4, #5); CI on PR #5 ran the Linux-only image suites green. Wave 3 (mock world, geldar repo) has not started. The docs pass, [retro-wave-4.md](worknotes/retro-wave-4.md) and dispatch rules 16 and 17 are in the wave. The kit's decisions (geldar 0007-0016) are in geldar PR #3, owned by the planning session; don't touch it or geldar `docs/decisions/`.
 
 **Next action:**
 
