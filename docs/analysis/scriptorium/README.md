@@ -92,14 +92,14 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-42b | 4 | S | Pinned-CLI tests: managed path, tool denies, GELDAR_MODE (D-SC-14) | packet-coder | Done | SC-40a, SC-40b |
 | SC-50a | 5 | S | Launcher (bash): dispatcher, message table, test harness, fake docker | Sonnet (general-purpose) | Done | wave 4 |
 | SC-50b | 5 | S | Launcher (bash): pre-session (clean clone, START, export, isolated workspace; H-01 to H-05) | Sonnet (general-purpose) | Done | SC-50a |
-| SC-50c | 5 | S | Launcher (bash): session start (compose override, allowlist, CLI volume; H-06 to H-08, H-19) | Sonnet (general-purpose) | BlockedDependency | SC-50b |
+| SC-50c | 5 | S | Launcher (bash): session start (compose override, allowlist, CLI volume; H-06 to H-08, H-19) | Sonnet (general-purpose) | Done | SC-50b |
 | SC-50d | 5 | S | Steering text: durable intents, sleep and wait, no polling (template) | packet-coder | Done | wave 1 |
 | SC-51a | 5 | S | Launcher (bash): bundle, verify, host re-check (H-09 to H-11, H-13, H-16) | Sonnet (general-purpose) | BlockedDependency | SC-50c |
 | SC-51b | 5 | S | Launcher (bash): fetch, push, fast-forward, hold, crash recovery (H-12, H-14, H-15, H-17); Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-51a |
 | SC-52a | 5 | S | Launcher (bash): `new` and `setup` | Sonnet (general-purpose) | BlockedDependency | SC-51b |
 | SC-52b | 5 | S | Launcher (bash): `resolve`, `archive`, `status`, multi-player `play` | Sonnet (general-purpose) | BlockedDependency | SC-52a |
 | SC-53a | 5 | S | Launcher (PowerShell): dispatcher and common functions | packet-coder | Done | SC-50a |
-| SC-53b | 5 | S | Launcher (PowerShell): pre-session parity | packet-coder | BlockedDependency | SC-50b, SC-53a |
+| SC-53b | 5 | S | Launcher (PowerShell): pre-session parity | packet-coder | Done | SC-50b, SC-53a |
 | SC-53c | 5 | S | Launcher (PowerShell): session start parity | packet-coder | BlockedDependency | SC-50c, SC-53b |
 | SC-53d | 5 | S | Launcher (PowerShell): bundle, verify, host re-check parity | packet-coder | BlockedDependency | SC-51a, SC-53c |
 | SC-53e | 5 | S | Launcher (PowerShell): fetch, push, hold, recovery parity; Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-51b, SC-53d |
