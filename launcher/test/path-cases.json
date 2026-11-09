@@ -1,0 +1,317 @@
+[
+  {
+    "path": "memory/summary.md",
+    "mode": "play",
+    "allowed": true
+  },
+  {
+    "path": "memory/summary.md",
+    "mode": "setup",
+    "allowed": true
+  },
+  {
+    "path": "memory/goals.md",
+    "mode": "play",
+    "allowed": true
+  },
+  {
+    "path": "memory/people/pike.md",
+    "mode": "play",
+    "allowed": true
+  },
+  {
+    "path": "memory/people/.gitkeep",
+    "mode": "play",
+    "allowed": true
+  },
+  {
+    "path": "memory/journal/current.md",
+    "mode": "play",
+    "allowed": true
+  },
+  {
+    "path": "memory/journal/day-007.md",
+    "mode": "play",
+    "allowed": true
+  },
+  {
+    "path": "memory/a.b.md",
+    "mode": "play",
+    "allowed": true
+  },
+  {
+    "path": "skills/farm.js",
+    "mode": "play",
+    "allowed": true
+  },
+  {
+    "path": "skills/farm.json",
+    "mode": "setup",
+    "allowed": true
+  },
+  {
+    "path": "skills/notes/farm-v2.md",
+    "mode": "play",
+    "allowed": true
+  },
+  {
+    "path": "skills/console.js",
+    "mode": "play",
+    "allowed": true
+  },
+  {
+    "path": "skills/com10.md",
+    "mode": "play",
+    "allowed": true
+  },
+  {
+    "path": "memory/identity.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/identity.md",
+    "mode": "setup",
+    "allowed": true
+  },
+  {
+    "path": "memory/Identity.md",
+    "mode": "setup",
+    "allowed": false
+  },
+  {
+    "path": "MEMORY/identity.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "MEMORY/identity.md",
+    "mode": "setup",
+    "allowed": false
+  },
+  {
+    "path": "memory/IDENTITY.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "CLAUDE.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "AGENTS.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "player.json",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": ".mcp.json",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": ".claude/settings.json",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "Memory/a.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/.gitattributes",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "skills/.gitmodules",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/.hidden/a.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/people/.x.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/.gitkeep",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/../CLAUDE.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/./a.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory//a.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "/memory/a.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory\\a.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/a.md/",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/a.txt",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/a.sh",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/a.MD",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/a",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "skills/CON.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "skills/con.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "skills/NUL.json",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/aux.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "skills/aux.d/x.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/COM1.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "skills/LPT9.js",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/a./b.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/a b.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/a\n.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/\u00c3\u00a9.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "skills/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md",
+    "mode": "play",
+    "allowed": true
+  },
+  {
+    "path": "skills/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "skills/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/aaaaaaa.md",
+    "mode": "play",
+    "allowed": true
+  },
+  {
+    "path": "skills/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/aaaaaaaa.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/Identity.md/x.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/Identity.md/x.md",
+    "mode": "setup",
+    "allowed": false
+  },
+  {
+    "path": "memory/identity.md/x.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/identity.md/x.md",
+    "mode": "setup",
+    "allowed": false
+  },
+  {
+    "path": "MEMORY/IDENTITY.MD/a.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "MEMORY/IDENTITY.MD/a.md",
+    "mode": "setup",
+    "allowed": false
+  }
+]

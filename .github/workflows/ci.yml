@@ -20,7 +20,7 @@ jobs:
   typescript:
     name: typescript
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -35,6 +35,14 @@ jobs:
         run: pnpm typecheck
       - name: docker is available (image tests need it)
         run: docker version --format '{{.Server.Os}} {{.Server.Version}}'
+      - name: tool versions (the end to end tests use them)
+        run: |
+          docker version
+          docker compose version
+          git --version
+          bash --version
+          pwsh --version
+          gh --version
       - name: test (vitest)
         run: pnpm test
       - name: repo checks (line caps, LF line endings)

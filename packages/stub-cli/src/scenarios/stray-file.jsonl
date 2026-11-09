@@ -1,0 +1,3 @@
+{"op":"write","path":"stray.txt","content":"not an allowed path\n"}
+{"op":"write","path":"memory/journal/day-001.md","content":"# Day 1\n\nA stray file sits at the root.\n"}
+{"op":"call","server":"geldar_git","tool":"commit_memory","args":{"message":"day 001: stray"},"expect":{"includes":["memory/journal/day-001.md","not_saved","stray.txt"]}}

@@ -77,6 +77,32 @@ describe('mergePacket', () => {
     expect(g(dir, 'rev-list', '--parents', '-1', 'HEAD').split(' ')).toHaveLength(3);
   });
 
+  it('--no-check never runs the check and keeps a merge that would be red', () => {
+    const dir = repo();
+    packet(dir, 'p1', 'b.txt', 'b\n');
+    const before = g(dir, 'rev-parse', 'HEAD');
+    let checked = 0;
+    const logs: string[] = [];
+    mergePacket(
+      dir,
+      'p1',
+      hooks({ runCheck: () => (checked++, false), log: (m) => logs.push(m) }),
+      { noCheck: true },
+    );
+    expect(checked).toBe(0);
+    expect(g(dir, 'rev-parse', 'HEAD')).not.toBe(before);
+    expect(logs.join('\n')).toContain('check skipped (--no-check): run at wave end');
+  });
+
+  it('--no-check still aborts on a conflict', () => {
+    const dir = repo();
+    packet(dir, 'p1', 'a.txt', 'one\n');
+    writeFileSync(join(dir, 'a.txt'), 'two\n');
+    g(dir, 'commit', '-qam', 'wave edit');
+    expect(() => mergePacket(dir, 'p1', hooks(), { noCheck: true })).toThrow(/a\.txt/);
+    expect(g(dir, 'status', '--porcelain')).toBe('');
+  });
+
   it('refuses a non-wave branch and a dirty tree', () => {
     const dir = repo();
     packet(dir, 'p1', 'b.txt', 'b\n');

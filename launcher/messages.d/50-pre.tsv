@@ -1,0 +1,15 @@
+held	A session for %s is being held (%s). Run: geldar-play resolve %s
+already_born	%s already has an identity. setup runs once.
+bad_branch	The branch name for %s is not allowed.
+export_symlink	%s holds a link where a file belongs. Nothing was started.
+bad_state_path	A folder name on this machine cannot be used here. Move it and try again.
+dirty	Your copy of %s has changes that are not saved. Commit or discard them, then try again.
+pull_failed	Could not bring %s up to date (%s). Nothing was started.
+unfinished	The last session for %s did not finish. Run: geldar-play resolve %s
+workspace_exists	A workspace for %s was left behind. Run: geldar-play resolve %s --discard
+workspace_failed	Could not prepare the workspace for %s (%s). Nothing was started.
+bad_player_json	player.json for %s is not valid (%s).
+harness_unsupported	%s asks for a program this version cannot run. Only Claude Code works in this version.
+host_path_in_workspace	The workspace for %s was not isolated, so nothing was started.
+start_recorded	Starting from %s.
+branch_changed	%s is not on its usual branch. Switch back, then try again.

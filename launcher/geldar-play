@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+# geldar-play: the launcher. Sources lib/*.sh, then runs the verb. Bash 3.2 syntax only.
+set -u
+
+self=$0
+while [ -L "$self" ]; do
+  link=$(readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self="$(dirname "$self")/$link" ;;
+  esac
+done
+GP_DIR="$(cd "$(dirname "$self")" && pwd -P)"
+export GP_DIR
+
+for f in "$GP_DIR"/lib/*.sh; do
+  # shellcheck disable=SC1090
+  . "$f"
+done
+
+GP_VERSION="0.1.0"
+
+# The tools each verb needs on the human's machine (decision 10).
+verb_needs() {
+  case $1 in
+    new | archive) printf '%s' 'docker git perl gh' ;;
+    setup | play | __prepare | __session | __finish) printf '%s' 'docker git tar perl' ;;
+    resolve) printf '%s' 'docker git perl' ;;
+    status) printf '%s' 'git' ;;
+  esac
+}
+
+# Parses --cli out of the arguments after the verb; sets GP_CLI and GP_ARGS.
+parse_cli() {
+  GP_CLI=claude
+  GP_ARGS=()
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --cli)
+        [ $# -ge 2 ] || die 2 usage
+        GP_CLI=$2
+        shift 2
+        ;;
+      *)
+        GP_ARGS+=("$1")
+        shift
+        ;;
+    esac
+  done
+  case $GP_CLI in
+    claude) ;;
+    codex) die 1 cli_unsupported ;;
+    *) die 2 usage ;;
+  esac
+}
+
+# play: prepare, session, finish; a leftover running session is finished from its stored START.
+verb_play() {
+  local id=$1 d cid
+  d=$(player_dir "$id")
+  lock_acquire "$id"
+  guard_not_held "$id"
+  if [ -f "$d/session/running" ]; then
+    cid=$(docker_cmd ps -q --filter label=geldar.role=session       --filter "label=com.docker.compose.project=geldar-$id" 2> /dev/null)
+    [ -z "$cid" ] || die 1 locked "$id"
+    if docker_cmd volume inspect "geldar-ws-$id" > /dev/null 2>&1; then
+      say recovering
+      finish_session "$id"
+      return 0
+    fi
+    rm -rf "$d/session"
+    rm -f "$d/start" "$d/mode"
+    say stale_cleared
+  fi
+  prepare_session "$id" play
+  start_session "$id" play
+  finish_session "$id"
+}
+
+verb=${1:-}
+[ $# -eq 0 ] || shift
+
+case $verb in
+  '') die 2 usage ;;
+  help)
+    say usage
+    exit 0
+    ;;
+  --version)
+    printf 'geldar-play %s\n' "$GP_VERSION"
+    exit 0
+    ;;
+  --capabilities)
+    printf 'core\n'
+    for g in $GP_GROUPS; do
+      printf '%s\n' "$g"
+    done
+    exit 0
+    ;;
+  __prepare | __session | __finish | __bounded)
+    [ "${GELDAR_INTERNAL:-}" = "1" ] || die 2 internal_only
+    ;;
+  new | setup | play | resolve | archive | status) ;;
+  *) die 2 usage ;;
+esac
+
+if [ "$verb" = "__bounded" ]; then
+  [ $# -ge 2 ] || die 2 usage
+  run_bounded "$@"
+  exit $?
+fi
+
+GP_ARGS=()
+case $verb in
+  new | setup | play) parse_cli "$@" ;;
+  *) GP_ARGS=("$@") ;;
+esac
+
+if [ "$verb" != "status" ]; then
+  [ ${#GP_ARGS[@]} -ge 1 ] || die 2 usage
+fi
+if [ ${#GP_ARGS[@]} -ge 1 ]; then
+  valid_player_id "${GP_ARGS[0]}" || die 2 bad_player_id "${GP_ARGS[0]}"
+fi
+if [ "$verb" = "play" ] && [ ${#GP_ARGS[@]} -ge 2 ]; then
+  for id in "${GP_ARGS[@]}"; do
+    valid_player_id "$id" || die 2 bad_player_id "$id"
+  done
+  verb=play_many
+fi
+
+# shellcheck disable=SC2046
+need $(verb_needs "$verb")
+
+if type "verb_$verb" > /dev/null 2>&1; then
+  "verb_$verb" ${GP_ARGS[@]+"${GP_ARGS[@]}"}
+  exit $?
+fi
+die 2 not_yet
