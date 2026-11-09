@@ -75,7 +75,7 @@ if ($verb -ceq '__bounded') {
 }
 
 $gpArgs = $rest
-if ($verb -in 'new', 'setup', 'play') { $gpArgs = @(Read-CliOption $rest) }
+if ($verb -in 'new', 'setup', 'play') { $gpArgs = @((@(Read-CliOption $rest))[0]) }
 
 if ($verb -cne 'status' -and $gpArgs.Count -lt 1) { Die 2 usage }
 if ($gpArgs.Count -ge 1 -and -not (Test-PlayerId $gpArgs[0])) { Die 2 bad_player_id $gpArgs[0] }
