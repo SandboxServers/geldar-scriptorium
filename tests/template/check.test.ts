@@ -38,7 +38,7 @@ describe('template boundary check', () => {
 
   it('reports a stale CLAUDE.md through the template check', () => {
     const claude = path.join(copy, 'CLAUDE.md');
-    writeFileSync(claude, readFileSync(claude, 'utf8').replace('Do little.', 'Do much.'));
+    writeFileSync(claude, readFileSync(claude, 'utf8').replace('Decide once,', 'Decide twice,'));
     const problems = checkTemplate(copy, schemaPath);
     expect(problems).toContain(
       'CLAUDE.md is out of date; run `node tests/template/instructions.ts --write`',
