@@ -129,7 +129,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-60p | 6 | S | N4 (non-Windows) and N6 (`.cmd` shim quoting), PowerShell | Sonnet (general-purpose) | Done | SC-60a, SC-60t |
 | SC-60q | 6 | S | N8: every `GELDAR_` variable is classified and gated or documented | packet-coder (Haiku) | Done | SC-60a |
 | SC-60s | 6 | S | N6: the remaining `.cmd` shim sites (`recheck.ps1`, call wrappers), PowerShell | Sonnet (general-purpose) | Done | SC-60l, SC-60p |
-| SC-60r | 6 | S | Docs: hardening map, residual risks, corpus mapping, launcher README; join | packet-coder (Haiku) | BlockedDependency | SC-60c to SC-60q, SC-60s, SC-61e |
+| SC-60r | 6 | S | Docs: hardening map, residual risks, corpus mapping, launcher README; join | packet-coder (Haiku) | Done | SC-60c to SC-60q, SC-60s, SC-61e |
 | SC-61 | 6 | S+G | Malicious-book corpus: umbrella for SC-61a to SC-61h (cards: [work-packets-wave6b.md](work-packets-wave6b.md)) | - | BlockedDependency (done when SC-61h is) | SC-61a to SC-61h |
 | SC-61a | 6 | G | Corpus loader and structural checks in the mock world; gate (canaries fixed in the card, parallel with SC-61e) | Sonnet (general-purpose) | Planned | SC-32d (done) |
 | SC-61b | 6 | G | Corpus books MB-01 to MB-05 | Sonnet (general-purpose) | BlockedDependency | SC-61a |
