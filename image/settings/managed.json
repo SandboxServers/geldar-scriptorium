@@ -8,7 +8,13 @@
       "WebSearch",
       "Read(**/.credentials.json)",
       "Edit(**/.credentials.json)",
-      "Write(**/.credentials.json)"
+      "Write(**/.credentials.json)",
+      "Read(//cli-home/**)",
+      "Edit(//cli-home/**)",
+      "Write(//cli-home/**)",
+      "Read(//cli-home)",
+      "Edit(//cli-home)",
+      "Write(//cli-home)"
     ]
   }
 }
