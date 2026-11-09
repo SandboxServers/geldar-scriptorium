@@ -2,6 +2,8 @@
 # The Geldar kit image: the pinned Claude Code CLI plus the companion MCP servers
 # (geldar-memory, geldar-git, geldar-verify) and the managed settings.
 # Every pin is exact: the base by digest, the CLI by version, pnpm by version.
+# npm and npx are removed after the CLI install: nothing runs them, and npm's bundled node-tar carried CVE-2026-59873.
+# npm and npx are removed after the CLI install: nothing runs them, and npm bundled node-tar with CVE-2026-59873.
 # The git version floor is 2.40; the build fails below it.
 # Build with --target kit. The nettest stage is for tests only and is never released.
 FROM node:22.23.2-trixie-slim@sha256:c5849ff9c9ebcd66615412f0b548ca5b8ecaef84003dc9ac2e077ebe46aaa3f6 AS deps
@@ -18,6 +20,7 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && git --version | awk '{split($3,v,"."); exit !(v[1]>2 || (v[1]==2 && v[2]>=40))}' \
  && npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
  && groupmod -n player node && usermod -l player -d /home/player -m node
 COPY --from=deps /opt/geldar /opt/geldar
 RUN for b in memory git verify; do \
