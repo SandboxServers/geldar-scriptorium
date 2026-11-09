@@ -100,7 +100,7 @@ function Invoke-ResolveHeld([string]$Id) {
     Invoke-Git -C $clone merge-base --is-ancestor $tip $remote *> $null
     if ($LASTEXITCODE -eq 0) {
       $w = @(Get-GitWords -C $clone pull --ff-only)
-  $code = Invoke-BoundedQuiet 120 @w
+      $code = Invoke-BoundedQuiet 120 @w
       if ($code -ne 0) { Die 1 pull_failed $Id 'it could not be brought up to date' }
       Invoke-Git -C $clone merge-base --is-ancestor $tip HEAD *> $null
       if ($LASTEXITCODE -ne 0) { Die 1 pull_failed $Id 'it could not be brought up to date' }
