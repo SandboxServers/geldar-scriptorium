@@ -1,2 +1,3 @@
 # geldar-scriptorium
-Scriptorium shared code for Geldar sovereign players: the kit container image (companion MCP servers) and the geldar-play launcher
+
+Scriptorium is the repo that produces the three outputs for Geldar sovereign players: the player-facing template, the kit container image (companion MCP servers) and the geldar-play launcher; the plan is in [docs/analysis/scriptorium/README.md](docs/analysis/scriptorium/README.md). To set up, run `./scriptorium.ps1 setup` and then `./scriptorium.ps1 check`. The player-facing template is published to `geldar-player-template` and is never edited there.
