@@ -99,6 +99,10 @@ const rows: [string, Mode, boolean][] = [
   // length caps (a component is the whole name with its extension)
   [`skills/${'a'.repeat(61)}.md`, 'play', true],
   [`skills/${'a'.repeat(62)}.md`, 'play', false],
+  ['memory/Identity.md/x.md', 'play', false],
+  ['memory/Identity.md/x.md', 'setup', false],
+  ['memory/identity.md/x.md', 'setup', false],
+  ['MEMORY/IDENTITY.MD/a.md', 'play', false],
   [longPath(200), 'play', true],
   [longPath(201), 'play', false],
 ];

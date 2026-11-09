@@ -260,7 +260,7 @@
     "allowed": false
   },
   {
-    "path": "memory/é.md",
+    "path": "memory/\u00c3\u00a9.md",
     "mode": "play",
     "allowed": false
   },
@@ -282,6 +282,36 @@
   {
     "path": "skills/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/aaaaaaaa.md",
     "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/Identity.md/x.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/Identity.md/x.md",
+    "mode": "setup",
+    "allowed": false
+  },
+  {
+    "path": "memory/identity.md/x.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "memory/identity.md/x.md",
+    "mode": "setup",
+    "allowed": false
+  },
+  {
+    "path": "MEMORY/IDENTITY.MD/a.md",
+    "mode": "play",
+    "allowed": false
+  },
+  {
+    "path": "MEMORY/IDENTITY.MD/a.md",
+    "mode": "setup",
     "allowed": false
   }
 ]

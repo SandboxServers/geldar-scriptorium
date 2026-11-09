@@ -17,7 +17,7 @@ share_dir() {
 # A value for a double-quoted YAML scalar: no quote, backslash or control character; $ doubled.
 yaml_q() {
   case $1 in
-    *\"* | *\* | *[[:cntrl:]]*) return 1 ;;
+    *\"* | *\\* | *[[:cntrl:]]*) return 1 ;;
   esac
   printf '"%s"' "${1//\$/\$\$}"
 }

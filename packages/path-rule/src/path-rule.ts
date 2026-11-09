@@ -26,6 +26,8 @@ export function identityLocked(mode: Mode): boolean {
 export function isAllowedPath(path: string, mode: Mode): boolean {
   if (typeof path !== 'string' || !isMode(mode)) return false;
   if (isIdentityPath(path)) return path === IDENTITY_PATH && !identityLocked(mode);
+  // A case-folded directory named like the identity file would replace it on a case-insensitive host.
+  if (path.toLowerCase().startsWith(`${IDENTITY_PATH}/`)) return false;
   if (FIXED_ALLOWED.has(path)) return true;
   if (!SHAPE.test(path)) return false;
 

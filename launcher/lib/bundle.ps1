@@ -114,12 +114,12 @@ function New-Bundle([string]$Id) {
     # closed, then kill it by name until docker run has ended. Only then the process tree.
     try { $stdout.Dispose() } catch {}
     $tries = 0
-    while (-not $h.P.HasExited -and $tries -lt 50) {
+    while (-not $h.P.HasExited -and $tries -lt 300) {
       Invoke-Docker kill $name *> $null
       [void]$h.P.WaitForExit(200)
       $tries++
     }
-    Stop-DockerProcess $h $name $false
+    Stop-DockerProcess $h $name $true
   } elseif ($timedOut) {
     Stop-DockerProcess $h $name $true
   } else {
