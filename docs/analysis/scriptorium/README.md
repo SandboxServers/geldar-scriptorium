@@ -77,7 +77,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-30a | 3 | G | Contract: generator support, shared MCP types, schemas for look, wait, act, say; bundled tool definitions | packet-coder (Sonnet) | Done (geldar PR #5, 1865821) | geldar main |
 | SC-30b | 3 | G | Contract: schemas for the other ten tools | packet-coder | Done (geldar PR #7, 587b5db) | SC-30a |
 | SC-31a | 3 | G | `threshold/mcp-mock` package: bearer auth, HTTP sessions, supersede | packet-coder (Sonnet) | Done (geldar PR #6, d5a52c1) | — |
-| SC-31b | 3 | G | `mcp-mock`: contract-validated tool registry, ids, snapshot builder, fake world | packet-coder (Sonnet) | BlockedDependency | SC-30b, SC-31a |
+| SC-31b | 3 | G | `mcp-mock`: contract-validated tool registry, ids, snapshot builder, fake world | packet-coder (Sonnet) | Done (geldar PR #8, c764f8c) | SC-30b, SC-31a |
 | SC-31c | 3 | G | `mcp-mock`: resources, prompts, app, command line | packet-coder | BlockedDependency | SC-31b |
 | SC-32a | 3 | G | Mock world: clock, scenario file, pure wake policy | packet-coder (Sonnet) | BlockedDependency | SC-31a |
 | SC-32b | 3 | G | Mock world: event log, scripted intent executor, eat reflex, player sim | packet-coder (Sonnet) | BlockedDependency | SC-32a, SC-31b |
@@ -90,7 +90,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-41b | 4 | S | Session compose (internal network, no external DNS) and egress allow/deny tests | packet-coder | Done | SC-40b, SC-41a |
 | SC-42a | 4 | S | Image contract tests: marker, hooks guard, read-only kit paths, uid and git | packet-coder | Done | SC-40b |
 | SC-42b | 4 | S | Pinned-CLI tests: managed path, tool denies, GELDAR_MODE (D-SC-14) | packet-coder | Done | SC-40a, SC-40b |
-| SC-50a | 5 | S | Launcher (bash): dispatcher, message table, test harness, fake docker | Sonnet (general-purpose) | Ready | wave 4 |
+| SC-50a | 5 | S | Launcher (bash): dispatcher, message table, test harness, fake docker | Sonnet (general-purpose) | Done | wave 4 |
 | SC-50b | 5 | S | Launcher (bash): pre-session (clean clone, START, export, isolated workspace; H-01 to H-05) | Sonnet (general-purpose) | BlockedDependency | SC-50a |
 | SC-50c | 5 | S | Launcher (bash): session start (compose override, allowlist, CLI volume; H-06 to H-08, H-19) | Sonnet (general-purpose) | BlockedDependency | SC-50b |
 | SC-50d | 5 | S | Steering text: durable intents, sleep and wait, no polling (template) | packet-coder | Done | wave 1 |
