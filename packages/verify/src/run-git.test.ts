@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { git, gitEnv } from './run-git.ts';
+import { FIXED, git, gitEnv } from './run-git.ts';
 
 const KEYS = ['HOME', 'USERPROFILE', 'XDG_CONFIG_HOME'] as const;
 const saved: Record<string, string | undefined> = {};
@@ -77,5 +77,40 @@ describe('git', () => {
 
   it('sets GIT_NO_REPLACE_OBJECTS in the environment', () => {
     expect(gitEnv().GIT_NO_REPLACE_OBJECTS).toBe('1');
+  });
+
+  it('keeps --no-replace-objects as the first global option', () => {
+    expect(FIXED[0]).toBe('--no-replace-objects');
+  });
+
+  it('ignores replace objects through the flag alone, with the env var removed', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'verify-replace-flag-'));
+    const env: NodeJS.ProcessEnv = {
+      ...gitEnv(),
+      GIT_AUTHOR_NAME: 't',
+      GIT_AUTHOR_EMAIL: 't@example.test',
+      GIT_COMMITTER_NAME: 't',
+      GIT_COMMITTER_EMAIL: 't@example.test',
+    };
+    delete env.GIT_NO_REPLACE_OBJECTS;
+    const plainGit = (args: string[]) =>
+      spawnSync('git', args, { cwd: dir, env, encoding: 'utf8' });
+    try {
+      plainGit(['init', '-q']);
+      plainGit(['commit', '-q', '--allow-empty', '-m', 'a']);
+      const a = plainGit(['rev-parse', 'HEAD']).stdout.trim();
+      plainGit(['commit', '-q', '--allow-empty', '-m', 'b']);
+      const b = plainGit(['rev-parse', 'HEAD']).stdout.trim();
+      plainGit(['replace', a, b]);
+      // Same global options as the wrapper, minus the env var: only the flag can stop the replace.
+      const out = spawnSync('git', [...FIXED, 'log', '-1', '--format=%s', a], {
+        cwd: dir,
+        env,
+        encoding: 'utf8',
+      });
+      expect(out.stdout.trim()).toBe('a');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

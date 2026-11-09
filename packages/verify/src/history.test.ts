@@ -211,6 +211,10 @@ describe('parseLog', () => {
   });
 });
 
+// `bad_mode` and `verify_error` are produced only by these unit and injected-runner tests,
+// never by a generated bundle. Reason: git fsck refuses odd modes such as 100664 on fetch,
+// so no bundle can carry one into verify; and `verify_error` is fail-closed on git errors
+// (a failed or timed-out git call), which a healthy repo does not produce.
 describe('reasonsFor', () => {
   const entry = (path: string, newMode: string, oldMode = '000000') => ({
     oldMode,

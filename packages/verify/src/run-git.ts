@@ -43,7 +43,7 @@ export function gitEnv(): NodeJS.ProcessEnv {
   };
 }
 
-const FIXED = [
+export const FIXED = [
   '--no-replace-objects',
   '-c',
   `core.hooksPath=${NULL_DEVICE}`,
