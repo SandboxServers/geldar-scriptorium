@@ -1,0 +1,22 @@
+{
+  "name": "@geldar/scriptorium-memory",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The geldar-memory recall server: reads the character's own memory files over MCP",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cli": "./src/cli.ts"
+  },
+  "bin": {
+    "geldar-memory": "./src/cli.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "dependencies": {
+    "@geldar/scriptorium-path-rule": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "4.6.7"
+  }
+}
