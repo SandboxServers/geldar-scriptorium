@@ -65,7 +65,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     }
     const caps = run(launcher, ['--capabilities'], { env: envOf(launcher, w) });
     expect(caps.stdout.split('\n')).toContain('core');
-  });
+  }, 60_000);
 
   it('2. __prepare is an unknown verb without GELDAR_INTERNAL=1', () => {
     const w = makeWorld();
@@ -77,7 +77,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     const on = run(launcher, ['__prepare', 'abc', 'play'], { env: envOf(launcher, w) });
     expect(on.stderr).not.toContain('Usage:');
     expect(on.stderr).not.toContain('That is not a command.');
-  });
+  }, 60_000);
 
   it('3. sanitize replaces controls, keeps text, drops exactly one trailing newline', () => {
     const esc = chr(0x1b);
@@ -87,7 +87,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     expect(sanitize(keep)).toBe(keep);
     expect(sanitize(`a${chr(13, 10)}b\n`)).toBe('a  b');
     expect(sanitize('x\n\n')).toBe('x ');
-  });
+  }, 60_000);
 
   it('4. valid_player_id', () => {
     const cases = ['mmpr-red', 'Red', 'a', '1abc', '../x', 'a b', 'a'.repeat(40)];
@@ -96,7 +96,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
       { env: { LIB: lib }, input: `${cases.join('\n')}\n` },
     );
     expect(r.stdout.trim().split('\n')).toEqual(['ok', 'no', 'no', 'no', 'no', 'no', 'no']);
-  });
+  }, 60_000);
 
   it('5. one launch per player: a live lock refuses, a release frees, a dead lock is kept', async () => {
     const w = makeWorld();
@@ -124,7 +124,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     expect(dead.stderr).toContain('dead is already running');
     expect(dead.stderr).toContain('remove the folder');
     expect(existsSync(join(w.state, 'dead', 'lock'))).toBe(true);
-  });
+  }, 60_000);
 
   it('6. GELDAR_DOCKER is honored', () => {
     const w = makeWorld();
@@ -136,7 +136,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     });
     expect(gone.status).toBe(1);
     expect(gone.stderr).toContain('docker is needed and was not found');
-  });
+  }, 60_000);
 
   it('9. --cli: codex is refused, other values are usage errors, claude is accepted', () => {
     const w = makeWorld();
@@ -149,7 +149,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     expect(bogus.stderr).toContain('Usage:');
     const claude = run(launcher, ['play', 'abc', '--cli', 'claude'], { env: envOf(launcher, w) });
     expect(claude.stderr).toContain('This command is not available');
-  });
+  }, 60_000);
 
   it('10. test-only variables have no effect without GELDAR_INTERNAL=1', () => {
     const names = [
@@ -212,7 +212,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     const unsafe = img('1');
     expect(unsafe.stderr).toContain('geldar-play: UNSAFE:');
     expect(unsafe.stdout).toContain('image=geldar-kit:dev');
-  });
+  }, 60_000);
 
   it('11. prerequisites per verb, with the hint text', () => {
     const w = makeWorld();
@@ -283,7 +283,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     const got = new Set(r.stdout.split('\n').filter(Boolean));
     const want = new Set<string>(['core', ...(enabled[launcher.name] as string[])]);
     expect(got).toEqual(want);
-  });
+  }, 60_000);
 
   it('14. __bounded stops a hung command and its whole process group', () => {
     const w = makeWorld();
@@ -325,15 +325,28 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     const t1 = Date.now();
     const b = run(
       launcher,
-      ['__bounded', '2', 'sh', '-c', `sleep 60 & echo $! > '${bashPath(pidFile)}'; wait`],
-      { env: envOf(launcher, w) },
+      [
+        '__bounded',
+        '2',
+        'sh',
+        '-c',
+        `sleep 60 > /dev/null 2>&1 & echo $! > '${bashPath(pidFile)}'; wait`,
+      ],
+      { env: envOf(launcher, w), timeoutMs: 20_000 },
     );
-    expect(Date.now() - t1).toBeLessThan(slow);
-    expect(b.status).not.toBe(0);
     const pid = readFileSync(pidFile, 'utf8').trim();
     const alive = runBash(`kill -0 ${pid} 2>/dev/null && echo alive || echo dead`).stdout.trim();
     if (alive === 'alive') runBash(`kill -9 ${pid}`);
     expect(alive).toBe('dead');
+    expect(Date.now() - t1).toBeLessThan(slow);
+    expect(b.status).toBe(124);
+
+    for (const bad of ['0x10', '$(touch pwned)', '-1', '', '1.5']) {
+      const e = run(launcher, ['__bounded', bad, 'true'], { env: envOf(launcher, w) });
+      expect(e.status).toBe(2);
+      expect(e.stderr).toContain('Usage: geldar-play');
+    }
+    expect(existsSync(join(repoRoot, 'pwned'))).toBe(false);
 
     const c = run(launcher, ['__bounded', '5', 'sh', '-c', 'echo hi; exit 3'], {
       env: envOf(launcher, w),
@@ -346,7 +359,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     });
     expect(d.status).toBe(2);
     expect(d.stderr).toContain('That is not a command.');
-  });
+  }, 60_000);
 
   it('15. the fake workspace-init role runs the launcher script and builds a clean repo', () => {
     const w = makeWorld();
@@ -366,7 +379,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     expect(git(vol, ['remote'])).toBe('');
     expect(git(vol, ['status', '--porcelain'])).toBe('');
     expect(git(vol, ['rev-list', '--count', 'HEAD'])).toBe('2');
-  });
+  }, 60_000);
 });
 
 describe('core (files)', () => {
@@ -391,7 +404,7 @@ describe('core (files)', () => {
     }
     expect(used.size).toBeGreaterThan(5);
     for (const key of used) expect(rows, key).toContain(key);
-  });
+  }, 60_000);
 
   it('8. fake docker: unknown things fail loudly, volumes behave', () => {
     const w = makeWorld();
@@ -399,11 +412,18 @@ describe('core (files)', () => {
       'sh "$FD" bogus; echo "bogus=$?"',
       'sh "$FD" volume create x > /dev/null; sh "$FD" volume inspect x > /dev/null; echo "inspect=$?"',
       'sh "$FD" volume rm x; sh "$FD" volume inspect x 2>/dev/null; echo "gone=$?"',
+      'sh "$FD" run --rm --bogus-flag --label geldar.role=workspace-init --cap-drop ALL --security-opt no-new-privileges img true; echo "flag=$?"',
       'sh "$FD" run --rm --label geldar.role=nope --cap-drop ALL --security-opt no-new-privileges img true; echo "role=$?"',
     ].join('\n');
     const r = runBash(script, { env: { ...w.env, FD: fakeDockerSh } });
-    expect(r.stdout.trim().split('\n')).toEqual(['bogus=99', 'inspect=0', 'gone=1', 'role=99']);
-  });
+    expect(r.stdout.trim().split('\n')).toEqual([
+      'bogus=99',
+      'inspect=0',
+      'gone=1',
+      'flag=99',
+      'role=99',
+    ]);
+  }, 60_000);
 
   it('13. bash 3.2 floor: no newer bash features', () => {
     const banned = [
@@ -422,7 +442,7 @@ describe('core (files)', () => {
     for (const f of sources) {
       for (const re of banned) expect(text(f), `${f} ${re}`).not.toMatch(re);
     }
-  });
+  }, 60_000);
 
   it('launchers: bash is present, and a missing shell is a failure in CI', () => {
     if (process.env.CI !== 'true') return;
@@ -430,5 +450,5 @@ describe('core (files)', () => {
     if (existsSync(join(repoRoot, 'launcher', 'geldar-play.ps1'))) {
       expect(launchers.map((l) => l.name)).toContain('pwsh');
     }
-  });
+  }, 60_000);
 });

@@ -215,6 +215,9 @@ run_bounded() {
     '' | *[!0-9]*) ;;
     *) secs=$override ;;
   esac
+  case $secs in
+    '' | 0 | 0* | *[!0-9]*) die 2 usage ;;
+  esac
   limit=$((secs * 10))
   set -m
   "$@" &
