@@ -153,7 +153,7 @@ threshold/mcp-mock/
   - re-exports of `mcpToolSchemas`, `MCP_TOOL_NAMES` and `McpToolName` from the generated file;
   - `validateToolInput(tool: string, value: unknown): ValidationResult<unknown>` and `validateToolResult(...)`: look up `validate<Pascal>Input` / `Result` on `import * as validators from './generated/validators.js'` (cast the namespace to `Record<string, ValidateFunction | undefined>`); unknown tool gives `{ ok: false, errors: ['unknown tool <name>'] }`; errors formatted with `formatError`;
   - the types `ActInput`, `ActResult`, `WaitInput`, `WaitResult`, `LookResult`, `SayInput`, `SayResult` re-exported from the generated types (SC-30b adds the others).
-  `index.ts` gains one line: `export * from './mcp.ts';` under a `// --- SC-30b mcp ---` marker.
+  `index.ts` gains one line: `export * from './mcp.ts';` under a `// --- SC-30a mcp ---` marker.
 - **Step 6, regenerate** (`./geldar.ps1 pnpm --filter @geldar/contract generate`) and commit the output. The generated `ActInput` type is only the union of the three branches and does not mention `Intent` or `Action`; check the bundle instead (`mcpToolSchemas.act.input.$defs` has `Intent`, `Action` and `Position`, bundle test 4). SC-32d casts `input` to a local `{ reasoning?: string; say?: string | null; intent?: Intent; actions?: Action[] }`.
 - **Step 7, tests.** Shared valid examples live inline at the top of each test file.
   - `mcp-play.test.ts` (calls `validateToolInput` / `validateToolResult`):
