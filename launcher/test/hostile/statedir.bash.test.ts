@@ -31,6 +31,7 @@ describe.skipIf(!bash || !posix)('N4 state permissions (bash; skipped on win32)'
       expect(a.prepare.status, a.prepare.stderr).toBe(0);
       expect(assertStatePerms(a.world.state, 'abc')).toBe('ok');
       expect(modeOf(a.world.state) & 0o077).toBe(0);
+      expect(modeOf(join(a.world.state, 'abc')) & 0o077).toBe(0);
       expect(modeOf(join(a.world.state, 'abc', 'session'))).toBe(0o700);
     });
   }
