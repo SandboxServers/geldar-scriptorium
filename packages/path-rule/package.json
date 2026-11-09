@@ -1,0 +1,13 @@
+{
+  "name": "@geldar/scriptorium-path-rule",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared path rule, modes and noreply git identity for the Scriptorium servers",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p . --noEmit"
+  }
+}
