@@ -494,6 +494,7 @@ MCP SDK: `@modelcontextprotocol/sdk`, version pinned at slicing. Each server is 
 - **SC-40 `image/Dockerfile`.**
   - Base: a pinned Node 22 slim image by digest, plus git, jq and bash.
   - The pinned Claude Code CLI (D-SC-07), and the companion packages from `packages/`.
+  - **Carried from wave 1:** `image/settings/managed.json` currently denies only `**/.credentials.json`. Add concrete `Read`, `Edit` and `Write` denies for the CLI home (`CLAUDE_CONFIG_DIR`) to match § Settings layers and hardening item H-20.
   - A non-root `player` user. Marker file `/etc/geldar-kit`. Settings at `/etc/geldar/settings/`, with managed settings at the CLI's managed path. Workdir `/player`.
   - Built in CI on every PR; no push until SC-63.
 - **SC-41 egress.**
@@ -504,7 +505,7 @@ MCP SDK: `@modelcontextprotocol/sdk`, version pinned at slicing. Each server is 
   - hooks act only with the marker;
   - kit paths are read-only;
   - `/permissions` shows the managed denies;
-  - reading the CLI home is denied;
+  - reading the CLI home is denied (the whole `CLAUDE_CONFIG_DIR`, not only `.credentials.json`; see SC-40);
   - `Write` is governed like `Edit`;
   - the managed settings path is correct for the pinned CLI.
   Any mismatch with § Claude Code syntax goes to the orchestrator as a new record.
