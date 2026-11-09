@@ -1,0 +1,42 @@
+# Session network: the kit container sits on an internal network and reaches
+# the outside only through the Squid allowlist proxy (D-SC-04). Names only,
+# no IP addresses. Files mounted into the proxy must be 0644, directories 0755.
+services:
+  proxy:
+    image: ubuntu/squid@sha256:6a097f68bae708cedbabd6188d68c7e2e7a38cedd05a176e1cc0ba29e3bbe029
+    volumes:
+      - ../proxy/squid.conf:/etc/squid/squid.conf:ro
+      - ../proxy/allowlist-vendor.txt:/etc/squid/allowlist-vendor.txt:ro
+      - ${GELDAR_WORLD_ALLOWLIST:?}:/etc/squid/allowlist-world.txt:ro
+    networks: [inside, outside]
+    # Squid aborts with "setgid: Operation not permitted" without these two.
+    cap_drop: [ALL]
+    cap_add: [SETUID, SETGID]
+
+  session:
+    image: ${KIT_IMAGE:?}
+    user: "${GELDAR_UID:?}:${GELDAR_GID:?}"
+    working_dir: /player
+    volumes:
+      - ${GELDAR_WORKSPACE:?}:/player
+      - ${GELDAR_CLI_HOME:?}:/cli-home
+    environment:
+      HOME: /tmp
+      # Lowercase matters: curl ignores uppercase HTTP_PROXY.
+      HTTP_PROXY: http://proxy:3128
+      HTTPS_PROXY: http://proxy:3128
+      http_proxy: http://proxy:3128
+      https_proxy: http://proxy:3128
+      NO_PROXY: ""
+      GELDAR_MODE: ${GELDAR_MODE:-play}
+    networks: [inside]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on: [proxy]
+    tty: true
+    stdin_open: true
+
+networks:
+  inside:
+    internal: true
+  outside: {}

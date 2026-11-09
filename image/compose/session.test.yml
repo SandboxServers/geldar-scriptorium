@@ -1,0 +1,14 @@
+# Test overlay: a fake world host on the outside network and a session with
+# network tools. Never shipped.
+services:
+  world:
+    image: ${KIT_IMAGE}
+    user: root
+    command: ["node", "-e", "require('http').createServer((q,r)=>r.end('world ok')).listen(80)"]
+    networks:
+      outside:
+        aliases: [world.test]
+
+  session:
+    image: ${NETTEST_IMAGE:?}
+    command: ["sleep", "600"]
