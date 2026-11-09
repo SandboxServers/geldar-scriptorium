@@ -28,7 +28,7 @@ if [ -n "$FAKE_WRAP_KILL_ON" ] && [ ! -f "$d/wrap.done" ]; then
       t=$PPID
       p=$PPID
       while [ -r "/proc/$p/stat" ]; do
-        tr '\0' ' ' < "/proc/$p/cmdline" | grep -q geldar-play || break
+        tr '\\0' ' ' < "/proc/$p/cmdline" | grep -q geldar-play || break
         t=$p
         p=$(sed 's/^.*) [A-Za-z] //;s/ .*//' "/proc/$p/stat")
         [ "$p" -gt 1 ] 2> /dev/null || break
