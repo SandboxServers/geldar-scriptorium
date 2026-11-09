@@ -54,7 +54,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | Packet | Wave | Repo | Title | Implementer | Status | Depends on |
 |---|---|---|---|---|---|---|
 | SC-01 | 0 | S | Workspace, toolchain, repo checks, `scriptorium.ps1` | packet-coder | Done (merged into wave0) | — |
-| SC-02 | 0 | S | CI with `ci gate`, Dependabot, PR template, SECURITY.md | packet-coder | Ready (LICENSE waits on D-SC-05) | SC-01 |
+| SC-02 | 0 | S | CI with `ci gate`, Dependabot, PR template, SECURITY.md | packet-coder | Done (merged into wave0; LICENSE waits on D-SC-05) | SC-01 |
 | SC-03 | 0 | S | Developer agent setup: CLAUDE.md, AGENTS.md, agents, skills, memory | packet-coder | Writing | SC-01 |
 | SC-04 | 0 | S | Docs: architecture, clients matrix, releases, decisions index | packet-coder | Writing | SC-01 |
 | SC-05 | 0 | S | Kit threat model and launcher hardening checklist | Sonnet (general-purpose) | Done (merged into wave0) | SC-01 |
