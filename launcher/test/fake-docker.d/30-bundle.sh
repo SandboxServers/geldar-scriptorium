@@ -51,3 +51,9 @@ fake_role_verify() {
   cd "$here/../.." || return 99
   node packages/verify/src/cli.ts "$@"
 }
+
+# docker ps: no running container unless FAKE_PS_OUTPUT says so.
+fake_ps() {
+  [ -z "${FAKE_PS_OUTPUT:-}" ] || printf '%s\n' "$FAKE_PS_OUTPUT"
+  return 0
+}

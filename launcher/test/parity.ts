@@ -2,6 +2,6 @@
 // twin adds the same names to `pwsh`. A group listed for pwsh means the pwsh launcher passes the
 // very test file the bash one does.
 export const enabled = {
-  bash: ['core', 'pre', 'session', 'bundle'],
+  bash: ['core', 'pre', 'session', 'bundle', 'finish'],
   pwsh: ['core', 'pre'],
 } satisfies Record<string, string[]>;
