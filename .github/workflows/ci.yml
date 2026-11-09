@@ -1,0 +1,63 @@
+# Runs on every PR and on main. `main` requires one check, `ci gate`, which
+# passes only when the typescript job passed. Mirrors `./scriptorium.ps1 check`
+# and adds the template checks once tests/template/ exists.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  typescript:
+    name: typescript
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: lint (biome)
+        run: pnpm lint
+      - name: typecheck
+        run: pnpm typecheck
+      - name: test (vitest)
+        run: pnpm test
+      - name: repo checks (line caps, LF line endings)
+        run: pnpm check:repo
+      - name: template checks
+        if: hashFiles('tests/template/check.ts') != ''
+        run: pnpm check:template
+      - name: scriptorium.ps1 runs on Linux
+        run: pwsh -NoProfile -File ./scriptorium.ps1 pnpm --version
+
+  gate:
+    name: ci gate
+    if: always()
+    needs: [typescript]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: every job passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "job results: $RESULTS"
+          for r in $RESULTS; do
+            if [ "$r" != "success" ]; then
+              echo "::error::a required job did not succeed ($r)"
+              exit 1
+            fi
+          done
