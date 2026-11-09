@@ -75,3 +75,5 @@ Every wave ends with these three steps before its PR leaves draft. They are part
 3. **Process and scaffolding.** Turn the retro into changes and ship them in the same wave PR: edit the dispatch rules in `work-packets.md`, the agent files and skills under `.claude/`, `CLAUDE.md`/`AGENTS.md`, `scriptorium.ps1` helpers, the PR template, CI. Each change names the retro finding it answers. Prefer a guard that makes a mistake impossible (a script, a check, a template) over a rule people must remember. Record what you changed at the end of the retro.
 
 The retro and the process changes are reviewed like any other change (a fresh `packet-reviewer`).
+
+Rules from the wave 4 retro (dispatch rules 16 and 17): a packet is green only when `check` passes on the wave branch after the merge (a worktree check is not the gate), and packets that touch Docker use an isolated image tag via `KIT_IMAGE=geldar-kit:<packet>`, since the kit image is built once per vitest run by the global setup.
