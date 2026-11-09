@@ -92,15 +92,17 @@ describe('hostile harness: state permissions', () => {
       'pub/allowlist-world.txt': 0o644,
       'session/': 0o700,
       'session/f': 0o600,
-      'export/': 0o755,
-      'export/d/': 0o755,
-      'export/d/f': 0o644,
+      'session/export/': 0o755,
+      'session/export/d/': 0o755,
+      'session/export/d/f': 0o644,
     });
     expect(assertStatePerms(good, 'abc')).toBe('ok');
     const bad1 = tree({ 'session/': 0o755, 'session/f': 0o600 });
     expect(() => assertStatePerms(bad1, 'abc')).toThrow('session');
-    const bad2 = tree({ 'export/': 0o755, 'export/f': 0o600 });
+    const bad2 = tree({ 'session/': 0o700, 'session/export/': 0o755, 'session/export/f': 0o600 });
     expect(() => assertStatePerms(bad2, 'abc')).toThrow('export');
+    const bad3 = tree({ 'export/': 0o755 }); // only session/export is exempt, a top-level export is not
+    expect(() => assertStatePerms(bad3, 'abc')).toThrow('export is 755');
   });
   it.runIf(win)('5. skipped on win32: the state lives under a user-private ACL path', () => {
     expect(assertStatePerms('unused', 'abc')).toBe('skipped');
