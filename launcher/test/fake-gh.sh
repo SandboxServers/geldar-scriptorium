@@ -27,8 +27,15 @@ fi
 if [ "${1:-}" = "pr" ]; then
   [ "${2:-}" = "create" ] || exit 99
   [ -z "${FAKE_GH_PR_FAIL:-}" ] || exit 1
-  printf '%s
-' "$line" >> "$FAKE_GH_ROOT/prs.log"
+  # One PR is one prs.log line: newlines in the body are written as a backslash and n, and a
+  # --body-file's contents are appended as a last field, so assertions see the whole body.
+  rec=$line
+  prev=""
+  for a in "$@"; do
+    if [ "$prev" = "--body-file" ] && [ -f "$a" ]; then rec="$rec${tab}BODYFILE=$(cat "$a")"; fi
+    prev=$a
+  done
+  printf '%s\n' "$rec" | awk 'BEGIN { ORS = "" } NR > 1 { print "\\n" } { print } END { print "\n" }' >> "$FAKE_GH_ROOT/prs.log"
   printf '%s
 ' "${FAKE_GH_PR_URL:-https://github.test/pull/1}"
   exit 0
