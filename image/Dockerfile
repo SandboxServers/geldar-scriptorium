@@ -42,6 +42,7 @@ WORKDIR /player
 
 FROM kit AS nettest
 USER root
-RUN apt-get update && apt-get install -y --no-install-recommends curl bind9-dnsutils \
+# The kit purged libcurl3t64-gnutls under git; this test-only stage restores it so apt stays consistent.
+RUN apt-get update && apt-get install -y --no-install-recommends curl bind9-dnsutils libcurl3t64-gnutls \
  && rm -rf /var/lib/apt/lists/*
 USER player
