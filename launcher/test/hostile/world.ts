@@ -225,7 +225,7 @@ export function assertStatePerms(stateDir: string, id: string): 'ok' | 'skipped'
       const p = join(dir, e.name);
       const rel = relative(base, p).replace(/\\/g, '/');
       const m = modeOf(p);
-      const sub = rel === 'pub' ? 'pub' : rel === 'export' ? 'export' : zone;
+      const sub = rel === 'pub' ? 'pub' : rel === 'session/export' ? 'export' : zone; // the kit export is bind-mounted for uid 1000
       if (e.isDirectory()) {
         if (sub === 'pub' && m !== 0o755) bad(rel, m);
         else if (sub === 'export' && (m & 0o005) !== 0o005) bad(rel, m);

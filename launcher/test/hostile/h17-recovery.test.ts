@@ -23,7 +23,17 @@ if [ -n "$FAKE_WRAP_KILL_ON" ] && [ ! -f "$d/wrap.done" ]; then
   for a in "$@"; do
     if [ "$a" = "$FAKE_WRAP_KILL_ON" ]; then
       : > "$d/wrap.done"
-      kill -9 $PPID
+      # The bash launcher runs git inside a ( ) subshell, so $PPID is that subshell, not the
+      # launcher. Climb to the topmost ancestor still running geldar-play and kill that one.
+      t=$PPID
+      p=$PPID
+      while [ -r "/proc/$p/stat" ]; do
+        tr '\\0' ' ' < "/proc/$p/cmdline" | grep -q geldar-play || break
+        t=$p
+        p=$(sed 's/^.*) [A-Za-z] //;s/ .*//' "/proc/$p/stat")
+        [ "$p" -gt 1 ] 2> /dev/null || break
+      done
+      kill -9 $t
       exit 1
     fi
   done

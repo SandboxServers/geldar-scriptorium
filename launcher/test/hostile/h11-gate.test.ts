@@ -110,9 +110,12 @@ const cases: [string, string, string[]][] = [
   ],
   ['executable_not_allowed (100755)', plumb('memory/run.md', '100755'), ['executable_not_allowed']],
   [
-    'bad_mode (100664 by plumbing)',
+    // git fsck (fetch.fsckObjects in the verify fetch) and diff-tree both normalize a 100664 entry,
+    // so a real session cannot make the gate say bad_mode; it only earns the root-path verdict.
+    // The bad_mode text is proven in the text mapping group below.
+    'path_not_allowed (a root file with mode 100664 by plumbing)',
     rawTree('100664 zzz.md', '$(printf x | git hash-object -w --stdin)'),
-    ['bad_mode'],
+    ['path_not_allowed'],
   ],
   [
     'multi-cause shows every text',
@@ -156,7 +159,7 @@ describe.each(forGroup('hostile'))('H-11 gate verdicts ($name)', (launcher) => {
   });
 
   describe('text mapping (forged verdicts)', () => {
-    it.each(['bundle_refs_unexpected', 'bundle_unreadable'])('%s', { timeout: T }, (id) => {
+    it.each(['bundle_refs_unexpected', 'bundle_unreadable', 'bad_mode'])('%s', { timeout: T }, (id) => {
       const a = attack(launcher, {
         session: benign,
         until: 'verify',

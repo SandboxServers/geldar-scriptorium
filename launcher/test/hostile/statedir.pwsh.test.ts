@@ -67,7 +67,7 @@ describe.skipIf(win || !pwsh)('N4 state permissions (pwsh)', () => {
     expect(modeOf(join(base, 'pub', 'allowlist-world.txt'))).toBe(0o644);
     const open = walk(base).filter((p) => {
       const rel = p.slice(base.length + 1).replace(/\\/g, '/');
-      return !/^(pub|export)(\/|$)/.test(rel) && (statSync(p).mode & 0o077) !== 0;
+      return !/^(pub|session\/export)(\/|$)/.test(rel) && (statSync(p).mode & 0o077) !== 0;
     });
     expect(open).toEqual([]);
   });
