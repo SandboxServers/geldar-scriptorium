@@ -4,8 +4,21 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { noreplyIdentity } from '@geldar/scriptorium-path-rule';
-import { afterEach, describe, expect, it } from 'vitest';
-import { GitError, gitEnv, gitOptions, runGit } from './run-git.ts';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { GIT_TIMEOUT_MS, GitError, gitEnv, gitOptions, runGit } from './run-git.ts';
+
+// Passthrough spy: real execFileSync unless a test overrides one call.
+const execSpy = vi.hoisted(() => ({
+  fn: undefined as undefined | ((...args: unknown[]) => unknown),
+}));
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>();
+  return {
+    ...actual,
+    execFileSync: (...args: Parameters<typeof actual.execFileSync>) =>
+      execSpy.fn ? execSpy.fn(...args) : actual.execFileSync(...args),
+  };
+});
 
 const restore: (() => void)[] = [];
 const cleanups: (() => void)[] = [];
@@ -30,6 +43,7 @@ function codeOf(fn: () => unknown): string | undefined {
 }
 
 afterEach(() => {
+  execSpy.fn = undefined;
   for (const undo of restore.splice(0).reverse()) undo();
   for (const cleanup of cleanups.splice(0)) cleanup();
 });
@@ -55,6 +69,46 @@ describe('runGit allowlist', () => {
       expect(codeOf(() => runGit('/nonexistent-root', args))).toBe('git_subcommand_not_allowed');
     });
   }
+});
+
+describe('runGit timeout', () => {
+  it('passes a 60 s timeout to the git call', async () => {
+    const seen: unknown[] = [];
+    const actual = await vi.importActual<typeof import('node:child_process')>('node:child_process');
+    execSpy.fn = (...args) => {
+      seen.push(args[2]);
+      return actual.execFileSync(...(args as Parameters<typeof actual.execFileSync>));
+    };
+    // Outside a repo git exits non-zero; only the options it was started with matter here.
+    try {
+      runGit(mkdtempSync(join(tmpdir(), 'geldar-git-timeout-')), ['rev-parse', '--git-dir']);
+    } catch {
+      // expected: not a repository
+    }
+    expect(GIT_TIMEOUT_MS).toBe(60_000);
+    expect(seen).toHaveLength(1);
+    expect((seen[0] as { timeout?: number }).timeout).toBe(GIT_TIMEOUT_MS);
+  });
+
+  it('maps a killed (timed out) git call to git_failed', () => {
+    execSpy.fn = () => {
+      throw Object.assign(new Error('spawnSync git ETIMEDOUT'), {
+        code: 'ETIMEDOUT',
+        killed: true,
+        signal: 'SIGTERM',
+        stderr: '',
+      });
+    };
+    let caught: unknown;
+    try {
+      runGit('/nonexistent-root', ['ls-tree', 'HEAD']);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(GitError);
+    expect((caught as GitError).code).toBe('git_failed');
+    expect((caught as GitError).message).toContain('timed out');
+  });
 });
 
 describe('runGit source scan', () => {
