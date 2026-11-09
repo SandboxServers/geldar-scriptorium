@@ -1,0 +1,9 @@
+{
+  "name": "@geldar/scriptorium-release",
+  "private": true,
+  "description": "Release tooling: publishes template/ to the player template repository.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p . --noEmit"
+  }
+}
