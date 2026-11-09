@@ -1,0 +1,4 @@
+session_start	Starting %s. Close the session to save its memory.
+session_end	The session for %s ended.
+bad_export_name	A kit file name for %s cannot be mounted safely. Nothing was started.
+compose_failed	The container did not start. Nothing was saved.
