@@ -6,6 +6,8 @@ import type { GitIdentity } from '@geldar/scriptorium-path-rule';
 
 export const NULL_DEVICE: string = process.platform === 'win32' ? 'NUL' : '/dev/null';
 export const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+// A stalled git (for example on a huge or hung tree) is killed after this long.
+export const GIT_TIMEOUT_MS = 60_000;
 
 export class GitError extends Error {
   code: string;
@@ -118,9 +120,14 @@ export function runGit(
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
       maxBuffer: 16 * 1024 * 1024,
+      timeout: GIT_TIMEOUT_MS,
     });
   } catch (err) {
-    const stderr = String((err as { stderr?: unknown }).stderr ?? '');
+    const failure = err as { code?: unknown; killed?: unknown; stderr?: unknown };
+    if (failure.code === 'ETIMEDOUT' || failure.killed === true) {
+      throw new GitError('git_failed', `git timed out after ${GIT_TIMEOUT_MS} ms`);
+    }
+    const stderr = String(failure.stderr ?? '');
     const first = stderr.split(/\r?\n/)[0] ?? '';
     throw new GitError('git_failed', first.length > 0 ? first : 'git failed');
   }
