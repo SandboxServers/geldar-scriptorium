@@ -282,7 +282,8 @@ export function makePlayer(
   git(world.root, ['clone', origin, clone], gitEnv);
   const stateDir = join(world.state, opts.id);
   mkdirSync(stateDir, { recursive: true });
-  writeFileSync(join(stateDir, 'clone'), `${bashPath(clone)}\n`);
+  // Forward slashes: valid for both launchers (Git bash and pwsh) on Windows.
+  writeFileSync(join(stateDir, 'clone'), `${clone.replace(/\\/g, '/')}\n`);
   writeFileSync(join(stateDir, 'branch'), 'main\n');
   return { id: opts.id, clone, origin, stateDir };
 }

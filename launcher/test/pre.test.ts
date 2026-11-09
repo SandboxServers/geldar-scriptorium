@@ -5,11 +5,13 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  bashExe,
   bashPath,
   forGroup,
   git,
@@ -211,8 +213,14 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
       ].join('\n'),
     );
     chmodSync(shim, 0o755);
+    // pwsh on Windows cannot run a sh script directly: a .cmd calls it through bash.
+    let dockerSeam = bashPath(shim);
+    if (launcher.name === 'pwsh' && process.platform === 'win32') {
+      dockerSeam = `${shim}.cmd`;
+      writeFileSync(dockerSeam, `@"${bashExe}" "${bashPath(shim)}" %*\r\n`);
+    }
     const bad = prep(launcher, w2, q, 'play', {
-      GELDAR_DOCKER: bashPath(shim),
+      GELDAR_DOCKER: dockerSeam,
       PLANT: bashPath(q.clone),
     });
     expect(bad.status).toBe(1);
@@ -247,6 +255,17 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('branch name');
     expect(dockerCalls(w)).toEqual([]);
+    // A repeated key is refused, whatever the JSON parser would do with it.
+    const wd = makeWorld();
+    const d = makePlayer(wd, { id: 'dupkey' });
+    const pj = text(join(d.clone, 'player.json'));
+    const dupLine = '  "mcp_url": "https://mcp.registry.test/mcp",';
+    expect(pj).toContain(dupLine);
+    commitFile(wd, d.clone, 'player.json', pj.replace(dupLine, `${dupLine}\n${dupLine}`), false);
+    const dup = prep(launcher, wd, d);
+    expect(dup.status).toBe(1);
+    expect(dup.stderr).toContain('is not valid');
+    expect(dockerCalls(wd)).toEqual([]);
     // The working file is not read: an edit made after the clean check does not matter.
     const w3 = makeWorld();
     const q = makePlayer(w3, { id: 'wtree' });
@@ -353,7 +372,7 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
   timingIt(
     '13. a hung helper or pull is bounded and leaves nothing behind',
     () => {
-      // The stand-ins sleep far longer than the 10 s bound, so only the bound ends them, and each
+      // The stand-ins sleep far longer than the 30 s bound, so only the bound ends them, and each
       // records its child pid so the test can prove nothing is left running.
       const pids: string[] = [];
       const pidsIn = (file: string) =>
@@ -362,6 +381,12 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
               .split('\n')
               .filter((l) => /^[0-9]+$/.test(l))
           : [];
+      // Poll (with a deadline) until the stand-in has recorded its pid, so a slow start cannot give an empty file.
+      const waitForPids = (file: string) => {
+        const end = Date.now() + 15_000;
+        while (pidsIn(file).length === 0 && Date.now() < end)
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+      };
       const alive = (pid: string) =>
         spawnSync('bash', ['-c', 'kill -0 "$1" 2>/dev/null', 'x', pid]).status === 0;
       try {
@@ -370,12 +395,13 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
         const pf = join(w.root, 'pids-a');
         const t0 = Date.now();
         const r = prep(launcher, w, p, 'play', {
-          FAKE_ROLE_SLEEP: '120',
+          FAKE_ROLE_SLEEP: '200',
           FAKE_PIDFILE: bashPath(pf),
-          GELDAR_HELPER_TIMEOUT_SEC: '10',
+          GELDAR_HELPER_TIMEOUT_SEC: '30',
         });
-        expect(Date.now() - t0).toBeLessThan(40_000);
+        expect(Date.now() - t0).toBeLessThan(90_000);
         expect(r.status).toBe(1);
+        waitForPids(pf);
         const a = pidsIn(pf);
         pids.push(...a);
         expect(a.length).toBeGreaterThan(0);
@@ -396,15 +422,16 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
         const t1 = Date.now();
         const s = prep(launcher, w2, q, 'play', {
           FAKE_GIT_SLEEP_ON: 'pull',
-          FAKE_GIT_SLEEP_SEC: '120',
+          FAKE_GIT_SLEEP_SEC: '200',
           FAKE_PIDFILE: bashPath(pf2),
-          GELDAR_HELPER_TIMEOUT_SEC: '10',
+          GELDAR_HELPER_TIMEOUT_SEC: '30',
         });
-        expect(Date.now() - t1).toBeLessThan(40_000);
+        expect(Date.now() - t1).toBeLessThan(90_000);
         expect(s.status).toBe(1);
         expect(s.stderr).toContain('Could not bring pullhang up to date');
         expect(s.stderr).toContain('(timed out)');
         expect(dockerCalls(w2)).toEqual([]);
+        waitForPids(pf2);
         const b = pidsIn(pf2);
         pids.push(...b);
         expect(b.length).toBeGreaterThan(0);
@@ -418,7 +445,7 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
         }
       }
     },
-    180_000,
+    300_000,
   );
 
   it('14. player.json is read at START, after the pull', () => {
@@ -431,5 +458,19 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
     expect(r.stderr).toContain('is not valid');
     expect(dockerCalls(w)).toEqual([]);
     expect(existsSync(join(p.stateDir, 'start'))).toBe(false);
+  }, 120_000);
+});
+
+describe.each(forGroup('pre').filter((l) => l.name === 'pwsh'))('pre ($name) paths', (launcher) => {
+  it('a clone path with a space and a non-ASCII character works end to end', () => {
+    const w = makeWorld();
+    const p = makePlayer(w, { id: 'spaced' });
+    const moved = join(w.players, 'späced dir');
+    renameSync(p.clone, moved);
+    writeFileSync(join(p.stateDir, 'clone'), `${moved.replace(/\\/g, '/')}\n`);
+    const r = prep(launcher, w, p);
+    expect(r.status, r.stderr).toBe(0);
+    expect(text(join(p.stateDir, 'start')).trim()).toBe(git(moved, ['rev-parse', 'HEAD']));
+    expect(existsSync(join(p.stateDir, 'session', 'export', 'player.json'))).toBe(true);
   }, 120_000);
 });
