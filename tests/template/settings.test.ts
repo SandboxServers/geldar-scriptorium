@@ -169,4 +169,21 @@ describe('Claude Code settings layers', () => {
       }
     }
   });
+
+  it('forbids an env key in every settings layer', () => {
+    for (const [name, settings] of Object.entries(layers)) {
+      expect(settings, `${name} sets env`).not.toHaveProperty('env');
+    }
+  });
+
+  it('allows a bare name only if it is a known mcp__ tool, in every layer', () => {
+    const known = new Set([...worldTools, ...companionTools]);
+    for (const [name, settings] of Object.entries(layers)) {
+      for (const rule of settings.permissions?.allow ?? []) {
+        if (!rule.includes('(')) {
+          expect(known.has(rule), `${name} allows unknown bare name ${rule}`).toBe(true);
+        }
+      }
+    }
+  });
 });
