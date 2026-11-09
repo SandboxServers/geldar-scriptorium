@@ -41,6 +41,23 @@ read_branch() {
   PL_BRANCH=$line
 }
 
+# private_host name: succeeds when the name is local or private (single label, a reserved name
+# or suffix, or an empty label). `.test` stays allowed: the end-to-end tests use world.test and
+# it never resolves publicly (RFC 6761). xn-- labels get no special treatment.
+private_host() {
+  case $1 in
+    '' | .* | *. | *..*) return 0 ;;
+    *.*) ;;
+    *) return 0 ;;
+  esac
+  case $1 in
+    localhost | host.docker.internal | gateway.docker.internal | kubernetes.docker.internal) return 0 ;;
+    *.localhost | *.local | *.internal | *.localdomain | *.lan | *.home | *.home.arpa) return 0 ;;
+    *.corp | *.intranet | *.private | *.invalid | *.example | *.onion) return 0 ;;
+  esac
+  return 1
+}
+
 # Is the host part of an mcp_url acceptable: a DNS name whose last label holds a letter, so
 # IP forms (dotted quads, 127.1, 2130706433) are refused. A port, if any, is 80 or 443.
 valid_mcp_url() {
@@ -56,6 +73,10 @@ valid_mcp_url() {
       ;;
   esac
   [[ $host =~ $hre ]] || return 1
+  private_host "$host" && return 1
+  case $url in
+    */../* | */..) return 1 ;;
+  esac
   case ${host##*.} in
     *[a-z]*) ;;
     *) return 1 ;;
