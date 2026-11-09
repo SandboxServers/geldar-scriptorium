@@ -15,7 +15,7 @@ const OK = '{"ok":true,"reasons":[]}';
 // hash-object --literally. PAD keeps the leading zero of the existing directory modes.
 const rawTree = (entries: string, pad = false) => `export B=$(printf x | git hash-object -w --stdin)
 export ENT='${entries}' PAD=${pad ? 1 : 0}
-t=$(git ls-tree -z HEAD | perl -0777 -e 'my $o="";for my $r (split /\\0/,<STDIN>){$r=~/^(\\d+) \\w+ ([0-9a-f]+)\\t(.*)$/s or die;my $m=$1;$m=~s/^0// unless $ENV{PAD};$o.="$m $3\\0".pack("H*",$2)}for my $e (split /\\|/,$ENV{ENT}){next if $e eq "";$o.="$e\\0".pack("H*",$ENV{B})}binmode STDOUT;print $o' | git hash-object -t tree --literally -w --stdin)
+t=$(git ls-tree -z HEAD | perl -0777 -e 'my $o="";for my $r (split /\\0/,<STDIN>){$r=~/^(\\d+) \\w+ ([0-9a-f]+)\\t(.*)$/s or die;my ($m,$h,$n)=($1,$2,$3);$m=~s/^0// unless $ENV{PAD};$o.="$m $n\\0".pack("H*",$h)}for my $e (split /\\|/,$ENV{ENT}){next if $e eq "";$o.="$e\\0".pack("H*",$ENV{B})}binmode STDOUT;print $o' | git hash-object -t tree --literally -w --stdin)
 c=$(git commit-tree -p HEAD -m m $t)
 git update-ref refs/heads/main $c
 `;

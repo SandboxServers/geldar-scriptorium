@@ -24,7 +24,7 @@ import {
   runBash,
   runLib,
 } from './harness.ts';
-import { enabled } from './parity.ts';
+import { enabled, testOnlyGroups } from './parity.ts';
 import { timingIt } from './timing.ts';
 
 const lib = bashPath(join(repoRoot, 'launcher', 'lib', 'common.sh'));
@@ -373,7 +373,10 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     const w = makeWorld();
     const r = run(launcher, ['--capabilities'], { env: envOf(launcher, w) });
     const got = new Set(r.stdout.split('\n').filter(Boolean));
-    const want = new Set<string>(['core', ...(enabled[launcher.name] as string[])]);
+    const want = new Set<string>([
+      'core',
+      ...(enabled[launcher.name] as string[]).filter((g) => !testOnlyGroups.includes(g)),
+    ]);
     expect(got).toEqual(want);
   }, 60_000);
 

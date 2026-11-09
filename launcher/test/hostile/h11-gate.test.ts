@@ -61,7 +61,7 @@ const many = `awk 'BEGIN{for(i=1;i<=2001;i++){m="c" i;print "commit refs/heads/m
 
 // A root tree with one extra raw entry, written with hash-object --literally.
 const rawTree = (entry: string, shaExpr: string) => `export B=${shaExpr}
-t=$(git ls-tree -z HEAD | perl -0777 -e 'my $o="";for my $r (split /\\0/,<STDIN>){$r=~/^(\\d+) \\w+ ([0-9a-f]+)\\t(.*)$/s or die;my $m=$1;$m=~s/^0//;$o.="$m $3\\0".pack("H*",$2)}$o.="${entry}\\0".pack("H*",$ENV{B});binmode STDOUT;print $o' | git hash-object -t tree --literally -w --stdin)
+t=$(git ls-tree -z HEAD | perl -0777 -e 'my $o="";for my $r (split /\\0/,<STDIN>){$r=~/^(\\d+) \\w+ ([0-9a-f]+)\\t(.*)$/s or die;my ($m,$h,$n)=($1,$2,$3);$m=~s/^0//;$o.="$m $n\\0".pack("H*",$h)}$o.="${entry}\\0".pack("H*",$ENV{B});binmode STDOUT;print $o' | git hash-object -t tree --literally -w --stdin)
 c=$(git commit-tree -p HEAD -m m $t)
 git update-ref refs/heads/main $c
 `;

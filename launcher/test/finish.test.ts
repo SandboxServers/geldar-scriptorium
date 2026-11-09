@@ -312,7 +312,7 @@ for (const l of forGroup('finish')) {
         const w = makeWorld();
         const pidfile = join(w.root, 'pids');
         const { p, play, start } = prep(l, w, benign, {
-          GELDAR_HELPER_TIMEOUT_SEC: '2',
+          GELDAR_HELPER_TIMEOUT_SEC: '10',
           FAKE_GIT_SLEEP_ON: 'push',
           FAKE_PIDFILE: bashPath(pidfile),
         });

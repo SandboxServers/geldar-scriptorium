@@ -59,7 +59,7 @@ function Invoke-FinishCleanup([string]$Id, [string]$Clone) {
   $d = Get-PlayerDir $Id
   Invoke-Git -C $Clone update-ref -d refs/launcher/incoming *> $null
   Invoke-Docker volume rm "geldar-ws-$Id" *> $null
-  Remove-Item -LiteralPath (Join-Path $d 'session') -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath (Join-Path $d 'session'), (Join-Path $d 'pub') -Recurse -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath (Join-Path $d 'start'), (Join-Path $d 'mode') -Force -ErrorAction SilentlyContinue
 }
 
