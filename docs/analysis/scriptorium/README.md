@@ -111,7 +111,8 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-60 | 6 | S | Hostile workspace tests, one per hardening item | packet-coder | BlockedDependency | SC-55b |
 | SC-61 | 6 | S+G | Malicious-book corpus as mock world scenarios | packet-coder | BlockedDependency | SC-32d |
 | SC-62 | 6 | S | Live malicious-book check, local only (script plus documented procedure; never in CI) with pinned Claude Code | packet-coder | Planned | SC-61 |
-| SC-63 | 6 | S | Release workflow: image, cosign, SBOM, scan, launcher assets, template publish | packet-coder | BlockedDependency (SC-60; D-SC-02 and D-SC-06 are Accepted) | SC-60 |
+| SC-63a | 6 | S | Template publish workflow: on a `kit-v*` tag, Azure OIDC sign-in, read `geldar-bot` key from Key Vault, mint an installation token, push `template/` to `geldar-player-template` as one commit (the first slice of SC-63) | packet-coder | BlockedDependency | SC-55b |
+| SC-63 | 6 | S | Release workflow: image, cosign, SBOM, scan, launcher assets, template publish | packet-coder | BlockedDependency (SC-60; D-SC-02 and D-SC-06 are Accepted) | SC-60, SC-63a |
 | SC-64 | 6 | S | `geldar-play upgrade`: kit bump as a PR | packet-coder | BlockedDependency | SC-63 |
 | SC-70 | 7 | S | Template README (the Patron guide), onboarding and troubleshooting docs | packet-coder | BlockedDependency | wave 6 |
 | SC-71 | 7 | S | Codex CLI support | packet-coder | BlockedDecision | D-SC-08 |
