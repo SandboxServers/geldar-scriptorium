@@ -30,19 +30,9 @@ function Start-DockerProcess([string[]]$DockerArgs) {
   if (-not $exe) { $exe = 'docker' }
   $found = Get-Command $exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
   if ($found) { $exe = $found.Source }
-  $psi = [System.Diagnostics.ProcessStartInfo]::new()
-  $psi.UseShellExecute = $false
+  $psi = New-CmdShimStartInfo $exe $DockerArgs
   $psi.RedirectStandardOutput = $true
   $psi.RedirectStandardError = $true
-  if ($exe -match '\.(cmd|bat)\z') {
-    $psi.FileName = 'cmd.exe'
-    $psi.ArgumentList.Add('/d')
-    $psi.ArgumentList.Add('/c')
-    $psi.ArgumentList.Add($exe)
-  } else {
-    $psi.FileName = $exe
-  }
-  foreach ($a in $DockerArgs) { $psi.ArgumentList.Add($a) }
   $job = [IntPtr]::Zero
   try {
     if ($IsWindows) { Initialize-JobType; $job = [GeldarJob]::Create() }

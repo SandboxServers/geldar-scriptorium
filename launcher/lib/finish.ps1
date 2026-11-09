@@ -6,7 +6,8 @@ $GP_GROUPS += 'finish'
 function Suspend-Finish([string]$Id, [string]$Reason) {
   $d = Get-PlayerDir $Id
   $held = Join-Path $d 'held'
-  New-Item -ItemType Directory -Path $held -Force | Out-Null
+  New-PrivateDir $d
+  New-PrivateDir $held
   $bundle = Join-Path $d 'session/bundle.bundle'
   if (Test-Path -LiteralPath $bundle -PathType Leaf) {
     Copy-Item -LiteralPath $bundle -Destination (Join-Path $held 'bundle.bundle') -Force
@@ -67,7 +68,8 @@ function Get-GitWords {
   $exe = $env:GELDAR_GIT
   if (-not $exe) { $exe = 'git' }
   $hooks = Join-Path (Get-StateDir) 'empty-hooks'
-  if (-not (Test-Path -LiteralPath $hooks)) { New-Item -ItemType Directory -Path $hooks -Force | Out-Null }
+  New-PrivateDir (Get-StateDir)
+  New-PrivateDir $hooks
   $env:GIT_NO_REPLACE_OBJECTS = '1'
   $env:GIT_TERMINAL_PROMPT = '0'
   return @($exe, '-c', "core.hooksPath=$hooks") + @($args)
@@ -113,8 +115,11 @@ function Invoke-FinishPublish([string]$Id, [string]$Start, [string]$Mode) {
   # Only now does the human's branch move.
   $ffOk = -not (Get-GatedEnv 'GELDAR_TEST_FORCE_FF_FAIL')
   if ($ffOk) {
-    Invoke-Git -C $clone -c "core.hooksPath=$hooks" -c core.autocrlf=false -c core.fsmonitor=false merge --ff-only refs/launcher/incoming *> $null
-    $ffOk = $LASTEXITCODE -eq 0
+    $oldMask = Set-Umask 0x12 # the human's clone keeps the user's normal modes
+    try {
+      Invoke-Git -C $clone -c "core.hooksPath=$hooks" -c core.autocrlf=false -c core.fsmonitor=false merge --ff-only refs/launcher/incoming *> $null
+      $ffOk = $LASTEXITCODE -eq 0
+    } finally { [void](Set-Umask $oldMask) }
   }
   if (-not $ffOk) {
     Say ff_failed $Id $Id

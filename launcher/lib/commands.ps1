@@ -119,7 +119,8 @@ function Invoke-ResolveHeld([string]$Id) {
   if ($remote -cne $head) { Die 3 resolve_diverged $Id }
   # Still at START: retry from the held state (finish re-verifies and pushes).
   if ($mode -cne 'play' -and $mode -cne 'setup') { $mode = 'play' }
-  New-Item -ItemType Directory -Path (Join-Path $d 'session') -Force | Out-Null
+  New-PrivateDir $d
+  New-PrivateDir (Join-Path $d 'session')
   $hb = Join-Path $d 'held/bundle.bundle'
   if (Test-Path -LiteralPath $hb -PathType Leaf) { Copy-Item -LiteralPath $hb -Destination (Join-Path $d 'session/bundle.bundle') -Force }
   $u = [System.Text.UTF8Encoding]::new($false)
