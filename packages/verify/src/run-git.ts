@@ -38,10 +38,18 @@ export function gitEnv(): NodeJS.ProcessEnv {
     HOME: home,
     XDG_CONFIG_HOME: home,
     USERPROFILE: home,
+    // Replace objects (refs/replace/*) are ignored, as in the --no-replace-objects flag below.
+    GIT_NO_REPLACE_OBJECTS: '1',
   };
 }
 
-const FIXED = ['-c', `core.hooksPath=${NULL_DEVICE}`, '-c', `core.attributesFile=${NULL_DEVICE}`];
+const FIXED = [
+  '--no-replace-objects',
+  '-c',
+  `core.hooksPath=${NULL_DEVICE}`,
+  '-c',
+  `core.attributesFile=${NULL_DEVICE}`,
+];
 
 // A non-zero exit is returned, not thrown. It throws when git cannot start, and when
 // spawnSync reports an error (a timeout, or a stdout overflow past maxBuffer).

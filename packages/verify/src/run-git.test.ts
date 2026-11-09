@@ -50,4 +50,32 @@ describe('git', () => {
     const result = git(plain, ['rev-parse', '--verify', 'nope']);
     expect(result.status).not.toBe(0);
   });
+
+  it('ignores replace objects, so a replaced commit reads as itself', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'verify-replace-'));
+    const env: NodeJS.ProcessEnv = {
+      ...gitEnv(),
+      GIT_AUTHOR_NAME: 't',
+      GIT_AUTHOR_EMAIL: 't@example.test',
+      GIT_COMMITTER_NAME: 't',
+      GIT_COMMITTER_EMAIL: 't@example.test',
+    };
+    const plainGit = (args: string[]) =>
+      spawnSync('git', args, { cwd: dir, env, encoding: 'utf8' });
+    try {
+      plainGit(['init', '-q']);
+      plainGit(['commit', '-q', '--allow-empty', '-m', 'a']);
+      const a = plainGit(['rev-parse', 'HEAD']).stdout.trim();
+      plainGit(['commit', '-q', '--allow-empty', '-m', 'b']);
+      const b = plainGit(['rev-parse', 'HEAD']).stdout.trim();
+      plainGit(['replace', a, b]);
+      expect(git(dir, ['log', '-1', '--format=%s', a]).stdout.trim()).toBe('a');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('sets GIT_NO_REPLACE_OBJECTS in the environment', () => {
+    expect(gitEnv().GIT_NO_REPLACE_OBJECTS).toBe('1');
+  });
 });
