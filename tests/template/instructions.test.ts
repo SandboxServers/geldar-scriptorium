@@ -2,7 +2,7 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkInstructions, render, repoRoot } from './instructions.ts';
+import { checkInstructions, render, repoRoot, sourcePath } from './instructions.ts';
 
 const worldLines = [
   'You must eat to live.',
@@ -48,6 +48,15 @@ describe('instructions source', () => {
     const problems = checkInstructions(dir);
     expect(problems).toEqual([
       'CLAUDE.md is out of date; run `node tests/template/instructions.ts --write`',
+    ]);
+  });
+
+  it('flags both files when the source body changes', () => {
+    const changed = readFileSync(sourcePath, 'utf8').replace('Do little.', 'Do much.');
+    const problems = checkInstructions(path.join(repoRoot, 'template'), changed);
+    expect(problems).toEqual([
+      'CLAUDE.md is out of date; run `node tests/template/instructions.ts --write`',
+      'AGENTS.md is out of date; run `node tests/template/instructions.ts --write`',
     ]);
   });
 });
