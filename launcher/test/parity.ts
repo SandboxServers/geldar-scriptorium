@@ -3,5 +3,16 @@
 // very test file the bash one does.
 export const enabled = {
   bash: ['core', 'pre', 'session', 'bundle', 'finish', 'new', 'setup', 'commands', 'hostile'],
-  pwsh: ['core', 'pre', 'session', 'bundle', 'finish', 'new', 'setup', 'commands', 'upgrade', 'hostile'],
+  pwsh: [
+    'core',
+    'pre',
+    'session',
+    'bundle',
+    'finish',
+    'new',
+    'setup',
+    'commands',
+    'upgrade',
+    'hostile',
+  ],
 } satisfies Record<string, string[]>;
