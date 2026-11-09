@@ -62,9 +62,9 @@ interface Job {
 function toStep(raw: unknown): Step {
   const s = asObj(raw);
   return {
-    uses: typeof s.uses === 'string' ? s.uses : undefined,
-    run: typeof s.run === 'string' ? s.run : undefined,
-    if: s.if,
+    ...(typeof s.uses === 'string' ? { uses: s.uses } : {}),
+    ...(typeof s.run === 'string' ? { run: s.run } : {}),
+    ...('if' in s ? { if: s.if } : {}),
     with: asObj(s.with),
   };
 }
@@ -88,7 +88,8 @@ function triggersOf(on: unknown): Record<string, unknown> {
 export function checkWorkflow(file: WorkflowFile): Finding[] {
   const out: Finding[] = [];
   const name = basename(file.path);
-  const add: Add = (rule, message, line) => out.push({ rule, file: file.path, line, message });
+  const add: Add = (rule, message, line) =>
+    out.push({ rule, file: file.path, ...(line === undefined ? {} : { line }), message });
 
   const doc = parseDocument(file.text, { uniqueKeys: true });
   if (doc.errors.length > 0) {
