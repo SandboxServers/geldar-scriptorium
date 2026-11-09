@@ -2,14 +2,46 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type Hooks, mergePacket, pushVerified } from './merge-packet.ts';
 
+const emptyHome = mkdtempSync(join(tmpdir(), 'mp-home-'));
+const IDENTITY = {
+  GIT_AUTHOR_NAME: 't',
+  GIT_AUTHOR_EMAIL: 't@example.com',
+  GIT_COMMITTER_NAME: 't',
+  GIT_COMMITTER_EMAIL: 't@example.com',
+};
+const ISOLATION = {
+  HOME: emptyHome,
+  USERPROFILE: emptyHome,
+  XDG_CONFIG_HOME: emptyHome,
+  GIT_CONFIG_GLOBAL: join(emptyHome, 'gitconfig'),
+  GIT_CONFIG_NOSYSTEM: '1',
+};
+const saved: Record<string, string | undefined> = {};
+
+// The tool under test runs plain git with the inherited environment, so the
+// hermetic identity and empty config home are set process-wide for this file.
+beforeAll(() => {
+  for (const [k, v] of Object.entries({ ...ISOLATION, ...IDENTITY })) {
+    saved[k] = process.env[k];
+    process.env[k] = v;
+  }
+});
+afterAll(() => {
+  for (const [k, v] of Object.entries(saved)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+});
+
 const g = (cwd: string, ...a: string[]) =>
-  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], {
-    cwd,
-    encoding: 'utf8',
-  }).trim();
+  execFileSync(
+    'git',
+    ['-c', 'init.defaultBranch=main', '-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a],
+    { cwd, encoding: 'utf8', env: { ...process.env, ...ISOLATION, ...IDENTITY } },
+  ).trim();
 
 function repo(): string {
   const dir = mkdtempSync(join(tmpdir(), 'mp-'));
@@ -76,6 +108,42 @@ describe('mergePacket', () => {
     g(dir, 'commit', '-qam', 'wave edit');
     expect(() => mergePacket(dir, 'p1', hooks())).toThrow(/a\.txt/);
     expect(g(dir, 'status', '--porcelain')).toBe('');
+  });
+
+  it('reports a non-conflict merge failure as such, not as a conflict', () => {
+    const dir = repo();
+    packet(dir, 'p1', 'b.txt', 'b\n');
+    wave('x.txt'); // diverge so the merge needs a commit (and so an identity)
+    const before = g(dir, 'rev-parse', 'HEAD');
+    const keep = { ...process.env };
+    for (const k of Object.keys(IDENTITY)) delete process.env[k];
+    process.env.GIT_CONFIG_COUNT = '1';
+    process.env.GIT_CONFIG_KEY_0 = 'user.useConfigOnly';
+    process.env.GIT_CONFIG_VALUE_0 = 'true';
+    try {
+      let msg = '';
+      try {
+        mergePacket(dir, 'p1', hooks());
+      } catch (e) {
+        msg = (e as Error).message;
+      }
+      expect(msg).toMatch(/without a conflict/);
+      expect(msg).not.toMatch(/merge conflict/);
+      expect(msg).toMatch(/ident|user\.|email/i);
+    } finally {
+      for (const k of ['GIT_CONFIG_COUNT', 'GIT_CONFIG_KEY_0', 'GIT_CONFIG_VALUE_0']) {
+        delete process.env[k];
+      }
+      Object.assign(process.env, keep);
+    }
+    expect(g(dir, 'rev-parse', 'HEAD')).toBe(before);
+    expect(g(dir, 'status', '--porcelain')).toBe('');
+
+    function wave(file: string) {
+      writeFileSync(join(dir, file), 'w\n');
+      g(dir, 'add', '.');
+      g(dir, 'commit', '-qm', 'wave');
+    }
   });
 
   it('keeps the wave lockfile on a lockfile conflict and regenerates it', () => {

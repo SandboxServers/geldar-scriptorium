@@ -45,10 +45,18 @@ export function mergePacket(cwd: string, branch: string, hooks: Hooks): void {
   const before = git(cwd, ['rev-parse', 'HEAD']);
   try {
     git(cwd, ['merge', '--no-ff', '--no-edit', '--', branch]);
-  } catch {
+  } catch (mergeError) {
     const conflicted = git(cwd, ['diff', '--name-only', '--diff-filter=U'])
       .split('\n')
       .filter(Boolean);
+    if (conflicted.length === 0) {
+      // Not a conflict (identity missing, hook, etc.): leave nothing half-merged.
+      git(cwd, ['merge', '--abort'], true);
+      git(cwd, ['reset', '--hard', before], true);
+      throw new Error(
+        `merge failed without a conflict, merge aborted: ${(mergeError as Error).message}`,
+      );
+    }
     if (conflicted.length === 1 && conflicted[0] === 'pnpm-lock.yaml') {
       hooks.log('conflict in pnpm-lock.yaml only: keeping the wave branch version, regenerating');
       git(cwd, ['checkout', '--ours', 'pnpm-lock.yaml']);
