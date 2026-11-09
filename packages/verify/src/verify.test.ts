@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { VerifyInput } from './args.ts';
 import { type Fixture, makeFixture } from './fixture.ts';
-import { MAX_BUNDLE_BYTES, verify } from './verify.ts';
+import { MAX_BLOB_BYTES, MAX_BUNDLE_BYTES, verify } from './verify.ts';
 
 const fixtures: Fixture[] = [];
 
@@ -55,6 +55,24 @@ describe('verify: clean sessions', () => {
 
   it('accepts a bundle with no new commits', () => {
     const f = fresh();
+    const bundle = f.bundle(['refs/heads/main']);
+    expect(verify(input(f, bundle))).toEqual({ ok: true, reasons: [] });
+  });
+});
+
+describe('verify: per-blob cap', () => {
+  it('rejects a blob over the cap even though the bundle is tiny', () => {
+    const f = fresh();
+    f.write('memory/zero.md', '0'.repeat(MAX_BLOB_BYTES + 1));
+    f.commitAll('zeros');
+    const bundle = f.bundle(['refs/heads/main']);
+    expect(verify(input(f, bundle))).toEqual({ ok: false, reasons: ['bundle_too_large'] });
+  });
+
+  it('accepts a blob of exactly the cap', () => {
+    const f = fresh();
+    f.write('memory/zero.md', '0'.repeat(MAX_BLOB_BYTES));
+    f.commitAll('zeros');
     const bundle = f.bundle(['refs/heads/main']);
     expect(verify(input(f, bundle))).toEqual({ ok: true, reasons: [] });
   });

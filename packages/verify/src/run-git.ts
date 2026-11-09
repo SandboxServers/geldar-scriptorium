@@ -53,13 +53,18 @@ export const FIXED = [
 
 // A non-zero exit is returned, not thrown. It throws when git cannot start, and when
 // spawnSync reports an error (a timeout, or a stdout overflow past maxBuffer).
-export function git(repo: string, args: readonly string[]): { status: number; stdout: string } {
+export function git(
+  repo: string,
+  args: readonly string[],
+  input?: string,
+): { status: number; stdout: string } {
   const result = spawnSync('git', [...FIXED, ...args], {
     cwd: repo,
     env: gitEnv(),
     encoding: 'utf8',
     maxBuffer: MAX_BUFFER,
     timeout: TIMEOUT_MS,
+    ...(input === undefined ? {} : { input }),
   });
   if (result.error) throw result.error;
   return { status: result.status ?? -1, stdout: result.stdout };

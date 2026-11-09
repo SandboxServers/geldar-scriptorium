@@ -26,7 +26,7 @@ Each requirement is one line. Tests are written in SC-60.
 - H-09: The bundle is made by a separate `--rm --network none` container, started after the session container stopped, with no CLI volume. Test: `launcher/test/hostile/h09-bundle.test.ts`
 - H-10: The bundle is at most 50 MiB and is copied to launcher state before verification. Test: `launcher/test/hostile/h10-size.test.ts`
   Implemented in: verify/src/verify.ts (`MAX_BUNDLE_BYTES`, reason `bundle_too_large`). The copy to launcher state is launcher work.
-  Residual risk (REAL, not fixed): there is no per-blob size cap, so a 200 MiB blob of zeros fits inside a small bundle and the gate accepts it (case marked `it.fails`). Proposed fix: a 1 MiB per-file cap in `packages/verify/src` and `launcher/lib/recheck.*`.
+  Per-blob cap: `MAX_BLOB_BYTES` (2 MiB) in verify/src/verify.ts, checked from object headers without inflating; an oversize blob gives `bundle_too_large`. Guarded by verify.test.ts and the h10 case.
 - H-11: `geldar-verify` (network none) accepts only if all of these hold. Test: `launcher/test/hostile/h11-gate.test.ts`
   - exactly one ref, `refs/heads/<branch>`;
   - a fast-forward from START, with no merge commits;

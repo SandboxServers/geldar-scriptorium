@@ -80,9 +80,9 @@ git commit -q -m big
     T,
   );
 
-  // FINDING (H-10): no per-blob cap. A 200 MiB blob of zeros compresses to a small bundle and the
-  // gate accepts it. The desired behaviour (a hold) is asserted; it fails today, hence it.fails.
-  it.fails('a 200 MiB zero blob under memory/ is held', { timeout: T }, () => {
+  // H-10: a 200 MiB blob of zeros compresses to a small bundle; the gate's per-blob cap
+  // (MAX_BLOB_BYTES in packages/verify) holds it with reason bundle_too_large.
+  it('a 200 MiB zero blob under memory/ is held', { timeout: T }, () => {
     const a = attack(launcher, {
       until: 'verify',
       session: `mkdir -p memory
@@ -92,5 +92,6 @@ git commit -q -m zeros
 `,
     });
     expect(a.finish.status, a.finish.stderr).toBe(3);
+    expect(a.finish.stdout + a.finish.stderr).toContain('far too much');
   });
 });
