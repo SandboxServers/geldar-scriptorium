@@ -1,5 +1,13 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { basename, join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -26,6 +34,24 @@ const share = bashPath(join(repoRoot, 'image'));
 const fakeDocker = bashPath(join(repoRoot, 'launcher', 'test', 'fake-docker.sh'));
 const composeWorks = spawnSync('docker', ['compose', 'version'], { encoding: 'utf8' }).status === 0;
 const TOKEN = 'MOCK-TOKEN-4f9a1c77d2b8';
+
+// Hard failure in CI, a quiet skip on a machine without docker compose (T6).
+function composeAvailable(): boolean {
+  if (composeWorks) return true;
+  if (process.env.CI) throw new Error('docker compose is required in CI');
+  return false;
+}
+
+// Paths (relative to dir, with /) of the files whose text holds the needle.
+function holders(dir: string, needle: string, rel = ''): string[] {
+  const out: string[] = [];
+  for (const e of readdirSync(join(dir, rel), { withFileTypes: true })) {
+    const r = rel ? `${rel}/${e.name}` : e.name;
+    if (e.isDirectory()) out.push(...holders(dir, needle, r));
+    else if (readFileSync(join(dir, r), 'latin1').includes(needle)) out.push(r);
+  }
+  return out.sort();
+}
 
 function envOf(l: Launcher, w: World, extra: Record<string, string> = {}) {
   return { ...(l.name === 'bash' ? w.env : w.envPwsh), GELDAR_SHARE: share, ...extra };
@@ -97,10 +123,7 @@ function composeConfig(w: World, p: Player, extraEnv: Record<string, string> = {
 
 describe.each(forGroup('session'))('session ($name)', (launcher) => {
   it('1. the merged compose config has exactly the kit overlays and two volumes', () => {
-    if (!composeWorks) {
-      expect(process.env.CI, 'docker compose is required in CI').toBeFalsy();
-      return;
-    }
+    if (!composeAvailable()) return;
     const w = makeWorld();
     const p = player(w, 'one');
     const r = start(launcher, w, p, 'play', dumpSession(w));
@@ -130,6 +153,16 @@ describe.each(forGroup('session'))('session ($name)', (launcher) => {
     expect(cfg.volumes.geldar_ws).toMatchObject({ name: 'geldar-ws-one', external: true });
     expect(cfg.volumes.geldar_cli).toMatchObject({ name: 'geldar-cli-one-claude', external: true });
     expect(cfg.networks.inside.internal).toBe(true);
+    expect(cfg.networks.outside.internal).toBeFalsy();
+    expect(s.cap_drop).toEqual(['ALL']);
+    expect(s.security_opt ?? []).toContain('no-new-privileges:true');
+    const svcs = Object.entries(cfg.services) as [string, Record<string, unknown>][];
+    for (const [name, svc] of svcs) {
+      expect(svc.ports, `${name} ports`).toBeUndefined();
+      expect(svc.privileged, `${name} privileged`).toBeFalsy();
+    }
+    const dual = svcs.filter(([, v]) => Object.keys(v.networks as object).length > 1);
+    expect(dual.map(([n]) => n)).toEqual(['proxy']);
   });
 
   it('2. H-06: nothing of the human leaks into the merged config or the override', () => {
@@ -140,7 +173,7 @@ describe.each(forGroup('session'))('session ($name)', (launcher) => {
     const o = text(join(sessionDir(p), 'override.yml'));
     const bads = ['GH_TOKEN', 'GITHUB_TOKEN', 'ANTHROPIC', '.ssh', '.gitconfig', 'docker.sock'];
     for (const bad of bads) expect(o, bad).not.toContain(bad);
-    if (!composeWorks) return;
+    if (!composeAvailable()) return;
     const c = composeConfig(w, p, {
       GH_TOKEN: 'dummy-gh',
       GITHUB_TOKEN: 'dummy-ghb',
@@ -179,7 +212,13 @@ describe.each(forGroup('session'))('session ($name)', (launcher) => {
   it('4. H-08: the allowlist is the bare host, 0644 in a 0755 directory', () => {
     const w = makeWorld();
     const p = player(w, 'four', {}, 'https://mcp.registry.test:443/mcp/v1');
-    const r = start(launcher, w, p);
+    // umask 077 makes a missing chmod visible: mkdir and printf would give 0700 and 0600.
+    const strict = {
+      ...launcher,
+      prefix: ['-c', 'umask 077; . "$0"'],
+      entry: bashPath(launcher.entry),
+    };
+    const r = start(strict, w, p);
     expect(r.status, r.stderr).toBe(0);
     const f = join(sessionDir(p), 'allowlist-world.txt');
     expect(text(f)).toBe('mcp.registry.test\n');
@@ -260,6 +299,9 @@ describe.each(forGroup('session'))('session ($name)', (launcher) => {
     expect(text(join(w.root, 'env-seven.txt'))).toContain(`GELDAR_MCP_TOKEN=${TOKEN}\n`);
     expect(text(join(sessionDir(p), 'override.yml'))).not.toContain(TOKEN);
     expect(text(join(w.dockerRoot, 'calls.log'))).not.toContain(TOKEN);
+    // Only the 0600 token file holds it, anywhere in the state folder.
+    expect(holders(w.state, TOKEN)).toEqual(['seven/token']);
+    if (!win) expect(statSync(join(p.stateDir, 'token')).mode & 0o777).toBe(0o600);
     // No token file: a stale value in the human's shell is not passed on.
     const q = player(w, 'seven-b');
     const s = start(launcher, w, q, 'play', { ...dumpSession(w), GELDAR_MCP_TOKEN: 'STALE-OTHER' });
@@ -289,5 +331,74 @@ describe.each(forGroup('session'))('session ($name)', (launcher) => {
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('cannot be mounted safely');
     expect(runCalls(w)).toHaveLength(0);
+  });
+
+  it('7b. the state scan sees a token planted in an unrelated file', () => {
+    const w = makeWorld();
+    const p = player(w, 'sevenb');
+    writeFileSync(join(p.stateDir, 'token'), `${TOKEN}\n`, { mode: 0o600 });
+    expect(start(launcher, w, p, 'play', dumpSession(w)).status).toBe(0);
+    writeFileSync(join(sessionDir(p), 'notes.txt'), `leak ${TOKEN}\n`);
+    expect(holders(w.state, TOKEN)).toEqual(['sevenb/session/notes.txt', 'sevenb/token']);
+  });
+
+  it('10. a state path with a colon, comma or control character is refused', () => {
+    const w = makeWorld();
+    player(w, 'ten');
+    const env = envOf(launcher, w);
+    const a = run(launcher, ['__prepare', 'ten', 'play'], { env, timeoutMs: 120_000 });
+    expect(a.status, a.stderr).toBe(0);
+    const hostile = win ? [',', ';,;'] : [':', ',', '\n', '\t', '&:&'];
+    const libs = ['common', 'player', 'session']
+      .map((n) => `. "${bashPath(join(repoRoot, 'launcher', 'lib', `${n}.sh`))}"`)
+      .join('; ');
+    const pre = `GP_DIR="${bashPath(join(repoRoot, 'launcher'))}"; GP_GROUPS=; ${libs}; `;
+    const msg = 'cannot be used here';
+    hostile.forEach((bit, i) => {
+      const root = join(w.root, `hostile${i}`, `st${bit}ate`);
+      cpSync(w.state, root, { recursive: true });
+      const sd = join(root, 'ten', 'session');
+      const e = { ...env, GELDAR_STATE_DIR: bashPath(root) };
+      const before = w.calls().length;
+      const r = runBash(`${pre}start_session ten play`, { env: e });
+      expect(r.status, `start ${JSON.stringify(bit)}: ${r.stderr}`).toBe(1);
+      expect(r.stderr).toContain(msg);
+      // Refused before anything is written or any docker call is made.
+      expect(w.calls()).toHaveLength(before);
+      expect(existsSync(join(sd, 'allowlist-world.txt'))).toBe(false);
+      expect(existsSync(join(sd, 'override.yml'))).toBe(false);
+      // The override writer refuses it on its own, too.
+      const d = runBash(`${pre}write_override ten "${bashPath(sd)}" https://m.test/mcp`, {
+        env: e,
+      });
+      expect(d.status, `override ${JSON.stringify(bit)}: ${d.stderr}`).toBe(1);
+      expect(d.stderr).toContain(msg);
+      expect(existsSync(join(sd, 'override.yml'))).toBe(false);
+    });
+  });
+
+  it('11. a dollar sign in a path is doubled in the override and resolves back in compose', () => {
+    const w = makeWorld();
+    const p = player(w, 'eleven');
+    const root = join(w.root, 'dollar', 'st$ate');
+    cpSync(w.state, root, { recursive: true });
+    const moved = { ...p, stateDir: join(root, 'eleven') };
+    const extra = { ...dumpSession(w), GELDAR_STATE_DIR: bashPath(root) };
+    const r = start(launcher, w, p, 'play', extra);
+    expect(r.status, r.stderr).toBe(0);
+    const o = text(join(sessionDir(moved), 'override.yml'));
+    expect(o).toContain('st$$ate');
+    expect(o).not.toMatch(/st\$ate/);
+    if (!composeAvailable()) return;
+    const c = composeConfig(w, moved);
+    expect(c.status, c.stderr).toBe(0);
+    const vols = JSON.parse(c.stdout).services.session.volumes as { source: string }[];
+    const binds = vols
+      .map((v) => v.source.replace(/\\/g, '/'))
+      .filter((x) => x.includes('/export/'));
+    expect(binds.length).toBeGreaterThan(0);
+    // `config` prints a literal dollar sign as `$$`; an undoubled `$ate` would have been
+    // interpolated away and the path would read /st/eleven.
+    for (const b of binds) expect(b).toContain('/st$$ate/eleven/session/export/');
   });
 });
