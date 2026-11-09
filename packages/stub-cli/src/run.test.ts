@@ -118,7 +118,15 @@ describe('runScenario', () => {
         args: {},
         expect: { error: false, includes: [], excludes: [] },
       };
-      await expect(runScenario({ root, steps: [step] })).rejects.toThrow('GELDAR_MCP_TOKEN');
+      const saved = { url: process.env.GELDAR_MCP_URL, token: process.env.GELDAR_MCP_TOKEN };
+      delete process.env.GELDAR_MCP_URL;
+      delete process.env.GELDAR_MCP_TOKEN;
+      try {
+        await expect(runScenario({ root, steps: [step] })).rejects.toThrow('GELDAR_MCP_TOKEN');
+      } finally {
+        if (saved.url !== undefined) process.env.GELDAR_MCP_URL = saved.url;
+        if (saved.token !== undefined) process.env.GELDAR_MCP_TOKEN = saved.token;
+      }
     },
     TIMEOUT,
   );

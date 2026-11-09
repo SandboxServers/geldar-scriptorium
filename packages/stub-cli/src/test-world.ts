@@ -102,6 +102,6 @@ if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.
     process.exitCode = 2;
   } else {
     const port = Number(process.env.GELDAR_TEST_WORLD_PORT ?? '80');
-    await startWorld({ port, token, host: process.env.GELDAR_TEST_WORLD_HOST ?? '0.0.0.0' });
+    await startWorld({ port, token, host: process.env.GELDAR_TEST_WORLD_HOST ?? '127.0.0.1' });
   }
 }
