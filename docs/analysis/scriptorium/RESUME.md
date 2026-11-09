@@ -7,7 +7,7 @@ Read this, then [README.md](README.md) (the ledger), before acting. Rewrite at e
 **Next action:**
 
 1. Merge PR #12 on a green CI. Remove worktrees. Ask the owner to `/compact`.
-2. Wave 6 cards are written ([work-packets-wave6.md](work-packets-wave6.md), [b](work-packets-wave6b.md), [c](work-packets-wave6c.md)), opening with the fan-out plan; dispatch the gates SC-60a, SC-60b, SC-61a (geldar), SC-62a, SC-63b, SC-63c, SC-64a first. The nine OWNER DECISIONS are at the end of part c. Wave 7 cards are still to write.
+2. Wave 6 cards are written ([work-packets-wave6.md](work-packets-wave6.md), [b](work-packets-wave6b.md), [c](work-packets-wave6c.md)), opening with the fan-out plan; dispatch the gates SC-60a, SC-60b1, SC-60b2, SC-60t, SC-61a (geldar), SC-62a, SC-63b, SC-63c, SC-64a first. The eleven OWNER DECISIONS are at the end of part c; 10 (who may create `kit-v*` tags: a ruleset, an owner action) and 11 (the rehearsal path before the first real tag) change who can publish. Wave 7 cards are still to write.
 3. SC-63a: template publish on a `kit-v*` tag (Azure OIDC, `geldar-bot` key from Key Vault). A publish needs a tag push; do not push a tag without the owner's go-ahead.
 4. SC-60 hostile tests, including the case-fold start-tree collision check (decision 28) and security review items N3, N4, N6, N8 (see the retro).
 5. Process follow-ups from the retro's "Proposed next": parity.ts merges, shared test-path helper, H-16 fixture on Windows git.
