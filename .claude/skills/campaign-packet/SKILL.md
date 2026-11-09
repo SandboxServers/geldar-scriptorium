@@ -5,7 +5,7 @@ description: Run a multi-PR effort in geldar-scriptorium as a campaign of prescr
 
 # Campaign and work packets
 
-Ported from Cimmeria's `campaign-packet`, trimmed for a small repo: there is no orchestrator-only persona, no `ops` agent, no agent board and no merge queue. The main session orchestrates and may use a shell. Add the heavier machinery if the campaign grows to many parallel agents.
+Adapted from the geldar repo's `campaign-packet`, trimmed for a small repo: there is no orchestrator-only persona, no `ops` agent, no agent board and no merge queue. The main session orchestrates and may use a shell. Add the heavier machinery if the campaign grows to many parallel agents.
 
 | Step | Who | Writes |
 |---|---|---|

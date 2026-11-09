@@ -31,7 +31,7 @@ This is the threat model for the Geldar player kit and its launcher. Each contro
 | Bundle gate | Safe fetch, independent host re-check, fast-forward-only merge and push | H-12, H-13, H-14 | T-12, T-13, T-14 |
 | Bundle gate | Output sanitising, failure keeps state, crash recovery from stored START | H-15, H-16, H-17 | T-15, T-16, T-17 |
 | Workspace origin | Clean host clone, START held by the launcher, export from `git archive`, isolated clone | H-01 to H-05 | T-01 to T-05 |
-| Settings layers | Hooks inert without the kit marker; managed settings outrank the repo and the workspace | H-18, H-20 | T-18, T-20 |
+| Settings layers | Hooks inert without the kit marker; reads of the CLI home and credentials denied (managed settings) | H-18, H-20 | T-18, T-20 |
 
 ## Accepted risks
 
