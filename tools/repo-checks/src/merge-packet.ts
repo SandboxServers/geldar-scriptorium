@@ -31,7 +31,12 @@ function git(cwd: string, args: string[], allowFail = false): string {
   }
 }
 
-export function mergePacket(cwd: string, branch: string, hooks: Hooks): void {
+export function mergePacket(
+  cwd: string,
+  branch: string,
+  hooks: Hooks,
+  options: { noCheck?: boolean } = {},
+): void {
   const current = git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
   if (!WAVE_BRANCH.test(current)) {
     throw new Error(`refusing: ${current} is not a wave branch (scriptorium/wave<N>)`);
@@ -72,6 +77,10 @@ export function mergePacket(cwd: string, branch: string, hooks: Hooks): void {
         `merge conflict, merge aborted; resolve by hand. Conflicted files: ${conflicted.join(', ')}`,
       );
     }
+  }
+  if (options.noCheck) {
+    hooks.log(`merged ${branch} into ${current}; check skipped (--no-check): run at wave end`);
+    return;
   }
   if (!hooks.runCheck()) {
     git(cwd, ['reset', '--hard', before]);

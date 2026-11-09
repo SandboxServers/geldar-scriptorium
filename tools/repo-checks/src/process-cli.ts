@@ -11,12 +11,19 @@ const pwsh = process.platform === 'win32' ? 'pwsh.exe' : 'pwsh';
 const script = (...a: string[]) => run(pwsh, ['-NoProfile', '-File', './scriptorium.ps1', ...a]);
 
 try {
-  if (cmd === 'merge-packet' && args[0]) {
-    mergePacket(process.cwd(), args[0], {
-      runCheck: () => script('check'),
-      runInstall: () => script('pnpm', 'install', '--no-frozen-lockfile'),
-      log: (m) => console.log(m),
-    });
+  if (cmd === 'merge-packet' && args.some((a) => a !== '--no-check')) {
+    const noCheck = args.includes('--no-check');
+    const branch = args.find((a) => a !== '--no-check') as string;
+    mergePacket(
+      process.cwd(),
+      branch,
+      {
+        runCheck: () => script('check'),
+        runInstall: () => script('pnpm', 'install', '--no-frozen-lockfile'),
+        log: (m) => console.log(m),
+      },
+      { noCheck },
+    );
   } else if (cmd === 'push-verified') {
     console.log(`pushed and verified at ${pushVerified(process.cwd())}`);
   } else if (cmd === 'ledger' && args[0] === 'set' && args[1] && args[2]) {
@@ -25,7 +32,9 @@ try {
     writeFileSync(file, setLedgerStatus(readFileSync(file, 'utf8'), args[1], status));
     console.log(`${args[1]} -> ${status}`);
   } else {
-    throw new Error('usage: merge-packet <branch> | push-verified | ledger set SC-NN <status>');
+    throw new Error(
+      'usage: merge-packet <branch> [--no-check] | push-verified | ledger set SC-NN <status>',
+    );
   }
 } catch (error) {
   console.error(`error: ${(error as Error).message}`);
