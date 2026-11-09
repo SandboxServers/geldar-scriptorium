@@ -19,7 +19,7 @@ Part of [work-packets.md](work-packets.md): its dispatch rules 1-17 and its Cont
 | 7 | **SC-52b** (`resolve`, `archive`, `status`, multi-player) | SC-52a |
 | PowerShell | **SC-53a** after SC-50a; **SC-53b** after SC-50b and SC-53a; **SC-53c** after SC-50c and SC-53b; **SC-53d** after SC-51a and SC-53c; **SC-53e** after SC-51b and SC-53d; **SC-54a** after SC-52a and SC-53e; **SC-54b** after SC-52b and SC-54a | the bash twin |
 | 8 | **SC-55b** (end to end on the in-test world, both launchers) | SC-52b, SC-54b, SC-55a |
-| 9 | **SC-55c** (swap in the mock world) | SC-55b and **SC-33 (Wave 3, not started)** |
+| 9 | **SC-55c** (swap in the mock world) | SC-55b and **SC-33 (Wave 3, done)** |
 
 Everything except SC-55c is independent of Wave 3. A bash packet and its PowerShell twin may run in parallel once the bash packet has merged into the wave branch. Packets touching `pnpm-lock.yaml`, `.github/workflows/ci.yml` or `launcher/test/parity.ts`: see rule 13 and "Shared files" below.
 
@@ -394,7 +394,7 @@ Every packet here mirrors the bash packet with the same suffix. Rules for all of
 
 ### SC-55c — Swap the in-test world for the mock world (blocked on Wave 3)
 
-- **Branch** `scriptorium/sc-55c-e2e-mock`, worktree `sc-55c`. Commit: `test(e2e): run the end-to-end flow against the mock world image`. Depends on: SC-55b and **SC-33** (the mock world image in GHCR, Wave 3, not started). Status BlockedDependency until SC-33 exists; nothing else in the wave waits for it.
+- **Branch** `scriptorium/sc-55c-e2e-mock`, worktree `sc-55c`. Commit: `test(e2e): run the end-to-end flow against the mock world image`. Depends on: SC-55b and **SC-33** (the mock world image in GHCR, Wave 3, done). Nothing else in the wave waited for it.
 - **Files (3):** `tests/e2e/world.ts` (add a `mock` mode chosen by `GELDAR_E2E_WORLD=mock`; default stays the in-test world), `tests/e2e/e2e.test.ts` (parametrize the world), the `play-day-N.jsonl` scenarios (adjust `includes` to the mock's real output, nothing else).
 - **Needs from SC-33 (confirm with the geldar repo before starting):** the image is pinned by digest in `tests/e2e/world.ts` (verify with `docker buildx imagetools inspect ghcr.io/sandboxservers/geldar-mcp-mock:<tag>`, at least 14 days old, D-SC-06 public); it listens on **port 80** (the proxy's `Safe_ports` allows only 80 and 443, and the stub is plain HTTP); it accepts a per-player static bearer token (D-SC-12) given by an environment variable or a file the test mounts, with a day length short enough for CI (seconds); its tool `status` and `wait` return the shapes the scenarios assert.
 - **Tests:** the same assertions as SC-55b with `GELDAR_E2E_WORLD=mock`; plus one mock-specific case: a wrong token is rejected by the mock (the `status` step fails, no commit, the launcher still ends cleanly with nothing pushed).

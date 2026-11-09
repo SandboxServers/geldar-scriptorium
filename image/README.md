@@ -43,4 +43,8 @@ The kit image is built once per vitest run by `tests/image/global-setup.ts`; eac
 
 ## H-20: structural only in CI
 
-The Read, Edit and Write denies for the CLI home and credentials are tested for what can be tested without a model: the rules exist (`settings.test.ts`) and the pinned CLI accepts the managed file from the managed path (`cli.test.ts`). Whether a path deny actually blocks a model's read is **not** tested in CI. D-SC-01 settled that CI never calls a model, so that live check is local only, run by the owner with a subscription login (SC-62, not built yet). Until SC-62 runs, treat H-20 as structurally covered, not behavior-verified.
+The Read, Edit and Write denies for the CLI home and credentials are tested for what can be tested without a model: the rules exist (`settings.test.ts`) and the pinned CLI accepts the managed file from the managed path (`cli.test.ts`). Whether a path deny actually blocks a model's read is **not** tested in CI. D-SC-01 settled that CI never calls a model, so that live check is local only, run by the owner with a subscription login (SC-62, not built yet; Wave 6). Until SC-62 runs, treat H-20 as structurally covered, not behavior-verified.
+
+## Stub image variant (Wave 5)
+
+`stub.Dockerfile` builds the kit image with the scripted `stub-cli` in place of the real CLI, for the end-to-end tests only (`tests/e2e/`, run through [the launcher](../launcher/README.md)). It needs `--build-arg KIT_BASE=<kit image>`, is never published and is never a release target.
