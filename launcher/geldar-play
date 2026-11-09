@@ -26,6 +26,7 @@ verb_needs() {
     new | archive) printf '%s' 'docker git perl gh' ;;
     setup | play | __prepare | __session | __finish) printf '%s' 'docker git tar perl' ;;
     resolve) printf '%s' 'docker git perl' ;;
+    upgrade) printf '%s' 'git perl gh' ;;
     status) printf '%s' 'git' ;;
   esac
 }
@@ -100,7 +101,7 @@ case $verb in
   __prepare | __session | __finish | __bounded)
     [ "${GELDAR_INTERNAL:-}" = "1" ] || die 2 internal_only
     ;;
-  new | setup | play | resolve | archive | status) ;;
+  new | setup | play | resolve | archive | status | upgrade) ;;
   *) die 2 usage ;;
 esac
 
