@@ -156,6 +156,28 @@ describe.skipIf(missing.length > 0)('session hooks', () => {
     expect(hasControl).toBe(false);
   });
 
+  it('keeps a raw control character and newline in tool_name out of the journal', () => {
+    const journal = journalPath(project);
+    const before = readFileSync(journal, 'utf8');
+    const payload = JSON.stringify({ tool_name: 'mcp__geldar__sa\u001by\nx', tool_input: {} });
+
+    const result = run('post-tool-use.sh', { input: payload });
+
+    expect(result.status).toBe(0);
+    const appended = readFileSync(journal, 'utf8').slice(before.length);
+    expect(appended).toMatch(/^- \d{2}:\d{2} sayx: \{\}\n$/);
+  });
+
+  it.each(scripts)('%s exits 0 and writes nothing when CLAUDE_PROJECT_DIR is unset', (script) => {
+    const before = snapshot(project);
+
+    const result = run(script, { input: sayPayload, env: { CLAUDE_PROJECT_DIR: undefined } });
+
+    expect(result.status, script).toBe(0);
+    expect(result.stdout).toBe('');
+    expect(snapshot(project)).toEqual(before);
+  });
+
   it('caps the journal line at 240 characters', () => {
     const journal = journalPath(project);
     const before = readFileSync(journal, 'utf8');

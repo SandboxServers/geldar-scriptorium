@@ -13,7 +13,7 @@ payload="$(cat)"
 # 240 characters in all. jq strips control characters and counts characters, so
 # nothing is split mid-character. A payload without a tool name writes nothing.
 line="$(printf '%s' "$payload" | jq -r --arg time "$(date +%H:%M)" '
-  def clean: gsub("[\\u0000-\\u001f\\u007f]"; "");
+  def clean: gsub("[[:cntrl:]]"; "");
   (.tool_name | strings | sub("^mcp__geldar__"; "") | clean | .[0:40]) as $tool
   | select($tool != "")
   | ((.tool_input // {}) | tostring | clean | .[0:200]) as $input
