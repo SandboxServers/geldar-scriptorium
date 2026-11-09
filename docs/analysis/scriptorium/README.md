@@ -58,13 +58,13 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-03 | 0 | S | Developer agent setup: CLAUDE.md, AGENTS.md, agents, skills, memory | packet-coder | Done (merged into wave0) | SC-01 |
 | SC-04 | 0 | S | Docs: architecture, clients matrix, releases, decisions index | packet-coder | Done (merged into wave0) | SC-01 |
 | SC-05 | 0 | S | Kit threat model and launcher hardening checklist | Sonnet (general-purpose) | Done (merged into wave0) | SC-01 |
-| SC-10 | 1 | S | Template skeleton, `player.json` schema, boundary test | packet-coder | BlockedDependency | wave 0 |
-| SC-11 | 1 | S | One instructions source, generated `CLAUDE.md` and `AGENTS.md`, drift check | packet-coder | BlockedDependency | SC-10 |
-| SC-12 | 1 | S | Play-mode `.claude/settings.json`, `.mcp.json`, policy test | packet-coder | BlockedDependency | SC-10 |
-| SC-13 | 1 | S | Skills: `play`, `reflect` | packet-coder | BlockedDependency | SC-10 |
-| SC-14 | 1 | S | Skills: `trade`, `author`, `moot` | packet-coder | BlockedDependency | SC-10 |
+| SC-10 | 1 | S | Template skeleton, `player.json` schema, boundary test | packet-coder | Done (merged into wave1) | wave 0 |
+| SC-11 | 1 | S | One instructions source, generated `CLAUDE.md` and `AGENTS.md`, drift check | packet-coder | Writing | SC-10 |
+| SC-12 | 1 | S | Play-mode `.claude/settings.json`, `.mcp.json`, policy test | packet-coder | Writing | SC-10 |
+| SC-13 | 1 | S | Skills: `play`, `reflect` | packet-coder | Writing | SC-10 |
+| SC-14 | 1 | S | Skills: `trade`, `author`, `moot` | packet-coder | Writing | SC-10 |
 | SC-15 | 1 | S | `setup` skill and setup-mode settings | packet-coder | BlockedDependency | SC-12 |
-| SC-16 | 1 | S | Hooks with the container guard, and their tests | packet-coder | BlockedDependency | SC-10 |
+| SC-16 | 1 | S | Hooks with the container guard, and their tests | packet-coder | Writing | SC-10 |
 | SC-20 | 2 | S | `path-rule` package: allowed paths, modes, write-once identity | packet-coder | BlockedDependency | wave 1 |
 | SC-21 | 2 | S | `geldar-memory` MCP server (`recall`) | packet-coder | BlockedDependency | SC-20 |
 | SC-22 | 2 | S | `geldar-git` MCP server and CLI (`commit_memory`) | packet-coder | BlockedDependency | SC-20 |
