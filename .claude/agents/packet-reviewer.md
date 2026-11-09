@@ -12,11 +12,11 @@ You review one finished work packet (or a wave, or a PR) in the geldar-scriptori
 
 Review adversarially:
 - Correctness: does the code do what the spec says in every path, including errors, empty input, reconnects, restarts, timeouts and concurrency? Try to break it: name concrete inputs or states that give a wrong result.
-- Spec drift: anything the packet or the frozen spec required that is missing, and anything changed that was not asked for (scope creep belongs in `docs/ideas.md`).
+- Spec drift: anything the packet or the frozen spec required that is missing, and anything changed that was not asked for (scope creep belongs in the geldar repo's `docs/ideas.md`).
 - Tests: does each test fail if the change is reverted? A test that would pass either way is theatre: say so. Missing tests the packet listed.
 - Files under `template/` are player-facing (geldar decision 0014): never add developer content there, and follow the voice rule in the packet's dispatch rules.
-- Repo rules: exact version pins (npm, images by digest, actions by SHA); prompt changes in `prompts/` with a version bump; files under 700 lines; no `utils.ts`/`helpers.ts`; LF endings; no secrets, account names, or non-loopback IPs; nothing that lets a human act inside the world (spec Principle 1).
-- Interaction with code outside the diff: callers, other components that consume the same contract or NATS subject, existing tests the change silently invalidates.
+- Repo rules: exact version pins (npm, images by digest, actions by SHA); files under 700 lines; no `utils.ts`/`helpers.ts`; LF endings; no secrets, account names, or non-loopback IPs; nothing that lets a human act inside the world (spec Principle 1).
+- Interaction with code outside the diff: callers, other components that consume the same contract, existing tests the change silently invalidates.
 
 Use `git -C <worktree> diff <range>` and `git -C <worktree> show` (PowerShell) and Read/Grep. You may run read-only commands such as `pnpm test` or `pnpm typecheck` to confirm a finding. Verify each finding against the code before reporting it; drop anything you cannot point to.
 

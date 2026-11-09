@@ -8,7 +8,7 @@ This repo produces the three outputs for Geldar sovereign players: the player-fa
 
 ## Repo rules
 
-- **The spec is frozen.** It lives in the geldar repo. Build what the spec and the current packet say. Every departure from the spec is a record in the geldar repo's `docs/decisions/` (0007), and the PR says so. Ideas outside the spec go in `docs/ideas.md`.
+- **The spec is frozen.** It lives in the geldar repo. Build what the spec and the current packet say. Every departure from the spec is a record in the geldar repo's `docs/decisions/` (0007), and the PR says so. Ideas outside the spec go in the geldar repo's `docs/ideas.md`.
 - **Pin exact versions**: npm packages (`saveExact` is on), Docker images (by digest), GitHub Actions (by commit SHA), Node (`.nvmrc`). Only versions at least two weeks old.
 - **A behavior change needs a test that fails when the change is reverted.** Check that it does before you call it done.
 - **Files: soft cap 500 lines, hard cap 700.** Split along natural seams. No `utils.ts` or `helpers.ts` dumping grounds. `pnpm check:repo` enforces the hard cap.

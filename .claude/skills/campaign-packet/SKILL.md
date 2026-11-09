@@ -1,11 +1,11 @@
 ---
 name: campaign-packet
-description: Run a multi-PR effort in Geldar (Phase 0 first) as a campaign of prescriptive work packets - the session writes or updates the ledger and packets, dispatches one packet-coder per packet in its own worktree, runs read-only packet-reviewer loops, and keeps RESUME.md current. Use when the user says "resume Phase 0", "run the next wave", "split this into packets", "dispatch workers", or when writing or reviewing a work-packets.md, RESUME.md, worknote or ledger.
+description: Run a multi-PR effort in geldar-scriptorium as a campaign of prescriptive work packets - the session writes or updates the ledger and packets, dispatches one packet-coder per packet in its own worktree, runs read-only packet-reviewer loops, and keeps RESUME.md current. Use when the user says "resume the scriptorium campaign", "run the next wave", "split this into packets", "dispatch workers", or when writing or reviewing a work-packets.md, RESUME.md, worknote or ledger.
 ---
 
 # Campaign and work packets
 
-Ported from Cimmeria's `campaign-packet`, trimmed for a small repo: there is no orchestrator-only persona, no `ops` agent, no agent board and no merge queue. The main session orchestrates and may use a shell. Add the heavier machinery when Phase 1 brings many parallel agents.
+Ported from Cimmeria's `campaign-packet`, trimmed for a small repo: there is no orchestrator-only persona, no `ops` agent, no agent board and no merge queue. The main session orchestrates and may use a shell. Add the heavier machinery if the campaign grows to many parallel agents.
 
 | Step | Who | Writes |
 |---|---|---|
