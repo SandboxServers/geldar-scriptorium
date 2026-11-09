@@ -1,0 +1,22 @@
+bundle_too_large	The session saved far too much. It is kept. Run: geldar-play resolve %s
+bundle_failed	The session could not be packed up. It is kept. Run: geldar-play resolve %s
+verify_unreadable	The check of the session gave no clear answer, so nothing was saved. Run: geldar-play resolve %s
+verify_rejected	The session was not saved. It is kept. Run: geldar-play resolve %s
+verify_ok	The check of the session passed.
+recheck_failed	A second check of the session failed (%s), so nothing was saved. Run: geldar-play resolve %s
+reason_bad_arguments	The check could not be started, so nothing was saved.
+reason_verify_error	The check of the session failed to finish, so nothing was saved.
+reason_bundle_too_large	The session saved far too much.
+reason_bundle_unreadable	The session could not be read.
+reason_bundle_refs_unexpected	The session changed more than its own branch.
+reason_bundle_fetch_failed	The session could not be brought in safely.
+reason_too_many_commits	The session made far too many saves.
+reason_not_fast_forward	The session rewrote what was saved before.
+reason_merge_commit	The session joined two lines of saves together, which is not allowed.
+reason_identity_mismatch	The session saved under a name that is not the player.
+reason_identity_changed	The session changed who the player is.
+reason_path_not_allowed	The session changed something a player may not change.
+reason_symlink_not_allowed	The session added a link where a file belongs.
+reason_gitlink_not_allowed	The session added a folder that is really another repository.
+reason_executable_not_allowed	The session made a file runnable.
+reason_bad_mode	The session saved a file in a form that is not allowed.
