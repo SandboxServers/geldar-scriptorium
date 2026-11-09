@@ -12,6 +12,7 @@ import {
   repoRoot,
   run,
   runBash,
+  runLib,
   type World,
 } from './harness.ts';
 import { timingIt } from './timing.ts';
@@ -146,10 +147,16 @@ function repoWith(w: World, name: string, script: string) {
   return { dir, start };
 }
 
-function recheck(w: World, dir: string, start: string, mode = 'play') {
-  const r = runBash(
-    `. '${libDir}/common.sh'; . '${libDir}/recheck.sh'; host_recheck '${bashPath(dir)}' ${start} HEAD ${mode}; echo "rc=$? why=$RC_WHY"`,
-    { env: w.env },
+function recheck(l: Launcher, w: World, dir: string, start: string, mode = 'play') {
+  const r = runLib(
+    l,
+    {
+      bash: `. '${libDir}/recheck.sh'; host_recheck '${bashPath(dir)}' ${start} HEAD ${mode}; echo "rc=$? why=$RC_WHY"`,
+      pwsh: `. (Join-Path $GP_DIR 'lib/recheck.ps1')
+$ok = Test-HostRecheck '${bashPath(dir)}' '${start}' 'HEAD' '${mode}'
+[Console]::Out.Write("rc=$([int](-not $ok)) why=$script:RC_WHY\`n")`,
+    },
+    { env: l.name === 'bash' ? w.env : w.envPwsh },
   );
   return r.stdout.trim();
 }
@@ -306,7 +313,7 @@ git commit -q -m big
       it.each(bad)('rejects %s', (name, script, why) => {
         const w = makeWorld();
         const { dir, start } = repoWith(w, 'r', script);
-        const out = recheck(w, dir, start);
+        const out = recheck(l, w, dir, start);
         expect(out).toMatch(/^rc=1 why=/);
         if (why) expect(out).toContain(why);
         if (name !== 'a merge') {
@@ -324,18 +331,18 @@ git commit -q -m big
           'r',
           'mkdir -p memory/journal\necho a > memory/journal/day-001.md\ngit add -A\ngit commit -q -m m\n',
         );
-        expect(recheck(w, ok.dir, ok.start)).toBe('rc=0 why=');
+        expect(recheck(l, w, ok.dir, ok.start)).toBe('rc=0 why=');
         const id = repoWith(
           w,
           'r2',
           'echo i > memory/identity.md\ngit add -A\ngit commit -q -m m\n',
         );
-        expect(recheck(w, id.dir, id.start, 'play')).toMatch(/^rc=1 why=memory\/identity.md/);
-        expect(recheck(w, id.dir, id.start, 'setup')).toBe('rc=0 why=');
+        expect(recheck(l, w, id.dir, id.start, 'play')).toMatch(/^rc=1 why=memory\/identity.md/);
+        expect(recheck(l, w, id.dir, id.start, 'setup')).toBe('rc=0 why=');
       });
     });
 
-    it('8. path_allowed (the bash twin) agrees with every case in path-cases.json', () => {
+    it('8. path_allowed (the launcher twin) agrees with every case in path-cases.json', () => {
       const w = makeWorld();
       const cases = JSON.parse(
         readFileSync(join(repoRoot, 'launcher', 'test', 'path-cases.json'), 'utf8'),
@@ -346,14 +353,27 @@ git commit -q -m big
         data,
         cases.map((c) => [c.path, c.mode, c.allowed ? 'yes' : 'no'].join(nul) + nul).join(''),
       );
-      const script = `. '${libDir}/common.sh'; . '${libDir}/recheck.sh'
+      const script = `. '${libDir}/recheck.sh'
 bad=0
 while IFS= read -r -d '' p && IFS= read -r -d '' m && IFS= read -r -d '' want; do
   if path_allowed "$p" "$m"; then got=yes; else got=no; fi
   [ "$got" = "$want" ] || { bad=$((bad + 1)); printf 'MISMATCH %q %s want %s\\n' "$p" "$m" "$want"; }
 done < '${bashPath(data)}'
 echo "bad=$bad"`;
-      const r = runBash(script, { env: w.env });
+      const pwshScript = `. (Join-Path $GP_DIR 'lib/recheck.ps1')
+$bytes = [System.IO.File]::ReadAllBytes('${data.replaceAll('\\', '/')}')
+$parts = [System.Text.Encoding]::UTF8.GetString($bytes).Split([char]0)
+$bad = 0
+for ($i = 0; $i + 2 -lt $parts.Count; $i += 3) {
+  $got = if (Test-PathAllowed $parts[$i] $parts[$i + 1]) { 'yes' } else { 'no' }
+  if ($got -cne $parts[$i + 2]) { $bad++; [Console]::Out.Write("MISMATCH $($parts[$i]) $($parts[$i + 1]) want $($parts[$i + 2])\`n") }
+}
+[Console]::Out.Write("bad=$bad\`n")`;
+      const r = runLib(
+        l,
+        { bash: script, pwsh: pwshScript },
+        { env: l.name === 'bash' ? w.env : w.envPwsh },
+      );
       expect(r.stdout.trim()).toBe('bad=0');
     });
 
