@@ -11,6 +11,7 @@ import {
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  bashExe,
   bashPath,
   forGroup,
   git,
@@ -34,6 +35,7 @@ interface Setup {
   w: World;
   ghRoot: string;
   env: Record<string, string>;
+  envPwsh: Record<string, string>;
   ghCalls(): string[][];
 }
 
@@ -45,6 +47,7 @@ function setupWorld(conf = 'mcp_base=\nprivate_only_shards=\n'): Setup {
   writeFileSync(join(shareDir, 'config', 'world.conf'), conf);
   writeFileSync(join(w.fakeDir, 'gh'), `#!/bin/sh\nexec sh "${fakeGh}" "$@"\n`);
   chmodSync(join(w.fakeDir, 'gh'), 0o755);
+  if (win && bashExe) writeFileSync(join(w.fakeDir, 'gh.cmd'), `@"${bashExe}" "${fakeGh}" %*\r\n`);
   // The host's own identity, with signing switched on.
   writeFileSync(
     join(w.root, 'gitconfig'),
@@ -62,6 +65,13 @@ function setupWorld(conf = 'mcp_base=\nprivate_only_shards=\n'): Setup {
     GIT_COMMITTER_NAME: HOST.name,
     GIT_COMMITTER_EMAIL: HOST.email,
   };
+  // pwsh starts the fakes itself, so it gets native paths and the .cmd shim on Windows.
+  const envPwsh = {
+    ...env,
+    ...w.envPwsh,
+    GELDAR_GH: join(w.fakeDir, win ? 'gh.cmd' : 'gh'),
+    GELDAR_SHARE: shareDir,
+  };
   const ghCalls = () => {
     const f = join(ghRoot, 'calls.log');
     if (!existsSync(f)) return [];
@@ -70,17 +80,17 @@ function setupWorld(conf = 'mcp_base=\nprivate_only_shards=\n'): Setup {
       .filter(Boolean)
       .map((l) => l.split('\t'));
   };
-  return { w, ghRoot, env, ghCalls };
+  return { w, ghRoot, env, envPwsh, ghCalls };
 }
 
 function token(): string {
   return randomBytes(24).toString('base64url');
 }
 
-function tokenFile(w: World, body: string): string {
+function tokenFile(l: Launcher, w: World, body: string): string {
   const f = join(w.root, 'tok.txt');
   writeFileSync(f, body);
-  return bashPath(f);
+  return l.name === 'bash' ? bashPath(f) : f;
 }
 
 function newRun(
@@ -90,7 +100,10 @@ function newRun(
   extra: Record<string, string> = {},
   timeoutMs = 120_000,
 ) {
-  return run(l, ['new', ...args], { env: { ...s.env, ...extra }, timeoutMs });
+  return run(l, ['new', ...args], {
+    env: { ...(l.name === 'bash' ? s.env : s.envPwsh), ...extra },
+    timeoutMs,
+  });
 }
 
 function filesUnder(dir: string, rel = ''): string[] {
@@ -138,6 +151,16 @@ describe.each(forGroup('new'))('new ($name)', (l) => {
     expect(git(clonePath(s), ['log', '-n', '1', '--format=%s'])).toBe(`player: ${ID}`);
   });
 
+  it.skipIf(l.name !== 'pwsh')(
+    'pwsh. player.json differs from the template in exactly the three value lines',
+    () => {
+      const s = setupWorld();
+      const r = newRun(l, s, [ID, '--mock', MOCK]);
+      expect(r.status, r.stderr).toBe(0);
+      expect(git(clonePath(s), ['diff', '--numstat', 'HEAD~1', 'HEAD'])).toBe('3	3	player.json');
+    },
+  );
+
   it('3. --private passes --private; the default passes --public and prints the notice', () => {
     const s = setupWorld();
     const a = newRun(l, s, [ID, '--mock', MOCK, '--private']);
@@ -170,7 +193,7 @@ describe.each(forGroup('new'))('new ($name)', (l) => {
   it('5. the token is stored 0600 and appears nowhere else', () => {
     const s = setupWorld();
     const t = token();
-    const tf = tokenFile(s.w, `${t}\n`);
+    const tf = tokenFile(l, s.w, `${t}\n`);
     const r = newRun(l, s, [ID, '--mock', MOCK, '--token-file', tf]);
     expect(r.status, r.stderr).toBe(0);
     const f = join(s.w.state, ID, 'token');
@@ -188,7 +211,7 @@ describe.each(forGroup('new'))('new ($name)', (l) => {
   it('6. hostile inputs are refused before any gh call', () => {
     const s = setupWorld();
     const good = token();
-    const tf = (body: string) => tokenFile(s.w, body);
+    const tf = (body: string) => tokenFile(l, s.w, body);
     const cases: [string[], number, string][] = [
       [['Bad_Id', '--mock', MOCK], 2, ''],
       [[ID, '--mock', MOCK, '--shard', 'X'], 1, 'shard name is not allowed'],
