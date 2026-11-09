@@ -196,6 +196,19 @@ importers:
 
   packages/path-rule: {}
 
+  packages/stub-cli:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: 1.32.2
+        version: 1.32.2(zod@4.6.7)
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@geldar/scriptorium-memory':
+        specifier: workspace:*
+        version: link:../memory
+
   packages/verify:
     dependencies:
       '@geldar/scriptorium-path-rule':
