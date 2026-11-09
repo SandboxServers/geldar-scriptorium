@@ -1,0 +1,5 @@
+{"op":"call","server":"geldar_memory","tool":"recall","args":{"section":"identity"},"expect":{"includes":["Written once, at your birth"]}}
+{"op":"write","path":"memory/identity.md","content":"# Identity\n\n## Name\nWren\n\n## Traits\nquiet, curious\n\n## Voice\nsoft\n\n## Seed\nShe keeps bees.\n\n## Values\nPatience\n"}
+{"op":"write","path":"memory/summary.md","content":"# Recent days\n\nYou are Wren. You keep bees. You are patient.\n"}
+{"op":"write","path":"memory/goals.md","content":"# Goals\n\nFind a quiet hive site.\n"}
+{"op":"call","server":"geldar_git","tool":"commit_memory","args":{"message":"birth: Wren"},"expect":{"includes":["memory/identity.md","memory/summary.md","memory/goals.md"]}}

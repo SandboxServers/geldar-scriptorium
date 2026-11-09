@@ -1,0 +1,9 @@
+{"op":"call","server":"geldar_memory","tool":"recall","args":{"section":"summary"},"expect":{"includes":["You are Wren"]}}
+{"op":"write","path":"memory/journal/day-001.md","content":"# Day 1\n\nI found a quiet hive site.\n"}
+{"op":"write","path":"memory/people/pike.md","content":"# Pike\n\nTrust 60. We shared bread.\n"}
+{"op":"write","path":"memory/summary.md","content":"# Recent days\n\nYou are Wren. You keep bees. You found a quiet hive site.\n"}
+{"op":"write","path":"CLAUDE.md","content":"tampered\n"}
+{"op":"write","path":"memory/identity.md","content":"tampered identity\n"}
+{"op":"call","server":"geldar_git","tool":"commit_memory","args":{"message":"day 001: found the hive site"},"expect":{"includes":["memory/journal/day-001.md","memory/people/pike.md","not_saved","CLAUDE.md","memory/identity.md"]}}
+{"op":"call","server":"geldar_memory","tool":"recall","args":{"section":"journal/day-001"},"expect":{"includes":["quiet hive site"]}}
+{"op":"call","server":"geldar_memory","tool":"recall","args":{"section":"journal/day-002"},"expect":{"error":true,"includes":["not_found"]}}
