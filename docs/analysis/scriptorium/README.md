@@ -146,7 +146,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-63a | 6 | S | Template publish workflow (`workflow_call` and dry run): Azure OIDC sign-in, `geldar-bot` key from Key Vault (masked), installation token, push `template/` to `geldar-player-template` as one commit naming the release triple | Sonnet (general-purpose) | Done | SC-63b, SC-63c |
 | SC-63b | 6 | S | Template publish tool (`tools/release`): assemble, one commit, tag, dry run, no force; gate | Sonnet (general-purpose) | Done | wave 5 |
 | SC-63c | 6 | S | Workflow check: pins, permissions per job, triggers, secrets, masking, no model use, tag guard, no `${{` in `run:`; gate | Sonnet (general-purpose) | Done | wave 5 |
-| SC-63d | 6 | S | Image workflow in three jobs: build and push to GHCR, trivy and grype (fail on critical) and SBOM, cosign sign and attest; public-package check; image `LABEL` | Sonnet (general-purpose) | BlockedDependency | SC-63c |
+| SC-63d | 6 | S | Image workflow in three jobs: build and push to GHCR, trivy and grype (fail on critical) and SBOM, cosign sign and attest; public-package check; image `LABEL` | Sonnet (general-purpose) | Done | SC-63c |
 | SC-63e | 6 | S | Launcher assets: reproducible tarball and checksums | Sonnet (general-purpose) | BlockedDependency | SC-63b |
 | SC-63g | 6 | S | Image scan on pull requests, `main` and weekly (no push, no credential) | packet-coder (Haiku) | Done | SC-63c |
 | SC-63f | 6 | S | Release wiring: launcher signing, template call, GitHub release with template-tag check, rehearsal job; join | Sonnet (general-purpose) | BlockedDependency | SC-63a, SC-63d, SC-63e, SC-63g, SC-63h |
