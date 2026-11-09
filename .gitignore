@@ -29,3 +29,7 @@ Thumbs.db
 bench-results/
 compose/secrets/
 .data/
+
+# Other agent tools' local folders
+.agents/
+.codex/
