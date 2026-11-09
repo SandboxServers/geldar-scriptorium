@@ -44,13 +44,13 @@ Spec-level decisions are records in the **geldar** repo (`docs/decisions/`). Thi
 | D-SC-09 | Prerequisites on the human's machine: Docker (D-SC-03), git, GitHub CLI `gh` (for `new` and `upgrade`), PowerShell 7 on Windows, `tar` (bsdtar ships with Windows), `tmux` (bash multi-player only) | Proposed (orchestrator) | SC-50 | — |
 | D-SC-10 | A scripted **stub CLI** (`packages/stub-cli`) stands in for the vendor CLI in deterministic CI. Real models run only in the live malicious-book job. | Accepted (orchestrator) | SC-24a | — |
 | D-SC-11 | The post-session gate is TypeScript (`geldar-verify`) running in a network-less container from the pinned image. The launcher's bash and PowerShell shims stay thin and re-check only the cheap invariants on the host. | Accepted (orchestrator) | SC-23, SC-51 | geldar 0011 |
-| D-SC-12 | Mock world auth: a static bearer token per player. The real OAuth flow and its loopback callback wait for Threshold. | Accepted (owner) | SC-31 | — |
+| D-SC-12 | Mock world auth: a static bearer token per player. The real OAuth flow and its loopback callback wait for Threshold. | Accepted (owner) | SC-31a | — |
 | D-SC-13 | Package names: `@geldar/scriptorium-<name>`; binaries `geldar-memory`, `geldar-git`, `geldar-verify` | Accepted (orchestrator) | SC-20 | — |
 | D-SC-14 | Mode reaches `geldar-git` through a `GELDAR_MODE` environment variable (`play` or `setup`; unset means `play`), set by the launcher; whether the pinned CLI passes it on to MCP servers is checked in SC-42b and a failure is safe (play mode is the stricter one for identity). | Accepted (orchestrator) | SC-22a, SC-22b | work-packets.md § Wave 2 |
 
 ## Packets
 
-Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. Repo: **S** = this repo, **G** = geldar. Each packet is sized for one Haiku `packet-coder` session under 75k tokens. Waves 3, 6 and 7 are scope cards until the wave before them closes, then they're written out in full; wave 5 is in [work-packets-wave5.md](work-packets-wave5.md).
+Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. Repo: **S** = this repo, **G** = geldar. Each packet is sized for one Haiku `packet-coder` session under 75k tokens. Waves 3 and 4 are written out in full ([work-packets-wave3.md](work-packets-wave3.md), [work-packets-wave4.md](work-packets-wave4.md)); wave 5 is in [work-packets-wave5.md](work-packets-wave5.md); waves 6 and 7 are scope cards until the wave before them closes.
 
 | Packet | Wave | Repo | Title | Implementer | Status | Depends on |
 |---|---|---|---|---|---|---|
@@ -74,10 +74,16 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-23b | 2 | S | `geldar-verify`: history, path, mode and identity checks, CLI, hostile bundles | packet-coder | Done (merged into wave2) | SC-23a |
 | SC-24a | 2 | S | `stub-cli`: scripted stand-in for the vendor CLI (scenario runner; large, budget a retry) | packet-coder | Done (merged into wave2) | SC-21 |
 | SC-24b | 2 | S | `stub-cli`: birth and reflect scenarios | packet-coder | Done (merged into wave2) | SC-24a, SC-22b |
-| SC-30 | 3 | G | Contract: MCP tool and result schemas (5.15.3, Appendix K as fixed by 0009) | packet-coder | BlockedDependency | geldar P0-01 |
-| SC-31 | 3 | G | `threshold/mcp-mock`: Streamable HTTP per player, bearer auth, tools, resources, prompts | packet-coder | BlockedDependency | SC-30 |
-| SC-32 | 3 | G | Mock world: day clock, events, `wait` cursor, `act` validation, `sleep` digest, books | packet-coder | BlockedDependency | SC-31 |
-| SC-33 | 3 | G | Mock world image, published to GHCR from `main` | packet-coder | BlockedDecision | SC-32, D-SC-06 |
+| SC-30a | 3 | G | Contract: generator support, shared MCP types, schemas for look, wait, act, say; bundled tool definitions | packet-coder (Sonnet) | Ready | geldar main |
+| SC-30b | 3 | G | Contract: schemas for the other ten tools | packet-coder | BlockedDependency | SC-30a |
+| SC-31a | 3 | G | `threshold/mcp-mock` package: bearer auth, HTTP sessions, supersede | packet-coder (Sonnet) | Ready | — |
+| SC-31b | 3 | G | `mcp-mock`: contract-validated tool registry, ids, snapshot builder, fake world | packet-coder (Sonnet) | BlockedDependency | SC-30b, SC-31a |
+| SC-31c | 3 | G | `mcp-mock`: resources, prompts, app, command line | packet-coder | BlockedDependency | SC-31b |
+| SC-32a | 3 | G | Mock world: clock, scenario file, pure wake policy | packet-coder (Sonnet) | BlockedDependency | SC-31a |
+| SC-32b | 3 | G | Mock world: event log, scripted intent executor, eat reflex, player sim | packet-coder (Sonnet) | BlockedDependency | SC-32a, SC-31b |
+| SC-32c | 3 | G | Mock world: hub, `wait` long-poll with wake policy, look, status, sleep, journal | packet-coder (Sonnet) | BlockedDependency | SC-32b, SC-31b |
+| SC-32d | 3 | G | Mock world: act and say with budget, books and skills, sim world, CLI scenario flags, real-time end-to-end | packet-coder (Sonnet) | BlockedDependency | SC-32c, SC-31c |
+| SC-33 | 3 | G | Mock world image, published to GHCR from `main` (public, D-SC-06) | packet-coder (Sonnet) | BlockedDependency | SC-32d |
 | SC-40a | 4 | S | Managed and play settings (CLI-home denies), Docker test support | packet-coder | Done | wave 2 |
 | SC-40b | 4 | S | Kit image Dockerfile: pinned CLI, companions, marker, non-root; build test; CI Docker step | packet-coder | Done | SC-40a |
 | SC-41a | 4 | S | Squid proxy config and allowlist, with config tests | packet-coder | Done | SC-40a |
@@ -103,7 +109,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-55b | 5 | S | End-to-end CI on the in-test world: `new` → `setup` → three `play` days → push, both launchers; Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-52b, SC-54b, SC-55a |
 | SC-55c | 5 | S | End-to-end CI against the mock world image | packet-coder | BlockedDependency (Wave 3) | SC-55b, SC-33 |
 | SC-60 | 6 | S | Hostile workspace tests, one per hardening item | packet-coder | BlockedDependency | SC-55b |
-| SC-61 | 6 | S+G | Malicious-book corpus as mock world scenarios | packet-coder | BlockedDependency | SC-32 |
+| SC-61 | 6 | S+G | Malicious-book corpus as mock world scenarios | packet-coder | BlockedDependency | SC-32d |
 | SC-62 | 6 | S | Live malicious-book check, local only (script plus documented procedure; never in CI) with pinned Claude Code | packet-coder | Planned | SC-61 |
 | SC-63 | 6 | S | Release workflow: image, cosign, SBOM, scan, launcher assets, template publish | packet-coder | BlockedDependency (SC-60; D-SC-02 and D-SC-06 are Accepted) | SC-60 |
 | SC-64 | 6 | S | `geldar-play upgrade`: kit bump as a PR | packet-coder | BlockedDependency | SC-63 |

@@ -509,4 +509,4 @@ The human-facing voice, given once so a reviewer can check it. Each is the `.tsv
 
 After all packets merge into `scriptorium/wave5` (SC-55c waits for Wave 3 and may land in a later wave PR): the orchestrator opens the draft PR early for the Linux run, then a docs pass (`docs/architecture.md` launcher section, `docs/launcher-hardening.md` "Implemented in" lines for H-01 to H-17, `docs/threat-model.md` control rows), a retro, and RESUME.md. Sonnet spec-reviewers read these packets for gaps before any dispatch.
 
-<!-- legacy-ids: SC-42, SC-50, SC-52, SC-53, SC-54, SC-55 -->
+<!-- legacy-ids: SC-42, SC-50, SC-52, SC-53, SC-54, SC-55, SC-31 -->

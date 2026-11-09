@@ -2,7 +2,7 @@
 
 Ledger and status: [README.md](README.md). Resume card: [RESUME.md](RESUME.md).
 
-Unsuffixed SC-40, SC-41 and SC-42 in older text mean the a/b packets in [work-packets-wave4.md](work-packets-wave4.md). Waves 0 to 2 are written out in full. Wave 4 is in [work-packets-wave4.md](work-packets-wave4.md) and wave 5 in [work-packets-wave5.md](work-packets-wave5.md). Waves 3, 6 and 7 are **scope cards**: files, test and acceptance. Each card is written out in full when the wave before it closes, against what actually merged.
+Unsuffixed SC-40, SC-41 and SC-42 in older text mean the a/b packets in [work-packets-wave4.md](work-packets-wave4.md). Waves 0 to 2 are written out in full. Wave 3 is in [work-packets-wave3.md](work-packets-wave3.md), wave 4 in [work-packets-wave4.md](work-packets-wave4.md) and wave 5 in [work-packets-wave5.md](work-packets-wave5.md). Waves 6 and 7 are **scope cards**: files, test and acceptance. Each card is written out in full when the wave before it closes, against what actually merged.
 
 ## Dispatch rules (every packet)
 
@@ -1004,30 +1004,9 @@ import { z } from 'zod';
 - **Why it fails on revert:** if `geldar-git` ignores `GELDAR_MODE` (always play), the birth commit lacks `memory/identity.md` and the first `includes` fails; if it ignores the path rule, the reflect commit contains `CLAUDE.md`; if `recall` stops refusing a missing day, step 9 of `reflect.jsonl` fails.
 - **Checks:** `./scriptorium.ps1 pnpm --filter @geldar/scriptorium-stub-cli typecheck`, `./scriptorium.ps1 pnpm format`, `./scriptorium.ps1 check`.
 
-## Wave 3 — the mock world (repo G; scope cards; needs geldar P0-01)
+## Wave 3 — the mock world (repo G)
 
-- **SC-30 (G) contract.** `contract/schemas/mcp-*.schema.json`: the inputs and results of the 14 tools from 5.15.3, as fixed by geldar 0009 (a 240 s cap, `cursor`, `interests`), the `act` result, the `untrusted_world_text` wrapper, the `sleep` digest and the `status` result. Generated, with fixtures.
-  - **`act` input** is generated from the intent and action schemas (spec Appendix C and K): `reasoning` (string, max 600), `say` (string or null, max 256), `intent` (`goal`, `program`, `arguments`, `preconditions`, `wake_on`, `limits`), `actions` (array, max 6), and `anyOf` required `intent` | `actions` | `say`.
-  - **Fixtures** include an intent-only call (no `actions`, no `say`) and a rejected call with none of the three.
-- **SC-31 (G) `threshold/mcp-mock`.** MCP Streamable HTTP at `/p/<player_id>`.
-  - **Auth:** a static bearer token per player, from a file (D-SC-12). Resources and prompts as 5.15.3 lists them.
-  - **Validation:** every tool input and output is validated with the contract validators.
-  - **Sessions:** one controlling session per player; a second supersedes the first.
-- **SC-32 (G) world simulation.** A scenario file defines:
-  - the day length (default 40 real minutes, configurable to seconds for CI);
-  - scripted neighbours who speak;
-  - books;
-  - events.
-
-  Principle: deterministic code does the driving; the model is woken only for decisions, goals, conversation and reflection (spec 5.3.1, 5.3.2). The simulation therefore includes:
-  - **Scripted intent executor:** advances an accepted intent each tick, with no real pathing; it records progress and finishes with `goal_completed`.
-  - **`wake_on` evaluation** against scenario events (`directly_addressed`, `precondition_failed`, `unexpected_damage`, `goal_completed`, `new_agent_within_8`).
-  - **Minimum wakeup spacing** (default 20 s) and an **intent-run-too-long fallback wakeup**, both configurable to seconds for CI.
-  - **One scripted reflex:** eat when hungry, done by the simulation and reported in the next `wait`.
-  - **Test:** scripted chatter not directly addressed does NOT wake an agent running an intent; `directly_addressed` does, and the `wake_reason` names it. Suppressed wakeups are recorded with a reason.
-
-  `wait` long-polls on the cursor and returns coalesced events and a `wake_reason`. `act` and `say` accept or reject with reasons and count budget. `sleep` returns the day digest.
-- **SC-33 (G) image.** `ghcr.io/sandboxservers/geldar-mcp-mock`, built and pushed from geldar `main` (visibility per D-SC-06), with a compose snippet.
+Written out in full in [work-packets-wave3.md](work-packets-wave3.md) (this file is past its size cap): SC-30a, SC-30b, SC-31a, SC-31b, SC-31c, SC-32a, SC-32b, SC-32c, SC-32d, SC-33. They are built in the geldar repo, each packet one PR off geldar `main`.
 
 ## Wave 4 — the kit image
 
