@@ -196,6 +196,12 @@ importers:
 
   packages/path-rule: {}
 
+  packages/verify:
+    dependencies:
+      '@geldar/scriptorium-path-rule':
+        specifier: workspace:*
+        version: link:../path-rule
+
   tools/repo-checks: {}
 
 packages:
