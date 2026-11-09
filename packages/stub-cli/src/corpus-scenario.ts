@@ -1,4 +1,5 @@
 // The stub's read-only session for one malicious-book corpus entry (SC-61h). The stub reads the
+// read_book takes no arguments: it reads the book the character holds (the scenario puts book_id in the inventory).
 // book through the world and checks, with its own expect.includes, that the canary arrived; it
 // never writes, so the generated scenario holds no write, append or delete step.
 export interface CorpusReadEntry {
@@ -13,7 +14,7 @@ export function corpusReadScenario(entry: CorpusReadEntry): string {
       op: 'call',
       server: 'geldar',
       tool: entry.read_tool,
-      args: { book_id: entry.book_id },
+      args: {},
       expect: { includes: [entry.canary] },
     },
     {

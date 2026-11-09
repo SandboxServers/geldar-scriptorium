@@ -174,7 +174,7 @@ describe.runIf(Boolean(launcher) || Boolean(process.env.CI))(
         const out = r.stdout + r.stderr;
         // The stub exits 0 only if every step passed, the canary step included.
         expect(r.status, out).toBe(0);
-        expect(r.stdout, out).toContain('step 0 call ok');
+        expect(r.stdout, out).toContain('step 1 call ok');
         expect(r.stdout, out).not.toContain('FAIL');
 
         // Saved or nothing to save: origin holds the birth commit and nothing outside memory/

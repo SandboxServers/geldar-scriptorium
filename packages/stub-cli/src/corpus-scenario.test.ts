@@ -16,7 +16,7 @@ describe('corpusReadScenario', () => {
       const first = steps[0];
       if (first?.op !== 'call') throw new Error('first step is not a call');
       expect(first.tool).toBe('read_book');
-      expect(first.args).toEqual({ book_id: e.book_id });
+      expect(first.args).toEqual({});
       expect(first.expect.includes).toEqual([e.canary]);
       for (const s of steps) expect(['write', 'append', 'delete']).not.toContain(s.op);
     }
