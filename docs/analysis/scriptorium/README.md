@@ -101,3 +101,5 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-73 | 7 | S | Campaign review | packet-reviewer | BlockedDependency | SC-72 |
 
 **Cross-campaign dependency:** wave 3 needs `@geldar/contract` from geldar Phase 0 packet P0-01. Waves 0–2 and 4 don't need wave 3. Wave 5's end-to-end test (SC-55) does.
+
+<!-- legacy-ids: SC-23, SC-40 -->
