@@ -97,7 +97,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-51a | 5 | S | Launcher (bash): bundle, verify, host re-check (H-09 to H-11, H-13, H-16) | Sonnet (general-purpose) | Done | SC-50c |
 | SC-51b | 5 | S | Launcher (bash): fetch, push, fast-forward, hold, crash recovery (H-12, H-14, H-15, H-17); Sonnet | Sonnet (general-purpose) | Done | SC-51a |
 | SC-52a | 5 | S | Launcher (bash): `new` and `setup` | Sonnet (general-purpose) | Done | SC-51b |
-| SC-52b | 5 | S | Launcher (bash): `resolve`, `archive`, `status`, multi-player `play` | Sonnet (general-purpose) | BlockedDependency | SC-52a |
+| SC-52b | 5 | S | Launcher (bash): `resolve`, `archive`, `status`, multi-player `play` | Sonnet (general-purpose) | Done | SC-52a |
 | SC-53a | 5 | S | Launcher (PowerShell): dispatcher and common functions | packet-coder | Done | SC-50a |
 | SC-53b | 5 | S | Launcher (PowerShell): pre-session parity | packet-coder | Done | SC-50b, SC-53a |
 | SC-53c | 5 | S | Launcher (PowerShell): session start parity | packet-coder | Done | SC-50c, SC-53b |
