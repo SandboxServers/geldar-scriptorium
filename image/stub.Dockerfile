@@ -6,7 +6,7 @@
 ARG KIT_BASE
 FROM ${KIT_BASE}
 USER root
-RUN npm install -g pnpm@12.15.0
+RUN corepack enable && corepack prepare pnpm@12.15.0 --activate
 WORKDIR /opt/geldar-stub
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages ./packages
