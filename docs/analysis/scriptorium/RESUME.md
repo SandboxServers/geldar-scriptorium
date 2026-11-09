@@ -18,6 +18,6 @@ Read this, then [README.md](README.md) (the ledger), before acting. Rewrite at e
 
 **Open owner decisions:** D-SC-01 (CI API key), D-SC-02 (template publish credential), D-SC-05 (license), D-SC-06 (GHCR visibility), D-SC-08 (Codex terms). None block wave 0 except the `LICENSE` file.
 
-**In flight (2026-11-08):** `scriptorium/wave0` created and pushed. SC-01 coder dispatched in `.claude/worktrees/sc-01` (branch `scriptorium/sc-01-workspace`). Next: review SC-01, merge `--no-ff` into `scriptorium/wave0`, then dispatch SC-02..05.
+**In flight (2026-11-08):** SC-01 done and merged into `scriptorium/wave0`. SC-02..SC-05 dispatched in parallel from wave0 (worktrees `.claude/worktrees/sc-02`..`sc-05`, branches `scriptorium/sc-NN-*`). Next: review each (fresh Sonnet reviewer, 3 fix passes max), merge `--no-ff` on `ship`, then wave review and PR to `main`. SC-02 note: CI installs with `--frozen-lockfile`.
 
-**Worktrees:** sc-01.
+**Worktrees:** sc-01..sc-05.
