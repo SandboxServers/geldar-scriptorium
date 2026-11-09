@@ -33,5 +33,4 @@ export const pendingFiles: readonly string[] = [
   'template/.claude/hooks/session-start.sh',
   'template/.claude/hooks/post-tool-use.sh',
   'template/.claude/hooks/session-end.sh',
-  'template/.claude/skills/setup/SKILL.md',
 ];
