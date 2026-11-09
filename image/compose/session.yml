@@ -12,12 +12,12 @@ services:
     # Squid aborts with "setgid: Operation not permitted" without these two.
     cap_drop: [ALL]
     cap_add: [SETUID, SETGID]
-    # The session starts only once Squid accepts connections (otherwise the first call can meet ECONNREFUSED).
+    # The session starts only once Squid listens on 3128 (read from /proc, so the access log stays clean) (otherwise the first call can meet ECONNREFUSED).
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/3128'"]
+      test: ["CMD-SHELL", "grep -q ':0BF8 .* 0A ' /proc/net/tcp /proc/net/tcp6"]
       interval: 1s
       timeout: 3s
-      retries: 30
+      retries: 120
 
   session:
     image: ${KIT_IMAGE:?}
