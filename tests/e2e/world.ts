@@ -7,6 +7,49 @@ import { join } from 'node:path';
 // Docker and compose take forward slashes on every OS.
 const fwd = (p: string): string => p.split('\\').join('/');
 
+// SC-55c: the mock world of the geldar repo (Wave 3). Our own image, pinned by digest; decision 27
+// exempts it from the two-week age rule (never apply that to a third-party image).
+export const MOCK_IMAGE =
+  'ghcr.io/sandboxservers/geldar-mcp-mock@sha256:fa442113cdb003381d25f7e9ba07d9845f57a296f370ec99adb64f15052e1e9d';
+export const mockMode = process.env.GELDAR_E2E_WORLD === 'mock';
+
+// The mock listens on port 80 (the proxy allows only 80 and 443) with a short day. The token is
+// only in the mounted file; the container gets no environment variable for it.
+function mockWorld(tokensFile: string): string {
+  return `  world:
+    image: "${MOCK_IMAGE}"
+    command: ["--tokens", "/run/secrets/mcp-tokens.json", "--scenario", "scenarios/dawn.scenario.json", "--host", "0.0.0.0", "--port", "80", "--day-length-seconds", "24"]
+    volumes:
+      - type: bind
+        source: "${fwd(tokensFile)}"
+        target: /run/secrets/mcp-tokens.json
+        read_only: true
+        bind: { create_host_path: false }
+    networks:
+      outside:
+        aliases: [world.test]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+`;
+}
+
+function stubWorld(image: string): string {
+  return `  world:
+    image: "${image}"
+    command: ["node", "/opt/geldar-stub/packages/stub-cli/src/test-world.ts"]
+    environment:
+      GELDAR_TEST_WORLD_HOST: "0.0.0.0"
+      GELDAR_TEST_WORLD_PORT: "80"
+      GELDAR_TEST_WORLD_TOKEN: \${E2E_WORLD_TOKEN:?}
+    networks:
+      outside:
+        aliases: [world.test]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+`;
+}
+
 export interface ExtraCompose {
   file: string;
   proxyLogVolume: string;
@@ -24,22 +67,12 @@ export function writeExtraCompose(opts: {
   image: string;
   scenarioDir: string;
   id: string;
+  tokensFile?: string; // mock mode: JSON of player id to token, mounted read only
 }): ExtraCompose {
   const proxyLogVolume = `geldar-e2e-${opts.id}-proxylog`;
+  const world = opts.tokensFile === undefined ? stubWorld(opts.image) : mockWorld(opts.tokensFile);
   const text = `services:
-  world:
-    image: "${opts.image}"
-    command: ["node", "/opt/geldar-stub/packages/stub-cli/src/test-world.ts"]
-    environment:
-      GELDAR_TEST_WORLD_HOST: "0.0.0.0"
-      GELDAR_TEST_WORLD_PORT: "80"
-      GELDAR_TEST_WORLD_TOKEN: \${E2E_WORLD_TOKEN:?}
-    networks:
-      outside:
-        aliases: [world.test]
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-  session:
+${world}  session:
     depends_on: [world]
     volumes:
       - type: bind
