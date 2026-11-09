@@ -35,7 +35,7 @@ Each requirement is one line. Tests are written in SC-60.
 - H-12: The host fetches with `git -c fetch.fsckObjects=true -c transfer.fsckObjects=true fetch --no-tags <bundle> refs/heads/<branch>:refs/launcher/incoming`. Test: T-12
 - H-13: The host independently re-checks the ancestry and the net `--no-renames` path list. Test: T-13
   Implemented in: verify/src/history.ts (the same per-commit and net checks; not exported from the package yet, so the host re-check cannot import it). The host-side call is launcher work.
-- H-14: The host branch is updated only with `merge --ff-only`. Push is `git push origin HEAD:refs/heads/<branch>`, never `--force`. Test: T-14
+- H-14: The verified private ref is pushed to origin by its verified SHA (`git push origin <sha>:refs/heads/<branch>`, never `--force`); only after the push succeeds is the host branch updated, and only with `merge --ff-only` (geldar 0011: on any failure the human's branch stays where it was). Test: T-14
 - H-15: The workspace and bundle are deleted only after a successful push. On failure, keep both, leave the host branch as it is, and report. Test: T-15
 - H-16: Control characters are stripped from any bundle-derived text before printing. Test: T-16
 - H-17: Crash recovery uses the stored START only. Test: T-17
@@ -43,7 +43,7 @@ Each requirement is one line. Tests are written in SC-60.
 ## Anywhere
 
 - H-18: Hooks exit at once without the kit marker. Test: T-18
-- H-19: The image is pinned by digest from `player.json`. The launcher never reads container settings from the repo. Test: T-19
+- H-19: The image is pinned by digest from `player.json`. The launcher never reads container settings from the repo. Test: T-19. Implemented in: SC-50b and SC-50c; documented deviation: a digest-pinned `GELDAR_KIT_IMAGE` (any registry) overrides `player.json`, and a tag form needs two internal variables and prints `UNSAFE:` (wave 5 decision 5).
 - H-20: Reads of the CLI home and credentials are denied (managed settings) and tested. Test: T-20
   Implemented in: image/settings/managed.json (installed at the CLI managed path by image/Dockerfile). Guarded by tests/image/settings.test.ts (rules present) and tests/image/cli.test.ts (the pinned CLI accepts them). Whether a deny blocks a model read is not tested in CI (D-SC-01); it is the local-only live check in SC-62. See image/README.md.
   - Known gap: a background process of the agent can swap an allowed path for a symlink to a readable file between the commit tool's path check and its hashing step; T-20 either tests the mitigation or records the residual risk.
