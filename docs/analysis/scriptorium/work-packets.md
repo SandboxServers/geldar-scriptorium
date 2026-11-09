@@ -29,6 +29,7 @@ Each packet is self-contained: the coder skips CLAUDE.md, so these rules travel 
 15. **Wave close.** Every wave ends with a docs pass, a retro and process changes (campaign-packet skill § 6), shipped in the wave PR.
 16. **Green means green on the wave branch.** A packet is green only when `check` passes on the wave branch after the merge; a check run inside a worktree is not the gate (it warns). `./scriptorium.ps1 merge-packet <branch>` merges, checks on the wave branch and reverts the merge if red; `push-verified` pushes and confirms `ls-remote` equals HEAD; `ledger set SC-NN <status>` edits one ledger row.
 17. **Docker packets isolate their image.** Packets that touch Docker use an isolated image tag via `KIT_IMAGE=geldar-kit:<packet>`; the kit image is built once per vitest run by the global setup.
+18. **No broad process kills.** Never run `taskkill /IM`, `pkill node`, `killall` or any kill by image name: other sessions run on the same machine. Find leftovers by your own PIDs or by a marker in the command line and kill only those.
 
 **Branches.** Wave integration branch `scriptorium/wave<N>` from `main`. Packet branch `scriptorium/sc-NN-<slug>`, worktree `.claude/worktrees/sc-NN`, branched from the wave branch. Reports go to `.claude/reports/scriptorium/<packet>-<role>.md`. Repo **G** packets use the geldar repo's own rules (its `work-packets.md` dispatch rules, `./geldar.ps1`) and branch `scriptorium/sc-NN-<slug>` from geldar `main`.
 
