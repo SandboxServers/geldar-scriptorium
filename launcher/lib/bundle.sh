@@ -100,13 +100,18 @@ verify_bundle() {
   while IFS= read -r image; do
     flags+=("$image")
   done < <(helper_flags)
+  stage_bundle "$sd/bundle.bundle" bundle.bundle || {
+    GP_FAIL=verify_unreadable
+    return 1
+  }
   out=$(run_bounded 300 --container "$name" docker_cmd run "${flags[@]}" \
     --label geldar.role=verify --name "$name" \
     -e HOME=/tmp -e GIT_CONFIG_GLOBAL=/dev/null -e GIT_CONFIG_NOSYSTEM=1 -e GIT_NO_REPLACE_OBJECTS=1 \
-    --read-only --tmpfs /tmp:size=256m -v "$sd/bundle.bundle:/in/bundle.bundle:ro" \
+    --read-only --tmpfs /tmp:size=256m -v "$STAGE_DIR:/in:ro" \
     "$PL_KIT_IMAGE" geldar-verify --bundle /in/bundle.bundle --start "$start" \
     --branch "$PL_BRANCH" --mode "$mode" --player-id "$id" 2> /dev/null)
   rc=$?
+  unstage_bundle
   if [ "$rc" -eq 0 ] && [ "$out" = '{"ok":true,"reasons":[]}' ]; then
     return 0
   fi

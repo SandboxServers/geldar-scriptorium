@@ -277,6 +277,44 @@ function Set-Umask([int]$Mask) {
 }
 
 # A private directory: made if missing, and an existing one (wave 5 state) tightened to 0700.
+# H-04 (S4): git archive honours in-tree .gitattributes export-ignore and export-subst, so the
+# mounted kit could differ from the commit the gate trusts. $true when the tree of <Rev> holds
+# any .gitattributes naming one of them (the caller refuses).
+function Test-ExportAttrs([string]$Clone, [string]$Rev) {
+  $raw = (@(Invoke-Git -C $Clone ls-tree -r -z $Rev 2> $null)) -join "`n"
+  foreach ($rec in $raw.Split([char]0)) {
+    $m = [regex]::Match($rec.TrimStart("`r", "`n"), '^\d{6} \w+ ([0-9a-f]{40,64})\t(.+)\z', 'Singleline')
+    if (-not $m.Success) { continue }
+    if (-not [regex]::IsMatch($m.Groups[2].Value, '(^|/)\.gitattributes\z', 'IgnoreCase')) { continue }
+    $blob = (@(Invoke-Git -C $Clone cat-file blob $m.Groups[1].Value 2> $null)) -join "`n"
+    if ([regex]::IsMatch($blob, 'export-(ignore|subst)')) { return $true }
+  }
+  return $false
+}
+
+# B1: the helper containers run as uid 1000, who need not be this user, so they cannot read the
+# 0700 session dir or the 0600 bundles. New-StagedBundle returns a fresh 0755 directory holding a
+# 0644 copy of the file as <Name>, or $null; the caller mounts it and runs Remove-StagedBundle at once.
+function New-StagedBundle([string]$Source, [string]$Name) {
+  $dir = Join-Path (Get-StateDir) ('stage.' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+  try {
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    Copy-Item -LiteralPath $Source -Destination (Join-Path $dir $Name)
+    if (-not $IsWindows) {
+      [System.IO.File]::SetUnixFileMode($dir, [System.IO.UnixFileMode]0x1ED)
+      [System.IO.File]::SetUnixFileMode((Join-Path $dir $Name), [System.IO.UnixFileMode]0x1A4)
+    }
+  } catch {
+    Remove-StagedBundle $dir
+    return $null
+  }
+  return $dir
+}
+
+function Remove-StagedBundle([string]$Dir) {
+  if ($Dir) { Remove-Item -LiteralPath $Dir -Recurse -Force -ErrorAction SilentlyContinue }
+}
+
 function New-PrivateDir([string]$Path) {
   New-Item -ItemType Directory -Path $Path -Force | Out-Null
   if (-not $IsWindows) { [System.IO.File]::SetUnixFileMode($Path, [System.IO.UnixFileMode]0x1C0) }

@@ -181,6 +181,46 @@ for (const l of forGroup('bundle')) {
       );
     });
 
+    it('1b. B1: verify mounts a staged 0755/0644 copy, never the session dir, and removes it', () => {
+      const w = makeWorld();
+      const r = session(l, w, 'stv', benign);
+      const f = r.finish();
+      expect(f.status, f.stderr).toBe(0);
+      const v = roleCall(w, 'verify') ?? [];
+      const mount = v[v.lastIndexOf('-v') + 1] ?? '';
+      expect(mount.endsWith(':/in:ro')).toBe(true);
+      const src = mount.slice(0, -':/in:ro'.length).replaceAll('\\', '/');
+      expect(src).not.toBe(join(r.p.stateDir, 'session').replaceAll('\\', '/'));
+      expect(src).toContain('/stage.');
+      expect(readdirSync(w.state).filter((n) => n.startsWith('stage.'))).toEqual([]);
+      if (process.platform === 'win32') {
+        // Modes are not observable on win32; CI (Linux) decides.
+        console.warn('B1 mode check skipped on win32; CI decides');
+        return;
+      }
+      const rows = readFileSync(join(w.dockerRoot, 'in-mounts.log'), 'utf8')
+        .split('\n')
+        .filter(Boolean)
+        .map((x) => x.split('\t'));
+      const vi = rows.filter((x) => x[0] === 'verify');
+      expect(vi.at(-1)?.[2]).toBe('755');
+      expect(
+        rows.filter((x) => x[0] === 'file' && x[1]?.endsWith('bundle.bundle')).at(-1)?.[2],
+      ).toBe('644');
+    });
+
+    it('1c. B1: the staged copy is gone when verify fails', () => {
+      const w = makeWorld();
+      const r = session(l, w, 'stw', benign);
+      const f = r.finish(['--until', 'verify'], {
+        FAKE_VERIFY_STDOUT: 'garbage',
+        FAKE_VERIFY_RC: '1',
+      });
+      expect(f.status).not.toBe(0);
+      expect(roleCall(w, 'verify')).toBeDefined();
+      expect(readdirSync(w.state).filter((n) => n.startsWith('stage.'))).toEqual([]);
+    });
+
     it('2. H-09: the bundle is made after the compose project is down', () => {
       const w = makeWorld();
       const r = session(l, w, 'abc', benign);

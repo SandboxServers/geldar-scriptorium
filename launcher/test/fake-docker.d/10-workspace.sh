@@ -141,6 +141,17 @@ fake_run() {
   done << MOUNTS
 $mounts
 MOUNTS
+  if [ -n "$FAKE_IN" ]; then
+    # What the container would see of /in, at the time of the call (the B1 tests read this).
+    printf '%s	%s	%s
+' "$role" "$FAKE_IN" "$(stat -c '%a' "$FAKE_IN" 2> /dev/null)"       >> "$FAKE_DOCKER_ROOT/in-mounts.log"
+    for f in "$FAKE_IN"/*; do
+      [ -f "$f" ] && printf '%s	%s	%s
+' file "$f" "$(stat -c '%a' "$f" 2> /dev/null)"         >> "$FAKE_DOCKER_ROOT/in-mounts.log"
+    done
+  fi
+  # FAKE_ROLE_FAIL=<role>: that role's container exits 1 after logging its /in mount.
+  [ "${FAKE_ROLE_FAIL:-}" != "$role" ] || return 1
   while IFS= read -r e; do
     [ -n "$e" ] || continue
     case $e in

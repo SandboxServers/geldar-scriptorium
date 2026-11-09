@@ -145,6 +145,7 @@ function Invoke-PrepareBody([string]$Id, [string]$Mode, [string]$d, [string]$sd)
   if ([regex]::IsMatch($chk, '[\x00-\x1F\x7F:,]')) { Die 1 bad_state_path }
 
   # H-04
+  if (Test-ExportAttrs $clone $start) { Die 1 export_attributes $Id }
   $exp = Join-Path $sd 'export'
   foreach ($x in 'export', 'start.bundle', 'running', 'export.tar') {
     Remove-Item -LiteralPath (Join-Path $sd $x) -Recurse -Force -ErrorAction SilentlyContinue
@@ -191,7 +192,13 @@ function Invoke-PrepareBody([string]$Id, [string]$Mode, [string]$d, [string]$sd)
   if ($LASTEXITCODE -ne 0) { Die 1 workspace_failed $Id 'the volume could not be created' }
   $script:PREP_VOL = $true
   $name = "geldar-workspace-init-$Id-$PID"
-  $rc = Invoke-HelperRun 'workspace-init' $name $script:PL_KIT_IMAGE @('-e', "GELDAR_BRANCH=$branch", '-v', "$($sd.Replace([char]92, [char]47)):/in:ro", '-v', "${vol}:/player") $script:WS_INIT
+  $stage = New-StagedBundle (Join-Path $sd 'start.bundle') 'start.bundle'
+  if (-not $stage) { Die 1 workspace_failed $Id 'the start bundle could not be staged' }
+  try {
+    $rc = Invoke-HelperRun 'workspace-init' $name $script:PL_KIT_IMAGE @('-e', "GELDAR_BRANCH=$branch", '-v', "$($stage.Replace([char]92, [char]47)):/in:ro", '-v', "${vol}:/player") $script:WS_INIT
+  } finally {
+    Remove-StagedBundle $stage
+  }
   if ($rc -ne 0) {
     $why = 'it failed'
     if ($rc -eq 124) { $why = 'timed out' }

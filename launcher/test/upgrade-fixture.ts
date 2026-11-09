@@ -18,6 +18,11 @@ export type Hostile =
   | 'big-file' // a 6 MiB file
   | 'version-mismatch' // player.json kit_version differs from the tag
   | 'image-mismatch' // the commit message image line differs from player.json
+  | 'other-registry' // kit_image names another registry (S6)
+  | 'other-repo' // kit_image names another repository on ghcr.io (S6)
+  | 'ntfs-dot-git' // a path component `.git.` (N-e)
+  | 'ntfs-dot-git-space' // a path component `.git ` (N-e)
+  | 'export-attrs' // a .gitattributes with export-ignore (S4)
   | 'memory-content'; // files under memory/ and skills/ (excluded by name, must not be copied)
 
 export interface ReleaseOptions {
@@ -164,7 +169,11 @@ export function makeTemplateRelease(world: World, opts: ReleaseOptions): Release
       files['memory/smuggled.md'] = 'smuggled memory\n';
       files['skills/smuggled.md'] = 'smuggled skill\n';
     }
-    const image = hostile.has('tag-form-image') ? `${KIT_REPO}:latest` : kitImage(version);
+    const digest = digestOf(version);
+    let image = kitImage(version);
+    if (hostile.has('tag-form-image')) image = `${KIT_REPO}:latest`;
+    if (hostile.has('other-registry')) image = `evil.example/geldar-kit@${digest}`;
+    if (hostile.has('other-repo')) image = `ghcr.io/sandboxservers/other-kit@${digest}`;
     const player = {
       player_id: 'template',
       name: 'template',
@@ -197,6 +206,17 @@ export function makeTemplateRelease(world: World, opts: ReleaseOptions): Release
     if (hostile.has('git-hooks')) {
       const hook = '#!/bin/sh\necho ran > "${GELDAR_HOOK_MARKER:-/nonexistent/marker}"\n';
       put(root, ['.git', 'hooks', 'post-checkout'], { file: Buffer.from(hook), mode: '100755' });
+    }
+    if (hostile.has('ntfs-dot-git'))
+      put(root, ['.git.', 'x'], { file: Buffer.from('x\n'), mode: '100644' });
+    if (hostile.has('ntfs-dot-git-space')) {
+      put(root, ['.git ', 'x'], { file: Buffer.from('x\n'), mode: '100644' });
+    }
+    if (hostile.has('export-attrs')) {
+      put(root, ['.gitattributes'], {
+        file: Buffer.from('CLAUDE.md export-ignore\n'),
+        mode: '100644',
+      });
     }
     if (hostile.has('big-file')) {
       put(root, ['big.bin'], { file: Buffer.alloc(6 * 1024 * 1024, 97), mode: '100644' });

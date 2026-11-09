@@ -44,7 +44,7 @@ fake_role_verify() {
   while [ $i -lt $n ]; do
     a=$1
     shift
-    [ "$a" != /in/bundle.bundle ] || a=$FAKE_BUNDLE
+    [ "$a" != /in/bundle.bundle ] || a=$FAKE_IN/bundle.bundle
     set -- "$@" "$a"
     i=$((i + 1))
   done

@@ -123,11 +123,15 @@ describe.each(forGroup('hostile'))('H-14 push order ($name)', (launcher) => {
 
   it('(e) host pre-push and post-merge hooks never run', { timeout: T }, () => {
     let marks = '';
+    let hooksDir = '';
+    let clone = '';
     const a = attack(launcher, {
       session: benign,
       setup: (w, p) => {
         marks = join(w.root, 'hookmark');
         const hooks = join(w.root, 'host-hooks');
+        hooksDir = hooks;
+        clone = p.clone;
         mkdirSync(hooks, { recursive: true });
         for (const h of ['pre-push', 'post-merge', 'pre-commit', 'reference-transaction']) {
           const body = `#!/bin/sh\n: > '${bashPath(marks)}.${h}'\n`;
@@ -145,6 +149,22 @@ describe.each(forGroup('hostile'))('H-14 push order ($name)', (launcher) => {
       expect(existsSync(`${marks}.${h}`), `hook ${h} ran`).toBe(false);
     for (const c of [...names(a, 'push'), ...names(a, 'merge')])
       expect(c.some((x) => x.startsWith('core.hooksPath='))).toBe(true);
+    // Control: the planted hooks do fire when git is told to use them, so the absence above is
+    // the launcher's doing and not a wrong mark path or a hook git never runs.
+    git(clone, [
+      '-c',
+      `core.hooksPath=${bashPath(hooksDir)}`,
+      '-c',
+      'user.name=c',
+      '-c',
+      'user.email=c@example.test',
+      'commit',
+      '--allow-empty',
+      '-m',
+      'c',
+    ]);
+    for (const h of ['pre-commit', 'reference-transaction'])
+      expect(existsSync(`${marks}.${h}`), `control: hook ${h} did not fire`).toBe(true);
   });
 
   it('a clean session pushes once and ends with host == origin', { timeout: T }, () => {
