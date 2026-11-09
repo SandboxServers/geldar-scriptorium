@@ -10,6 +10,7 @@
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import {
+  appendFileSync,
   chmodSync,
   existsSync,
   mkdirSync,
@@ -160,6 +161,16 @@ describe.each(['bash', 'pwsh'] as const)('end to end (%s)', (name) => {
     const go = (args: string[], scenario?: string, timeoutMs = 280_000) => {
       const r = run(launcher, args, { env: env(scenario), timeoutMs });
       outputs.push(r.stdout, r.stderr);
+      // Diagnostic: GELDAR_E2E_DUMP=<file> keeps every launcher call's output for a failed run.
+      if (process.env.GELDAR_E2E_DUMP) {
+        appendFileSync(
+          process.env.GELDAR_E2E_DUMP,
+          `=== ${args.join(' ')} exit ${r.status}
+${r.stdout}
+${r.stderr}
+`,
+        );
+      }
       return r;
     };
     const origin = join(ghRoot, `player-${id}.git`);
@@ -214,6 +225,8 @@ describe.each(['bash', 'pwsh'] as const)('end to end (%s)', (name) => {
         if (!ready) return;
         const r = a.go(['play', a.id], `${IN_IMAGE}/play-day-${n}.jsonl`);
         expect(r.status, r.stdout + r.stderr).toBe(0);
+        // The stub exits 0 even when a step fails (it enforces nothing), so look at the steps.
+        expect(r.stdout, r.stdout + r.stderr).not.toContain('FAIL');
       });
     }
 
@@ -308,6 +321,24 @@ describe.each(['bash', 'pwsh'] as const)('end to end (%s)', (name) => {
       expect(w.newPlayer().status).toBe(0);
       expect(w.birth().status).toBe(0);
       const r = w.go(['play', w.id], `${IN_IMAGE}/play-day-1.jsonl`);
+      // Rejection specifically: the stub's connect to the mock fails, no world call ran, and the
+      // proxy log shows the mock answered 401 or 403 (the SDK error text itself carries no status).
+      const out = r.stdout + r.stderr;
+      expect(out).toContain('Streamable HTTP error');
+      expect(r.stdout, out).not.toContain('call ok');
+      const log = docker([
+        'run',
+        '--rm',
+        '--user',
+        '0',
+        '-v',
+        `${w.extra.proxyLogVolume}:/l:ro`,
+        STUB_IMAGE,
+        'cat',
+        '/l/access.log',
+      ]);
+      expect(log.status, log.stderr).toBe(0);
+      expect(log.stdout).toMatch(/TCP_MISS\/40[13]/);
       expect(afterLauncher(w.origin, w.id).map((c) => c.subject)).toEqual(['birth: Wren']);
       const tree = gitDir(w.origin, ['ls-tree', '-r', '--name-only', 'main']).split('\n');
       expect(tree).not.toContain('memory/journal/day-001.md');
