@@ -163,6 +163,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-72 | 7 | S | Acceptance runs on Windows and Linux; measure Haiku-low turns; owner inputs: the real MCP host (`launcher/config/world.conf` mcp_base) and the private-only shard list | owner + main session | BlockedDependency | SC-70 |
 | SC-73 | 7 | S | Campaign review | packet-reviewer | BlockedDependency | SC-72 |
 | SC-74 | 7 | S | `geldar-play new --persona-dir <dir>`: seed memory/identity.md and goals.md for a new player from owner-approved files (`<id>/memory/identity.md`, `<id>/memory/goals.md`), both launchers; the card is written with the Wave 7 cards (owner requirement relayed by geldar 2026-11-09: six Power Rangers) | packet-coder | Planned | SC-52a, SC-54a |
+| SC-75 | 7 | S | Local-world dev override (owner decision relayed 2026-11-09: MCP tested on loopback first): a human-environment-only override for ranger #1 testing; exact design in the Wave 7 card (strict: http only, host exactly `host.docker.internal`, explicit port 1024-65535, path exactly `/p/<player_id>`; never read from player.json or any repo file; Squid allows exactly that host:port for the session; loud warning on every launch; both launchers; hostile tests). Needs a spec review before coding | packet-coder | Planned | SC-52b, SC-54b, SC-60o |
 
 **Cross-campaign dependency:** wave 3 needs `@geldar/contract` from geldar Phase 0 packet P0-01. Waves 0–2 and 4 don't need wave 3. Only SC-55c (not SC-55b) needs wave 3.
 
