@@ -108,7 +108,7 @@ describe('runScenario', () => {
   );
 
   it(
-    'rejects a call to an http server',
+    'a call to an http server with an unset variable is an error naming it',
     async () => {
       cpSync(path.join(templateRoot, '.mcp.json'), path.join(root, '.mcp.json'));
       const step: Step = {
@@ -118,9 +118,7 @@ describe('runScenario', () => {
         args: {},
         expect: { error: false, includes: [], excludes: [] },
       };
-      await expect(runScenario({ root, steps: [step] })).rejects.toThrow(
-        'server geldar is http; the stub drives stdio servers only',
-      );
+      await expect(runScenario({ root, steps: [step] })).rejects.toThrow('GELDAR_MCP_TOKEN');
     },
     TIMEOUT,
   );

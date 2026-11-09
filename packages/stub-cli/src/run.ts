@@ -1,8 +1,11 @@
 import { appendFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { readMcpConfig, type ServerSpec } from './mcp-config.ts';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { type HttpSpec, readMcpConfig, type ServerSpec } from './mcp-config.ts';
 import type { Step } from './scenario.ts';
 
 export interface RunOptions {
@@ -32,13 +35,60 @@ function stringEntries(env: NodeJS.ProcessEnv): Record<string, string> {
   return out;
 }
 
+// A fetch on node:http that honors HTTP_PROXY (Node's built-in fetch does not). With a proxy
+// the request goes to the proxy with the absolute URL as its path; without one it is direct.
+// Plain http only: https is refused.
+export function proxyFetch(env: NodeJS.ProcessEnv = process.env): typeof fetch {
+  return async (input, init) => {
+    const target = new URL(input instanceof Request ? input.url : String(input));
+    if (target.protocol !== 'http:') {
+      throw new Error(`the stub supports http urls only, not ${target.protocol}`);
+    }
+    const proxyText = env.HTTP_PROXY ?? env.http_proxy;
+    const proxy = proxyText ? new URL(proxyText) : undefined;
+    const headers = new Headers(init?.headers);
+    headers.set('host', target.host);
+    const body = typeof init?.body === 'string' ? init.body : undefined;
+    if (body !== undefined) headers.set('content-length', String(Buffer.byteLength(body)));
+    return new Promise<Response>((resolve, reject) => {
+      const req = http.request(
+        {
+          host: proxy ? proxy.hostname : target.hostname,
+          port: proxy ? proxy.port || 80 : target.port || 80,
+          method: init?.method ?? 'GET',
+          path: proxy ? target.href : `${target.pathname}${target.search}`,
+          headers: Object.fromEntries(headers),
+          signal: init?.signal ?? undefined,
+        },
+        (res) => {
+          const responseHeaders = new Headers();
+          for (const [key, value] of Object.entries(res.headers)) {
+            if (value !== undefined) responseHeaders.set(key, [value].flat().join(', '));
+          }
+          const status = res.statusCode ?? 502;
+          const noBody = status === 204 || status === 205 || status === 304;
+          resolve(
+            new Response(noBody ? null : (Readable.toWeb(res) as ReadableStream), {
+              status,
+              ...(res.statusMessage ? { statusText: res.statusMessage } : {}),
+              headers: responseHeaders,
+            }),
+          );
+        },
+      );
+      req.on('error', reject);
+      req.end(body);
+    });
+  };
+}
+
 // Runs the steps in order against the player folder. Servers start on first use and are
 // closed in the finally. The stub enforces nothing: only the step's own expectations decide.
 export async function runScenario(options: RunOptions): Promise<StepResult[]> {
   const root = path.resolve(options.root);
   const results: StepResult[] = [];
   const clients = new Map<string, Client>();
-  let specs: Record<string, ServerSpec | { http: true }> | undefined;
+  let specs: Record<string, ServerSpec | HttpSpec> | undefined;
 
   const clientFor = async (name: string): Promise<Client> => {
     const existing = clients.get(name);
@@ -47,7 +97,15 @@ export async function runScenario(options: RunOptions): Promise<StepResult[]> {
     const spec = specs[name];
     if (spec === undefined) throw new Error(`unknown server ${name}`);
     if ('http' in spec) {
-      throw new Error(`server ${name} is http; the stub drives stdio servers only`);
+      if (spec.error !== undefined) throw new Error(spec.error);
+      const transport = new StreamableHTTPClientTransport(new URL(spec.url), {
+        requestInit: { headers: spec.headers },
+        fetch: proxyFetch(),
+      });
+      const client = new Client({ name: 'geldar-stub', version: '0.1.0' });
+      await client.connect(transport);
+      clients.set(name, client);
+      return client;
     }
     const resolved = options.resolveCommand
       ? options.resolveCommand({ command: spec.command, args: spec.args })
