@@ -41,6 +41,8 @@ bundle_pipe() {
         [ -f "$rcf" ] || sleep 0.2
         tries=$((tries + 1))
       done
+      # --rm removes the dead container asynchronously; make sure it is gone before make_bundle returns.
+      docker_cmd rm -f "$name" > /dev/null 2>&1
     fi
   }
 }
