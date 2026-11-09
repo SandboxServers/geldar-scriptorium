@@ -18,6 +18,9 @@ for f in "$GP_DIR"/lib/*.sh; do
   . "$f"
 done
 
+# N4: everything the launcher creates is private unless it says otherwise.
+umask 077
+
 GP_VERSION="0.1.0"
 
 # The tools each verb needs on the human's machine (decision 10).

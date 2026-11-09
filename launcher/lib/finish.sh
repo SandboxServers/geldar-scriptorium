@@ -7,7 +7,7 @@ GP_GROUPS="$GP_GROUPS finish"
 finish_hold() {
   local id=$1 reason=$2 d start="" mode=""
   d=$(player_dir "$id")
-  mkdir -p "$d/held"
+  private_mkdir "$d/held"
   [ ! -f "$d/session/bundle.bundle" ] || cp "$d/session/bundle.bundle" "$d/held/bundle.bundle"
   IFS= read -r start < "$d/start" 2> /dev/null
   IFS= read -r mode < "$d/mode" 2> /dev/null
@@ -57,7 +57,7 @@ finish_cleanup() {
   d=$(player_dir "$id")
   git_cmd -C "$clone" update-ref -d refs/launcher/incoming > /dev/null 2>&1
   docker_cmd volume rm "geldar-ws-$id" > /dev/null 2>&1
-  rm -rf "$d/session"
+  rm -rf "$d/session" "$d/pub"
   rm -f "$d/start" "$d/mode"
 }
 
@@ -103,7 +103,7 @@ finish_publish() {
   rm -f "$out"
   # Only now does the human's branch move.
   if [ -n "$(gp_env GELDAR_TEST_FORCE_FF_FAIL)" ] ||
-    ! git_cmd -C "$clone" -c "core.hooksPath=$hooks" -c core.autocrlf=false -c core.fsmonitor=false \
+    ! git_host -C "$clone" -c "core.hooksPath=$hooks" -c core.autocrlf=false -c core.fsmonitor=false \
       merge --ff-only refs/launcher/incoming > /dev/null 2>&1; then
     say ff_failed "$id" "$id"
     finish_hold "$id" ff_failed
