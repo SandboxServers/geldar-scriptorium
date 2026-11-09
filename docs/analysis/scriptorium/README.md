@@ -102,7 +102,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-53b | 5 | S | Launcher (PowerShell): pre-session parity | packet-coder | Done | SC-50b, SC-53a |
 | SC-53c | 5 | S | Launcher (PowerShell): session start parity | packet-coder | Done | SC-50c, SC-53b |
 | SC-53d | 5 | S | Launcher (PowerShell): bundle, verify, host re-check parity | packet-coder | Done | SC-51a, SC-53c |
-| SC-53e | 5 | S | Launcher (PowerShell): fetch, push, hold, recovery parity; Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-51b, SC-53d |
+| SC-53e | 5 | S | Launcher (PowerShell): fetch, push, hold, recovery parity; Sonnet | Sonnet (general-purpose) | Done | SC-51b, SC-53d |
 | SC-54a | 5 | S | Launcher (PowerShell): `new` and `setup` parity | packet-coder | BlockedDependency | SC-52a, SC-53e |
 | SC-54b | 5 | S | Launcher (PowerShell): `resolve`, `archive`, `status`, Windows Terminal tabs; Sonnet | Sonnet (general-purpose) | BlockedDependency | SC-52b, SC-54a |
 | SC-55a | 5 | S | Stub CLI over HTTP, stub image variant, in-test world | Sonnet (general-purpose) | Done | wave 4 |
