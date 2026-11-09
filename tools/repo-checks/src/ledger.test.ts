@@ -37,11 +37,12 @@ describe('setLedgerStatus', () => {
     expect(out).toBe('| SC-1 | 4 | S | a \\| b | packet-coder | done | - |\n');
   });
   it('accepts ids with a trailing digit and rejects malformed ids', () => {
-    const d = '| SC-60b1 | 6 | S | gate | packet-coder | Ready | - |
-| SC-60b2 | 6 | S | gate | packet-coder | Ready | - |
-';
-    const out = setLedgerStatus(d, 'SC-60b1', 'Done').split('
-');
+    const d = [
+      '| SC-60b1 | 6 | S | gate | packet-coder | Ready | - |',
+      '| SC-60b2 | 6 | S | gate | packet-coder | Ready | - |',
+      '',
+    ].join('\n');
+    const out = setLedgerStatus(d, 'SC-60b1', 'Done').split('\n');
     expect(out[0]).toContain('Done');
     expect(out[1]).toContain('Ready');
     expect(() => setLedgerStatus(d, 'SC-60b12', 'Done')).toThrow(/not a ledger id/);
