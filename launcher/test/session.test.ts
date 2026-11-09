@@ -100,7 +100,8 @@ function dumpSession(w: World) {
 
 const sessionDir = (p: Player) => join(p.stateDir, 'session');
 const runCalls = (w: World) => w.calls().filter((c) => c[0] === 'compose' && c.includes('run'));
-const filesOf = (c: string[]) => c.filter((_, i) => c[i - 1] === '-f');
+// pwsh logs native paths; compare in the bash form both launchers share.
+const filesOf = (c: string[]) => c.filter((_, i) => c[i - 1] === '-f').map((f) => bashPath(f));
 
 function composeConfig(w: World, p: Player, extraEnv: Record<string, string> = {}) {
   if (!bashExe) throw new Error('no bash');
@@ -213,11 +214,11 @@ describe.each(forGroup('session'))('session ($name)', (launcher) => {
     const w = makeWorld();
     const p = player(w, 'four', {}, 'https://mcp.registry.test:443/mcp/v1');
     // umask 077 makes a missing chmod visible: mkdir and printf would give 0700 and 0600.
-    const strict = {
-      ...launcher,
-      prefix: ['-c', 'umask 077; . "$0"'],
-      entry: bashPath(launcher.entry),
-    };
+    // pwsh has no umask; it runs as is (the mode check below is POSIX-only anyway).
+    const strict =
+      launcher.name === 'bash'
+        ? { ...launcher, prefix: ['-c', 'umask 077; . "$0"'], entry: bashPath(launcher.entry) }
+        : launcher;
     const r = start(strict, w, p);
     expect(r.status, r.stderr).toBe(0);
     const f = join(sessionDir(p), 'allowlist-world.txt');
@@ -262,7 +263,7 @@ describe.each(forGroup('session'))('session ($name)', (launcher) => {
     const libs = ['common', 'player', 'session']
       .map((n) => `. "${bashPath(join(repoRoot, 'launcher', 'lib', `${n}.sh`))}"`)
       .join('; ');
-    const env = { ...envOf(launcher, w, on), GELDAR_INTERNAL: '' };
+    const env = { ...w.env, GELDAR_SHARE: share, ...on, GELDAR_INTERNAL: '' };
     const r = runBash(
       `GP_DIR="${bashPath(join(repoRoot, 'launcher'))}"; GP_GROUPS=; ${libs}; start_session fiveb play`,
       { env },
@@ -383,7 +384,8 @@ describe.each(forGroup('session'))('session ($name)', (launcher) => {
     const root = join(w.root, 'dollar', 'st$ate');
     cpSync(w.state, root, { recursive: true });
     const moved = { ...p, stateDir: join(root, 'eleven') };
-    const extra = { ...dumpSession(w), GELDAR_STATE_DIR: bashPath(root) };
+    const stateDir = launcher.name === 'bash' ? bashPath(root) : root;
+    const extra = { ...dumpSession(w), GELDAR_STATE_DIR: stateDir };
     const r = start(launcher, w, p, 'play', extra);
     expect(r.status, r.stderr).toBe(0);
     const o = text(join(sessionDir(moved), 'override.yml'));
