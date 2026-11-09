@@ -5,11 +5,13 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  bashExe,
   bashPath,
   forGroup,
   git,
@@ -210,8 +212,14 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
       ].join('\n'),
     );
     chmodSync(shim, 0o755);
+    // pwsh on Windows cannot run a sh script directly: a .cmd calls it through bash.
+    let dockerSeam = bashPath(shim);
+    if (launcher.name === 'pwsh' && process.platform === 'win32') {
+      dockerSeam = `${shim}.cmd`;
+      writeFileSync(dockerSeam, `@"${bashExe}" "${bashPath(shim)}" %*\r\n`);
+    }
     const bad = prep(launcher, w2, q, 'play', {
-      GELDAR_DOCKER: bashPath(shim),
+      GELDAR_DOCKER: dockerSeam,
       PLANT: bashPath(q.clone),
     });
     expect(bad.status).toBe(1);
@@ -246,6 +254,17 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('branch name');
     expect(dockerCalls(w)).toEqual([]);
+    // A repeated key is refused, whatever the JSON parser would do with it.
+    const wd = makeWorld();
+    const d = makePlayer(wd, { id: 'dupkey' });
+    const pj = text(join(d.clone, 'player.json'));
+    const dupLine = '  "mcp_url": "https://mcp.registry.test/mcp",';
+    expect(pj).toContain(dupLine);
+    commitFile(wd, d.clone, 'player.json', pj.replace(dupLine, `${dupLine}\n${dupLine}`), false);
+    const dup = prep(launcher, wd, d);
+    expect(dup.status).toBe(1);
+    expect(dup.stderr).toContain('is not valid');
+    expect(dockerCalls(wd)).toEqual([]);
     // The working file is not read: an edit made after the clean check does not matter.
     const w3 = makeWorld();
     const q = makePlayer(w3, { id: 'wtree' });
@@ -426,5 +445,19 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
     expect(r.stderr).toContain('is not valid');
     expect(dockerCalls(w)).toEqual([]);
     expect(existsSync(join(p.stateDir, 'start'))).toBe(false);
+  }, 120_000);
+});
+
+describe.each(forGroup('pre').filter((l) => l.name === 'pwsh'))('pre ($name) paths', (launcher) => {
+  it('a clone path with a space and a non-ASCII character works end to end', () => {
+    const w = makeWorld();
+    const p = makePlayer(w, { id: 'spaced' });
+    const moved = join(w.players, 'späced dir');
+    renameSync(p.clone, moved);
+    writeFileSync(join(p.stateDir, 'clone'), `${moved.replace(/\\/g, '/')}\n`);
+    const r = prep(launcher, w, p);
+    expect(r.status, r.stderr).toBe(0);
+    expect(text(join(p.stateDir, 'start')).trim()).toBe(git(moved, ['rev-parse', 'HEAD']));
+    expect(existsSync(join(p.stateDir, 'session', 'export', 'player.json'))).toBe(true);
   }, 120_000);
 });
