@@ -5,7 +5,7 @@ description: 'Take a change in Geldar from a fresh worktree to a merged PR and a
 
 # Ship a PR
 
-Ported from Cimmeria's `ship-pr`, without its build lane and merge queue: Geldar ships with plain `git` and `gh`. Run commands from PowerShell 7.
+Adapted from the geldar repo's `ship-pr`, without its build lane and merge queue. This repo ships with plain `git` and `gh`. Run commands from PowerShell 7.
 
 ## 1. Start in your own worktree
 
