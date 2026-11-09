@@ -22,6 +22,7 @@ import {
   repoRoot,
   run,
   runBash,
+  runLib,
 } from './harness.ts';
 import { enabled } from './parity.ts';
 
@@ -31,6 +32,12 @@ const sources = [
   join(repoRoot, 'launcher', 'geldar-play'),
   ...readdirSync(join(repoRoot, 'launcher', 'lib'))
     .filter((f) => f.endsWith('.sh'))
+    .map((f) => join(repoRoot, 'launcher', 'lib', f)),
+];
+const psSources = [
+  join(repoRoot, 'launcher', 'geldar-play.ps1'),
+  ...readdirSync(join(repoRoot, 'launcher', 'lib'))
+    .filter((f) => f.endsWith('.ps1'))
     .map((f) => join(repoRoot, 'launcher', 'lib', f)),
 ];
 const tsvFiles = readdirSync(join(repoRoot, 'launcher', 'messages.d'))
@@ -43,14 +50,20 @@ function envOf(launcher: Launcher, world: ReturnType<typeof makeWorld>, extra = 
 }
 
 // Spawning is slow on Windows; the bound is 10 s elsewhere.
+const win = process.platform === 'win32';
 const slow = process.platform === 'win32' ? 25_000 : 10_000;
 
 function chr(...codes: number[]): string {
   return String.fromCharCode(...codes);
 }
 
-function sanitize(input: string): string {
-  const r = runBash(`. "$LIB"; sanitize`, { env: { LIB: lib }, input });
+// The launcher under test sanitizes stdin: bash through sanitize, pwsh through Sanitize.
+function sanitize(launcher: Launcher, input: string): string {
+  const r = runLib(
+    launcher,
+    { bash: 'sanitize', pwsh: '[Console]::Out.Write((Sanitize ([Console]::In.ReadToEnd())))' },
+    { input },
+  );
   expect(r.status).toBe(0);
   return r.stdout;
 }
@@ -81,45 +94,68 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
 
   it('3. sanitize replaces controls, keeps text, drops exactly one trailing newline', () => {
     const esc = chr(0x1b);
-    expect(sanitize(`ok${esc}[2J${chr(7)}hidden${chr(9)}x`)).toBe('ok [2J hidden x');
-    expect(sanitize(`a${chr(0x9b)}b`)).toBe('a b');
+    expect(sanitize(launcher, `ok${esc}[2J${chr(7)}hidden${chr(9)}x`)).toBe('ok [2J hidden x');
+    expect(sanitize(launcher, `a${chr(0x9b)}b`)).toBe('a b');
     const keep = `${chr(0x20ac)}${chr(0xe9)}${chr(0x4e2d)}`;
-    expect(sanitize(keep)).toBe(keep);
-    expect(sanitize(`a${chr(13, 10)}b\n`)).toBe('a  b');
-    expect(sanitize('x\n\n')).toBe('x ');
+    expect(sanitize(launcher, keep)).toBe(keep);
+    expect(sanitize(launcher, `a${chr(13, 10)}b\n`)).toBe('a  b');
+    expect(sanitize(launcher, 'x\n\n')).toBe('x ');
   }, 60_000);
 
   it('4. valid_player_id', () => {
     const cases = ['mmpr-red', 'Red', 'a', '1abc', '../x', 'a b', 'a'.repeat(40)];
-    const r = runBash(
-      `. "$LIB"; while IFS= read -r v; do if valid_player_id "$v"; then echo ok; else echo no; fi; done`,
-      { env: { LIB: lib }, input: `${cases.join('\n')}\n` },
+    const r = runLib(
+      launcher,
+      {
+        bash: 'while IFS= read -r v; do if valid_player_id "$v"; then echo ok; else echo no; fi; done',
+        pwsh: "foreach ($v in [Console]::In.ReadToEnd().Split([char]10)) { if ($v -eq '') { continue }; if (Test-PlayerId $v) { 'ok' } else { 'no' } }",
+      },
+      { input: `${cases.join('\n')}\n` },
     );
-    expect(r.stdout.trim().split('\n')).toEqual(['ok', 'no', 'no', 'no', 'no', 'no', 'no']);
+    expect(r.stdout.trim().split(/\r?\n/)).toEqual(['ok', 'no', 'no', 'no', 'no', 'no', 'no']);
   }, 60_000);
 
   it('5. one launch per player: a live lock refuses, a release frees, a dead lock is kept', async () => {
     const w = makeWorld();
-    const env = childEnv({ ...w.env, LIB: lib, ID: 'abc' });
-    const script = '. "$LIB"; lock_acquire "$ID"; echo ready; read x';
-    const first = spawn(bashExe as string, ['-c', script], { env, stdio: 'pipe' });
+    const scripts = {
+      bash: 'lock_acquire "$ID"; echo ready; read x',
+      pwsh: "try { Lock-Acquire $env:ID; 'ready'; [void][Console]::In.ReadLine() } finally { Lock-Release }",
+    };
+    const lockEnv = (id: string) => envOf(launcher, w, { ID: id });
+    // runLib builds the command line; spawn the same one for the long-lived first holder.
+    const spawnHolder = () => {
+      if (launcher.name === 'bash') {
+        const lib2 = bashPath(join(repoRoot, 'launcher', 'lib', 'common.sh'));
+        return spawn(bashExe as string, ['-c', `. '${lib2}'; ${scripts.bash}`], {
+          env: childEnv(lockEnv('abc')),
+          stdio: 'pipe',
+        });
+      }
+      const dir = join(repoRoot, 'launcher').replace(/'/g, "''");
+      const pre = `$ErrorActionPreference = 'Stop'; $GP_DIR = '${dir}'; . (Join-Path $GP_DIR 'lib/common.ps1'); Import-Messages; `;
+      return spawn('pwsh', ['-NoProfile', '-Command', pre + scripts.pwsh], {
+        env: childEnv(lockEnv('abc')),
+        stdio: 'pipe',
+      });
+    };
+    const first = spawnHolder();
     await new Promise<void>((ok, fail) => {
       first.stdout.on('data', (d: Buffer) => d.toString().includes('ready') && ok());
       first.on('error', fail);
       first.on('close', () => fail(new Error('first process ended early')));
     });
-    const second = runBash(script, { env: { ...w.env, LIB: lib, ID: 'abc' }, input: '' });
+    const second = runLib(launcher, scripts, { env: lockEnv('abc'), input: '' });
     expect(second.status).toBe(1);
     expect(second.stderr).toContain('abc is already running');
     first.stdin.end('\n');
     await new Promise((ok) => first.on('close', ok));
-    const third = runBash(script, { env: { ...w.env, LIB: lib, ID: 'abc' }, input: '\n' });
+    const third = runLib(launcher, scripts, { env: lockEnv('abc'), input: '\n' });
     expect(third.status).toBe(0);
     expect(third.stdout).toContain('ready');
     // A lock left by a dead process is not stolen.
     mkdirSync(join(w.state, 'dead', 'lock'), { recursive: true });
     writeFileSync(join(w.state, 'dead', 'lock', 'pid'), '999999\n');
-    const dead = runBash(script, { env: { ...w.env, LIB: lib, ID: 'dead' }, input: '\n' });
+    const dead = runLib(launcher, scripts, { env: lockEnv('dead'), input: '\n' });
     expect(dead.status).toBe(1);
     expect(dead.stderr).toContain('dead is already running');
     expect(dead.stderr).toContain('remove the folder');
@@ -165,16 +201,21 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
       'GELDAR_TOOL_PATH',
       'GELDAR_STUB_X',
     ];
-    const env: Record<string, string> = { LIB: lib };
+    const env: Record<string, string> = {};
     for (const n of names) env[n] = 'value';
-    const script = `. "$LIB"; for n in ${names.join(' ')}; do printf '[%s]' "$(gp_env "$n")"; done`;
-    expect(runBash(script, { env }).stdout).toBe(names.map(() => '[]').join(''));
-    expect(runBash(script, { env: { ...env, GELDAR_INTERNAL: '1' } }).stdout).toBe(
+    const scripts = {
+      bash: `for n in ${names.join(' ')}; do printf '[%s]' "$(gp_env "$n")"; done`,
+      pwsh: `foreach ($n in '${names.join("','")}') { [Console]::Out.Write('[' + (Get-GatedEnv $n) + ']') }`,
+    };
+    expect(runLib(launcher, scripts, { env }).stdout).toBe(names.map(() => '[]').join(''));
+    expect(runLib(launcher, scripts, { env: { ...env, GELDAR_INTERNAL: '1' } }).stdout).toBe(
       names.map(() => '[value]').join(''),
     );
     // The same names are never read directly in the launcher code.
-    const direct = new RegExp(`\\$\\{?(${names.map((n) => n.replace('_X', '_')).join('|')})`);
-    for (const f of sources)
+    const direct = new RegExp(
+      `\\$(?:env:)?\\{?(${names.map((n) => n.replace('_X', '_')).join('|')})`,
+    );
+    for (const f of launcher.name === 'bash' ? sources : psSources)
       expect(
         text(f)
           .split('\n')
@@ -185,17 +226,27 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     const empty = join(w.root, 'empty');
     mkdirSync(empty);
     const tp = run(launcher, ['play', 'abc'], {
-      env: envOf(launcher, w, { GELDAR_INTERNAL: '', GELDAR_TOOL_PATH: bashPath(empty) }),
+      env: envOf(launcher, w, {
+        GELDAR_INTERNAL: '',
+        GELDAR_TOOL_PATH: launcher.name === 'bash' ? bashPath(empty) : empty,
+      }),
     });
     expect(tp.stderr).toContain('This command is not available');
     // GELDAR_HELPER_TIMEOUT_SEC does not shorten run_bounded.
     const t = (internal: string) =>
-      runBash('. "$LIB"; run_bounded 30 sleep 3; echo "rc=$?"', {
-        env: { LIB: lib, GELDAR_INTERNAL: internal, GELDAR_HELPER_TIMEOUT_SEC: '1' },
-      }).stdout.trim();
+      runLib(
+        launcher,
+        {
+          bash: 'run_bounded 60 sleep 8; echo "rc=$?"',
+          pwsh: '$rc = Invoke-Bounded 60 sleep 8; "rc=$rc"',
+        },
+        { env: { GELDAR_INTERNAL: internal, GELDAR_HELPER_TIMEOUT_SEC: '1' } },
+      ).stdout.trim();
     expect(t('')).toBe('rc=0');
     expect(t('1')).toBe('rc=124');
-    // GELDAR_UNSAFE_IMAGE alone does not unlock a tag-form image.
+    // GELDAR_UNSAFE_IMAGE alone does not unlock a tag-form image (the image rules arrive with
+    // the pwsh pre-session packet; until then this part runs for bash).
+    if (launcher.name !== 'bash') return;
     const img = (internal: string) =>
       runBash('. "$LIB"; resolve_kit_image "x@sha256:$D"; echo "image=$GP_IMAGE"', {
         env: {
@@ -241,17 +292,24 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
           real = runBash(`command -v ${t}`).stdout.trim();
           realTools[t] = real;
         }
-        const body =
-          t === 'git' && gitVersion ? `echo "git version ${gitVersion}"` : `exec "${real}" "$@"`;
+        const fake = t === 'git' && gitVersion;
+        const body = fake ? `echo "git version ${gitVersion}"` : `exec "${real}" "$@"`;
         writeFileSync(join(dir, t), `#!/bin/sh\n${body}\n`);
         chmodSync(join(dir, t), 0o755);
+        if (win) {
+          // pwsh on Windows runs only .cmd or .exe files.
+          const winReal = runBash(`cygpath -w "${real}"`).stdout.trim();
+          const cmd = fake ? `@echo git version ${gitVersion}` : `@"${winReal}" %*`;
+          writeFileSync(join(dir, `${t}.cmd`), `${cmd}\r\n`);
+        }
       }
-      return bashPath(dir);
+      return launcher.name === 'bash' ? bashPath(dir) : dir;
     };
     const all = ['git', 'perl', 'tar'];
     const base = (toolPath: string) => {
       const env: Record<string, string> = { ...envOf(launcher, w), GELDAR_TOOL_PATH: toolPath };
-      env.GELDAR_GH = bashPath(join(w.fakeDir, 'docker'));
+      const gh = join(w.fakeDir, win ? 'docker.cmd' : 'docker');
+      env.GELDAR_GH = launcher.name === 'bash' ? bashPath(join(w.fakeDir, 'docker')) : gh;
       delete env.GELDAR_GIT;
       return env;
     };
@@ -293,7 +351,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
       launcher,
       [
         '__bounded',
-        '2',
+        win ? '8' : '2',
         '--container',
         'geldar-t-1',
         docker as string,
