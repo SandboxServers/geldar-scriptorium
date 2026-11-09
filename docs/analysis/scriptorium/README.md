@@ -140,7 +140,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-61g | 6 | S | Gullible session MB-06 and the enforcing-test markers (`tests/image/*`, `e2e.test.ts`) | Sonnet (general-purpose) | BlockedDependency | SC-61e |
 | SC-61h | 6 | S | Stub session (generated per-entry scenario with `expect.includes` on the canary) against each corpus scenario in the mock image (real Docker); pins the corpus image digest | Sonnet (general-purpose) | BlockedDependency | SC-61d, SC-61e |
 | SC-62 | 6 | S | Live malicious-book check, local only (D-SC-01): umbrella for SC-62a to SC-62c (cards: [work-packets-wave6b.md](work-packets-wave6b.md)) | - | BlockedDependency (done when SC-62c is) | SC-62a to SC-62c |
-| SC-62a | 6 | S | Live check: the pure evidence evaluator (five checks, deny-rule converter); gate | packet-coder (Haiku) | Planned | wave 5 |
+| SC-62a | 6 | S | Live check: the pure evidence evaluator (five checks, deny-rule converter); gate | packet-coder (Haiku) | Done | wave 5 |
 | SC-62b | 6 | S | Live check: `scriptorium.ps1 live-check` runner with the CI refusal (own extra compose for the proxy log) | Sonnet (general-purpose) | BlockedDependency | SC-62a |
 | SC-62c | 6 | S | Live check: the written procedure | packet-coder (Haiku) | BlockedDependency | SC-62b, SC-61h |
 | SC-63a | 6 | S | Template publish workflow (`workflow_call` and dry run): Azure OIDC sign-in, `geldar-bot` key from Key Vault (masked), installation token, push `template/` to `geldar-player-template` as one commit naming the release triple | Sonnet (general-purpose) | BlockedDependency | SC-63b, SC-63c |
