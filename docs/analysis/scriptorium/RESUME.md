@@ -8,7 +8,7 @@ Read this, then [README.md](README.md) (the ledger), before acting. Rewrite at e
 
 1. Finish wave 4: wave review (fresh `packet-reviewer`), fix passes, open the PR from `scriptorium/wave4` and read the Linux CI log (the Docker tests must have run, not skipped), merge on a green `check` on the wave branch (rule 16), remove worktrees.
 2. Then rewrite this card and ask the owner to `/compact`.
-3. Wave 3 (mock world, repo G, SC-30 to SC-33) is not started. Readiness: geldar PR #3 (decisions 0007-0016) is still open; `contract/` on geldar `main` has `@geldar/contract` but lacks the `mcp-*` schemas; the Wave 3 cards follow the spec's intent model. Ask the owner before writing in the geldar repo.
+3. Wave 3 (mock world, repo G, SC-30a to SC-33) is not started. Readiness: geldar PR #3 (decisions 0007-0016) is still open; `contract/` on geldar `main` has `@geldar/contract` but lacks the `mcp-*` schemas; the Wave 3 cards follow the spec's intent model. Ask the owner before writing in the geldar repo.
 4. Process work from the retro's "Proposed next": merge-packet helper that gates on a green wave-branch check, ledger helper, spec lint, shared git runner, fixture helper, and why a check inside a worktree passes while the wave branch fails.
 5. Wave 5 (launcher) cards are written in full once wave 4 closes.
 
