@@ -30,6 +30,7 @@ RUN printf 'geldar kit\n' > /etc/geldar-kit \
  && find /etc/geldar /etc/claude-code -type d -exec chmod 0555 {} + \
  && chmod 0444 /etc/geldar-kit \
  && mkdir -p /player /cli-home && chown player:player /player /cli-home
+LABEL org.opencontainers.image.source="https://github.com/SandboxServers/geldar-scriptorium"
 ENV CLAUDE_CONFIG_DIR=/cli-home DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 USER player
 WORKDIR /player
