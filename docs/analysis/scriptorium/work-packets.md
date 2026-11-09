@@ -478,7 +478,7 @@ Parallel packets each change `pnpm-lock.yaml`. If a merge conflicts there, the o
 | `@modelcontextprotocol/sdk` | `1.32.2` | 2026-10-23 (16 days old) | npm `latest`, and the newest stable at least 14 days before 2026-11-08. `1.32.1` (2026-10-05) is the fallback if 1.32.2 is ever yanked |
 | `zod` | `4.6.7` | 2026-10-12 (27 days old) | newest stable at least 14 days old. The SDK's peer range is `^3.25 \|\| ^4.0`, and `zod` is a required (non-optional) peer, so every package that imports the SDK lists it |
 
-Also checked in a scratch install outside the repo: with `typescript` 7.0.2 and Node 22.23.2 the SDK imports below type-check and run, and `vitest` 5.0.5 resolves workspace packages whose `exports` point at `.ts` files. Nothing else is added by this wave. The SDK's own dependencies resolve through the lockfile.
+Also checked in a scratch install outside the repo: with `typescript` 7.0.2 and Node 22.23.4 the SDK imports below type-check and run, and `vitest` 5.0.5 resolves workspace packages whose `exports` point at `.ts` files. Nothing else is added by this wave. The SDK's own dependencies resolve through the lockfile.
 
 **SDK imports (all real in 1.32.2; ESM, with the `.js` suffix the SDK's `exports` map wants):**
 
