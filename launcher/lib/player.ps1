@@ -73,6 +73,18 @@ function Read-Branch([string]$Id) {
   $script:PL_BRANCH = $line
 }
 
+# Local or private names: a single label, a reserved name or suffix, or an empty label. `.test`
+# stays allowed (RFC 6761). xn-- labels get no special treatment. Same rules as private_host (bash).
+function Test-PrivateHost([string]$Name) {
+  if ($Name -eq '' -or $Name.StartsWith('.') -or $Name.EndsWith('.') -or $Name.Contains('..')) { return $true }
+  if (-not $Name.Contains('.')) { return $true }
+  if ($Name -in 'localhost', 'host.docker.internal', 'gateway.docker.internal', 'kubernetes.docker.internal') { return $true }
+  foreach ($s in 'localhost', 'local', 'internal', 'localdomain', 'lan', 'home', 'home.arpa', 'corp', 'intranet', 'private', 'invalid', 'example', 'onion') {
+    if ($Name.EndsWith(".$s", [StringComparison]::Ordinal)) { return $true }
+  }
+  return $false
+}
+
 # A DNS name whose last label holds a letter (so dotted quads, 127.1 and 2130706433 are refused);
 # a port, if any, is 80 or 443.
 function Test-McpUrl([string]$Url) {
@@ -87,6 +99,8 @@ function Test-McpUrl([string]$Url) {
     $port = $auth.Substring($c + 1)
   }
   if (-not [regex]::IsMatch($hostName, '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\z')) { return $false }
+  if (Test-PrivateHost $hostName) { return $false }
+  if ([regex]::IsMatch($Url, '/\.\.(/|\z)')) { return $false }
   $last = $hostName.Substring($hostName.LastIndexOf('.') + 1)
   if (-not [regex]::IsMatch($last, '[a-z]')) { return $false }
   return ($port -eq '' -or $port -ceq '80' -or $port -ceq '443')

@@ -242,5 +242,13 @@
   {
     "url": "https://example.com",
     "ok": false
+  },
+  {
+    "url": "https://a.example.com/p/../x",
+    "ok": false
+  },
+  {
+    "url": "https://a.example.com/p/..",
+    "ok": false
   }
 ]

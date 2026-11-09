@@ -34,6 +34,7 @@ function refUrlOk(url: string): boolean {
   const port = c >= 0 ? auth.slice(c + 1) : '';
   if (!/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(host)) return false;
   if (!/[a-z]/.test(host.slice(host.lastIndexOf('.') + 1))) return false;
+  if (/\/\.\.(\/|$)/.test(url)) return false;
   if (!['', '80', '443'].includes(port)) return false;
   if (host.split('.').some((l) => l === '')) return false;
   if (!host.includes('.')) return false;
