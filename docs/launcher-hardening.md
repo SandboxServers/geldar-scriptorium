@@ -20,6 +20,7 @@ Each requirement is one line. Tests are written in SC-60.
 
 - H-09: The bundle is made by a separate `--rm --network none` container, started after the session container stopped, with no CLI volume. Test: T-09
 - H-10: The bundle is at most 50 MiB and is copied to launcher state before verification. Test: T-10
+  Implemented in: verify/src/verify.ts (`MAX_BUNDLE_BYTES`, reason `bundle_too_large`). The copy to launcher state is launcher work.
 - H-11: `geldar-verify` (network none) accepts only if all of these hold. Test: T-11
   - exactly one ref, `refs/heads/<branch>`;
   - a fast-forward from START, with no merge commits;
@@ -29,8 +30,10 @@ Each requirement is one line. Tests are written in SC-60.
   - no Windows-reserved names;
   - author and committer equal the player's noreply identity;
   - `memory/identity.md` is unchanged in play mode.
+  Implemented in: verify/src/verify.ts, verify/src/history.ts, verify/src/reasons.ts, verify/src/args.ts, with the rule from path-rule/src/path-rule.ts and path-rule/src/identity.ts. Guarded by the tests beside them (verify.test.ts, history.test.ts, reasons.test.ts, cli.test.ts).
 - H-12: The host fetches with `git -c fetch.fsckObjects=true -c transfer.fsckObjects=true fetch --no-tags <bundle> refs/heads/<branch>:refs/launcher/incoming`. Test: T-12
 - H-13: The host independently re-checks the ancestry and the net `--no-renames` path list. Test: T-13
+  Implemented in: verify/src/history.ts (the same per-commit and net checks; not exported from the package yet, so the host re-check cannot import it). The host-side call is launcher work.
 - H-14: The host branch is updated only with `merge --ff-only`. Push is `git push origin HEAD:refs/heads/<branch>`, never `--force`. Test: T-14
 - H-15: The workspace and bundle are deleted only after a successful push. On failure, keep both, leave the host branch as it is, and report. Test: T-15
 - H-16: Control characters are stripped from any bundle-derived text before printing. Test: T-16

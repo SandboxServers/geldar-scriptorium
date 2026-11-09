@@ -4,19 +4,19 @@ Written 2026-11-08, at the close of wave 2. Waves 0 and 1 are merged to `main` (
 
 ## What went well
 
-- **Review caught real defects before merge.** Adversarial reviewers that ran their own attacks found, among others: a `git` replace-ref bypass of the commit allowlist (SC-22a, severe); a filter-driver code execution path in the spec itself (spec review 1); hostile filenames that would block every save (spec review 2); an unguarded `--no-replace-objects` flag (SC-23b). The same reviewers found nothing wrong in the path rule (SC-20) after trying 70-odd hostile inputs, which is also information.
+- **Review caught real defects before merge.** Adversarial reviewers that ran their own attacks found, among others: a `git` replace-ref bypass of the commit allowlist (SC-22a, severe); a filter-driver code execution path in the spec itself (spec review 1); hostile filenames that would block every save (spec review 2); an unguarded `--no-replace-objects` flag (SC-23b). The SC-20 packet review also tried its own hostile inputs against the merged path rule and shipped it on pass 1 (report: `SC-20-review-1.md`); spec review 3 separately evaluated all 73 table rows of the SC-20 spec against a scratch implementation.
 - **Spec review before dispatch paid for itself.** Three review passes on the wave 2 packets caught the filter-driver redesign, corrupted newlines in the spec text, a broken ledger table, and size problems, all before a coder spent a session.
 - **Fan-out worked.** SC-21, SC-22a and SC-23a ran in parallel after SC-20; merges were mostly clean once shared files were handled.
-- **Draft PR for Linux CI.** The Linux-only SC-22a tests ran in CI on the wave PR (commit tests: 15 of 15, no skips), closing the gap that the author machine cannot run them.
+- **Draft PR for Linux CI.** The Linux-only SC-22a tests ran in CI on the wave PR (CI run 42554138928 on draft PR #4: `packages/git/src/commit.test.ts` 15 tests passed, 29 test files passed, none skipped), closing the gap that the author machine cannot run them.
 
 ## What cost time or tokens
 
 | Finding | Evidence | Cost |
 |---|---|---|
-| Haiku coders ran out of context before committing or writing the report | SC-22a (twice), SC-23a, SC-23b, SC-24a all at 80-100k tokens against a 75k budget; three needed the orchestrator to commit for them | Extra continuation sessions; lost reports |
+| Haiku coders ran out of context before committing or writing the report | SC-22a (first session and continuation), SC-23a, SC-23b (first session and continuation), SC-24a all returned at 86k-102k tokens against a 75k budget (agent usage counts). The SC-22a first session and the SC-23b first session left uncommitted work; the orchestrator committed SC-22a and SC-23a after re-running the check | Extra continuation sessions; lost reports |
 | The 75k budget is unrealistic for packets with a fixture, a matrix of tests and revert checks | SC-22a, SC-23a/b, SC-24a | Most wave 2 packets needed a continuation or a fix pass |
-| Parallel packets conflict on shared files | `tests/template/allowed-files.ts` (waves 1, 2), `pnpm-lock.yaml` (wave 2), `skills.test.ts` (SC-13/SC-14 both created it) | Manual conflict resolution on five merges |
-| Orchestrator mistakes | A merge-and-push chain that did not stop on a failing check pushed a lint error to `wave1`; a scripted ledger edit matched the wrong table rows twice (the Needed-by column also contains `SC-NN`); SC-24a's dependency was misstated and the packet started late | Rework; one bad push |
+| Parallel packets conflict on shared files | `tests/template/allowed-files.ts` (waves 1, 2), `pnpm-lock.yaml` (wave 2), `skills.test.ts` (SC-13/SC-14 both created it) | Manual conflict resolution on four merges (SC-13, SC-15, SC-16 into wave 1; SC-22a into wave 2) |
+| Orchestrator mistakes (from the session record; the lint push is visible in git history as the commit `style: format the pending-files list` on `scriptorium/wave1`) | A merge-and-push chain that did not stop on a failing check pushed a lint error to `wave1`; a scripted ledger edit matched the wrong table rows twice (the Needed-by column also contains `SC-NN`); SC-24a's dependency was misstated and the packet started late | Rework; one bad push |
 | Stale background notifications | A finished agent kept re-notifying with an out-of-date status | Noise |
 | Spec text corrupted by tooling | Literal line breaks inside code spans where `\n` was meant (SC-21 drift test, SC-22a hash input) | One extra spec review pass |
 | Environment gaps | No `jq` and no Linux on the author machine: hook tests and several git tests skip locally | Needed CI to verify |

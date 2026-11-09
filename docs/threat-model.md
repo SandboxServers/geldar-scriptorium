@@ -29,6 +29,8 @@ This is the threat model for the Geldar player kit and its launcher. Each contro
 | Egress proxy | Internal network, no DNS, allowlist-only egress | H-08 | T-08 |
 | Bundle gate | Separate no-network bundle step, size cap, `geldar-verify` allow-list | H-09, H-10, H-11 | T-09, T-10, T-11 |
 | Bundle gate | Safe fetch, independent host re-check, fast-forward-only merge and push | H-12, H-13, H-14 | T-12, T-13, T-14 |
+| Bundle gate | In `geldar-verify`: replace objects ignored, attributes file off, 50 MiB and 2000-commit caps, per-commit and net `--no-renames` path checks, mode, identity and fast-forward checks (`packages/verify`) | H-10, H-11 | T-10, T-11 |
+| Memory commits | `geldar-git` is the only commit writer; it commits through plumbing (no filter drivers or hooks run), ignores replace objects, and checks every path with the shared rule (`packages/git`, `packages/path-rule`) | none (no H-item for the writer itself; the gate H-11 re-checks its output) | unit tests in `packages/git` (`commit.test.ts`, `run-git.test.ts`) |
 | Bundle gate | Output sanitising, failure keeps state, crash recovery from stored START | H-15, H-16, H-17 | T-15, T-16, T-17 |
 | Workspace origin | Clean host clone, START held by the launcher, export from `git archive`, isolated clone | H-01 to H-05 | T-01 to T-05 |
 | Settings layers | Hooks inert without the kit marker; reads of the CLI home and credentials denied (managed settings) | H-18, H-20 | T-18, T-20 |

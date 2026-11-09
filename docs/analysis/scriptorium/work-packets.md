@@ -8,7 +8,7 @@ Waves 0 to 2 are written out in full. Waves 3–7 are **scope cards**: files, te
 
 Each packet is self-contained: the coder skips CLAUDE.md, so these rules travel with it.
 
-1. **Budget.** One Haiku `packet-coder` session under 75k tokens. Read only the line ranges you need. Past about 65k, stop, commit nothing half-done, and report what's left.
+1. **Budget.** One Haiku `packet-coder` session under 75k tokens. Read only the line ranges you need. Past about 60k (rule 12), stop, commit nothing half-done, and report what's left. Packets with a fixture and a test matrix usually exceed 75k: slice them smaller or budget a continuation (retro waves 0-2).
 2. **Where.** Work only in the worktree named in your brief. PowerShell 7 only. Run pnpm as `./scriptorium.ps1 pnpm <args>` from the worktree root. In a new worktree run `./scriptorium.ps1 setup` first. For wave 0, before SC-01 has merged, follow the packet's own steps.
 3. **Files.** Create or change only the files your packet lists. Never edit another packet's files, and never edit anything in the geldar repo unless your packet's Repo is **G**.
 4. **Pins.** Exact versions, only the ones the packet names: `./scriptorium.ps1 pnpm add -E -D <pkg>@<version> --filter <package>`. Images by digest: `docker buildx imagetools inspect <image>:<tag>`, then write `<image>:<tag>@sha256:<digest>`. GitHub Actions by commit SHA with the tag in a comment. Anything you add that the packet doesn't name must be at least two weeks old; report it.
