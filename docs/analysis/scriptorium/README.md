@@ -75,7 +75,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-24a | 2 | S | `stub-cli`: scripted stand-in for the vendor CLI (scenario runner; large, budget a retry) | packet-coder | Done (merged into wave2) | SC-21 |
 | SC-24b | 2 | S | `stub-cli`: birth and reflect scenarios | packet-coder | Done (merged into wave2) | SC-24a, SC-22b |
 | SC-30a | 3 | G | Contract: generator support, shared MCP types, schemas for look, wait, act, say; bundled tool definitions | packet-coder (Sonnet) | Done (geldar PR #5, 1865821) | geldar main |
-| SC-30b | 3 | G | Contract: schemas for the other ten tools | packet-coder | BlockedDependency | SC-30a |
+| SC-30b | 3 | G | Contract: schemas for the other ten tools | packet-coder | Done (geldar PR #7, 587b5db) | SC-30a |
 | SC-31a | 3 | G | `threshold/mcp-mock` package: bearer auth, HTTP sessions, supersede | packet-coder (Sonnet) | Done (geldar PR #6, d5a52c1) | — |
 | SC-31b | 3 | G | `mcp-mock`: contract-validated tool registry, ids, snapshot builder, fake world | packet-coder (Sonnet) | BlockedDependency | SC-30b, SC-31a |
 | SC-31c | 3 | G | `mcp-mock`: resources, prompts, app, command line | packet-coder | BlockedDependency | SC-31b |
