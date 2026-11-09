@@ -1,0 +1,10 @@
+upgrade_current	Kit %s is already in this player. Nothing was changed.
+upgrade_downgrade	Kit %s is older than the kit in this player (%s). Nothing was changed.
+upgrade_no_release	No kit release was found in the template repository. Nothing was changed.
+upgrade_bad_release	The kit release %s did not pass the checks, so it was not used. Nothing was changed.
+upgrade_branch_exists	The branch %s already exists in this player's repository. Nothing was changed.
+upgrade_held	A held session is waiting for this player. Resolve it first. Nothing was changed.
+upgrade_pr_failed	The branch %s was pushed, but the pull request could not be made. Open it by hand.
+upgrade_done	Kit %s is ready as a pull request: %s. Memory was not touched.
+upgrade_dirty	The player's clone has changes that are not saved, or it could not be brought up to date. Nothing was changed.
+upgrade_verify	Verify the image before you merge: cosign verify ghcr.io/sandboxservers/geldar-kit@%s
