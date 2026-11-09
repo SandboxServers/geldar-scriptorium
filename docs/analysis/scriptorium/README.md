@@ -90,7 +90,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-60 | 6 | S | Hostile workspace tests, one per hardening item | packet-coder | BlockedDependency | SC-55 |
 | SC-61 | 6 | S+G | Malicious-book corpus as mock world scenarios | packet-coder | BlockedDependency | SC-32 |
 | SC-62 | 6 | S | Live malicious-book CI with pinned Claude Code | packet-coder | BlockedDecision | SC-61, D-SC-01 |
-| SC-63 | 6 | S | Release workflow: image, cosign, SBOM, scan, launcher assets, template publish | packet-coder | BlockedDecision | SC-60, D-SC-02, D-SC-06 |
+| SC-63 | 6 | S | Release workflow: image, cosign, SBOM, scan, launcher assets, template publish | packet-coder | BlockedDecision (D-SC-06 only; D-SC-02 is Accepted) | SC-60, D-SC-06 |
 | SC-64 | 6 | S | `geldar-play upgrade`: kit bump as a PR | packet-coder | BlockedDependency | SC-63 |
 | SC-70 | 7 | S | Template README (the Patron guide), onboarding and troubleshooting docs | packet-coder | BlockedDependency | wave 6 |
 | SC-71 | 7 | S | Codex CLI support | packet-coder | BlockedDecision | D-SC-08 |
