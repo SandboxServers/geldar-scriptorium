@@ -239,7 +239,7 @@ function Verb-new {
     [System.IO.File]::WriteAllBytes((Join-Path $clone 'memory/identity.md'), [byte[]]$files[0])
     [System.IO.File]::WriteAllBytes((Join-Path $clone 'memory/goals.md'), [byte[]]$files[1])
     $adds += 'memory/identity.md', 'memory/goals.md'
-    $msg = "birth: $id"
+    $msg = "player: $id"
   }
   Invoke-Git -C $clone add @adds *> $null
   if ($LASTEXITCODE -ne 0) { Die 1 gh_failed $id 'add' }

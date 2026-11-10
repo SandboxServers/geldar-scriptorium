@@ -63,7 +63,7 @@ if (pwsh) {
       );
       expect(r.status, r.stderr).toBe(0);
       const clone = join(w.players, `player-${ID}`);
-      expect(git(clone, ['log', '-1', '--format=%s']).trim()).toBe(`birth: ${ID}`);
+      expect(git(clone, ['log', '-1', '--format=%s']).trim()).toBe(`player: ${ID}`);
       expect(readFileSync(join(clone, 'memory', 'goals.md'), 'utf8')).toBe('# Goals\n\nLead.\n');
       const token = join(w.state, ID, 'token');
       expect(existsSync(token)).toBe(true);
