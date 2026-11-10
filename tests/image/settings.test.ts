@@ -22,8 +22,8 @@ const managedDeny = managed.permissions?.deny ?? [];
 const playDeny = play.permissions?.deny ?? [];
 
 describe('image managed and play settings', () => {
-  it('managed denies Read, Edit and Write of the CLI home, as a glob and as the directory', () => {
-    for (const tool of ['Read', 'Edit', 'Write']) {
+  it('managed denies Read and Edit of the CLI home, as a glob and as the directory', () => {
+    for (const tool of ['Read', 'Edit']) {
       expect(managedDeny).toContain(`${tool}(//cli-home/**)`);
       expect(managedDeny).toContain(`${tool}(//cli-home)`);
     }
@@ -36,16 +36,20 @@ describe('image managed and play settings', () => {
       'WebSearch',
       'Read(**/.credentials.json)',
       'Edit(**/.credentials.json)',
-      'Write(**/.credentials.json)',
     ]) {
       expect(managedDeny).toContain(rule);
     }
   }, 120_000);
 
-  it('play denies Edit and Write of identity.md, relative and absolute', () => {
-    for (const tool of ['Edit', 'Write']) {
-      expect(playDeny).toContain(`${tool}(/memory/identity.md)`);
-      expect(playDeny).toContain(`${tool}(//player/memory/identity.md)`);
+  it('play denies Edit of identity.md, relative and absolute', () => {
+    for (const rule of ['Edit(/memory/identity.md)', 'Edit(//player/memory/identity.md)']) {
+      expect(playDeny).toContain(rule);
+    }
+  }, 120_000);
+
+  it('managed and play carry no Write rule', () => {
+    for (const rule of [...managedDeny, ...playDeny]) {
+      expect(rule === 'Write' || rule.startsWith('Write('), rule).toBe(false);
     }
   }, 120_000);
 
