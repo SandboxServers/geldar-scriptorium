@@ -342,7 +342,7 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
         expect(ok.status, verb).toBe(0);
       } else if (verb === 'new') {
         expect(ok.status, verb).toBe(1);
-        expect(ok.stderr, verb).toMatch(/world address|Nothing was created/);
+        expect(ok.stderr, verb).toMatch(/world address|Nothing was created|private-only/);
       } else {
         expect(ok.status, verb).toBe(1);
         expect(ok.stderr, verb).toContain('No player named abc');
