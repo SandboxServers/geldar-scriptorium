@@ -4,14 +4,14 @@ Read this, then [README.md](README.md) (the ledger) and [worknotes/overnight-dec
 
 **State (2026-11-10):** waves 0 to 6 are on `main` (PR #13 merged; retro [worknotes/retro-wave-6.md](worknotes/retro-wave-6.md)). Wave 7 PR #14 is merged to `main` (retro [worknotes/retro-wave-7.md](worknotes/retro-wave-7.md)); the rest of wave 7 continues on new branches. Cards are in [work-packets-wave7.md](work-packets-wave7.md) and [work-packets-wave7b.md](work-packets-wave7b.md).
 
-**Built on wave 7:** SC-71b, SC-74a to c, SC-75a to c, SC-76a to d, SC-77a to b, SC-78. The wave review is done. The fix pass `fix10` is in progress (branch `scriptorium/fix10-tools` and siblings).
+**Built on wave 7:** SC-70a, SC-70b, SC-70d (PRs #16, #17, #19), SC-71b, SC-74a to c, SC-75a to c, SC-76a to d, SC-77a to b, SC-78. The wave review and the fix pass are done. CI is scoped by what changed and the slow test groups are sharded (docs/ci.md).
 
-**Remaining on wave 7:** SC-70a, SC-70b, SC-70d, SC-71a, SC-71c, SC-72a to c, SC-70c, SC-73.
+**Remaining on wave 7 (all owner-gated):** SC-71a and SC-71c (Codex decisions D3, C1, C3), SC-72a to c (acceptance runs; need a published `kit-v*` release candidate, `mcp_base`, `mcp_port`, `private_only_shards`, the Caddy site), SC-70c (numbers from SC-72a/b), SC-73 (campaign review; also takes the wave 6 carry-overs: action pins, key-vault step outputs, `jq` skips, coverage join).
 
 **Next actions**
-1. Finish the fix10 pass and merge it into `scriptorium/wave7`. Re-run the wave gate (CI plus `merge-packet --no-check`).
-2. Build the remaining wave 7 packets in the order their cards give. SC-70a is ready (D1 chosen, decision 44); SC-71a and SC-71c wait on their owner decisions.
-3. Owner acceptance (SC-72) after SC-70b and SC-70d. Then SC-70c and SC-73.
+1. Nothing is buildable without the owner. When the owner provides the inputs above, run SC-72a and SC-72b (clean machines, only the README), then SC-72c, SC-70c, SC-73.
+2. Small CI follow-up: rebalance shard `launcher-a` (about 9 min) using per-file timings from the next green run.
+3. At campaign end: full campaign retro (owner instruction), final RESUME rewrite, cleanup of Docker scratch images and leftover worktree folders (remove `node_modules` links first).
 4. At campaign end: full campaign retro (owner instruction), final RESUME rewrite, cleanup of Docker scratch images and leftover worktree folders.
 
 **Process rules in force (work-packets.md rules 12 to 24):** coders run only their own tests once and commit at once; no full check per packet; wave-end review plus CI is the gate; timing and load-flaky tests run in CI only (`timingIt`); no watcher loops; one full check at a time; no junctions between worktrees (rule 24: delete junctions before removing a worktree; never `git worktree remove --force` on a tree with links). Agents often stop with uncommitted work: check `git status` in their worktree and resume them with "commit now". Resolve `parity.ts` conflicts by hand.

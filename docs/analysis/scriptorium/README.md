@@ -159,9 +159,9 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-64c | 6 | S | Upgrade: PowerShell | Sonnet (general-purpose) | Done | SC-64a |
 | SC-64d | 6 | S | Upgrade docs (launcher README, release guide) | packet-coder (Haiku) | BlockedDependency | SC-64b, SC-64c, SC-63i |
 | SC-70 | 7 | S | Template README (the Patron guide), troubleshooting and onboarding docs: umbrella for SC-70a to SC-70d (cards: [work-packets-wave7b.md](work-packets-wave7b.md)) | - | BlockedDependency (done when SC-70d and SC-70c are) | SC-70a to SC-70d |
-| SC-70a | 7 | S | Template README in the Patron's voice, `docs/onboarding.md`, README test; `check.ts` exports `forbidden` | Sonnet (general-purpose) | Ready (D1 chosen, decision 44) | wave 6 |
-| SC-70b | 7 | S | Troubleshooting guide (a heading per message key with three non-empty parts, tested) | Sonnet (general-purpose) | BlockedDependency | SC-70a, SC-74c, SC-75c, SC-76d |
-| SC-70d | 7 | S | Launcher README, onboarding additions, threat-model rows, troubleshooting guide in the launcher tarball; join | Sonnet (general-purpose) | BlockedDependency | SC-70a, SC-70b, SC-76b |
+| SC-70a | 7 | S | Template README in the Patron's voice, `docs/onboarding.md`, README test; `check.ts` exports `forbidden` | Sonnet (general-purpose) | Done | wave 6 |
+| SC-70b | 7 | S | Troubleshooting guide (a heading per message key with three non-empty parts, tested) | Sonnet (general-purpose) | Done | SC-70a, SC-74c, SC-75c, SC-76d |
+| SC-70d | 7 | S | Launcher README, onboarding additions, threat-model rows, troubleshooting guide in the launcher tarball; join | Sonnet (general-purpose) | Done | SC-70a, SC-70b, SC-76b |
 | SC-70c | 7 | S | The measured turns and usage per in-game day, into the README | packet-coder (Haiku) | BlockedDependency | SC-72a, SC-72b |
 | SC-71 | 7 | S | Codex CLI support: umbrella for SC-71a to SC-71c (cards: [work-packets-wave7b.md](work-packets-wave7b.md)) | - | BlockedDecision (D-SC-08; SC-71c waits for owner calls C1 and C3) | SC-71a to SC-71c |
 | SC-71a | 7 | S | Codex checks that need no model (pinned binary in a throwaway container); owner permission D3 | main session + owner | BlockedDecision (owner permission D3; not in step 1) | wave 6, D3 |
