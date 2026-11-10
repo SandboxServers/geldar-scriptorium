@@ -335,13 +335,18 @@ What to do. Choose another name, or use the existing player.
 
 ### gh_failed
 What it means. GitHub did not finish a step of making the repository. The message names the step: create, add, commit or push.
-Why it is safe. The launcher kept nothing from the attempt.
-What to do. Check that gh is signed in and has access, then check GitHub for a half-made repository before you try again.
+Why it is safe. Nothing was kept on this machine: the launcher removed its local folder for the attempt.
+What to do. Check that gh is signed in and has access. If the step was add, commit or push, the repository was already made on GitHub, so read the message after this one before you try again.
 
 ### clone_timeout
 What it means. GitHub did not finish making the repository in time.
-Why it is safe. The launcher stopped waiting after five checks and kept nothing from the attempt.
-What to do. Check the repository on GitHub, then try again later.
+Why it is safe. The launcher stopped waiting after five checks and removed its local folder, so no half-made clone is left here.
+What to do. Check the repository on GitHub. If it is there, follow repo_on_github before you run new again.
+
+### repo_on_github
+What it means. The repository player-<id> was made on GitHub, but a later step failed, so the local folder was removed.
+Why it is safe. The launcher did not write the player's state, so no half-made player is left on this machine.
+What to do. Delete the repository player-<id> on GitHub, then run new for the same id again. While the repository is still there, the next new stops at the create step.
 
 ### bad_shard
 What it means. The shard name is not allowed.

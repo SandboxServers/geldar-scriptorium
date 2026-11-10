@@ -3,8 +3,10 @@
 # $FAKE_GH_ROOT/calls.log. `repo create NAME ... --public|--private` makes the bare repository
 # $FAKE_GH_ROOT/NAME.git from $FAKE_GH_TEMPLATE and records the visibility in NAME.vis.
 # `repo clone NAME` clones it into ./NAME. FAKE_GH_CLONE_FAILS=n makes the first n clones fail;
-# FAKE_GH_SLEEP=n makes every call sleep n seconds first (SIGPIPE ignored); FAKE_GH_CREATE_FAIL=1
-# makes create fail. `pr create` appends its arguments to prs.log and prints FAKE_GH_PR_URL (default a
+# FAKE_GH_CLONE_EMPTY=n makes the first n clones an empty repository (a .git with no commits, as
+# GitHub can answer before the template is in); FAKE_GH_SLEEP=n makes every call sleep n seconds
+# first (SIGPIPE ignored); FAKE_GH_CREATE_FAIL=1 makes create fail; FAKE_GH_REJECT_PUSH=1 makes the
+# new repository refuse every push. `pr create` appends its arguments to prs.log and prints FAKE_GH_PR_URL (default a
 # fake URL); FAKE_GH_PR_FAIL=1 makes it fail.
 : "${FAKE_GH_ROOT:?FAKE_GH_ROOT is not set}"
 mkdir -p "$FAKE_GH_ROOT"
@@ -60,6 +62,10 @@ case $sub in
     GIT_AUTHOR_NAME=Template GIT_AUTHOR_EMAIL=template@example.test GIT_COMMITTER_NAME=Template GIT_COMMITTER_EMAIL=template@example.test git -C "$tmp" -c user.name=Template -c user.email=template@example.test -c commit.gpgsign=false commit -q -m template || exit 1
     git -C "$tmp" push -q "$bare" main || exit 1
     rm -rf "$tmp"
+    if [ -n "${FAKE_GH_REJECT_PUSH:-}" ]; then
+      printf '#!/bin/sh\nexit 1\n' > "$bare/hooks/pre-receive" || exit 1
+      chmod +x "$bare/hooks/pre-receive" || exit 1
+    fi
     echo "$vis" > "$FAKE_GH_ROOT/$name.vis"
     ;;
   clone)
@@ -67,6 +73,10 @@ case $sub in
     n=$((n + 1))
     echo "$n" > "$FAKE_GH_ROOT/clones"
     [ "$n" -gt "${FAKE_GH_CLONE_FAILS:-0}" ] || exit 1
+    if [ "$n" -le "${FAKE_GH_CLONE_EMPTY:-0}" ]; then
+      git init -q -b main "$name" || exit 1
+      exit 0
+    fi
     git clone -q "$FAKE_GH_ROOT/$name.git" "$name" || exit 1
     ;;
   archive)
