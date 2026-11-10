@@ -12,7 +12,6 @@ Read this, then [README.md](README.md) (the ledger) and [worknotes/overnight-dec
 1. Nothing is buildable without the owner. When the owner provides the inputs above, run SC-72a and SC-72b (clean machines, only the README), then SC-72c, SC-70c, SC-73.
 2. Small CI follow-up: rebalance shard `launcher-a` (about 9 min) using per-file timings from the next green run.
 3. At campaign end: full campaign retro (owner instruction), final RESUME rewrite, cleanup of Docker scratch images and leftover worktree folders (remove `node_modules` links first).
-4. At campaign end: full campaign retro (owner instruction), final RESUME rewrite, cleanup of Docker scratch images and leftover worktree folders.
 
 **Process rules in force (work-packets.md rules 12 to 24):** coders run only their own tests once and commit at once; no full check per packet; wave-end review plus CI is the gate; timing and load-flaky tests run in CI only (`timingIt`); no watcher loops; one full check at a time; no junctions between worktrees (rule 24: delete junctions before removing a worktree; never `git worktree remove --force` on a tree with links). Agents often stop with uncommitted work: check `git status` in their worktree and resume them with "commit now". Resolve `parity.ts` conflicts by hand.
 
