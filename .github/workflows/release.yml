@@ -202,11 +202,10 @@ jobs:
         with:
           name: kit-sbom
           path: launcher-assets
-      - name: add the SBOM to the checksums
+      - name: check the launcher checksum
         run: |
           set -euo pipefail
           cd launcher-assets
-          sha256sum sbom.spdx.json >> SHA256SUMS
           sha256sum -c SHA256SUMS
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -248,7 +247,7 @@ jobs:
 
   template:
     name: template
-    needs: [build, sign]
+    needs: [build, sign, launcher]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/kit-v')
     permissions:
       id-token: write
@@ -258,6 +257,7 @@ jobs:
       version: ${{ github.ref_name }}
       image: ${{ needs.build.outputs.image }}
       source-sha: ${{ github.sha }}
+      launcher-artifact: launcher-unsigned
 
   release:
     name: release

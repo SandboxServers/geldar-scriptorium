@@ -16,7 +16,12 @@ const PINS = [
   'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1',
   'azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906',
   'actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510',
+  'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333',
 ];
+// biome-ignore lint/suspicious/noExplicitAny: parsed YAML is untyped
+type Obj = any;
+const RELEASE_STEP = 'Create the launcher release';
+const releaseAt = (list: Obj[]): number => list.findIndex((s) => s.name === RELEASE_STEP);
 
 describe('publish-template.yml', () => {
   it('passes the workflow lint with zero findings', () => {
@@ -52,6 +57,43 @@ describe('publish-template.yml', () => {
     expect(at('azure/login')).toBeLessThan(at('keyvault'));
     expect(at('keyvault')).toBeLessThan(at('actions/create-github-app-token'));
     expect(at('actions/create-github-app-token')).toBeLessThan(at('Publish'));
+    expect(at('Publish')).toBeLessThan(at('actions/download-artifact'));
+    expect(at('actions/download-artifact')).toBeLessThan(at(RELEASE_STEP));
+  });
+
+  it('takes the launcher artifact name as a required input', () => {
+    expect(wf.on.workflow_call.inputs['launcher-artifact']).toMatchObject({
+      type: 'string',
+      required: true,
+    });
+    expect(steps.find((s) => s.uses?.startsWith('actions/download-artifact'))?.with.name).toBe(
+      '${{ inputs.launcher-artifact }}',
+    );
+  });
+
+  it('creates the launcher release after the tag push, with the App token in that step only', () => {
+    const at = releaseAt(steps);
+    expect(at).toBeGreaterThan(-1);
+    expect(at).toBe(steps.length - 1);
+    expect(steps[at].env.GH_TOKEN).toBe('${{ steps.app.outputs.token }}');
+    const withApp = steps.filter((s) => JSON.stringify(s).includes('steps.app.outputs.token'));
+    expect(withApp.map((s) => s.name)).toEqual(['Publish', RELEASE_STEP]);
+    expect(steps.filter((s) => s.env?.GH_TOKEN)).toEqual([steps[at]]);
+    expect(text.match(/GH_TOKEN/g)?.length).toBe(1);
+    expect(steps[at].run).toContain('node tools/release/src/template-release.ts --tag "$TAG"');
+    expect(text).not.toMatch(/gh release|\bgh\s+api\b/);
+  });
+
+  it('releases only the archive and SHA256SUMS, never the SBOM, and never widens permissions', () => {
+    const run: string = steps[releaseAt(steps)].run;
+    expect(run).toContain(
+      'cp launcher-assets/geldar-play-*.tar.gz launcher-assets/SHA256SUMS release-assets/',
+    );
+    expect(run).toContain('--dir release-assets');
+    expect(run).not.toContain('sbom');
+    expect(text).not.toMatch(/^\s*(contents|packages|actions):\s*write/m);
+    expect(wf.jobs.publish.permissions).toEqual({ 'id-token': 'write', contents: 'read' });
+    expect(wf.permissions).toEqual({});
   });
 
   it('masks before the first GITHUB_OUTPUT write', () => {

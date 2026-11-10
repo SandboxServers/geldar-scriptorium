@@ -12,6 +12,9 @@ on:
       source-sha:
         type: string
         required: true
+      launcher-artifact:
+        type: string
+        required: true
   workflow_dispatch:
 
 permissions: {}
@@ -106,3 +109,16 @@ jobs:
         env:
           GELDAR_PUBLISH_TOKEN: ${{ steps.app.outputs.token }}
         run: node tools/release/src/publish-template.ts --version "$VERSION" --source-sha "$SOURCE_SHA" --image "$IMAGE"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.launcher-artifact }}
+          path: launcher-assets
+      - name: Create the launcher release
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          TAG: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir release-assets
+          cp launcher-assets/geldar-play-*.tar.gz launcher-assets/SHA256SUMS release-assets/
+          node tools/release/src/template-release.ts --tag "$TAG" --dir release-assets
