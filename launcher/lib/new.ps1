@@ -235,7 +235,7 @@ function Verb-new {
   $msg = "player: $id"
   $adds = @('player.json')
   if ($files) {
-    # The seeded commit keeps the birth message (our own invariant); the persona is born at new.
+    # A seeded player is born at new: identity.md is no longer the stub, which is what the unborn check reads.
     [System.IO.File]::WriteAllBytes((Join-Path $clone 'memory/identity.md'), [byte[]]$files[0])
     [System.IO.File]::WriteAllBytes((Join-Path $clone 'memory/goals.md'), [byte[]]$files[1])
     $adds += 'memory/identity.md', 'memory/goals.md'
