@@ -158,34 +158,35 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-64b | 6 | S | Upgrade: kit bump as a pull request, bash | Sonnet (general-purpose) | Done | SC-64a |
 | SC-64c | 6 | S | Upgrade: PowerShell | Sonnet (general-purpose) | Done | SC-64a |
 | SC-64d | 6 | S | Upgrade docs (launcher README, release guide) | packet-coder (Haiku) | BlockedDependency | SC-64b, SC-64c, SC-63i |
-| SC-70 | 7 | S | Template README (the Patron guide), troubleshooting and onboarding docs: umbrella for SC-70a to SC-70c (cards: [work-packets-wave7b.md](work-packets-wave7b.md)) | - | BlockedDependency (done when SC-70c is) | SC-70a to SC-70c |
-| SC-70a | 7 | S | Template README in the Patron's voice, `docs/onboarding.md`, README test | Sonnet (general-purpose) | Planned | wave 6 |
-| SC-70b | 7 | S | Troubleshooting guide (a heading per message key, tested), launcher README, threat-model rows, guide in the launcher tarball; join | Sonnet (general-purpose) | BlockedDependency | SC-70a, SC-74c, SC-75c, SC-76b, SC-76d |
-| SC-70c | 7 | S | The measured turns and usage per in-game day, into the README | packet-coder (Haiku) | BlockedDependency | SC-72c |
+| SC-70 | 7 | S | Template README (the Patron guide), troubleshooting and onboarding docs: umbrella for SC-70a to SC-70d (cards: [work-packets-wave7b.md](work-packets-wave7b.md)) | - | BlockedDependency (done when SC-70d and SC-70c are) | SC-70a to SC-70d |
+| SC-70a | 7 | S | Template README in the Patron's voice, `docs/onboarding.md`, README test; `check.ts` exports `forbidden` | Sonnet (general-purpose) | BlockedDecision (D1: how the guide points to the launcher download without naming this repo; the release itself is a GitHub release asset, answered 2026-11-10) | wave 6 |
+| SC-70b | 7 | S | Troubleshooting guide (a heading per message key with three non-empty parts, tested) | Sonnet (general-purpose) | BlockedDependency | SC-70a, SC-74c, SC-75c, SC-76d |
+| SC-70d | 7 | S | Launcher README, onboarding additions, threat-model rows, troubleshooting guide in the launcher tarball; join | Sonnet (general-purpose) | BlockedDependency | SC-70a, SC-70b, SC-76b |
+| SC-70c | 7 | S | The measured turns and usage per in-game day, into the README | packet-coder (Haiku) | BlockedDependency | SC-72a, SC-72b |
 | SC-71 | 7 | S | Codex CLI support: umbrella for SC-71a to SC-71c (cards: [work-packets-wave7b.md](work-packets-wave7b.md)) | - | BlockedDecision (D-SC-08; SC-71c waits for owner calls C1 and C3) | SC-71a to SC-71c |
-| SC-71a | 7 | S | Codex checks that need no model (pinned binary in a throwaway container); owner permission D3 | main session + owner | BlockedDecision (owner permission D3) | wave 6 |
+| SC-71a | 7 | S | Codex checks that need no model (pinned binary in a throwaway container); owner permission D3 | main session + owner | BlockedDecision (owner permission D3; not in step 1) | wave 6, D3 |
 | SC-71b | 7 | S | Skills generator for `.agents/skills`, not wired into the template | packet-coder (Haiku) | Planned | wave 6 |
 | SC-71c | 7 | S | Codex ships: image, template config, launcher `--cli codex`, live proof (scope only, re-sliced when ungated) | packet-coder | BlockedDecision | SC-71a, SC-71b, owner calls C1, C3 |
 | SC-72 | 7 | S | Acceptance runs on Windows and Linux and the six first players: umbrella for SC-72a to SC-72c (procedure and owner inputs: [work-packets-wave7b.md](work-packets-wave7b.md)) | - | BlockedDependency (done when SC-72c is) | SC-72a to SC-72c |
-| SC-72a | 7 | S | Acceptance on a clean Windows machine against the mock world; measure Haiku-low turns | owner + main session | BlockedDependency | SC-70b, SC-76d |
-| SC-72b | 7 | S | Acceptance on a clean Linux machine against the mock world; measure Haiku-low turns | owner + main session | BlockedDependency | SC-70b, SC-76c |
-| SC-72c | 7 | S | The six first players, one at a time, local world first, then the public name; owner inputs: mcp_base, mcp_port, private_only_shards | owner + main session | BlockedDependency | SC-72a, SC-72b, SC-74c, SC-75c |
+| SC-72a | 7 | S | Acceptance on a clean Windows machine against the mock world; measure Haiku-low turns | owner + main session | BlockedDependency | SC-70b, SC-70d, SC-76b, SC-76d |
+| SC-72b | 7 | S | Acceptance on a clean Linux machine against the mock world; measure Haiku-low turns | owner + main session | BlockedDependency | SC-70b, SC-70d, SC-76b, SC-76c |
+| SC-72c | 7 | S | The six first players, one at a time, local world first, then the public name; owner inputs: mcp_base and mcp_port (set before the first `new`), private_only_shards | owner + main session | BlockedDependency | SC-72a, SC-72b, SC-74c, SC-75c |
 | SC-73 | 7 | S | Campaign review | packet-reviewer | BlockedDependency | SC-72c, SC-70c, SC-77a, SC-77b |
-| SC-74 | 7 | S | `geldar-play new --persona-dir <dir>`: umbrella for SC-74a to SC-74c (owner requirement relayed by geldar 2026-11-09: six Power Rangers; cards: [work-packets-wave7.md](work-packets-wave7.md)) | - | BlockedDependency (done when SC-74c is) | SC-74a to SC-74c |
-| SC-74a | 7 | S | Persona case table, suite and message keys; gate | packet-coder (Haiku) | Planned | wave 6 |
-| SC-74b | 7 | S | `new --persona-dir`, bash (the seeded player is born at `new`; owner call P1) | Sonnet (general-purpose) | BlockedDependency | SC-74a |
-| SC-74c | 7 | S | `new --persona-dir`, PowerShell | Sonnet (general-purpose) | BlockedDependency | SC-74a |
+| SC-74 | 7 | S | `geldar-play new --persona-dir <dir>`: umbrella for SC-74a to SC-74c (owner provisioning tool for the six Rangers only, owner answer P1 2026-11-10; owner requirement relayed by geldar 2026-11-09: six Power Rangers; cards: [work-packets-wave7.md](work-packets-wave7.md)) | - | BlockedDependency (done when SC-74c is) | SC-74a to SC-74c |
+| SC-74a | 7 | S | Persona case table (with a reason column), suite, message keys; gate | Sonnet (general-purpose) | Planned | wave 6 |
+| SC-74b | 7 | S | `new --persona-dir`, bash (the seeded player is born at `new`; owner-only; ask P3 to geldar first) | Sonnet (general-purpose) | BlockedDependency | SC-74a, SC-76c |
+| SC-74c | 7 | S | `new --persona-dir`, PowerShell | Sonnet (general-purpose) | BlockedDependency | SC-74a, SC-76d |
 | SC-75 | 7 | S | Local-world dev override (owner decision relayed 2026-11-09: MCP tested on loopback first): umbrella for SC-75a to SC-75c. Strict design in the cards: http only, host exactly `host.docker.internal`, explicit port 1024-65535, path exactly `/p/<player_id>`, human environment only, never from `player.json`; loud warning; single player. Needs a spec review before coding | - | BlockedDependency (done when SC-75c is) | SC-75a to SC-75c |
-| SC-75a | 7 | S | Dev-world case table, suite, message keys and the seam entry; gate | packet-coder (Haiku) | Planned | wave 6 |
+| SC-75a | 7 | S | Dev-world case table, suite and message keys; gate (the seam entry moved to SC-76a) | Sonnet (general-purpose) | Planned | wave 6 |
 | SC-75b | 7 | S | Dev-world override, bash | Sonnet (general-purpose) | BlockedDependency | SC-75a, SC-76c |
 | SC-75c | 7 | S | Dev-world override, PowerShell | Sonnet (general-purpose) | BlockedDependency | SC-75a, SC-76d |
-| SC-76 | 7 | S | World port: the world's MCP is served on public port 18443 (owner decision 2026-11-09). The launcher accepts a non-default port only when it equals `mcp_port` in launcher/config/world.conf (owner-set, blank = 80 and 443 only) and the host equals the host of `mcp_base`; Squid allows exactly that port for the world host. Umbrella for SC-76a to SC-76d (cards: [work-packets-wave7.md](work-packets-wave7.md)); spec-reviewed first | - | BlockedDependency (done when SC-76d is) | SC-76a to SC-76d |
-| SC-76a | 7 | S | Port case table, suite and the `mcp_port` key in world.conf; gate | packet-coder (Haiku) | Planned | wave 6 |
-| SC-76b | 7 | S | Squid port rule, compose mount with a default, image tests, tarball file list | Sonnet (general-purpose) | Planned | wave 6 |
-| SC-76c | 7 | S | Validator and allowlist writer for the owner-set port, bash | Sonnet (general-purpose) | BlockedDependency | SC-76a |
-| SC-76d | 7 | S | Validator and allowlist writer for the owner-set port, PowerShell | Sonnet (general-purpose) | BlockedDependency | SC-76a |
+| SC-76 | 7 | S | World port: the world's MCP is served on public port 18443 (owner decision 2026-11-09). The launcher accepts a non-default port only when it equals `mcp_port` in launcher/config/world.conf (owner-set, blank = 80 and 443 only) and the host equals the host of `mcp_base`; Squid opens the world host on exactly the URL's effective port (the ports file) and no other, and refuses CONNECT to port 80. Umbrella for SC-76a to SC-76d (cards: [work-packets-wave7.md](work-packets-wave7.md)); spec-reviewed first | - | BlockedDependency (done when SC-76d is) | SC-76a to SC-76d |
+| SC-76a | 7 | S | Port case table, suite, the `mcp_port` key in world.conf and the seam entries in `seams.json`; gate | packet-coder (Haiku) | Planned | wave 6 |
+| SC-76b | 7 | S | Squid port rule (world host open on exactly the URL's effective port), compose mount with a default, image tests, tarball file list | Sonnet (general-purpose) | Planned | wave 6 |
+| SC-76c | 7 | S | Validator, config readers moved to `common.sh`, and allowlist writer for the owner-set port, bash | Sonnet (general-purpose) | BlockedDependency | SC-76a |
+| SC-76d | 7 | S | Validator, config readers moved to `common.ps1`, and allowlist writer for the owner-set port, PowerShell | Sonnet (general-purpose) | BlockedDependency | SC-76a |
 | SC-77 | 7 | S | Hygiene left from the Wave 6 retro: umbrella for SC-77a and SC-77b (the blob cap, export attributes, the upgrade image pin and NTFS names were already merged in the wave 6 fix pass) | - | BlockedDependency (done when SC-77b is) | SC-77a, SC-77b |
-| SC-77a | 7 | S | Repo check that fails when the bash and PowerShell launchers disagree on groups or private directories | Sonnet (general-purpose) | Planned | wave 6 |
+| SC-77a | 7 | S | Repo check that fails when the bash and PowerShell launchers disagree on registered groups (plus `core`) or on private directories (`export` and `pub` exempt) | Sonnet (general-purpose) | Planned | wave 6 |
 | SC-77b | 7 | S | Container recipe for the Linux-only tests, with a digest-consistency test | packet-coder (Haiku) | Planned | wave 6 |
 
 **Cross-campaign dependency:** wave 3 needs `@geldar/contract` from geldar Phase 0 packet P0-01. Waves 0–2 and 4 don't need wave 3. Only SC-55c (not SC-55b) needs wave 3.
