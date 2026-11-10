@@ -23,9 +23,9 @@ $GP_VERSION = '0.1.0'
 # The tools each verb needs on the human's machine (decision 10).
 function Get-VerbNeeds([string]$Verb) {
   switch ($Verb) {
-    { $_ -in 'new', 'archive' } { return @('docker', 'git', 'perl', 'gh') }
-    { $_ -in 'setup', 'play', '__prepare', '__session', '__finish' } { return @('docker', 'git', 'tar', 'perl') }
-    'resolve' { return @('docker', 'git', 'perl') }
+    { $_ -in 'new', 'archive' } { return @('docker', 'git', 'gh') }
+    { $_ -in 'setup', 'play', '__prepare', '__session', '__finish' } { return @('docker', 'git', 'tar') }
+    'resolve' { return @('docker', 'git') }
     'status' { return @('git') }
     'upgrade' { return @('git', 'gh') }
   }
