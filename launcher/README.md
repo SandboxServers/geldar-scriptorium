@@ -13,7 +13,7 @@
 | `archive <id>` | Archives the player repo on GitHub after a typed confirmation and removes the local copy. |
 | `status` | One line per player: id, state, branch, reason if held. |
 
-`--cli codex` is refused with a message; only the Claude Code CLI is supported (D-SC-08). Prerequisites per verb are in `verb_needs` in `geldar-play` (D-SC-09). The real world's address and the private-only shard list are blank placeholders in [config/world.conf](config/world.conf); the owner fills them in (SC-72).
+`--cli codex` is refused with a message; only the Claude Code CLI is supported (D-SC-08). Prerequisites per verb are in `verb_needs` in `geldar-play` (D-SC-09). The real world's address and port are set in [config/world.conf](config/world.conf); the private-only shard list is blank for now, and is revisited later.
 
 ## Owner and developer options
 
@@ -32,9 +32,9 @@ These two options are not in the Patron's guide ([template/README.md](../templat
 
 `launcher/config/world.conf` is read as data, never sourced. Set by the owner (see [onboarding](../docs/onboarding.md)):
 
-- `mcp_base`: scheme and host of the world, with no path and no credentials. Blank means `new` refuses with `no_world`.
+- `mcp_base`: scheme, host and port of the world (`https://geldar.sandboxservers.games:18443` in the shipped file), with no path and no credentials. Blank means `new` refuses with `no_world`.
 - `mcp_port`: the world's MCP port, digits only, 1024 to 65535. Blank means only ports 80 and 443 are accepted. A non-default port is accepted only when it equals `mcp_port` and the URL's scheme and host equal those of `mcp_base`.
-- `private_only_shards`: shard names separated by commas. Their player repositories must be private.
+- `private_only_shards`: shard names separated by commas. Their player repositories must be private. Blank in the shipped file: all shards are currently watched, and the list is revisited later.
 
 Each session writes the world's host and effective port for the proxy (`pub/allowlist-world.txt` and `pub/allowlist-world-ports.txt`). The proxy reaches the world on that port (Squid's `world_port` ACL), and it refuses CONNECT to port 80.
 
