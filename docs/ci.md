@@ -14,7 +14,7 @@ the job had nothing to do. A failed or cancelled job fails the gate.
 ## What runs on a pull request
 
 `changes` diffs the pull request's base and head commits with
-`git diff --name-only`. The rules are in `tools/repo-checks/src/ci-scope.ts`.
+`git diff --name-only BASE...HEAD` (from the merge base, so a branch cut before main moved on is not scoped by main's newer files). The rules are in `tools/repo-checks/src/ci-scope.ts`.
 
 - `static` always runs: lint, typecheck, repo checks, test-group coverage,
   spec references, workflow policy, actionlint and the scriptorium smoke test.
