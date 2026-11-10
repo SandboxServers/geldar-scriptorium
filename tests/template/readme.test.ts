@@ -35,11 +35,12 @@ function commandLines(md: string): string[] {
   const out: string[] = [];
   let inFence = false;
   for (const line of md.split('\n')) {
-    if (line.startsWith('```')) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('```')) {
       inFence = !inFence;
       continue;
     }
-    if (inFence && line.startsWith('geldar-play')) out.push(line.trim());
+    if (inFence && trimmed.startsWith('geldar-play')) out.push(trimmed);
   }
   for (const m of md.matchAll(/`(geldar-play[^`]*)`/g)) {
     if (m[1]) out.push(m[1]);
