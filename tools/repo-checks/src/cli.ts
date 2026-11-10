@@ -5,9 +5,10 @@
  * (`text=auto eol=lf`) converts it to LF when the file is added.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { checkFileCaps, HARD_CAP, SOFT_CAP } from './file-caps.ts';
 import { findCrlfInIndex } from './line-endings.ts';
+import { checkTwinDrift } from './twin-drift.ts';
 
 function git(args: string[]): string {
   return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
@@ -43,6 +44,22 @@ for (const finding of checkFileCaps([...tracked, ...untracked])) {
 
 for (const path of findCrlfInIndex(git(['ls-files', '--eol']))) {
   console.log(`error: ${path} is committed with CRLF line endings; .gitattributes requires LF`);
+  failed = true;
+}
+
+const libFiles = (ext: string) =>
+  readFiles(
+    readdirSync('launcher/lib')
+      .filter((f) => f.endsWith(ext))
+      .sort()
+      .map((f) => `launcher/lib/${f}`),
+  );
+for (const finding of checkTwinDrift({
+  bashLibs: libFiles('.sh'),
+  pwshLibs: libFiles('.ps1'),
+  parityText: readFileSync('launcher/test/parity.ts', 'utf8'),
+})) {
+  console.log(`error: twin drift: ${finding}`);
   failed = true;
 }
 
