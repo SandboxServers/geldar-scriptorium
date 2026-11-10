@@ -292,3 +292,31 @@ run_bounded() {
   rc=$?
   return "$rc"
 }
+
+# The directory holding compose/ and proxy/ (decision 4). Never read from a clone.
+share_dir() {
+  if [ -n "${GELDAR_SHARE:-}" ]; then
+    printf '%s' "$GELDAR_SHARE"
+  elif [ -f "$GP_DIR/../image/compose/session.yml" ]; then
+    printf '%s' "$(cd "$GP_DIR/../image" && pwd -P)"
+  else
+    printf '%s' "$GP_DIR/share"
+  fi
+}
+
+# The value of a key in world.conf (read as data, never sourced).
+world_conf() {
+  local f line
+  f="$(share_dir)/config/world.conf"
+  [ -f "$f" ] || f="$GP_DIR/config/world.conf"
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
+    case $line in
+      "$1="*)
+        printf '%s' "${line#*=}"
+        return 0
+        ;;
+    esac
+  done < "$f" 2> /dev/null
+  return 0
+}
