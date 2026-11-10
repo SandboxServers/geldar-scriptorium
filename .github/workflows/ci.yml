@@ -1,7 +1,11 @@
 # Runs on every PR and on main. `main` requires one check, `ci gate`, which
-# passes only when every job below passed: `static` (no Docker), `tests` (a
-# matrix of file groups from tools/repo-checks/src/ci-groups.ts; each test file
-# runs in exactly one group) and `e2e`. Together they cover what
+# passes only when every job below succeeded or was skipped because `changes`
+# said it had nothing to do. `static` (no Docker) always runs. On a pull request
+# `changes` reads the changed paths (rules in tools/repo-checks/src/ci-scope.ts):
+# a docs-only change skips `tests` and `e2e`, and `markdown` runs only when a .md
+# file changed. Pushes to main and manual runs run every job. `tests` is a matrix
+# of file groups from tools/repo-checks/src/ci-groups.ts (each test file runs in
+# exactly one group); `e2e` is its own job. Together they cover what
 # `./scriptorium.ps1 check` runs, plus the CI-only checks.
 name: ci
 
@@ -19,6 +23,38 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      tests: ${{ steps.scope.outputs.tests }}
+      e2e: ${{ steps.scope.outputs.e2e }}
+      markdown: ${{ steps.scope.outputs.markdown }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - name: changed paths and job scope
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/changed.txt"
+          : > "$out"
+          # An empty list runs every job. A failed diff does too (fail open).
+          if [ "$EVENT" = "pull_request" ] && ! git diff --name-only "$BASE" "$HEAD" > "$out"; then
+            : > "$out"
+          fi
+          node tools/repo-checks/src/ci-scope-cli.ts "$out" | tee -a "$GITHUB_OUTPUT"
+
   static:
     name: static
     runs-on: ubuntu-24.04
@@ -59,6 +95,8 @@ jobs:
 
   tests:
     name: tests (${{ matrix.group }})
+    needs: changes
+    if: needs.changes.outputs.tests == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -90,6 +128,8 @@ jobs:
 
   e2e:
     name: e2e (${{ matrix.file }})
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
