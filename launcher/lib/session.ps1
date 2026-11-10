@@ -5,16 +5,6 @@ $GP_GROUPS += 'session'
 
 $script:SESSION_UTF8 = [System.Text.UTF8Encoding]::new($false)
 
-# The directory holding compose/ and proxy/ (decision 4). Never read from a clone.
-function Get-ShareDir {
-  if ($env:GELDAR_SHARE) { return $env:GELDAR_SHARE }
-  $sib = Join-Path $GP_DIR '../image'
-  if (Test-Path -LiteralPath (Join-Path $sib 'compose/session.yml') -PathType Leaf) {
-    return (Resolve-Path -LiteralPath $sib).ProviderPath.Replace([char]92, [char]47)
-  }
-  return (Join-Path $GP_DIR 'share')
-}
-
 # A value for a double-quoted YAML scalar: no quote, backslash or control character; $ doubled.
 # Returns $null when the value cannot be quoted.
 function ConvertTo-YamlQuoted([string]$Value) {
@@ -43,9 +33,16 @@ function Write-Allowlist([string]$Sd, [string]$Url) {
   New-Item -ItemType Directory -Path $pub -Force | Out-Null
   $f = Join-Path $pub 'allowlist-world.txt'
   [System.IO.File]::WriteAllText($f, "$h`n", $script:SESSION_UTF8)
+  # The effective port of the URL: the explicit one, else 80 for http and 443 for https.
+  $auth = $Url.Substring($Url.IndexOf('://') + 3).Split('/')[0]
+  $port = if ($auth.Contains(':')) { $auth.Substring($auth.IndexOf(':') + 1) }
+  elseif ($Url.StartsWith('https:', [StringComparison]::Ordinal)) { '443' } else { '80' }
+  $pf = Join-Path $pub 'allowlist-world-ports.txt'
+  [System.IO.File]::WriteAllText($pf, "$port`n", $script:SESSION_UTF8)
   if (-not $IsWindows) {
     [System.IO.File]::SetUnixFileMode($pub, [System.IO.UnixFileMode]0x1ED)
     [System.IO.File]::SetUnixFileMode($f, [System.IO.UnixFileMode]0x1A4)
+    [System.IO.File]::SetUnixFileMode($pf, [System.IO.UnixFileMode]0x1A4)
   }
 }
 
@@ -142,6 +139,7 @@ function Start-PlayerSession([string]$Id, [string]$Mode) {
   $words = @(Get-HarnessCommand claude $Mode)
   $ov = "$sdf/override.yml"
   $wl = (Split-Path -Parent $sdf) + '/pub/allowlist-world.txt'
+  $wp = (Split-Path -Parent $sdf) + '/pub/allowlist-world-ports.txt'
   $files = @('-f', "$share/compose/session.yml", '-f', $ov)
   $extra = Get-GatedEnv 'GELDAR_EXTRA_COMPOSE'
   if ($extra) {
@@ -155,7 +153,7 @@ function Start-PlayerSession([string]$Id, [string]$Mode) {
   $set = @{
     GELDAR_UID = '1000'; GELDAR_GID = '1000'; GELDAR_WORKSPACE = "geldar-ws-$Id"
     GELDAR_CLI_HOME = "geldar-cli-$Id-claude"; KIT_IMAGE = $script:PL_KIT_IMAGE
-    GELDAR_WORLD_ALLOWLIST = $wl; GELDAR_MODE = $Mode
+    GELDAR_WORLD_ALLOWLIST = $wl; GELDAR_WORLD_PORTS = $wp; GELDAR_MODE = $Mode
   }
   $tf = Join-Path $d 'token'
   $runSet = $set.Clone()
