@@ -55,7 +55,6 @@ export const GROUPS: Group[] = [
       `${LAUNCHER}upgrade.pwsh.test.ts`,
       `${LAUNCHER}session.test.ts`,
       `${LAUNCHER}new.test.ts`,
-      `${LAUNCHER}core-timing.test.ts`,
     ],
   },
   {

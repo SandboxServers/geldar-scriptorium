@@ -54,7 +54,7 @@ scope flag is on. The shards are balanced on the timings of the last green run
 - `hostile-b`: h13-recheck, devworld.pwsh, h14-push, h07-clivolume (about 524).
 - `hostile-c`: every other hostile file, including new ones (the rest of the
   family, about 485 plus files with no timing).
-- `launcher-a`: upgrade.pwsh, session, new, core-timing (about 764).
+- `launcher-a`: upgrade.pwsh, session, new (core-timing now runs in `launcher-c`, away from the heaviest load).
 - `launcher-b`: pre, upgrade.bash, core, setup, multi (about 777).
 - `launcher-c`: every other launcher file, including new ones (bundle, finish,
   commands, persona.pwsh, stage, about 790, and the files with no timing).
