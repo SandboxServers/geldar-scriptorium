@@ -1,0 +1,38 @@
+{
+  // Markdown lint (pnpm lint:md, the ci `markdown` job). Every rule that fires on
+  // the repo as it is stays enabled except the ones listed below; each disabled
+  // rule says why. The docs are not edited to satisfy a rule.
+  "config": {
+    "default": true,
+    // MD013 line length: prose is wrapped where the author wrapped it.
+    "MD013": false,
+    // MD022 blank lines around headings, MD031 around fences, MD032 around lists:
+    // CommonMark renders these without the blank line; many notes omit it.
+    "MD022": false,
+    "MD031": false,
+    "MD032": false,
+    // MD029 ordered list prefixes: archived packets renumber by hand.
+    "MD029": false,
+    // MD033 inline HTML: the notes use <id>, <dir> placeholders.
+    "MD033": false,
+    // MD034 bare URLs: the notes quote URLs inline.
+    "MD034": false,
+    // MD036 emphasis used as a heading: a style choice in the session notes.
+    "MD036": false,
+    // MD038 spaces inside code spans: quoted strings that end in a space on purpose.
+    "MD038": false,
+    // MD040 fence language: archived packet fences are plain; new fences should name one.
+    "MD040": false,
+    // MD041 first line heading: agent definitions and the PR template start with a section.
+    "MD041": false,
+    // MD056 table column count: one row in an archived wave 7 packet (frozen, not edited).
+    "MD056": false,
+    // MD060 table column style: the tables are aligned by hand, not by a formatter.
+    "MD060": false
+  },
+  // Dependencies and worktree copies are not the repo's docs.
+  "ignores": [
+    "**/node_modules/**",
+    ".claude/worktrees/**"
+  ]
+}
