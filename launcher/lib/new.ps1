@@ -10,18 +10,6 @@ function Invoke-GpSleep([double]$Seconds) {
   Start-Sleep -Seconds $Seconds
 }
 
-# The value of a key in world.conf (read as data, never sourced).
-function Get-WorldConf([string]$Key) {
-  $f = Join-Path (Get-ShareDir) 'config/world.conf'
-  if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { $f = Join-Path $GP_DIR 'config/world.conf' }
-  if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { return '' }
-  foreach ($line in [System.IO.File]::ReadAllText($f, [System.Text.UTF8Encoding]::new($false)).Split("`n")) {
-    $line = $line.TrimEnd("`r")
-    if ($line.StartsWith("$Key=", [StringComparison]::Ordinal)) { return $line.Substring($Key.Length + 1) }
-  }
-  return ''
-}
-
 # A base address: scheme and host only; the host rules are those of Test-McpUrl.
 function Test-BaseUrl([string]$Url) {
   if (-not [regex]::IsMatch($Url, '^https?://[^/@?# ]+\z')) { return $false }

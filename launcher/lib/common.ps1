@@ -366,3 +366,25 @@ function Invoke-Bounded {
   }
   return 124
 }
+
+# The directory holding compose/ and proxy/ (decision 4). Never read from a clone.
+function Get-ShareDir {
+  if ($env:GELDAR_SHARE) { return $env:GELDAR_SHARE }
+  $sib = Join-Path $GP_DIR '../image'
+  if (Test-Path -LiteralPath (Join-Path $sib 'compose/session.yml') -PathType Leaf) {
+    return (Resolve-Path -LiteralPath $sib).ProviderPath.Replace([char]92, [char]47)
+  }
+  return (Join-Path $GP_DIR 'share')
+}
+
+# The value of a key in world.conf (read as data, never sourced).
+function Get-WorldConf([string]$Key) {
+  $f = Join-Path (Get-ShareDir) 'config/world.conf'
+  if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { $f = Join-Path $GP_DIR 'config/world.conf' }
+  if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { return '' }
+  foreach ($line in [System.IO.File]::ReadAllText($f, [System.Text.UTF8Encoding]::new($false)).Split("`n")) {
+    $line = $line.TrimEnd("`r")
+    if ($line.StartsWith("$Key=", [StringComparison]::Ordinal)) { return $line.Substring($Key.Length + 1) }
+  }
+  return ''
+}
