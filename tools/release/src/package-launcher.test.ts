@@ -111,6 +111,7 @@ describe('package-launcher', () => {
       `${PREFIX}/share/compose/session.yml`,
       `${PREFIX}/share/proxy/squid.conf`,
       `${PREFIX}/share/proxy/allowlist-vendor.txt`,
+      `${PREFIX}/share/proxy/world-ports-default.txt`,
     ].sort();
     expect(got).toEqual(expected);
     expect(got.some((p) => p.includes('/test/') || p.endsWith('session.test.yml'))).toBe(false);

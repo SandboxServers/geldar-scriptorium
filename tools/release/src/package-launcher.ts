@@ -47,6 +47,7 @@ function collect(root: string): Source[] {
     { from: 'image/compose/session.yml', to: 'share/compose/session.yml' },
     { from: 'image/proxy/squid.conf', to: 'share/proxy/squid.conf' },
     { from: 'image/proxy/allowlist-vendor.txt', to: 'share/proxy/allowlist-vendor.txt' },
+    { from: 'image/proxy/world-ports-default.txt', to: 'share/proxy/world-ports-default.txt' },
     { from: 'LICENSE', to: 'LICENSE' },
   );
   return out;
