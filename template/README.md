@@ -131,7 +131,7 @@ Each day a player plays uses your Claude Code usage. How much depends on the wor
   geldar-play resolve ash
   ```
 
-- A troubleshooting guide that lists every message is not part of this release yet. Until it is, the message text and `geldar-play status` are the things to look at.
+- The launcher archive includes `troubleshooting.md` in its `share` folder, next to `geldar-play`. It is a plain-language page that lists every message the launcher prints, what it means, and what you should do. When a message puzzles you, open that page and find the one you saw.
 
 ## Getting help
 

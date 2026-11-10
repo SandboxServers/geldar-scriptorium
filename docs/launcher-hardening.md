@@ -18,7 +18,7 @@ Each requirement is one line. Tests are written in SC-60.
 
 - H-06: The session container mounts the workspace, with the kit paths overlaid read-only from the export. No other host folders, no Docker socket, no git or cloud credentials. Test: `launcher/test/hostile/h06-mounts.test.ts`
 - H-07: The CLI home is a volume per player and vendor, with auto memory off. Test: `launcher/test/hostile/h07-clivolume.test.ts`
-- H-08: The session container is on an internal network with no DNS. Egress goes only through the proxy allowlist. Test: `launcher/test/hostile/h08-allowlist.test.ts`
+- H-08: The session container is on an internal network with no DNS. Egress goes only through the proxy allowlist, which is one host and exactly one port: the URL's effective port (the explicit port, else 80 for http and 443 for https). Test: `launcher/test/hostile/h08-allowlist.test.ts`
   Implemented in: image/compose/session.yml, image/proxy/squid.conf. Guarded by tests/image/proxy-config.test.ts and tests/image/egress.test.ts. Those run only where Docker is available.
 
 ## After the session

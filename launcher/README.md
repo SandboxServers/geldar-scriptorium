@@ -15,6 +15,29 @@
 
 `--cli codex` is refused with a message; only the Claude Code CLI is supported (D-SC-08). Prerequisites per verb are in `verb_needs` in `geldar-play` (D-SC-09). The real world's address and the private-only shard list are blank placeholders in [config/world.conf](config/world.conf); the owner fills them in (SC-72).
 
+## Owner and developer options
+
+These two options are not in the Patron's guide ([template/README.md](../template/README.md)). Give them to the owner and to developers only.
+
+- **`new <id> --persona-dir <dir>`** (owner provisioning only). The directory holds `memory/identity.md` (at most 8192 bytes) and `memory/goals.md` (at most 4096 bytes). Both are checked before anything is created: no control characters, valid UTF-8, no invisible code points, no links, plain files only, no empty file, and the option given once. A refused file gives `persona_bad` with the reason and creates nothing. A good persona makes a player that is already born, so `setup` is not needed (`created_seeded`).
+- **`GELDAR_DEV_MCP_URL`** (developer seam, the human's own environment only). Set it, in the shell that runs `geldar-play`, to exactly `http://host.docker.internal:PORT/p/ID`, with PORT from 1024 to 65535 and no leading zero, and ID the player's own id. The launcher reads it from the environment only, never from `player.json` or a file. The one check is that exact shape; a wrong value is refused with `dev_world_bad` before any lock, state or Docker call. The value is not checked against `mcp_base`. It replaces the world URL for that launch only, goes straight to the allowlist writer, and is not given to the session container. Each launch prints `dev_world_active`, and while it is set, starting more than one player is refused (`dev_world_single`). The token travels in clear text over http, so use a separate dev token. Setup and the listen-address rules are in [the troubleshooting guide](../docs/troubleshooting.md#testing-against-a-world-on-your-own-machine).
+
+## Directories
+
+- **State** (`<state>`): `GELDAR_STATE_DIR` if set. Otherwise `$XDG_STATE_HOME/geldar` (default `~/.local/state/geldar`) on bash, and `%LOCALAPPDATA%\geldar` on PowerShell. Each player keeps its files under `<state>/<id>` (see [State layout](#state-layout)).
+- **Share** (`share`): the compose file, the proxy configuration and the troubleshooting guide. `GELDAR_SHARE` if set; else the `image/` folder next to `launcher/` when it holds `compose/session.yml` (the repository layout); else `share/` next to the launcher (the packaged layout).
+- **Troubleshooting**: every message the launcher prints, what it means and what to do, is in [docs/troubleshooting.md](../docs/troubleshooting.md). The launcher archive ships the same page as `share/troubleshooting.md`, next to `geldar-play`, so a Patron has it without the repository.
+
+## The world values
+
+`launcher/config/world.conf` is read as data, never sourced. Set by the owner (see [onboarding](../docs/onboarding.md)):
+
+- `mcp_base`: scheme and host of the world, with no path and no credentials. Blank means `new` refuses with `no_world`.
+- `mcp_port`: the world's MCP port, digits only, 1024 to 65535. Blank means only ports 80 and 443 are accepted. A non-default port is accepted only when it equals `mcp_port` and the URL's scheme and host equal those of `mcp_base`.
+- `private_only_shards`: shard names separated by commas. Their player repositories must be private.
+
+Each session writes the world's host and effective port for the proxy (`pub/allowlist-world.txt` and `pub/allowlist-world-ports.txt`). The proxy reaches the world on that port (Squid's `world_port` ACL), and it refuses CONNECT to port 80.
+
 ## The session flow
 
 `play` runs three stages, each a function in `lib/`:
