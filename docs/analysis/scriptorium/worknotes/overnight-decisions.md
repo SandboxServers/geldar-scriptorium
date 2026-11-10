@@ -97,7 +97,9 @@ Recorded 2026-11-10. **Status:** CHOSEN (owner: "D1 is fine as you suggest"). Th
 
 **Status:** CHOSEN. The owner asked the main session to do the release candidate. Plan: decision 11 option A, the tag `kit-v0.1.0-rc1` on `main` after the world-conf change merges (the values ship inside the launcher archive). The first run is expected to stop at the anonymous-pull check until an org admin makes the `geldar-kit` package public (decision 5) and may also stop at missing infra; the tag ruleset (decision 10) is still an owner action. A tag is never re-run: a failure is fixed on `main` and `-rc2` is tagged.
 
-## 48. RC1 outcome (kit-v0.1.0-rc1)
+## 48. RC1 failed, RC2 released
 
-- Run 42848540779: build, sign, scan, launcher, launcher-sign passed. Template publish failed at Azure login (AADSTS7002131): no federated credential trusts this repo's `kit-v*` tag runs.
-- Chosen: do not widen Azure trust without the owner. OPEN: owner adds the credential (issuer token.actions.githubusercontent.com, audience api://AzureADTokenExchange, subject for the tag or a flexible expression for `kit-v*`), then tag `-rc2`. A tag is never re-run.
+- rc1 (run 42848540779): everything passed except the template publish. Azure login failed (AADSTS7002131): the existing federated credential `geldar-scriptorium-kit-release-tags` matched subject `repo:SandboxServers/geldar-scriptorium:ref:refs/tags/kit-v*`, but this org's tokens carry the owner and repo IDs in the subject (`repo:SandboxServers@177072120/geldar-scriptorium@1450794060:ref:...`).
+- CHOSEN (owner said "Do it", use az cli): updated the credential's matching expression through Graph to the ID form, keeping the `kit-v*` tag limit and the `repository_id` and `repository_owner_id` checks. No widening. The Azure portal needed MFA, so I did not use it.
+- rc2 (run 42857452454): all jobs passed. GHCR `sandboxservers/geldar-kit` is public (anonymous pull token works), tags 0.1.0-rc1 and 0.1.0-rc2; release assets signed; template published.
+- Note: the rc1 image also exists in GHCR from the failed run. Tag rc1 is spent.
