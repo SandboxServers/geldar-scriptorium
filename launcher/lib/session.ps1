@@ -47,7 +47,7 @@ function Write-Allowlist([string]$Sd, [string]$Url) {
 }
 
 # H-06: the override. Absolute host paths only; one read-only bind per kit entry.
-function Write-Override([string]$Id, [string]$Sd, [string]$Mcp) {
+function Write-Override([string]$Id, [string]$Sd, [string]$Mcp, [bool]$Dev = $false) {
   $f = Join-Path $Sd 'override.yml'
   $exp = Join-Path $Sd 'export'
   if (-not (Test-Path -LiteralPath $exp -PathType Container)) { Die 1 no_such_player $Id $Id }
@@ -72,6 +72,9 @@ function Write-Override([string]$Id, [string]$Sd, [string]$Mcp) {
         Where-Object { $_ -cmatch '^GELDAR_STUB_[A-Z0-9_]+\z' })
     [Array]::Sort($stubs, [StringComparer]::Ordinal)
     foreach ($s in $stubs) { [void]$sb.Append("      ${s}:`n") }
+  }
+  if ($Dev) {
+    [void]$sb.Append("  proxy:`n    extra_hosts:`n      - `"host.docker.internal:host-gateway`"`n")
   }
   [void]$sb.Append("volumes:`n  geldar_ws:`n    external: true`n    name: `"geldar-ws-$Id`"`n")
   [void]$sb.Append("  geldar_cli:`n    external: true`n    name: `"geldar-cli-$Id-claude`"`n")
@@ -129,12 +132,21 @@ function Start-PlayerSession([string]$Id, [string]$Mode) {
   if ([regex]::IsMatch($chk, '[\x00-\x1F\x7F:,]')) { Die 1 bad_state_path }
   $share = (Get-ShareDir).Replace([char]92, [char]47)
 
+  # SC-75: the human-set dev world replaces the URL for this launch only. It goes straight to the
+  # allowlist writer and the override; it is never run through Test-McpUrl.
+  $mcp = $script:PL_MCP_URL
+  $dev = Get-DevWorldUrl $Id
+  if ($dev -ne '') {
+    Say dev_world_active $dev
+    $mcp = $dev
+  }
+
   New-PrivateDir $d
   New-PrivateDir $sd
-  Write-Allowlist $sd $script:PL_MCP_URL
+  Write-Allowlist $sd $mcp
   Invoke-Docker volume create "geldar-cli-$Id-claude" *> $null
   if ($LASTEXITCODE -ne 0) { Die 1 workspace_failed $Id 'the CLI volume could not be created' }
-  Write-Override $Id $sd $script:PL_MCP_URL
+  Write-Override $Id $sd $mcp ($dev -ne '')
 
   $words = @(Get-HarnessCommand claude $Mode)
   $ov = "$sdf/override.yml"
@@ -159,7 +171,7 @@ function Start-PlayerSession([string]$Id, [string]$Mode) {
   $runSet = $set.Clone()
   if (Test-Path -LiteralPath $tf -PathType Leaf) { $runSet['GELDAR_MCP_TOKEN'] = Read-FirstLine $tf }
   $runArgs = $cargs + @('run', '--rm') + $tty + @('--label', 'geldar.role=session', 'session') + $words
-  $rc = Invoke-DockerChild $runArgs $runSet @('GH_TOKEN', 'GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'GELDAR_MCP_TOKEN') $false
+  $rc = Invoke-DockerChild $runArgs $runSet @('GH_TOKEN', 'GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'GELDAR_MCP_TOKEN', 'GELDAR_DEV_MCP_URL') $false
   [System.IO.File]::WriteAllText((Join-Path $sd 'exit'), "$rc`n", $script:SESSION_UTF8)
   [void](Invoke-DockerChild ($cargs + @('down', '--remove-orphans')) $set @('GELDAR_MCP_TOKEN') $true)
   if ($rc -eq 125) { Die 1 compose_failed }

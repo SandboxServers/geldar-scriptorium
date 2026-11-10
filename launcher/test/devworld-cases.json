@@ -29,5 +29,9 @@
   { "value": "http://host.docker.internal:8787/p/<id>\t", "player": "alpha", "ok": false },
   { "value": "http://host.docker.internal: 8787/p/<id>", "player": "alpha", "ok": false },
   { "value": "http://user:pw@host.docker.internal:8787/p/<id>", "player": "alpha", "ok": false },
-  { "value": "http://host.docker.internal:8787/p/<id> http://host.docker.internal:8788/p/<id>", "player": "alpha", "ok": false }
+  {
+    "value": "http://host.docker.internal:8787/p/<id> http://host.docker.internal:8788/p/<id>",
+    "player": "alpha",
+    "ok": false
+  }
 ]
