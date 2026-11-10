@@ -40,12 +40,18 @@ const LABELS = ['What it means.', 'Why it is safe.', 'What to do.'];
 const SENTENCE = /[A-Za-z].*[.!?]/s;
 
 // The labels that are missing, repeated, or have a body without a sentence. A labelled
-// paragraph starts with its label, after a blank line or at the top of the section.
+// paragraph starts with its label at the start of a line and runs to the next blank line.
 function badLabels(section: string): string[] {
-  const paragraphs = section.split(/\n\s*\n/).map((p) => p.trim());
+  const lines = section.split('\n');
   return LABELS.filter((label) => {
-    const own = paragraphs.filter((p) => p.startsWith(label));
-    return own.length !== 1 || !SENTENCE.test((own[0] ?? '').slice(label.length));
+    const starts = lines.flatMap((line, i) => (line.startsWith(label) ? [i] : []));
+    const first = starts[0] ?? -1;
+    if (starts.length !== 1 || first < 0) return true;
+    const body: string[] = [];
+    for (let i = first; i < lines.length && (lines[i] ?? '').trim() !== ''; i++) {
+      body.push(i === first ? (lines[i] ?? '').slice(label.length) : (lines[i] ?? ''));
+    }
+    return !SENTENCE.test(body.join('\n'));
   });
 }
 
