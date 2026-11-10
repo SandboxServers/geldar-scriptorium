@@ -37,7 +37,13 @@ if (shell === undefined) {
 const script = path.join(repoRoot, 'image', 'geldar-entrypoint.sh');
 const win = process.platform === 'win32';
 const toSlash = (p: string) => p.replace(/\\/g, '/');
-const seededTrust = { projects: { '/player': { hasTrustDialogAccepted: true } } };
+const seededTrust = {
+  projects: { '/player': { hasTrustDialogAccepted: true } },
+  hasCompletedOnboarding: true,
+  theme: 'dark',
+};
+const kitServers = ['geldar', 'geldar_memory', 'geldar_git'];
+const seededSettings = { enabledMcpjsonServers: kitServers };
 
 interface Fixture {
   root: string;
@@ -73,9 +79,10 @@ function runEntrypoint(fx: Fixture, mode?: string) {
   return spawnSync(shell ?? 'bash', [toSlash(script), 'node'], { env, encoding: 'utf8' });
 }
 
-describe.skipIf(shell === undefined)('kit entrypoint seeds the workspace trust', () => {
+describe.skipIf(shell === undefined)('kit entrypoint seeds the CLI home', () => {
   let fx: Fixture;
   const config = () => path.join(fx.cliHome, '.claude.json');
+  const settings = () => path.join(fx.cliHome, 'settings.json');
 
   beforeEach(() => {
     fx = makeFixture();
@@ -84,11 +91,15 @@ describe.skipIf(shell === undefined)('kit entrypoint seeds the workspace trust',
     rmSync(fx.root, { recursive: true, force: true });
   });
 
-  it('creates the file with the trust key when it is absent, then starts the base entrypoint', () => {
+  it('creates both files when absent, with the trust, onboarding and kit MCP keys, then starts the base entrypoint', () => {
     const r = runEntrypoint(fx, 'play');
     expect(r.status, r.stderr).toBe(0);
     expect(JSON.parse(readFileSync(config(), 'utf8'))).toEqual(seededTrust);
-    if (!win) expect(statSync(config()).mode & 0o777).toBe(0o600);
+    expect(JSON.parse(readFileSync(settings(), 'utf8'))).toEqual(seededSettings);
+    if (!win) {
+      expect(statSync(config()).mode & 0o777).toBe(0o600);
+      expect(statSync(settings()).mode & 0o777).toBe(0o600);
+    }
     expect(r.stdout.trim()).toBe('base:node');
   });
 
@@ -111,6 +122,31 @@ describe.skipIf(shell === undefined)('kit entrypoint seeds the workspace trust',
         '/other': { allowedTools: ['Bash(git status)'] },
         '/player': { allowedTools: ['Read'], hasTrustDialogAccepted: true },
       },
+      hasCompletedOnboarding: true,
+      theme: 'dark',
+    });
+  });
+
+  it('keeps an existing theme choice and an existing onboarding flag set to true', () => {
+    writeFileSync(config(), JSON.stringify({ theme: 'light', hasCompletedOnboarding: true }));
+    const r = runEntrypoint(fx, 'play');
+    expect(r.status, r.stderr).toBe(0);
+    const seeded = JSON.parse(readFileSync(config(), 'utf8'));
+    expect(seeded.theme).toBe('light');
+    expect(seeded.hasCompletedOnboarding).toBe(true);
+    expect(seeded.projects).toEqual(seededTrust.projects);
+  });
+
+  it('keeps the MCP servers already enabled and adds only the kit servers that are missing', () => {
+    writeFileSync(
+      settings(),
+      JSON.stringify({ model: 'invented-model', enabledMcpjsonServers: ['other', 'geldar'] }),
+    );
+    const r = runEntrypoint(fx, 'play');
+    expect(r.status, r.stderr).toBe(0);
+    expect(JSON.parse(readFileSync(settings(), 'utf8'))).toEqual({
+      model: 'invented-model',
+      enabledMcpjsonServers: ['other', 'geldar', 'geldar_memory', 'geldar_git'],
     });
   });
 
@@ -121,6 +157,17 @@ describe.skipIf(shell === undefined)('kit entrypoint seeds the workspace trust',
     expect(r.status).toBe(0);
     expect(readFileSync(config(), 'utf8')).toBe(junk);
     expect(r.stderr.trim().split('\n')).toHaveLength(1);
+    expect(r.stderr).not.toContain('invented');
+    expect(JSON.parse(readFileSync(settings(), 'utf8'))).toEqual(seededSettings);
+    expect(r.stdout.trim()).toBe('base:node');
+  });
+
+  it('leaves a settings file whose server list is not an array untouched', () => {
+    const junk = '{"enabledMcpjsonServers": "invented-string"}';
+    writeFileSync(settings(), junk);
+    const r = runEntrypoint(fx, 'play');
+    expect(r.status).toBe(0);
+    expect(readFileSync(settings(), 'utf8')).toBe(junk);
     expect(r.stderr).not.toContain('invented');
     expect(r.stdout.trim()).toBe('base:node');
   });
@@ -136,9 +183,11 @@ describe.skipIf(shell === undefined)('kit entrypoint seeds the workspace trust',
   it('a second run leaves the same bytes and no temp file', () => {
     expect(runEntrypoint(fx, 'play').status).toBe(0);
     const first = readFileSync(config(), 'utf8');
+    const firstSettings = readFileSync(settings(), 'utf8');
     const r = runEntrypoint(fx, 'play');
     expect(r.status, r.stderr).toBe(0);
     expect(readFileSync(config(), 'utf8')).toBe(first);
-    expect(readdirSync(fx.cliHome)).toEqual(['.claude.json']);
+    expect(readFileSync(settings(), 'utf8')).toBe(firstSettings);
+    expect(readdirSync(fx.cliHome).sort()).toEqual(['.claude.json', 'settings.json']);
   });
 });

@@ -36,6 +36,10 @@ services:
       https_proxy: http://proxy:3128
       NO_PROXY: ""
       GELDAR_MODE: ${GELDAR_MODE:-play}
+      # No account connectors (a claude.ai login would add Gmail, Calendar, Drive and Docs) and no
+      # deferred tool search: the kit's own MCP tools load up front.
+      ENABLE_CLAUDEAI_MCP_SERVERS: "false"
+      ENABLE_TOOL_SEARCH: "false"
     networks: [inside]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
