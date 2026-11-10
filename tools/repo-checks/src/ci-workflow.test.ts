@@ -23,7 +23,10 @@ const runGate = (results: Record<string, string>) => {
   for (const [name, value] of Object.entries({
     changes: 'success',
     static: 'success',
-    tests: 'success',
+    hostile: 'success',
+    launcher: 'success',
+    image: 'success',
+    rest: 'success',
     e2e: 'success',
     markdown: 'success',
     ...results,
@@ -59,31 +62,54 @@ describe('ci.yml', () => {
     expect(text.slice(start, end)).not.toContain('${{');
   });
 
-  it('gates on changes, static, tests, e2e and markdown', () => {
+  it('gates on changes, static, the four vitest families, e2e and markdown', () => {
     expect(jobs.gate?.if).toBe('always()');
-    for (const job of ['changes', 'static', 'tests', 'e2e', 'markdown']) {
+    for (const job of [
+      'changes',
+      'static',
+      'hostile',
+      'launcher',
+      'image',
+      'rest',
+      'e2e',
+      'markdown',
+    ]) {
       expect(needsOf('gate')).toContain(job);
     }
   });
 
-  it('makes tests, e2e and markdown wait for changes', () => {
-    for (const job of ['tests', 'e2e', 'markdown']) {
+  it('makes every vitest family, e2e and markdown wait for changes', () => {
+    for (const job of ['hostile', 'launcher', 'image', 'rest', 'e2e', 'markdown']) {
       expect(needsOf(job)).toContain('changes');
     }
   });
 
   it.skipIf(process.platform === 'win32')(
-    'gate passes when changes succeeded and tests were skipped',
+    'gate passes when changes succeeded and every family was skipped',
     () => {
-      const result = runGate({ tests: 'skipped', e2e: 'skipped', markdown: 'skipped' });
+      const skipped = {
+        hostile: 'skipped',
+        launcher: 'skipped',
+        image: 'skipped',
+        rest: 'skipped',
+      };
+      const result = runGate({ ...skipped, e2e: 'skipped', markdown: 'skipped' });
       expect(result.status).toBe(0);
     },
   );
 
   it.skipIf(process.platform === 'win32')(
-    'gate fails when changes failed, even if tests were skipped',
+    'gate fails when changes failed, even if the families were skipped',
     () => {
-      const result = runGate({ changes: 'failure', tests: 'skipped' });
+      const result = runGate({ changes: 'failure', hostile: 'skipped', rest: 'skipped' });
+      expect(result.status).not.toBe(0);
+    },
+  );
+
+  it.skipIf(process.platform === 'win32')(
+    'gate fails when one vitest family failed, even if the others were skipped',
+    () => {
+      const result = runGate({ image: 'failure', hostile: 'skipped', launcher: 'skipped' });
       expect(result.status).not.toBe(0);
     },
   );

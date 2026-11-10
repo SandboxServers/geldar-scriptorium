@@ -2,11 +2,12 @@
 # passes only when every job below succeeded or was skipped because `changes`
 # said it had nothing to do. `static` (no Docker) always runs. On a pull request
 # `changes` reads the changed paths (rules in tools/repo-checks/src/ci-scope.ts):
-# a docs-only change skips `tests` and `e2e`, and `markdown` runs only when a .md
-# file changed. Pushes to main and manual runs run every job. `tests` is a matrix
-# of file groups from tools/repo-checks/src/ci-groups.ts (each test file runs in
-# exactly one group); `e2e` is its own job. Together they cover what
-# `./scriptorium.ps1 check` runs, plus the CI-only checks.
+# a docs-only change skips every vitest family and `e2e`, and `markdown` runs only
+# when a .md file changed. Pushes to main and manual runs run every job. The four
+# vitest jobs (`hostile`, `launcher`, `image`, `rest`) are matrices of file groups
+# from tools/repo-checks/src/ci-groups.ts (each test file runs in exactly one
+# group, and each group's family is its job); `e2e` is its own job. Together they
+# cover what `./scriptorium.ps1 check` runs, plus the CI-only checks.
 name: ci
 
 on:
@@ -28,7 +29,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      tests: ${{ steps.scope.outputs.tests }}
+      hostile: ${{ steps.scope.outputs.hostile }}
+      launcher: ${{ steps.scope.outputs.launcher }}
+      image: ${{ steps.scope.outputs.image }}
+      rest: ${{ steps.scope.outputs.rest }}
       e2e: ${{ steps.scope.outputs.e2e }}
       markdown: ${{ steps.scope.outputs.markdown }}
     steps:
@@ -93,16 +97,115 @@ jobs:
       - name: scriptorium.ps1 runs on Linux
         run: pwsh -NoProfile -File ./scriptorium.ps1 pnpm --version
 
-  tests:
-    name: tests (${{ matrix.group }})
+  hostile:
+    name: hostile (${{ matrix.group }})
     needs: changes
-    if: needs.changes.outputs.tests == 'true'
+    if: needs.changes.outputs.hostile == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        group: [hostile, launcher-heavy, launcher, image, rest]
+        group: [hostile-a, hostile-b, hostile-c]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: docker is available (image tests need it)
+        run: docker version --format '{{.Server.Os}} {{.Server.Version}}'
+      - name: tool versions (the launcher tests use them)
+        run: |
+          docker compose version
+          git --version
+          bash --version
+          pwsh --version
+      - name: test (vitest, one group of files)
+        env:
+          GROUP: ${{ matrix.group }}
+        run: |
+          mapfile -t files < <(node tools/repo-checks/src/ci-groups-cli.ts files "$GROUP")
+          pnpm vitest run "${files[@]}"
+
+  launcher:
+    name: launcher (${{ matrix.group }})
+    needs: changes
+    if: needs.changes.outputs.launcher == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [launcher-a, launcher-b, launcher-c]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: docker is available (image tests need it)
+        run: docker version --format '{{.Server.Os}} {{.Server.Version}}'
+      - name: tool versions (the launcher tests use them)
+        run: |
+          docker compose version
+          git --version
+          bash --version
+          pwsh --version
+      - name: test (vitest, one group of files)
+        env:
+          GROUP: ${{ matrix.group }}
+        run: |
+          mapfile -t files < <(node tools/repo-checks/src/ci-groups-cli.ts files "$GROUP")
+          pnpm vitest run "${files[@]}"
+
+  image:
+    name: image (${{ matrix.group }})
+    needs: changes
+    if: needs.changes.outputs.image == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [image]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: docker is available (image tests need it)
+        run: docker version --format '{{.Server.Os}} {{.Server.Version}}'
+      - name: tool versions (the launcher tests use them)
+        run: |
+          docker compose version
+          git --version
+          bash --version
+          pwsh --version
+      - name: test (vitest, one group of files)
+        env:
+          GROUP: ${{ matrix.group }}
+        run: |
+          mapfile -t files < <(node tools/repo-checks/src/ci-groups-cli.ts files "$GROUP")
+          pnpm vitest run "${files[@]}"
+
+  rest:
+    name: rest (${{ matrix.group }})
+    needs: changes
+    if: needs.changes.outputs.rest == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [rest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
@@ -179,7 +282,7 @@ jobs:
   gate:
     name: ci gate
     if: always()
-    needs: [changes, static, tests, e2e, markdown]
+    needs: [changes, static, hostile, launcher, image, rest, e2e, markdown]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
@@ -187,17 +290,20 @@ jobs:
         env:
           CHANGES: ${{ needs.changes.result }}
           STATIC: ${{ needs.static.result }}
-          TESTS: ${{ needs.tests.result }}
+          HOSTILE: ${{ needs.hostile.result }}
+          LAUNCHER: ${{ needs.launcher.result }}
+          IMAGE: ${{ needs.image.result }}
+          REST: ${{ needs.rest.result }}
           E2E: ${{ needs.e2e.result }}
           MARKDOWN: ${{ needs.markdown.result }}
         run: |
-          echo "changes=$CHANGES static=$STATIC tests=$TESTS e2e=$E2E markdown=$MARKDOWN"
+          echo "changes=$CHANGES static=$STATIC hostile=$HOSTILE launcher=$LAUNCHER image=$IMAGE rest=$REST e2e=$E2E markdown=$MARKDOWN"
           if [ "$CHANGES" != "success" ]; then
             echo "::error::changes did not succeed ($CHANGES)"
             exit 1
           fi
           failed=0
-          for r in "$STATIC" "$TESTS" "$E2E" "$MARKDOWN"; do
+          for r in "$STATIC" "$HOSTILE" "$LAUNCHER" "$IMAGE" "$REST" "$E2E" "$MARKDOWN"; do
             if [ "$r" != "success" ] && [ "$r" != "skipped" ]; then
               echo "::error::a required job did not succeed ($r)"
               failed=1

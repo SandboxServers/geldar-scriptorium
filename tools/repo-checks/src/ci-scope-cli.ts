@@ -1,7 +1,7 @@
 /**
  * `node ci-scope-cli.ts [file]` reads changed paths, one per line, from `file` or stdin and prints
- * `static=`, `tests=`, `e2e=` and `markdown=` lines for `>> "$GITHUB_OUTPUT"`. Any read error
- * prints every job on (fail open) and exits 0.
+ * `static=`, `hostile=`, `launcher=`, `image=`, `rest=`, `e2e=` and `markdown=` lines for
+ * `>> "$GITHUB_OUTPUT"`. Any read error prints every job on (fail open) and exits 0.
  */
 import { readFileSync } from 'node:fs';
 import { ALL, outputLines, parsePaths, scopeFor } from './ci-scope.ts';
