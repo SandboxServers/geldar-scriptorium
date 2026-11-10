@@ -179,18 +179,28 @@ jobs:
   gate:
     name: ci gate
     if: always()
-    needs: [static, tests, e2e]
+    needs: [changes, static, tests, e2e, markdown]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
-      - name: every job passed
+      - name: every job passed or was skipped by scope
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
+          CHANGES: ${{ needs.changes.result }}
+          STATIC: ${{ needs.static.result }}
+          TESTS: ${{ needs.tests.result }}
+          E2E: ${{ needs.e2e.result }}
+          MARKDOWN: ${{ needs.markdown.result }}
         run: |
-          echo "job results: $RESULTS"
-          for r in $RESULTS; do
-            if [ "$r" != "success" ]; then
+          echo "changes=$CHANGES static=$STATIC tests=$TESTS e2e=$E2E markdown=$MARKDOWN"
+          if [ "$CHANGES" != "success" ]; then
+            echo "::error::changes did not succeed ($CHANGES)"
+            exit 1
+          fi
+          failed=0
+          for r in "$STATIC" "$TESTS" "$E2E" "$MARKDOWN"; do
+            if [ "$r" != "success" ] && [ "$r" != "skipped" ]; then
               echo "::error::a required job did not succeed ($r)"
-              exit 1
+              failed=1
             fi
           done
+          exit "$failed"
