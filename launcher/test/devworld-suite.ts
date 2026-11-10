@@ -2,7 +2,6 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { expectNoDockerCall, expectRefusal } from './hostile/world.ts';
 import {
   bashPath,
   type Launcher,
@@ -12,6 +11,7 @@ import {
   run,
   type World,
 } from './harness.ts';
+import { expectRefusal } from './hostile/world.ts';
 
 export interface DevWorldCase {
   value: string;
@@ -63,7 +63,7 @@ volumes:
 `;
 
 const bindBlock =
-  /      - type: bind\n {8}source: .*\n {8}target: .*\n {8}read_only: true\n {8}bind:\n {10}create_host_path: false\n/g;
+  / {6}- type: bind\n {8}source: .*\n {8}target: .*\n {8}read_only: true\n {8}bind:\n {10}create_host_path: false\n/g;
 
 function envFor(launcher: Launcher, w: World, extra: Record<string, string>) {
   const base = launcher.name === 'bash' ? w.env : w.envPwsh;
@@ -110,12 +110,19 @@ export function devWorldSuite(launcher: Launcher): void {
         const env = envFor(launcher, w, { ...probe.env, GELDAR_DEV_MCP_URL: value });
         const prep = run(launcher, ['__prepare', p.id, 'play'], { env, timeoutMs: 120_000 });
         expect(prep.status, prep.stderr).toBe(0);
+        // __prepare makes docker calls of its own; the refusal is about the ones after it.
+        const before = w.calls().length;
         const r = run(launcher, ['__session', p.id, 'play'], { env, timeoutMs: 120_000 });
         const pub = join(p.stateDir, 'pub');
         if (c.ok) {
           expect(r.status, r.stderr).toBe(0);
           const got = probe.read();
-          expect(got.env).toContain(`GELDAR_MCP_URL=${value}\n`);
+          // The container's GELDAR_MCP_URL is set by compose from override.yml, which the fake
+          // docker does not read, so it is checked in the file and not in the env dump.
+          const ov = text(join(p.stateDir, 'session', 'override.yml'));
+          expect(ov).toContain(`      GELDAR_MCP_URL: "${value}"\n`);
+          expect(ov).toContain('      - "host.docker.internal:host-gateway"\n');
+          expect(got.env).not.toContain('GELDAR_DEV_MCP_URL');
           expect(got.host).toBe('host.docker.internal\n');
           expect(got.ports).toBe(`${/:(\d+)\//.exec(value)?.[1]}\n`);
           for (const piece of messagePieces('dev_world_active')) {
@@ -124,7 +131,20 @@ export function devWorldSuite(launcher: Launcher): void {
           expect(r.stderr).toContain(value);
         } else {
           expectRefusal(r, 'dev_world_bad', { status: 1 });
-          expectNoDockerCall(w);
+          // The probes every verb makes (compose version, info, image inspect) are not docker work.
+          const work = w
+            .calls()
+            .slice(before)
+            .filter(
+              (c) =>
+                !(
+                  c[0] === 'compose' ||
+                  c[0] === 'version' ||
+                  c[0] === 'info' ||
+                  (c[0] === 'image' && c[1] === 'inspect')
+                ),
+            );
+          expect(work, 'a docker call was made after prepare').toEqual([]);
           expect(existsSync(join(pub, 'allowlist-world.txt'))).toBe(false);
           expect(existsSync(join(pub, 'allowlist-world-ports.txt'))).toBe(false);
         }

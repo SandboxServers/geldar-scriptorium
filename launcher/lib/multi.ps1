@@ -40,6 +40,8 @@ function Verb-play_many {
     if ($seen.ContainsKey($id)) { Die 1 dup_player $id }
     $seen[$id] = $true
   }
+  # SC-75: one dev URL cannot reach a second player.
+  if ((Get-DevWorldRaw) -ne '') { Die 1 dev_world_single }
   if ($ids.Count -gt 3) { Say many_players }
   $wt = Get-WtExe
   if ($wt) {
