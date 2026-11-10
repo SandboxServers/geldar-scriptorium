@@ -112,6 +112,25 @@ describe.skipIf(!ready)('kit image contract', () => {
     expect(r.stdout.trim().split('\n')).toEqual(['root', 'unwritable']);
   }, 120_000);
 
+  it('the entrypoint is the kit script that seeds workspace trust, and CMD stays node', () => {
+    const entrypoint = run([
+      'image',
+      'inspect',
+      '--format',
+      '{{json .Config.Entrypoint}}',
+      KIT_IMAGE,
+    ]);
+    expect(entrypoint.status).toBe(0);
+    expect(JSON.parse(entrypoint.stdout)).toEqual(['/usr/local/bin/geldar-entrypoint.sh']);
+    const cmd = run(['image', 'inspect', '--format', '{{json .Config.Cmd}}', KIT_IMAGE]);
+    expect(cmd.status).toBe(0);
+    expect(JSON.parse(cmd.stdout)).toEqual(['node']);
+    const script = kit(
+      'test -x /usr/local/bin/geldar-entrypoint.sh && grep -q hasTrustDialogAccepted /usr/local/bin/geldar-entrypoint.sh && echo ok',
+    );
+    expect(script.stdout.trim()).toBe('ok');
+  }, 120_000);
+
   it('settings are in place, byte-equal to the repo and unwritable', () => {
     const files = [
       ['/etc/geldar/settings/play.json', 'image/settings/play.json'],

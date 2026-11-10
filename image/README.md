@@ -9,6 +9,7 @@ The container a player's session runs in: the three companion servers (`geldar-m
 | `Dockerfile` | Stages `deps`, `kit` (the shipped image, non-root user `player`) and `nettest` (test only; never shipped) |
 | `settings/managed.json` | Managed settings, installed at `/etc/claude-code/managed-settings.json` (the CLI's managed path) |
 | `settings/play.json`, `setup.json` | Per-mode settings the launcher passes with `--settings`; managed still wins |
+| `geldar-entrypoint.sh` | The image entrypoint (`/usr/local/bin`). It seeds the workspace trust for `/player` in `/cli-home/.claude.json` when `GELDAR_MODE` is set, then runs the base image's `docker-entrypoint.sh`; see below |
 | `proxy/` | Squid config and the vendor allowlist; see [proxy/README.md](proxy/README.md) |
 | `compose/session.yml` | The session network: the proxy sits on `inside` and `outside`, the session on the internal network behind it |
 | `compose/session.test.yml` | Test overlay used by the egress tests |
@@ -36,10 +37,15 @@ The kit image is built once per vitest run by `tests/image/global-setup.ts`; eac
 
 ## What the tests cover
 
-- `tests/image/contract.test.ts`: the kit marker is root-owned and unwritable; settings are byte-equal to the repo files and unwritable; hooks act only with the marker and do not run as root; the workspace is writable for the process uid.
+- `tests/image/contract.test.ts`: the kit marker is root-owned and unwritable; the image's entrypoint is the kit script and CMD is `node`; settings are byte-equal to the repo files and unwritable; hooks act only with the marker and do not run as root; the workspace is writable for the process uid.
+- `tests/image/entrypoint.test.ts`: no Docker needed. The entrypoint seeds the trust in an absent file, keeps the other keys of an existing one, leaves invalid JSON alone, does nothing without `GELDAR_MODE`, and gives the same bytes on a second run.
 - `tests/image/cli.test.ts`: against the pinned CLI, managed settings are read from the managed path; the shipped settings are valid; an empty managed file lifts the denies (so the deny case is not vacuous); play and setup settings are accepted; the companions start and connect; `GELDAR_MODE` reaches the servers only when set and changes whether the commit tool refuses.
 - `tests/image/settings.test.ts`: the deny rules for the CLI home and credentials are present and nothing widens permissions with an allow list.
 - `tests/image/proxy-config.test.ts` and `tests/image/egress.test.ts`: the Squid policy structure, `squid -k parse` on the pinned image, and allow or refuse through the proxy on the internal network (see the file for the exact cases).
+
+## Startup: workspace trust
+
+Claude Code ignores a workspace's `permissions.allow` list until the workspace is trusted, and under `defaultMode: dontAsk` it then refuses every tool. A fresh CLI home has no trust, so `geldar-entrypoint.sh` sets `projects["/player"].hasTrustDialogAccepted` to `true` in `/cli-home/.claude.json` before it starts the CLI. It runs only when `GELDAR_MODE` is set (the launcher sets it for `setup` and `play`) and `/cli-home` is writable. It keeps every other key, including a logged-in session's; it writes through a temp file and a rename, with mode 0600; it leaves a file that is not valid JSON untouched; and it never fails the container. It makes no network calls and never prints the file. The agent cannot read or write `/cli-home` (managed settings deny it), so the seeding widens nothing.
 
 ## H-20: structural only in CI
 
