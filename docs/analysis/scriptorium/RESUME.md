@@ -2,7 +2,7 @@
 
 Read this, then [README.md](README.md) (the ledger) and [worknotes/overnight-decisions.md](worknotes/overnight-decisions.md) (decisions 1 to 43), before acting. Rewrite at every wave boundary, in 40 lines at most.
 
-**State (2026-11-09):** waves 0 to 6 are on `main` (PR #13 merged; retro [worknotes/retro-wave-6.md](worknotes/retro-wave-6.md)). Wave 7 is on branch `scriptorium/wave7`, PR #14 is a draft. Cards are in [work-packets-wave7.md](work-packets-wave7.md) and [work-packets-wave7b.md](work-packets-wave7b.md).
+**State (2026-11-10):** waves 0 to 6 are on `main` (PR #13 merged; retro [worknotes/retro-wave-6.md](worknotes/retro-wave-6.md)). Wave 7 PR #14 is merged to `main` (retro [worknotes/retro-wave-7.md](worknotes/retro-wave-7.md)); the rest of wave 7 continues on new branches. Cards are in [work-packets-wave7.md](work-packets-wave7.md) and [work-packets-wave7b.md](work-packets-wave7b.md).
 
 **Built on wave 7:** SC-71b, SC-74a to c, SC-75a to c, SC-76a to d, SC-77a to b, SC-78. The wave review is done. The fix pass `fix10` is in progress (branch `scriptorium/fix10-tools` and siblings).
 
@@ -10,15 +10,15 @@ Read this, then [README.md](README.md) (the ledger) and [worknotes/overnight-dec
 
 **Next actions**
 1. Finish the fix10 pass and merge it into `scriptorium/wave7`. Re-run the wave gate (CI plus `merge-packet --no-check`).
-2. Build the remaining wave 7 packets in the order their cards give. SC-70a waits on the D1 wording (see below); SC-71a and SC-71c wait on their owner decisions.
+2. Build the remaining wave 7 packets in the order their cards give. SC-70a is ready (D1 chosen, decision 44); SC-71a and SC-71c wait on their owner decisions.
 3. Owner acceptance (SC-72) after SC-70b and SC-70d. Then SC-70c and SC-73.
 4. At campaign end: full campaign retro (owner instruction), final RESUME rewrite, cleanup of Docker scratch images and leftover worktree folders.
 
 **Process rules in force (work-packets.md rules 12 to 24):** coders run only their own tests once and commit at once; no full check per packet; wave-end review plus CI is the gate; timing and load-flaky tests run in CI only (`timingIt`); no watcher loops; one full check at a time; no junctions between worktrees (rule 24: delete junctions before removing a worktree; never `git worktree remove --force` on a tree with links). Agents often stop with uncommitted work: check `git status` in their worktree and resume them with "commit now". Resolve `parity.ts` conflicts by hand.
 
-**Owner answers:** P1 (2026-11-10): `new --persona-dir` is an owner provisioning tool for the six Rangers only, never in the Patron guide or `template/`. P3 is answered: the world does not detect birth from the player repo (decision 37); the seeded commit subject is `player: <id>`. D1 (2026-11-10): the launcher is downloaded from a GitHub release; still open is how the guide points to it without the template naming this repo.
+**Owner answers:** P1 (2026-11-10): `new --persona-dir` is an owner provisioning tool for the six Rangers only, never in the Patron guide or `template/`. P3 is answered: the world does not detect birth from the player repo (decision 37); the seeded commit subject is `player: <id>`. D1 (2026-11-10): the launcher is downloaded from a GitHub release; still open is how the guide points to it without the template naming this repo. D1 (2026-11-10): the launcher archive is attached to a release of `geldar-player-template`; the guide points to that release, never naming this repo (decision 44).
 
-**Owner decisions pending:** D1 (guide pointer), D2 (`mcp_base`, `mcp_port`, `private_only_shards`, set before the first `new`), D3 (run pinned Codex in a throwaway container), D4 to D7, Codex C1 to C8, live-check login and vendor terms, held-session strictness, first `kit-v*` tag plan, tag-creation ruleset, public GHCR package and template branch rule for the bot, confirm decisions 27 to 34 (30: Node 22.23.4 waiver), spec section 7 amendment (geldar 0042), wording of geldar records 0044 to 0046. Decision 42 (host in `player.json`, SC-73) and decision 43 (open calls) are open too.
+**Owner decisions pending:** D2 (`mcp_base`, `mcp_port`, `private_only_shards`, set before the first `new`), D3 (run pinned Codex in a throwaway container), D4 to D7, Codex C1 to C8, live-check login and vendor terms, held-session strictness, first `kit-v*` tag plan, tag-creation ruleset, public GHCR package and template branch rule for the bot, confirm decisions 27 to 34 (30: Node 22.23.4 waiver), spec section 7 amendment (geldar 0042), wording of geldar records 0044 to 0046. Decision 42 (host in `player.json`, SC-73) and decision 43 (open calls) are open too.
 
 **Geldar coordination (peer `geldar-0a`; never edit the geldar repo):** six Power Rangers as first players (ids ag-jason-01, ag-zack-01, ag-billy-01, ag-trini-01, ag-kimberly-01, ag-tommy-01; persona seeds drafted on the geldar side, owner approval pending). Real MCP: `/p/<player_id>`, static bearer per player, `wait` max_seconds at most 240. Public name `geldar.sandboxservers.games` exists (address deliberately not written here). MCP port 18443 over TLS: UniFi forward added; a Caddy site is still needed; SC-76 makes the launcher accept the port only when `mcp_port` equals it. `mcp_base`, `mcp_port`, `private_only_shards` are blank. Persona byte caps (decision 43): the launcher keeps 8192 and 4096 bytes; geldar matches the launcher. Pending to send geldar: the per-blob cap note (`worknotes/geldar-record-blob-cap.md`) and the port plan.
 
