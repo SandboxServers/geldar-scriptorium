@@ -108,13 +108,11 @@ export function devWorldSuite(launcher: Launcher): void {
         const value = c.value.replaceAll('<id>', c.player);
         const probe = probeScript(w);
         const env = envFor(launcher, w, { ...probe.env, GELDAR_DEV_MCP_URL: value });
-        const prep = run(launcher, ['__prepare', p.id, 'play'], { env, timeoutMs: 120_000 });
-        expect(prep.status, prep.stderr).toBe(0);
-        // __prepare makes docker calls of its own; the refusal is about the ones after it.
-        const before = w.calls().length;
-        const r = run(launcher, ['__session', p.id, 'play'], { env, timeoutMs: 120_000 });
         const pub = join(p.stateDir, 'pub');
         if (c.ok) {
+          const prep = run(launcher, ['__prepare', p.id, 'play'], { env, timeoutMs: 120_000 });
+          expect(prep.status, prep.stderr).toBe(0);
+          const r = run(launcher, ['__session', p.id, 'play'], { env, timeoutMs: 120_000 });
           expect(r.status, r.stderr).toBe(0);
           const got = probe.read();
           // The container's GELDAR_MCP_URL is set by compose from override.yml, which the fake
@@ -130,21 +128,28 @@ export function devWorldSuite(launcher: Launcher): void {
           }
           expect(r.stderr).toContain(value);
         } else {
+          // play refuses the value before its lock, its state and any docker call, so the count
+          // starts at play itself. Only the probes every verb makes (version, info, image inspect,
+          // compose version) are not docker work.
+          const r = run(launcher, ['play', p.id], { env, timeoutMs: 120_000 });
           expectRefusal(r, 'dev_world_bad', { status: 1 });
-          // The probes every verb makes (compose version, info, image inspect) are not docker work.
           const work = w
             .calls()
-            .slice(before)
             .filter(
-              (c) =>
+              (call) =>
                 !(
-                  c[0] === 'compose' ||
-                  c[0] === 'version' ||
-                  c[0] === 'info' ||
-                  (c[0] === 'image' && c[1] === 'inspect')
+                  call[0] === 'version' ||
+                  call[0] === 'info' ||
+                  (call[0] === 'image' && call[1] === 'inspect') ||
+                  (call[0] === 'compose' && call[1] === 'version')
                 ),
             );
-          expect(work, 'a docker call was made after prepare').toEqual([]);
+          expect(work, 'a docker call was made').toEqual([]);
+          expect(
+            w.calls().filter((call) => call.join(' ').includes(`geldar-ws-${p.id}`)),
+            'a workspace volume was touched',
+          ).toEqual([]);
+          expect(existsSync(join(p.stateDir, 'session', 'running'))).toBe(false);
           expect(existsSync(join(pub, 'allowlist-world.txt'))).toBe(false);
           expect(existsSync(join(pub, 'allowlist-world-ports.txt'))).toBe(false);
         }

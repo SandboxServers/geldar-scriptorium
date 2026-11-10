@@ -5,6 +5,8 @@ GP_GROUPS="$GP_GROUPS setup"
 
 verb_setup() {
   local id=$1 d clone st
+  # SC-75: a bad GELDAR_DEV_MCP_URL is refused before any lock, state or docker call.
+  dev_world_url "$id" > /dev/null || die 1 dev_world_bad "$id"
   lock_acquire "$id"
   guard_not_held "$id"
   prepare_session "$id" setup

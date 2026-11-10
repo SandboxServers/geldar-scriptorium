@@ -61,6 +61,8 @@ parse_cli() {
 # play: prepare, session, finish; a leftover running session is finished from its stored START.
 verb_play() {
   local id=$1 d cid
+  # SC-75: a bad GELDAR_DEV_MCP_URL is refused before any lock, state or docker call.
+  dev_world_url "$id" > /dev/null || die 1 dev_world_bad "$id"
   d=$(player_dir "$id")
   lock_acquire "$id"
   guard_not_held "$id"

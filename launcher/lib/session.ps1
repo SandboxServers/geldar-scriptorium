@@ -33,10 +33,12 @@ function Write-Allowlist([string]$Sd, [string]$Url) {
   New-Item -ItemType Directory -Path $pub -Force | Out-Null
   $f = Join-Path $pub 'allowlist-world.txt'
   [System.IO.File]::WriteAllText($f, "$h`n", $script:SESSION_UTF8)
-  # The effective port of the URL: the explicit one, else 80 for http and 443 for https.
+  # The effective port of the URL: the explicit one, else 80 for http and 443 for https. An empty
+  # port (https://host:/p/x) takes the default too, as the bash twin's write_allowlist does.
   $auth = $Url.Substring($Url.IndexOf('://') + 3).Split('/')[0]
-  $port = if ($auth.Contains(':')) { $auth.Substring($auth.IndexOf(':') + 1) }
-  elseif ($Url.StartsWith('https:', [StringComparison]::Ordinal)) { '443' } else { '80' }
+  $port = ''
+  if ($auth.Contains(':')) { $port = $auth.Substring($auth.IndexOf(':') + 1) }
+  if ($port -eq '') { $port = if ($Url.StartsWith('http://', [StringComparison]::Ordinal)) { '80' } else { '443' } }
   $pf = Join-Path $pub 'allowlist-world-ports.txt'
   [System.IO.File]::WriteAllText($pf, "$port`n", $script:SESSION_UTF8)
   if (-not $IsWindows) {
@@ -173,7 +175,7 @@ function Start-PlayerSession([string]$Id, [string]$Mode) {
   $runArgs = $cargs + @('run', '--rm') + $tty + @('--label', 'geldar.role=session', 'session') + $words
   $rc = Invoke-DockerChild $runArgs $runSet @('GH_TOKEN', 'GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'GELDAR_MCP_TOKEN', 'GELDAR_DEV_MCP_URL') $false
   [System.IO.File]::WriteAllText((Join-Path $sd 'exit'), "$rc`n", $script:SESSION_UTF8)
-  [void](Invoke-DockerChild ($cargs + @('down', '--remove-orphans')) $set @('GELDAR_MCP_TOKEN') $true)
+  [void](Invoke-DockerChild ($cargs + @('down', '--remove-orphans')) $set @('GELDAR_MCP_TOKEN', 'GELDAR_DEV_MCP_URL') $true)
   if ($rc -eq 125) { Die 1 compose_failed }
   Say session_end (Sanitize $script:PL_NAME)
 }
