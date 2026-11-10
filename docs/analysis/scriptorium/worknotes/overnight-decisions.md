@@ -84,3 +84,15 @@ Recorded 2026-11-09. Three items.
 ## 44. D1: how the launcher is distributed and how the guide points to it
 
 Recorded 2026-11-10. **Status:** CHOSEN (owner: "D1 is fine as you suggest"). The launcher archive is attached to a release of `geldar-player-template`; the Patron guide points to that release page and never names this repo. Unblocks SC-70a. Also noted from geldar (2026-11-10): the 600-character single-line cap in geldar's `checkIdentity` applies to its Ollama prompt, not to sovereign players; geldar's decision 0060 will confirm nothing in the MCP path renders `personality_seed` into that prompt. Until `player add` exists the launcher's 8192/4096 are the only enforced limits.
+
+## 45. D2: the real world's address (owner, 2026-11-10)
+
+**Status:** CHOSEN. The shipped `launcher/config/world.conf` sets the real world host `geldar.sandboxservers.games` and `mcp_port=18443` over TLS (the exact `mcp_base` form is in the world-conf change). `private_only_shards` stays blank: all shards are watched, so no shard is private-only for now; revisit later. Owner words: "all shards are watched, private only can be for later."
+
+## 46. Codex is on hold (owner, 2026-11-10)
+
+**Status:** CHOSEN. D3 and Codex C1 to C8, and with them SC-71a and SC-71c, are on hold. Nothing is built for them until the owner lifts the hold.
+
+## 47. The release candidate (owner, 2026-11-10)
+
+**Status:** CHOSEN. The owner asked the main session to do the release candidate. Plan: decision 11 option A, the tag `kit-v0.1.0-rc1` on `main` after the world-conf change merges (the values ship inside the launcher archive). The first run is expected to stop at the anonymous-pull check until an org admin makes the `geldar-kit` package public (decision 5) and may also stop at missing infra; the tag ruleset (decision 10) is still an owner action. A tag is never re-run: a failure is fixed on `main` and `-rc2` is tagged.
