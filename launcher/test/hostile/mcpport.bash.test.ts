@@ -120,6 +120,22 @@ if (bash) {
       );
     });
 
+    it('an https url with an empty port writes 443', { timeout: T }, () => {
+      const d = session('mcp_base=\nmcp_port=\n', 'https://world.example.com:/p/x');
+      expect(d.b.status, d.b.stderr).toBe(0);
+      expect(readFileSync(join(d.p.stateDir, 'pub', 'allowlist-world-ports.txt'), 'utf8')).toBe(
+        '443\n',
+      );
+    });
+
+    it('an http url with an empty port writes 80', { timeout: T }, () => {
+      const h = session('mcp_base=\nmcp_port=\n', 'http://world.test:/p/x');
+      expect(h.b.status, h.b.stderr).toBe(0);
+      expect(readFileSync(join(h.p.stateDir, 'pub', 'allowlist-world-ports.txt'), 'utf8')).toBe(
+        '80\n',
+      );
+    });
+
     it('a host that differs from mcp_base on the port is refused with no docker call', {
       timeout: T,
     }, () => {

@@ -41,7 +41,13 @@ read_token_file() {
 # Reads one persona file once as bytes, checks it, and sets PERSONA_TEXT to the bytes with CRLF
 # turned into LF. Arguments: path, maximum bytes, player id. Refusals die with persona_bad.
 persona_read() {
-  local f=$1 max=$2 id=$3 hex b n=0 need=0 lo=80 hi=bf cr="" fmt="" bad="" first
+  local f=$1 max=$2 id=$3 hex b n=0 need=0 lo=80 hi=bf cr="" fmt="" bad="" first size
+  # The size is checked before the file is read, so a huge file costs one wc.
+  size=$(wc -c < "$f" 2> /dev/null | tr -d ' ') || size=0
+  [ -n "$size" ] || size=0
+  if [ "$size" -lt 1 ] || [ "$size" -gt "$max" ]; then
+    die 1 persona_bad "$id" size
+  fi
   hex=$(od -An -v -tx1 "$f" 2> /dev/null | tr -s ' \n' '  ') || hex=""
   for b in $hex; do
     n=$((n + 1))
@@ -93,6 +99,8 @@ persona_read() {
   case $hex in
     *" c2 "[89][0-9a-f]" "*) die 1 persona_bad "$id" control ;;
     *" e2 80 "8[b-f]" "* | *" e2 80 "a[89a-e]" "* | *" e2 81 a0 "* | *" e2 81 a"[6-9]" "*) ;;
+    *" e2 81 a"[1-4]" "* | *" e2 81 a"[a-f]" "* | *" e2 a0 80 "*) ;;
+    *" c2 a0 "* | *" e3 80 80 "* | *" e3 85 a4 "* | *" e1 a0 8e "* | *" ef be a0 "*) ;;
     *" d8 9c "* | *" ef bb bf "* | *" c2 ad "* | *" ef b8 "8[0-9a-f]" "*) ;;
     *" f3 a0 8"[01]" "* | *" f3 a0 8"[4-6]" "* | *" f3 a0 87 "[89a][0-9a-f]" "*) ;;
     *) hex="" ;;
@@ -131,7 +139,8 @@ persona_load() {
   persona_part "$root/memory/goals.md" f "$dir" "$id"
   persona_read "$root/memory/identity.md" 8192 "$id"
   PERSONA_IDENTITY=$PERSONA_TEXT
-  st=$(printf '%s' "$PERSONA_IDENTITY" | grep -v -e '^[[:space:]]*$' -e '^# Identity$')
+  # LC_ALL=C: only ASCII blanks count as blank, the same as the PowerShell twin's [ \t].
+  st=$(printf '%s' "$PERSONA_IDENTITY" | LC_ALL=C grep -v -e '^[[:space:]]*$' -e '^# Identity$')
   if [ -z "$st" ] || [ "$st" = "Who you are. Written once, at your birth." ]; then
     die 1 persona_bad "$id" empty
   fi
@@ -176,6 +185,7 @@ check_visibility() {
 
 verb_new() {
   local id=$1 vis="" mock="" tokfile="" shard=commons base i a clone name url d persona=""
+  local have_persona=""
   local shre='^[a-z][a-z0-9-]{0,30}$' gh players add=player.json
   shift
   while [ $# -gt 0 ]; do
@@ -195,7 +205,8 @@ verb_new() {
         ;;
       --persona-dir)
         [ $# -ge 2 ] || die 2 usage
-        [ -z "$persona" ] || die 1 persona_bad "$id" twice
+        [ -z "$have_persona" ] || die 1 persona_bad "$id" twice
+        have_persona=1
         persona=$2
         shift 2
         ;;
@@ -213,8 +224,8 @@ verb_new() {
   fi
   NEW_TOKEN=""
   [ -z "$tokfile" ] || read_token_file "$tokfile"
+  [ -z "$have_persona" ] || persona_load "$persona" "$id"
   check_visibility "$shard" "$vis" "$mock"
-  [ -z "$persona" ] || persona_load "$persona" "$id"
   url="$base/p/$id"
 
   name="player-$id"
@@ -246,7 +257,7 @@ verb_new() {
   done
 
   write_player_json "$clone/player.json" "$id" "$shard" "$url"
-  if [ -n "$persona" ]; then
+  if [ -n "$have_persona" ]; then
     mkdir -p "$clone/memory"
     printf '%s' "$PERSONA_IDENTITY" > "$clone/memory/identity.md"
     printf '%s' "$PERSONA_GOALS" > "$clone/memory/goals.md"
@@ -272,7 +283,7 @@ verb_new() {
       printf '%s\n' "$NEW_TOKEN" > "$d/token"
     )
   fi
-  if [ -n "$persona" ]; then
+  if [ -n "$have_persona" ]; then
     say created_seeded "$id" "$id"
   else
     say created "$id" "$id"

@@ -204,5 +204,41 @@
     "args": "twice",
     "expect": "persona_bad",
     "reason": "twice"
+  },
+  {
+    "name": "persona-dir given as an empty value",
+    "files": {},
+    "args": "empty-value",
+    "expect": "persona_missing",
+    "reason": ""
+  },
+  {
+    "name": "identity only a no-break space",
+    "files": { "identity": { "text": "# Identity\n \n" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "invisible"
+  },
+  {
+    "name": "identity only an ideographic space",
+    "files": { "identity": { "text": "# Identity\n　\n" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "invisible"
+  },
+  {
+    "name": "identity 20 MB is refused as size at once",
+    "files": { "identity": { "fill": 20971520 } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "size",
+    "maxMs": 30000
+  },
+  {
+    "name": "no --mock, --public or --private",
+    "files": {},
+    "args": "no-mock",
+    "expect": "private_required",
+    "reason": ""
   }
 ]

@@ -173,6 +173,8 @@ function Verb-__finish {
 # play: prepare, session, finish; a leftover running session is finished from its stored START.
 function Verb-play {
   $id = [string]$args[0]
+  # SC-75: a bad GELDAR_DEV_MCP_URL is refused before any lock, state or docker call.
+  [void](Get-DevWorldUrl $id)
   $d = Get-PlayerDir $id
   Lock-Acquire $id
   Assert-NotHeld $id

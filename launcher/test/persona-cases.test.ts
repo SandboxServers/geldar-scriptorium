@@ -31,7 +31,9 @@ describe('persona-cases.json', () => {
   it('uses only the named reasons and expectations', () => {
     const reasons = ['size', 'utf8', 'control', 'invisible', 'link', 'type', 'empty', 'twice'];
     for (const c of personaCases) {
-      expect(['ok', 'persona_missing', 'persona_bad'], c.name).toContain(c.expect);
+      expect(['ok', 'persona_missing', 'persona_bad', 'private_required'], c.name).toContain(
+        c.expect,
+      );
       if (c.reason !== '') expect(reasons, c.name).toContain(c.reason);
     }
   });

@@ -91,12 +91,16 @@ function Invoke-InDir([string]$Dir, [object[]]$Words) {
 # --- persona files (new --persona-dir; owner provisioning only) ---
 
 # Code points the persona refuses as invisible: the set packages/git/src/message.ts strips beyond
-# the controls, plus the tag characters and the variation selectors.
+# the controls, plus the tag characters and the variation selectors, plus the blank-looking
+# characters (no-break and ideographic spaces, invisible operators, filler glyphs) that the bash
+# twin's blank-line test would otherwise count as content.
 function Test-PersonaInvisible([int]$Cp) {
   return (($Cp -ge 0x200B -and $Cp -le 0x200F) -or ($Cp -ge 0x2028 -and $Cp -le 0x202E) -or
     ($Cp -ge 0x2066 -and $Cp -le 0x2069) -or $Cp -eq 0x061C -or $Cp -eq 0xFEFF -or $Cp -eq 0x2060 -or
     $Cp -eq 0x00AD -or ($Cp -ge 0xE0000 -and $Cp -le 0xE007F) -or ($Cp -ge 0xFE00 -and $Cp -le 0xFE0F) -or
-    ($Cp -ge 0xE0100 -and $Cp -le 0xE01EF))
+    ($Cp -ge 0xE0100 -and $Cp -le 0xE01EF) -or $Cp -eq 0x00A0 -or $Cp -eq 0x3000 -or
+    ($Cp -ge 0x2061 -and $Cp -le 0x2064) -or ($Cp -ge 0x206A -and $Cp -le 0x206F) -or
+    $Cp -eq 0x180E -or $Cp -eq 0x3164 -or $Cp -eq 0xFFA0 -or $Cp -eq 0x2800)
 }
 
 # One path component: it must exist ($Kind 'dir' or 'file'), not be a link or reparse point, and
@@ -134,7 +138,8 @@ function Read-PersonaFile([string]$Path, [int]$Max, [bool]$IsIdentity, [string]$
   if ($invisible) { Die 1 persona_bad $Id invisible }
   if ($IsIdentity) {
     # What setup would see: whitespace-only lines and the line "# Identity" dropped.
-    $kept = @($text.Split("`n") | Where-Object { $_.Trim() -ne '' -and $_ -cne '# Identity' })
+    # ASCII blanks only, the same test as the bash twin's grep under LC_ALL=C.
+    $kept = @($text.Split("`n") | Where-Object { $_ -cnotmatch '^[ \t]*$' -and $_ -cne '# Identity' })
     if ($kept.Count -eq 0 -or ($kept -join "`n") -ceq 'Who you are. Written once, at your birth.') {
       Die 1 persona_bad $Id empty
     }
@@ -145,6 +150,7 @@ function Read-PersonaFile([string]$Path, [int]$Max, [bool]$IsIdentity, [string]$
 # Validates the two persona files for $Id under $Dir; returns @(identityBytes, goalsBytes).
 # Nothing is written here and no gh call has happened yet.
 function Read-Persona([string]$Dir, [string]$Id) {
+  if (-not $Dir) { Die 1 persona_missing $Dir $Id }
   $root = Get-Item -LiteralPath $Dir -Force -ErrorAction SilentlyContinue
   if (-not $root) { Die 1 persona_missing $Dir $Id }
   if (-not ($root.Attributes -band [IO.FileAttributes]::Directory)) { Die 1 persona_bad $Id type }
@@ -165,6 +171,7 @@ function Verb-new {
   $tokfile = ''
   $shard = 'commons'
   $persona = ''
+  $havePersona = $false
   $i = 0
   while ($i -lt $more.Count) {
     $a = $more[$i]
@@ -178,7 +185,8 @@ function Verb-new {
         '--token-file' { $tokfile = $more[$i + 1] }
         '--shard' { $shard = $more[$i + 1] }
         '--persona-dir' {
-          if ($persona) { Die 1 persona_bad $id twice }
+          if ($havePersona) { Die 1 persona_bad $id twice }
+          $havePersona = $true
           $persona = $more[$i + 1]
         }
       }
@@ -199,7 +207,7 @@ function Verb-new {
   $token = ''
   if ($tokfile) { $token = Read-TokenFile $tokfile }
   $files = $null
-  if ($persona) { $files = Read-Persona $persona $id }
+  if ($havePersona) { $files = Read-Persona $persona $id }
   $newVis = Get-Visibility $shard $vis $mock
   $url = "$base/p/$id"
 
@@ -234,12 +242,11 @@ function Verb-new {
   Write-PlayerJson (Join-Path $clone 'player.json') $id $shard $url
   $msg = "player: $id"
   $adds = @('player.json')
-  if ($files) {
+  if ($havePersona) {
     # A seeded player is born at new: identity.md is no longer the stub, which is what the unborn check reads.
     [System.IO.File]::WriteAllBytes((Join-Path $clone 'memory/identity.md'), [byte[]]$files[0])
     [System.IO.File]::WriteAllBytes((Join-Path $clone 'memory/goals.md'), [byte[]]$files[1])
     $adds += 'memory/identity.md', 'memory/goals.md'
-    $msg = "player: $id"
   }
   Invoke-Git -C $clone add @adds *> $null
   if ($LASTEXITCODE -ne 0) { Die 1 gh_failed $id 'add' }
@@ -272,5 +279,5 @@ function Verb-new {
   if ($LASTEXITCODE -eq 0 -and $br.Count -ge 1 -and "$($br[0])" -ne '') { $brText = "$($br[0])" }
   [System.IO.File]::WriteAllText((Join-Path $d 'branch'), "$brText`n", $utf8)
   if ($token) { Write-TokenFile (Join-Path $d 'token') $token }
-  if ($files) { Say created_seeded $id $id } else { Say created $id $id }
+  if ($havePersona) { Say created_seeded $id $id } else { Say created $id $id }
 }

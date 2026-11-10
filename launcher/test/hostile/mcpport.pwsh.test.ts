@@ -7,7 +7,7 @@ import { bashPath, git, launchers, makePlayer, makeWorld, repoRoot, run } from '
 import { mcpPortSuite } from '../mcp-port-suite.ts';
 import { expectNoDockerCall, expectRefusal } from './world.ts';
 
-// SC-76d: the pwsh launcher accepts the owner-set world port only (decision 76).
+// SC-76d: the pwsh launcher accepts the owner-set world port only (decision 34).
 
 const pwsh = launchers.find((l) => l.name === 'pwsh');
 const T = 60_000;
@@ -72,6 +72,8 @@ if (pwsh) {
       [URL, BASE, '18443', '18443'],
       ['https://mcp.registry.test/mcp', '', '', '443'],
       ['http://mcp.registry.test/mcp', '', '', '80'],
+      ['https://world.example.com:/p/x', '', '', '443'],
+      ['http://world.test:/p/x', '', '', '80'],
     ] as const)
       it(`a session start for ${url} writes both allowlist files and exports GELDAR_WORLD_PORTS`, {
         timeout: T,
@@ -104,13 +106,25 @@ if (pwsh) {
         expect(existsSync(out)).toBe(true);
       });
 
-    it('fails closed when Get-WorldConf is not defined', () => {
+    it('fails closed when Get-WorldConf is not defined', { timeout: T }, () => {
       const lib = join(repoRoot, 'launcher', 'lib', 'player.ps1').replace(/'/g, "''");
       const sd = share(BASE, '18443').replace(/'/g, "''");
       // Only player.* and a stub common: the reader does not exist.
       const script = `function Get-ShareDir { '${sd}' }; . '${lib}'; if (Test-McpUrl '${URL}') { 'ok' } else { 'no' }`;
       const r = spawnSync('pwsh', ['-NoProfile', '-Command', script], { encoding: 'utf8' });
       expect(r.stdout.split(/\r?\n/).filter(Boolean)).toEqual(['no']);
+    });
+
+    it('the same check passes once Get-WorldConf is defined (positive control)', {
+      timeout: T,
+    }, () => {
+      const lib = join(repoRoot, 'launcher', 'lib', 'player.ps1').replace(/'/g, "''");
+      const sd = share(BASE, '18443').replace(/'/g, "''");
+      // Same setup as the fail-closed case, plus a reader that returns the owner-set world.conf values.
+      const reader = `function Get-WorldConf([string]$Key) { if ($Key -eq 'mcp_port') { '18443' } else { '${BASE}' } }`;
+      const script = `function Get-ShareDir { '${sd}' }; ${reader}; . '${lib}'; if (Test-McpUrl '${URL}') { 'ok' } else { 'no' }`;
+      const r = spawnSync('pwsh', ['-NoProfile', '-Command', script], { encoding: 'utf8' });
+      expect(r.stdout.split(/\r?\n/).filter(Boolean)).toEqual(['ok']);
     });
   });
 }
