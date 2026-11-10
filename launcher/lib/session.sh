@@ -3,17 +3,6 @@
 
 GP_GROUPS="$GP_GROUPS session"
 
-# The directory holding compose/ and proxy/ (decision 4). Never read from a clone.
-share_dir() {
-  if [ -n "${GELDAR_SHARE:-}" ]; then
-    printf '%s' "$GELDAR_SHARE"
-  elif [ -f "$GP_DIR/../image/compose/session.yml" ]; then
-    printf '%s' "$(cd "$GP_DIR/../image" && pwd -P)"
-  else
-    printf '%s' "$GP_DIR/share"
-  fi
-}
-
 # A value for a double-quoted YAML scalar: no quote, backslash or control character; $ doubled.
 yaml_q() {
   case $1 in
@@ -30,17 +19,30 @@ mount_q() {
   yaml_q "$1" || die 1 bad_state_path
 }
 
-# H-08: the host of mcp_url, alone on one line. 0644 in a 0755 directory, because Squid runs
-# without capabilities and cannot read a private file.
+# H-08: the host of mcp_url, alone on one line, and (SC-76) its effective port in
+# allowlist-world-ports.txt. 0644 in a 0755 directory, because Squid runs without capabilities
+# and cannot read a private file.
 write_allowlist() {
-  local sd=$1 url=$2 host
+  local sd=$1 url=$2 host port
   host=${url#*://}
   host=${host%%/*}
+  port=""
+  case $host in
+    *:*) port=${host#*:} ;;
+  esac
   host=${host%%:*}
+  if [ -z "$port" ]; then
+    case $url in
+      http://*) port=80 ;;
+      *) port=443 ;;
+    esac
+  fi
   mkdir -p "$sd"
   chmod 755 "$sd"
   printf '%s\n' "$host" > "$sd/allowlist-world.txt"
   chmod 644 "$sd/allowlist-world.txt"
+  printf '%s\n' "$port" > "$sd/allowlist-world-ports.txt"
+  chmod 644 "$sd/allowlist-world-ports.txt"
 }
 
 # H-06: the override. Absolute host paths only; one read-only bind per kit entry.
@@ -86,7 +88,7 @@ write_override() {
 
 # start_session id mode: needs prepare_session to have run (export/, start, running).
 start_session() {
-  local id=$1 mode=$2 d sd start share ov wl cmd word rc extra tty=-T
+  local id=$1 mode=$2 d sd start share ov wl wp cmd word rc extra tty=-T
   local -a words args files
   case $mode in
     play | setup) ;;
@@ -113,6 +115,7 @@ start_session() {
   done < <(harness_command claude "$mode")
   ov="$sd/override.yml"
   wl="$d/pub/allowlist-world.txt"
+  wp="$d/pub/allowlist-world-ports.txt"
   files=(-f "$share/compose/session.yml" -f "$ov")
   extra=$(gp_env GELDAR_EXTRA_COMPOSE)
   if [ -n "$extra" ]; then
@@ -134,7 +137,7 @@ start_session() {
     fi
     export GELDAR_UID=1000 GELDAR_GID=1000 GELDAR_WORKSPACE="geldar-ws-$id"
     export GELDAR_CLI_HOME="geldar-cli-$id-claude" KIT_IMAGE="$PL_KIT_IMAGE"
-    export GELDAR_WORLD_ALLOWLIST="$wl" GELDAR_MODE="$mode"
+    export GELDAR_WORLD_ALLOWLIST="$wl" GELDAR_WORLD_PORTS="$wp" GELDAR_MODE="$mode"
     docker_cmd compose "${args[@]}" run --rm ${tty:+$tty} --label geldar.role=session \
       session "${words[@]}"
   )
@@ -144,7 +147,7 @@ start_session() {
     unset GELDAR_MCP_TOKEN
     export GELDAR_UID=1000 GELDAR_GID=1000 GELDAR_WORKSPACE="geldar-ws-$id"
     export GELDAR_CLI_HOME="geldar-cli-$id-claude" KIT_IMAGE="$PL_KIT_IMAGE"
-    export GELDAR_WORLD_ALLOWLIST="$wl" GELDAR_MODE="$mode"
+    export GELDAR_WORLD_ALLOWLIST="$wl" GELDAR_WORLD_PORTS="$wp" GELDAR_MODE="$mode"
     docker_cmd compose "${args[@]}" down --remove-orphans > /dev/null 2>&1
   )
   if [ "$rc" -eq 125 ]; then

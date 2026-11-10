@@ -13,23 +13,6 @@ gp_sleep() {
   sleep "$s"
 }
 
-# The value of a key in world.conf (read as data, never sourced).
-world_conf() {
-  local f line
-  f="$(share_dir)/config/world.conf"
-  [ -f "$f" ] || f="$GP_DIR/config/world.conf"
-  while IFS= read -r line || [ -n "$line" ]; do
-    line=${line%$'\r'}
-    case $line in
-      "$1="*)
-        printf '%s' "${line#*=}"
-        return 0
-        ;;
-    esac
-  done < "$f" 2> /dev/null
-  return 0
-}
-
 # A base address: scheme and host only; the host rules are those of valid_mcp_url.
 valid_base_url() {
   local re='^https?://[^/@?# ]+$'
