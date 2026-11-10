@@ -56,6 +56,11 @@ describe('ci.yml', () => {
     expect(text).toContain('sha256sum -c');
   });
 
+  it('scopes a pull request by the diff from the merge base, not the base tip', () => {
+    // A branch cut before main moved on must not inherit the files main changed since.
+    expect(text).toContain('git diff --name-only "$BASE...$HEAD"');
+  });
+
   it('has no expression inside the actionlint run block', () => {
     const start = text.indexOf('actionlint (pinned');
     const end = text.indexOf('template checks');

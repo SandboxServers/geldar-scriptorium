@@ -54,7 +54,7 @@ jobs:
           out="$RUNNER_TEMP/changed.txt"
           : > "$out"
           # An empty list runs every job. A failed diff does too (fail open).
-          if [ "$EVENT" = "pull_request" ] && ! git diff --name-only "$BASE" "$HEAD" > "$out"; then
+          if [ "$EVENT" = "pull_request" ] && ! git diff --name-only "$BASE...$HEAD" > "$out"; then
             : > "$out"
           fi
           node tools/repo-checks/src/ci-scope-cli.ts "$out" | tee -a "$GITHUB_OUTPUT"
