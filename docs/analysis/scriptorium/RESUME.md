@@ -9,7 +9,7 @@ Read this, then [README.md](README.md) (the ledger) and [worknotes/overnight-dec
 **Remaining on wave 7:** SC-71a and SC-71c (ON HOLD by the owner, decision 46), SC-72a to c (acceptance runs; need a published `kit-v*` release candidate, `mcp_base`, `mcp_port`, `private_only_shards`, the Caddy site), SC-70c (numbers from SC-72a/b), SC-73 (campaign review; also takes the wave 6 carry-overs: action pins, key-vault step outputs, `jq` skips, coverage join).
 
 **Next actions**
-1. Nothing is buildable without the owner. When the owner provides the inputs above, run SC-72a and SC-72b (clean machines, only the README), then SC-72c, SC-70c, SC-73.
+1. Nothing is buildable without the owner. The clean-machine requirement is dropped (decision 49): SC-72a/b run on a dev machine and testers give feedback. When the owner provides the inputs above, run SC-72a and SC-72b (clean machines, only the README), then SC-72c, SC-70c, SC-73.
 2. Small CI follow-up: rebalance shard `launcher-a` (about 9 min) using per-file timings from the next green run.
 3. At campaign end: full campaign retro (owner instruction), final RESUME rewrite, cleanup of Docker scratch images and leftover worktree folders (remove `node_modules` links first).
 

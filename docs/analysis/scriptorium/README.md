@@ -15,7 +15,7 @@
 
 **Exit (system acceptance):**
 
-1. On a clean Windows machine and a clean Linux machine with only the prerequisites (D-SC-09), a person following only the template README:
+1. On a Windows and a Linux machine with the prerequisites (D-SC-09; a clean machine is not required, decision 49, and tester feedback covers the README-only claim), a person following only the template README:
    - installs and verifies the launcher;
    - runs `geldar-play new`, `setup` and `play`;
    - ends with a player repo on GitHub that has a birth commit and **three reflect/commit cycles**, played against the mock world.
@@ -168,8 +168,8 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-71b | 7 | S | Skills generator for `.agents/skills`, not wired into the template | packet-coder (Haiku) | Done | wave 6 |
 | SC-71c | 7 | S | Codex ships: image, template config, launcher `--cli codex`, live proof (scope only, re-sliced when ungated) | packet-coder | BlockedDecision | SC-71a, SC-71b, owner calls C1, C3 |
 | SC-72 | 7 | S | Acceptance runs on Windows and Linux and the six first players: umbrella for SC-72a to SC-72c (procedure and owner inputs: [work-packets-wave7b.md](work-packets-wave7b.md)) | - | BlockedDependency (done when SC-72c is) | SC-72a to SC-72c |
-| SC-72a | 7 | S | Acceptance on a clean Windows machine against the mock world; measure Haiku-low turns | owner + main session | BlockedDependency | SC-70b, SC-70d, SC-76b, SC-76d |
-| SC-72b | 7 | S | Acceptance on a clean Linux machine against the mock world; measure Haiku-low turns | owner + main session | BlockedDependency | SC-70b, SC-70d, SC-76b, SC-76c |
+| SC-72a | 7 | S | Acceptance on a Windows machine against the mock world; measure Haiku-low turns | owner + main session | BlockedDependency | SC-70b, SC-70d, SC-76b, SC-76d |
+| SC-72b | 7 | S | Acceptance on a Linux machine against the mock world; measure Haiku-low turns | owner + main session | BlockedDependency | SC-70b, SC-70d, SC-76b, SC-76c |
 | SC-72c | 7 | S | The six first players, one at a time, local world first, then the public name; owner inputs: mcp_base and mcp_port (set before the first `new`), private_only_shards | owner + main session | BlockedDependency | SC-72a, SC-72b, SC-74c, SC-75c |
 | SC-73 | 7 | S | Campaign review | packet-reviewer | BlockedDependency | SC-72c, SC-70c, SC-77a, SC-77b |
 | SC-74 | 7 | S | `geldar-play new --persona-dir <dir>`: umbrella for SC-74a to SC-74c (owner provisioning tool for the six Rangers only, owner answer P1 2026-11-10; owner requirement relayed by geldar 2026-11-09: six Power Rangers; cards: [work-packets-wave7.md](work-packets-wave7.md)) | - | Done | SC-74a to SC-74c |
