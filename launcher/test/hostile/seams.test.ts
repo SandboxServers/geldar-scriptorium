@@ -93,7 +93,7 @@ describe.each(forGroup('hostile'))(
         GELDAR_EXTRA_COMPOSE: extra,
         GELDAR_STUB_X: '1',
       });
-      const libs = ['player', 'session'];
+      const libs = ['player', 'devworld', 'session'];
       const dot = (n: string) => `. '${bashPath(join(launcherDir, 'lib', `${n}.sh`))}'`;
       const dotPs = (n: string) => `. (Join-Path $GP_DIR 'lib/${n}.ps1')`;
       const r = runLib(

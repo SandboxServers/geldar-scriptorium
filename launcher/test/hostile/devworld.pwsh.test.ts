@@ -46,6 +46,10 @@ if (pwsh) {
       const p = makePlayer(w, { id: 'abc' });
       writeFileSync(join(p.clone, 'dev-world'), `${url('abc')}\n`);
       writeFileSync(join(p.clone, 'notes.txt'), `GELDAR_DEV_MCP_URL=${url('abc')}\n`);
+      const gitEnv = { GIT_CONFIG_GLOBAL: join(w.root, 'gitconfig') };
+      git(p.clone, ['add', '-A'], gitEnv);
+      git(p.clone, ['commit', '-m', 'decoys'], gitEnv);
+      git(p.clone, ['push', 'origin', 'main'], gitEnv);
       const r = start(w, 'abc', {});
       expect(r.status, r.stderr).toBe(0);
       expect(r.stderr).not.toContain('dev_world');
