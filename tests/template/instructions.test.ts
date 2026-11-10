@@ -99,3 +99,20 @@ describe('instructions source', () => {
     ]);
   });
 });
+
+// Geldar rules 0058 and 0059: no prompt may tell a player that a human runs or watches it.
+// The setup skill is the birth interview with a person and is not loaded for persona players.
+describe('in-world wording', () => {
+  for (const file of [
+    'template-src/instructions.md',
+    'template/CLAUDE.md',
+    'template/AGENTS.md',
+    'template/.claude/skills/play/SKILL.md',
+    'template/.claude/skills/reflect/SKILL.md',
+  ]) {
+    it(`${file} does not mention a human, a person running the session or a terminal`, () => {
+      const text = readFileSync(path.join(repoRoot, file), 'utf8');
+      expect(text).not.toMatch(/\bhuman\b|a person runs|\bterminal\b/i);
+    });
+  }
+});
