@@ -110,12 +110,17 @@ export function devWorldSuite(launcher: Launcher): void {
         const env = envFor(launcher, w, { ...probe.env, GELDAR_DEV_MCP_URL: value });
         const prep = run(launcher, ['__prepare', p.id, 'play'], { env, timeoutMs: 120_000 });
         expect(prep.status, prep.stderr).toBe(0);
+        // Prepare makes its own docker calls; only those after it count against the refusal.
+        const prepared = w.calls().length;
         const r = run(launcher, ['__session', p.id, 'play'], { env, timeoutMs: 120_000 });
         const pub = join(p.stateDir, 'pub');
         if (c.ok) {
           expect(r.status, r.stderr).toBe(0);
           const got = probe.read();
-          expect(got.env).toContain(`GELDAR_MCP_URL=${value}\n`);
+          // The fake docker does not turn the override's environment into the session's, so the
+          // value is read from the launcher-written override.yml.
+          const override = text(join(p.stateDir, 'session', 'override.yml'));
+          expect(override).toContain(`GELDAR_MCP_URL: "${value}"\n`);
           expect(got.host).toBe('host.docker.internal\n');
           expect(got.ports).toBe(`${/:(\d+)\//.exec(value)?.[1]}\n`);
           for (const piece of messagePieces('dev_world_active')) {
@@ -124,7 +129,7 @@ export function devWorldSuite(launcher: Launcher): void {
           expect(r.stderr).toContain(value);
         } else {
           expectRefusal(r, 'dev_world_bad', { status: 1 });
-          expectNoDockerCall(w);
+          expectNoDockerCall({ ...w, calls: () => w.calls().slice(prepared) });
           expect(existsSync(join(pub, 'allowlist-world.txt'))).toBe(false);
           expect(existsSync(join(pub, 'allowlist-world-ports.txt'))).toBe(false);
         }

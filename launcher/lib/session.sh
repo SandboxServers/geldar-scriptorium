@@ -3,6 +3,10 @@
 
 GP_GROUPS="$GP_GROUPS session"
 
+# SC-75: start_session needs dev_world_url, also when only player.sh and session.sh are sourced.
+# shellcheck disable=SC1091
+. "$(dirname "${BASH_SOURCE[0]}")/devworld.sh"
+
 # A value for a double-quoted YAML scalar: no quote, backslash or control character; $ doubled.
 yaml_q() {
   case $1 in
@@ -47,7 +51,7 @@ write_allowlist() {
 
 # H-06: the override. Absolute host paths only; one read-only bind per kit entry.
 write_override() {
-  local id=$1 sd=$2 mcp=$3 f="$sd/override.yml" entry name v
+  local id=$1 sd=$2 mcp=$3 dev=${4-} f="$sd/override.yml" entry name v
   [ -d "$sd/export" ] || die 1 no_such_player "$id" "$id"
   (
     {
@@ -80,6 +84,9 @@ write_override() {
         printf '      %s:\n' "$name"
       done
     fi
+    if [ -n "$dev" ]; then
+      printf '  proxy:\n    extra_hosts:\n      - "host.docker.internal:host-gateway"\n'
+    fi
     printf 'volumes:\n  geldar_ws:\n    external: true\n    name: "geldar-ws-%s"\n' "$id"
     printf '  geldar_cli:\n    external: true\n    name: "geldar-cli-%s-claude"\n' "$id"
   } >> "$f.new"
@@ -88,7 +95,7 @@ write_override() {
 
 # start_session id mode: needs prepare_session to have run (export/, start, running).
 start_session() {
-  local id=$1 mode=$2 d sd start share ov wl wp cmd word rc extra tty=-T
+  local id=$1 mode=$2 d sd start share ov wl wp cmd word rc extra dev tty=-T
   local -a words args files
   case $mode in
     play | setup) ;;
@@ -103,11 +110,19 @@ start_session() {
   esac
   share=$(share_dir)
 
+  # SC-75: a set GELDAR_DEV_MCP_URL replaces the URL for this launch only. It goes straight to the
+  # allowlist writer and the override; it is never passed through valid_mcp_url.
+  dev=$(dev_world_url "$id") || die 1 dev_world_bad "$id"
+  if [ -n "$dev" ]; then
+    say dev_world_active "$dev"
+    PL_MCP_URL=$dev
+  fi
+
   private_mkdir "$sd"
   write_allowlist "$d/pub" "$PL_MCP_URL"
   docker_cmd volume create "geldar-cli-$id-claude" > /dev/null 2>&1 ||
     die 1 workspace_failed "$id" 'the CLI volume could not be created'
-  write_override "$id" "$sd" "$PL_MCP_URL"
+  write_override "$id" "$sd" "$PL_MCP_URL" "$dev"
 
   words=()
   while IFS= read -r word; do
@@ -130,7 +145,7 @@ start_session() {
   say session_start "$(printf '%s' "$PL_NAME" | sanitize)"
   (
     unset GH_TOKEN GITHUB_TOKEN ANTHROPIC_API_KEY
-    unset GELDAR_MCP_TOKEN
+    unset GELDAR_MCP_TOKEN GELDAR_DEV_MCP_URL
     if [ -f "$d/token" ]; then
       IFS= read -r GELDAR_MCP_TOKEN < "$d/token" || true
       export GELDAR_MCP_TOKEN
@@ -144,7 +159,7 @@ start_session() {
   rc=$?
   printf '%s\n' "$rc" > "$sd/exit"
   (
-    unset GELDAR_MCP_TOKEN
+    unset GELDAR_MCP_TOKEN GELDAR_DEV_MCP_URL
     export GELDAR_UID=1000 GELDAR_GID=1000 GELDAR_WORKSPACE="geldar-ws-$id"
     export GELDAR_CLI_HOME="geldar-cli-$id-claude" KIT_IMAGE="$PL_KIT_IMAGE"
     export GELDAR_WORLD_ALLOWLIST="$wl" GELDAR_WORLD_PORTS="$wp" GELDAR_MODE="$mode"

@@ -43,6 +43,10 @@ verb_play_many() {
     seen="$seen$id "
     n=$((n + 1))
   done
+  # SC-75: one dev URL names one player's world.
+  if [ "$n" -ge 2 ] && [ -n "${GELDAR_DEV_MCP_URL-}" ]; then
+    die 1 dev_world_single
+  fi
   tmux=$(multi_tmux) || die 1 missing_tool tmux "$(tool_hint tmux)"
   [ "$n" -le 3 ] || say many_players
   if [ -n "${TMUX:-}" ]; then
