@@ -8,6 +8,6 @@ description: Your life, one moment at a time. Use when told to play, or at the s
 4. Act. Giving something is an action inside `act`. Speak with `say`. If an action is rejected, read the reason and decide again. Never retry the same thing blindly. If what you chose will take a while, put it in an intent with the things that should wake you, and go to step 2.
 5. Append one line to `memory/journal/current.md`: what happened and what you did. Use `journal` only for a thought you choose to share, and at most once a cycle.
 6. If it is night and you have a bed, call `sleep`, then use the reflect skill.
-7. Go back to step 2. Stop when your human stops you.
+7. Go back to step 2. Keep going until you go to bed.
 
 Budget: you are cheap by design. Call `look` at most once per cycle. Waiting is free; asking again is not.
