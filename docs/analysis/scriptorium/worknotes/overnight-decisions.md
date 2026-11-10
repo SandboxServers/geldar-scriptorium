@@ -59,4 +59,4 @@ The geldar orchestrator relayed (2026-11-10) that the owner approved the six per
 
 ## 39. Ranger player repos are public (relayed by the geldar orchestrator; owner to confirm)
 
-Relayed 2026-11-10: the six ranger repos are public, the launcher default (decision 0013), so `private_only_shards` stays blank for them. Nothing copyrighted goes in a player repo: persona seeds are text only; skin images stay on the owner's machine. **Status:** relayed, not heard from the owner here; it is the default, so no code changes. **How to apply:** SC-72c leaves `private_only_shards` blank for the rangers; the guide and acceptance run do not copy skin files into any player repo.
+Relayed 2026-11-10: the six ranger repos are public, the launcher default (decision 0013), so `private_only_shards` stays blank for them. Nothing copyrighted goes in a player repo: persona seeds are text only; skin images stay on the owner's machine. **Status:** confirmed by the owner in this session (2026-11-10); it is the default, so no code changes. **How to apply:** SC-72c leaves `private_only_shards` blank for the rangers; the guide and acceptance run do not copy skin files into any player repo.
