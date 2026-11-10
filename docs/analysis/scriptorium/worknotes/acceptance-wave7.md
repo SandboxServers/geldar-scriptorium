@@ -12,5 +12,6 @@ Done by the main session on the owner's Windows PC, not a clean machine (decisio
 Findings:
 
 1. **fix (next release):** `--version` prints `0.1.0`, not `0.1.0-rc2`. A Patron cannot tell a candidate from the final release. The README tells them to run `geldar-play --version` to check the install.
+2. **fix (next release):** the template README and `docs/onboarding.md` never say that the player's Claude Code needs a login. The launcher unsets `ANTHROPIC_API_KEY` and passes no token, and keeps the CLI's login in the per-player volume `geldar-cli-<id>-claude`, so the first `setup` must be an interactive login by the Patron. A Patron following only the README would not know to expect it, what it grants (their own Claude subscription, inside the player's container) or how to revoke it. Needs a README step and a troubleshooting entry. Not verified by a run; read from `launcher/lib/session.sh`.
 
-Not done, and why: SC-72a/b need the mock world, a GitHub repo created by `new`, and Claude subscription use for `play`. Those are owner-run (D6). SC-72c needs the geldar token files and persona export.
+Not done, and why: SC-72a/b need the mock world, a GitHub repo created by `new`, and an interactive Claude login in the player's container for `setup` and `play`. The login is a consent on the owner's own account and needs a terminal session, so the main session did not do it (decision 51). Those are owner-run (D6). SC-72c needs the geldar token files and persona export.
