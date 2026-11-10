@@ -103,3 +103,9 @@ Recorded 2026-11-10. **Status:** CHOSEN (owner: "D1 is fine as you suggest"). Th
 - CHOSEN (owner said "Do it", use az cli): updated the credential's matching expression through Graph to the ID form, keeping the `kit-v*` tag limit and the `repository_id` and `repository_owner_id` checks. No widening. The Azure portal needed MFA, so I did not use it.
 - rc2 (run 42857452454): all jobs passed. GHCR `sandboxservers/geldar-kit` is public (anonymous pull token works), tags 0.1.0-rc1 and 0.1.0-rc2; release assets signed; template published.
 - Note: the rc1 image also exists in GHCR from the failed run. Tag rc1 is spent.
+
+## 49. No clean-machine requirement for acceptance
+
+- Owner: drop the clean Windows and clean Linux machine requirement. Testers will report problems if the install does not work for them.
+- CHOSEN: exit item 1 (README line 18) and SC-72a/b are met by a run on a development machine plus tester feedback. The README-only claim is no longer proven by us; testers' reports are the evidence. Known risk: a hidden dependency on a developer machine (tools, `gh` scopes, a warm image cache, our own knowledge) passes here and fails for a new Patron. Fix cards from tester feedback go to the orchestrator as before.
+- Not changed: the real-world runs (SC-72c) still need the owner's tokens, personas and the production network (D5, D6).
