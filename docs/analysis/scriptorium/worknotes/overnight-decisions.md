@@ -103,3 +103,11 @@ Recorded 2026-11-10. **Status:** CHOSEN (owner: "D1 is fine as you suggest"). Th
 - CHOSEN (owner said "Do it", use az cli): updated the credential's matching expression through Graph to the ID form, keeping the `kit-v*` tag limit and the `repository_id` and `repository_owner_id` checks. No widening. The Azure portal needed MFA, so I did not use it.
 - rc2 (run 42857452454): all jobs passed. GHCR `sandboxservers/geldar-kit` is public (anonymous pull token works), tags 0.1.0-rc1 and 0.1.0-rc2; release assets signed; template published.
 - Note: the rc1 image also exists in GHCR from the failed run. Tag rc1 is spent.
+
+## 50. Real-world wiring on node5 (placeholder only)
+
+- Owner: "Do the wiring we need for the real world. Put it in the Colo ... use node5." The Colo host is `node5`; its Caddy is the `board-proxy` container (host network, admin API off).
+- geldar-0a (a peer, not the owner): no MCP upstream exists (it has only run on the owner's dev desktop on loopback), and it is not safe to expose yet (open NATS access for the MCP, empty `trusted_proxies`, per-address connection caps). It asked that nothing point at a guessed host. The owner is deciding the topology.
+- CHOSEN: add only a placeholder site `geldar.sandboxservers.games:18443` that answers a static 503, so the certificate and the forward can be proved. Backed up the Caddyfile (`Caddyfile.bak-<timestamp>` beside it), validated with `caddy validate` in a one-off container, restarted `board-proxy` (about 20 s; `board.cimmeria.app` and `play.cimmeria.app` checked after). The certificate was issued by the HTTP challenge. Nothing proxies to any MCP.
+- FOUND: the UniFi 18443 forward matches the WAN interface's address set and works on the primary WAN address only; `geldar.sandboxservers.games` resolves to a different WAN address, where it times out from outside. OPEN (owner, in the UniFi UI): make the 18443 rule match the address the name uses. I did not change the gateway.
+- OPEN: when the owner picks the topology, replace the 503 with the proxy and set the MCP's `trusted_proxies` to Caddy's address (geldar-0a's finding b).
