@@ -9,7 +9,16 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(here, '../..');
 
 // Case-sensitive words that must not appear in any file under template/.
-export const forbidden = ['scriptorium', 'packet', 'SC-', 'CI', 'pnpm', 'geldar.ps1'];
+export const forbidden = [
+  'scriptorium',
+  'packet',
+  'SC-',
+  'CI',
+  'pnpm',
+  'geldar.ps1',
+  'template-src',
+  'Do not edit',
+];
 
 // Every file under dir, as forward-slash paths relative to dir.
 function listFiles(dir: string, prefix = ''): string[] {
