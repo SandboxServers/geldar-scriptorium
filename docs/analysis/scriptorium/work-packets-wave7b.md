@@ -77,7 +77,7 @@ Parts, each a packet or two once ungated, none before C1 and C3 and the shape ca
 
 ## SC-72: acceptance runs (owner and main session; no coder)
 
-**Goal.** Run the exit criteria of [README.md](README.md) on a clean Windows machine and a clean Linux machine, then run the six first players, and record the numbers. A run uses only what a Patron has: the prerequisites (D-SC-09) and the template README.
+**Goal.** Run the exit criteria of [README.md](README.md) on a Windows and a Linux machine (a clean machine is no longer required, decision 49; tester feedback covers the README-only claim), then run the six first players, and record the numbers. A run uses only what a Patron has: the prerequisites (D-SC-09) and the template README.
 
 ### SC-72a: Windows and SC-72b: Linux, against the mock world
 

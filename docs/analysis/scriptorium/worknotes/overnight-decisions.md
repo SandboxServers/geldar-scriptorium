@@ -104,6 +104,12 @@ Recorded 2026-11-10. **Status:** CHOSEN (owner: "D1 is fine as you suggest"). Th
 - rc2 (run 42857452454): all jobs passed. GHCR `sandboxservers/geldar-kit` is public (anonymous pull token works), tags 0.1.0-rc1 and 0.1.0-rc2; release assets signed; template published.
 - Note: the rc1 image also exists in GHCR from the failed run. Tag rc1 is spent.
 
+## 49. No clean-machine requirement for acceptance
+
+- Owner: drop the clean Windows and clean Linux machine requirement. Testers will report problems if the install does not work for them.
+- CHOSEN: exit item 1 (README line 18) and SC-72a/b are met by a run on a development machine plus tester feedback. The README-only claim is no longer proven by us; testers' reports are the evidence. Known risk: a hidden dependency on a developer machine (tools, `gh` scopes, a warm image cache, our own knowledge) passes here and fails for a new Patron. Fix cards from tester feedback go to the orchestrator as before.
+- Not changed: the real-world runs (SC-72c) still need the owner's tokens, personas and the production network (D5, D6).
+
 ## 50. Real-world wiring on node5 (placeholder only)
 
 - Owner: "Do the wiring we need for the real world. Put it in the Colo ... use node5." The Colo host is `node5`; its Caddy is the `board-proxy` container (host network, admin API off).
