@@ -96,3 +96,8 @@ Recorded 2026-11-10. **Status:** CHOSEN (owner: "D1 is fine as you suggest"). Th
 ## 47. The release candidate (owner, 2026-11-10)
 
 **Status:** CHOSEN. The owner asked the main session to do the release candidate. Plan: decision 11 option A, the tag `kit-v0.1.0-rc1` on `main` after the world-conf change merges (the values ship inside the launcher archive). The first run is expected to stop at the anonymous-pull check until an org admin makes the `geldar-kit` package public (decision 5) and may also stop at missing infra; the tag ruleset (decision 10) is still an owner action. A tag is never re-run: a failure is fixed on `main` and `-rc2` is tagged.
+
+## 48. RC1 outcome (kit-v0.1.0-rc1)
+
+- Run 42848540779: build, sign, scan, launcher, launcher-sign passed. Template publish failed at Azure login (AADSTS7002131): no federated credential trusts this repo's `kit-v*` tag runs.
+- Chosen: do not widen Azure trust without the owner. OPEN: owner adds the credential (issuer token.actions.githubusercontent.com, audience api://AzureADTokenExchange, subject for the tag or a flexible expression for `kit-v*`), then tag `-rc2`. A tag is never re-run.
