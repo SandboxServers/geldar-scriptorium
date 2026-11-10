@@ -80,3 +80,7 @@ Recorded 2026-11-09. Three items.
 1. **Persona byte caps.** The launcher keeps 8192 bytes for `identity.md` and 4096 bytes for `goals.md`. Geldar had proposed 2000 characters. **Status:** CHOSEN, 2026-11-09. The owner said: "use the less restrictive limits on persona files and not to artificially limit the effectiveness of agent players." **How to apply:** the launcher keeps 8192 and 4096; geldar matches the launcher, not the reverse.
 2. **Template wording against decision 40.** Does the template's "Your human", "terminal" and "Geldar tools" wording violate decision 40? **Status:** OPEN. The template's older "Your human" section is an owner question; SC-78 does not change it.
 3. **Hard links in `--persona-dir`.** Should `--persona-dir` refuse hard links? Not detected today. **Status:** OPEN. Owner or geldar call.
+
+## 44. D1: how the launcher is distributed and how the guide points to it
+
+Recorded 2026-11-10. **Status:** CHOSEN (owner: "D1 is fine as you suggest"). The launcher archive is attached to a release of `geldar-player-template`; the Patron guide points to that release page and never names this repo. Unblocks SC-70a. Also noted from geldar (2026-11-10): the 600-character single-line cap in geldar's `checkIdentity` applies to its Ollama prompt, not to sovereign players; geldar's decision 0060 will confirm nothing in the MCP path renders `personality_seed` into that prompt. Until `player add` exists the launcher's 8192/4096 are the only enforced limits.
