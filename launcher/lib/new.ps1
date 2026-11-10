@@ -163,6 +163,18 @@ function Read-Persona([string]$Dir, [string]$Id) {
   return , @($ident, $goals)
 }
 
+# Ends new after GitHub made the repository: removes the local clone, then prints the message and the
+# recovery line. Arguments: clone folder, player id, then the message key and its arguments.
+function Die-AfterCreate {
+  $clone = [string]$args[0]
+  $id = [string]$args[1]
+  $rest = @($args | Select-Object -Skip 2)
+  Remove-Item -LiteralPath $clone -Recurse -Force -ErrorAction SilentlyContinue
+  Say @rest
+  Say repo_on_github $id
+  exit 1
+}
+
 function Verb-new {
   $id = [string]$args[0]
   $more = @($args | Select-Object -Skip 1 | ForEach-Object { [string]$_ })
@@ -233,9 +245,15 @@ function Verb-new {
     $n++
     $oldMask = Set-Umask 0x12 # the human's clone keeps the user's normal modes
     try { $ok = (Invoke-InDir $players @($gh, 'repo', 'clone', $name)) -eq 0 } finally { [void](Set-Umask $oldMask) }
-    if ($ok -and (Test-Path -LiteralPath (Join-Path $clone '.git'))) { break }
+    # A clone counts only if it has a commit: GitHub can fill the template after repo create returns.
+    if ($ok) { $ok = Test-Path -LiteralPath (Join-Path $clone '.git') }
+    if ($ok) {
+      Invoke-Git -C $clone rev-parse --verify -q HEAD *> $null
+      $ok = ($LASTEXITCODE -eq 0)
+    }
+    if ($ok) { break }
     Remove-Item -LiteralPath $clone -Recurse -Force -ErrorAction SilentlyContinue
-    if ($n -ge 5) { Die 1 clone_timeout $id }
+    if ($n -ge 5) { Die-AfterCreate $clone $id clone_timeout $id }
     Invoke-GpSleep 3
   }
 
@@ -249,7 +267,7 @@ function Verb-new {
     $adds += 'memory/identity.md', 'memory/goals.md'
   }
   Invoke-Git -C $clone add @adds *> $null
-  if ($LASTEXITCODE -ne 0) { Die 1 gh_failed $id 'add' }
+  if ($LASTEXITCODE -ne 0) { Die-AfterCreate $clone $id gh_failed $id 'add' }
   $email = "player-$id@users.noreply.github.com"
   $saved = @{}
   foreach ($k in 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL') {
@@ -266,9 +284,9 @@ function Verb-new {
   } finally {
     foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) }
   }
-  if ($rc -ne 0) { Die 1 gh_failed $id 'commit' }
+  if ($rc -ne 0) { Die-AfterCreate $clone $id gh_failed $id 'commit' }
   $words = Get-GitWords -C $clone push -q origin HEAD
-  if ((Invoke-BoundedQuiet 120 @words) -ne 0) { Die 1 gh_failed $id 'push' }
+  if ((Invoke-BoundedQuiet 120 @words) -ne 0) { Die-AfterCreate $clone $id gh_failed $id 'push' }
 
   New-PrivateDir (Get-StateDir)
   New-PrivateDir $d

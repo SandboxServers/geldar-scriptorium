@@ -183,6 +183,17 @@ check_visibility() {
   [ "$vis" != "private" ] || NEW_VIS=private
 }
 
+# Ends new after GitHub made the repository: removes the local clone, then prints the message and the
+# recovery line. Arguments: clone folder, player id, then the message key and its arguments.
+die_after_create() {
+  local clone=$1 id=$2
+  shift 2
+  rm -rf "$clone"
+  say "$@"
+  say repo_on_github "$id"
+  exit 1
+}
+
 verb_new() {
   local id=$1 vis="" mock="" tokfile="" shard=commons base i a clone name url d persona=""
   local have_persona=""
@@ -247,12 +258,13 @@ verb_new() {
   i=0
   while :; do
     i=$((i + 1))
+    # A clone counts only if it has a commit: GitHub can fill the template after repo create returns.
     if (cd "$players" && run_bounded 120 "$gh" repo clone "$name") > /dev/null 2>&1 &&
-      [ -d "$clone/.git" ]; then
+      [ -d "$clone/.git" ] && git_cmd -C "$clone" rev-parse --verify -q HEAD > /dev/null 2>&1; then
       break
     fi
     rm -rf "$clone"
-    [ "$i" -lt 5 ] || die 1 clone_timeout "$id"
+    [ "$i" -lt 5 ] || die_after_create "$clone" "$id" clone_timeout "$id"
     gp_sleep 3
   done
 
@@ -264,14 +276,15 @@ verb_new() {
     add="player.json memory/identity.md memory/goals.md"
   fi
   # shellcheck disable=SC2086
-  git_cmd -C "$clone" add $add > /dev/null 2>&1 || die 1 gh_failed "$id" 'add'
+  git_cmd -C "$clone" add $add > /dev/null 2>&1 ||
+    die_after_create "$clone" "$id" gh_failed "$id" 'add'
   a="player-$id@users.noreply.github.com"
   GIT_AUTHOR_NAME=$name GIT_AUTHOR_EMAIL=$a GIT_COMMITTER_NAME=$name GIT_COMMITTER_EMAIL=$a \
     git_cmd -C "$clone" -c "user.name=$name" -c "user.email=$a" -c commit.gpgsign=false \
     -c tag.gpgsign=false commit -q -m "player: $id" > /dev/null 2>&1 ||
-    die 1 gh_failed "$id" 'commit'
+    die_after_create "$clone" "$id" gh_failed "$id" 'commit'
   run_bounded 120 git_cmd -C "$clone" push -q origin HEAD > /dev/null 2>&1 ||
-    die 1 gh_failed "$id" 'push'
+    die_after_create "$clone" "$id" gh_failed "$id" 'push'
 
   umask 077
   private_mkdir "$d"

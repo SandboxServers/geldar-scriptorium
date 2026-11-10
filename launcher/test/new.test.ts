@@ -244,6 +244,38 @@ describe.each(forGroup('new'))('new ($name)', (l) => {
     expect(s.ghCalls().filter((c) => c[1] === 'clone').length).toBe(2);
   });
 
+  it('7c. an empty clone is not accepted: a repository empty twice, then populated, succeeds', () => {
+    const s = setupWorld();
+    const r = newRun(l, s, [ID, '--mock', MOCK], { FAKE_GH_CLONE_EMPTY: '2' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(s.ghCalls().filter((c) => c[1] === 'clone').length).toBe(3);
+    const pj = JSON.parse(readFileSync(join(clonePath(s), 'player.json'), 'utf8'));
+    expect(pj.player_id).toBe(ID);
+    expect(git(clonePath(s), ['log', '--format=%s'])).toContain(`player: ${ID}`);
+  });
+
+  it('7d. a repository empty on every try ends clone_timeout, with the recovery line', () => {
+    const s = setupWorld();
+    const r = newRun(l, s, [ID, '--mock', MOCK], { FAKE_GH_CLONE_EMPTY: '99' });
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toContain('did not finish making the repository');
+    expect(r.stderr).toContain(`player-${ID} was already made on GitHub`);
+    expect(s.ghCalls().filter((c) => c[1] === 'clone').length).toBe(5);
+    expect(existsSync(clonePath(s))).toBe(false);
+    expect(existsSync(join(s.w.state, ID))).toBe(false);
+  });
+
+  it('7e. a push refused after the repository exists leaves no local leftovers', () => {
+    const s = setupWorld();
+    const r = newRun(l, s, [ID, '--mock', MOCK], { FAKE_GH_REJECT_PUSH: '1' });
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toContain('for abc (push). Nothing was kept on this machine.');
+    expect(r.stderr).toContain(`player-${ID} was already made on GitHub`);
+    expect(existsSync(clonePath(s))).toBe(false);
+    expect(existsSync(join(s.w.state, ID))).toBe(false);
+    expect(existsSync(join(s.ghRoot, `player-${ID}.git`))).toBe(true);
+  });
+
   timingIt('7b. five failed clones end clone_timeout, bounded', () => {
     const s = setupWorld();
     const t0 = Date.now();

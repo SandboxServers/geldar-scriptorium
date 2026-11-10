@@ -3,8 +3,9 @@ private_list_unset	The list of private-only shards is not set, so it cannot be c
 private_required	The shard %s needs a private repository. Use --private. (A public repository needs an explicit --public.)
 public_notice	This player's repository is public, including its memory.
 repo_exists	A player named %s already exists on this machine. Nothing was created.
-gh_failed	GitHub did not create the repository for %s (%s). Nothing was kept.
+gh_failed	GitHub did not create the repository for %s (%s). Nothing was kept on this machine.
 clone_timeout	GitHub did not finish making the repository for %s in time. Try again later.
+repo_on_github	The repository player-%s was already made on GitHub, and its folder on this machine was removed. Delete that repository on GitHub before you run new again.
 created	Created %s. Next: geldar-play setup %s
 bad_shard	The shard name is not allowed. Use lowercase letters, digits and dashes.
 bad_url	The world address is not allowed. Use http or https and a host name only.
