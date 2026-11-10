@@ -14,8 +14,11 @@ The digest must stay equal to the one in `image/Dockerfile`. A test in `tools/re
 
 - `launcher/test/upgrade.bash.test.ts`
 - `launcher/test/hostile/collision.bash.test.ts`
+- `launcher/test/hostile/devworld.bash.test.ts`
+- `launcher/test/hostile/mcpport.bash.test.ts`
 - `launcher/test/hostile/mcpurl.bash.test.ts`
 - `launcher/test/hostile/statedir.bash.test.ts`
+- `launcher/test/persona.bash.test.ts`
 - `tests/hostile/h18-hooks.test.ts` (needs `bash` and `jq`)
 
 The bash twins are the `*.bash.test.ts` files. Each one skips on Windows with a visible reason.

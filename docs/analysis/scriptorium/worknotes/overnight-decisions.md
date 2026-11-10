@@ -64,3 +64,19 @@ Relayed 2026-11-10: the six ranger repos are public, the launcher default (decis
 ## 40. Knowledge-boundary and audience rules for the player prompt (relayed by the geldar orchestrator)
 
 Relayed 2026-11-10 from geldar decisions 0058 and 0059 (owner rules): no prompt, seed or tool text may tell a player that humans watch (`identity_mode: watched` only means humans may observe); players know only what they have seen, tried or been told in the world, and no meta terms (game, wiki, prompt, model and the like). Text to carry in the template: "You know only what you have seen, tried, or been told by people here. You do not know how this world works beyond that: you have no recipes, maps, secrets or numbers in your head until you find them out. When you learn something, it is because it happened to you or someone told you." Plus: at night find a bed and sleep in it; with no current intent, choose one now rather than repeating a greeting. **Status:** the template today carries none of this and names no audience (checked by search); owner approval of the template wording is a geldar decision already made, but the change itself is a new packet, SC-78. **How to apply:** SC-78 edits `template/AGENTS.md` under the voice rule (geldar 0014) with a template test that fails when the lines or an audience word appear or vanish.
+
+## 41. Wave 7 review outcome and the fix10 pass
+
+Recorded 2026-11-09 by the main session. **Status:** CHOSEN. The security review of wave 7 says ship: no blockers. The spec review says fix: its non-blocking items are fixed in the fix10 pass (branch `scriptorium/fix10-tools` and siblings), not deferred. **How to apply:** wave 7 merges into `scriptorium/wave7` after the fix10 branches merge and the wave gate passes (CI plus `merge-packet --no-check`); nothing else waits on this.
+
+## 42. SC-73: the host in `player.json` is bound to `mcp_base` only on non-default ports
+
+Recorded 2026-11-09 for SC-73 (the campaign review). Today the host in `player.json` is checked against `mcp_base` only on non-default ports. On ports 80 and 443 an attacker host could be used, but only by someone with push access to the player repo. **Status:** OPEN. Owner call: whether to bind the host to `mcp_base` on every port, or accept the risk with the push-access limit. **How to apply:** SC-73 reports this as a finding; no code changes until the owner decides.
+
+## 43. Open owner and geldar calls from the wave 7 review
+
+Recorded 2026-11-09. Three items.
+
+1. **Persona byte caps.** The launcher keeps 8192 bytes for `identity.md` and 4096 bytes for `goals.md`. Geldar had proposed 2000 characters. **Status:** CHOSEN, 2026-11-09. The owner said: "use the less restrictive limits on persona files and not to artificially limit the effectiveness of agent players." **How to apply:** the launcher keeps 8192 and 4096; geldar matches the launcher, not the reverse.
+2. **Template wording against decision 40.** Does the template's "Your human", "terminal" and "Geldar tools" wording violate decision 40? **Status:** OPEN. The template's older "Your human" section is an owner question; SC-78 does not change it.
+3. **Hard links in `--persona-dir`.** Should `--persona-dir` refuse hard links? Not detected today. **Status:** OPEN. Owner or geldar call.

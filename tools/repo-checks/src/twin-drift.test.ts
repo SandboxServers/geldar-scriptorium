@@ -43,6 +43,17 @@ describe('checkTwinDrift', () => {
     expect(findings.some((x) => x.includes('"ghost"'))).toBe(true);
   });
 
+  it.each([
+    ['double-quoted', 'dq', `$GP_GROUPS += "dq"\n`],
+    ['$script: prefix', 'sp', `$script:GP_GROUPS += 'sp'\n`],
+    ['$script: prefix and double quotes', 'spdq', `$script:GP_GROUPS += "spdq"\n`],
+  ])('names a PowerShell %s group registration the bash twin lacks', (_form, name, text) => {
+    const f = fixture();
+    f.pwshLibs.push({ path: 'extra.ps1', text });
+    const findings = checkTwinDrift(f);
+    expect(findings.some((x) => x.includes(`"${name}"`))).toBe(true);
+  });
+
   it('fails when core is missing from parity.ts', () => {
     const f = fixture();
     f.parityText = PARITY.replace("bash: ['core', ", 'bash: [');
