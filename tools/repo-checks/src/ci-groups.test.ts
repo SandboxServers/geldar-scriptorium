@@ -61,6 +61,12 @@ describe('ci test groups', () => {
   });
 
   it('gates on every job', () => {
-    expect([...ci.jobs.gate.needs].sort()).toEqual(['e2e', 'static', 'tests']);
+    expect([...ci.jobs.gate.needs].sort()).toEqual([
+      'changes',
+      'e2e',
+      'markdown',
+      'static',
+      'tests',
+    ]);
   });
 });

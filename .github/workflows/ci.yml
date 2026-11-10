@@ -1,7 +1,11 @@
 # Runs on every PR and on main. `main` requires one check, `ci gate`, which
-# passes only when every job below passed: `static` (no Docker), `tests` (a
-# matrix of file groups from tools/repo-checks/src/ci-groups.ts; each test file
-# runs in exactly one group) and `e2e`. Together they cover what
+# passes only when every job below succeeded or was skipped because `changes`
+# said it had nothing to do. `static` (no Docker) always runs. On a pull request
+# `changes` reads the changed paths (rules in tools/repo-checks/src/ci-scope.ts):
+# a docs-only change skips `tests` and `e2e`, and `markdown` runs only when a .md
+# file changed. Pushes to main and manual runs run every job. `tests` is a matrix
+# of file groups from tools/repo-checks/src/ci-groups.ts (each test file runs in
+# exactly one group); `e2e` is its own job. Together they cover what
 # `./scriptorium.ps1 check` runs, plus the CI-only checks.
 name: ci
 
@@ -19,6 +23,38 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      tests: ${{ steps.scope.outputs.tests }}
+      e2e: ${{ steps.scope.outputs.e2e }}
+      markdown: ${{ steps.scope.outputs.markdown }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - name: changed paths and job scope
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/changed.txt"
+          : > "$out"
+          # An empty list runs every job. A failed diff does too (fail open).
+          if [ "$EVENT" = "pull_request" ] && ! git diff --name-only "$BASE" "$HEAD" > "$out"; then
+            : > "$out"
+          fi
+          node tools/repo-checks/src/ci-scope-cli.ts "$out" | tee -a "$GITHUB_OUTPUT"
+
   static:
     name: static
     runs-on: ubuntu-24.04
@@ -59,6 +95,8 @@ jobs:
 
   tests:
     name: tests (${{ matrix.group }})
+    needs: changes
+    if: needs.changes.outputs.tests == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -90,6 +128,8 @@ jobs:
 
   e2e:
     name: e2e (${{ matrix.file }})
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -119,21 +159,48 @@ jobs:
         run: |
           pnpm vitest run "tests/e2e/$E2E_FILE"
 
+  markdown:
+    name: markdown
+    needs: changes
+    if: needs.changes.outputs.markdown == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: markdown lint
+        run: pnpm lint:md
+
   gate:
     name: ci gate
     if: always()
-    needs: [static, tests, e2e]
+    needs: [changes, static, tests, e2e, markdown]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
-      - name: every job passed
+      - name: every job passed or was skipped by scope
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
+          CHANGES: ${{ needs.changes.result }}
+          STATIC: ${{ needs.static.result }}
+          TESTS: ${{ needs.tests.result }}
+          E2E: ${{ needs.e2e.result }}
+          MARKDOWN: ${{ needs.markdown.result }}
         run: |
-          echo "job results: $RESULTS"
-          for r in $RESULTS; do
-            if [ "$r" != "success" ]; then
+          echo "changes=$CHANGES static=$STATIC tests=$TESTS e2e=$E2E markdown=$MARKDOWN"
+          if [ "$CHANGES" != "success" ]; then
+            echo "::error::changes did not succeed ($CHANGES)"
+            exit 1
+          fi
+          failed=0
+          for r in "$STATIC" "$TESTS" "$E2E" "$MARKDOWN"; do
+            if [ "$r" != "success" ] && [ "$r" != "skipped" ]; then
               echo "::error::a required job did not succeed ($r)"
-              exit 1
+              failed=1
             fi
           done
+          exit "$failed"
