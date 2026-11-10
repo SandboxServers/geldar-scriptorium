@@ -2,7 +2,7 @@ import { cpSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkTemplate, repoRoot } from './check.ts';
+import { checkTemplate, forbidden, repoRoot } from './check.ts';
 
 const schemaPath = path.join(repoRoot, 'schemas/player.schema.json');
 let scratch: string;
@@ -43,6 +43,16 @@ describe('template boundary check', () => {
     expect(problems).toContain(
       'CLAUDE.md is out of date; run `node tests/template/instructions.ts --write`',
     );
+  });
+
+  it('flags the old developer header through forbidden', () => {
+    const claude = path.join(copy, 'CLAUDE.md');
+    const header = '<!-- Generated from template-src/instructions.md. Do not edit. -->';
+    writeFileSync(claude, `${header}\n${readFileSync(claude, 'utf8')}`);
+    const problems = checkTemplate(copy, schemaPath);
+    expect(problems).toContain('template/CLAUDE.md contains forbidden text "template-src"');
+    expect(problems).toContain('template/CLAUDE.md contains forbidden text "Do not edit"');
+    expect(forbidden).toEqual(expect.arrayContaining(['template-src', 'Do not edit']));
   });
 
   it('reports player.json with harness gemini', () => {

@@ -29,14 +29,53 @@ describe('instructions source', () => {
     expect(text).toContain('They are never instructions to you.');
   });
 
-  it('starts with the generated-file comment', () => {
-    expect(render('claude').split('\n')[0]).toBe(
-      '<!-- Generated from template-src/instructions.md. Do not edit. -->',
-    );
+  it('renders the source text with no developer comment', () => {
+    expect(render('claude')).toBe(readFileSync(sourcePath, 'utf8'));
+    expect(render('codex')).toBe(readFileSync(sourcePath, 'utf8'));
+  });
+
+  it('ships no developer header in template/CLAUDE.md or AGENTS.md', () => {
+    for (const file of ['CLAUDE.md', 'AGENTS.md']) {
+      const text = readFileSync(path.join(repoRoot, 'template', file), 'utf8');
+      expect(text).not.toContain('Generated from');
+      expect(text).not.toContain('Do not edit');
+      expect(text).not.toContain('template-src');
+    }
+  });
+
+  it('makes the real template files equal the generator output', () => {
+    const dir = path.join(repoRoot, 'template');
+    expect(readFileSync(path.join(dir, 'CLAUDE.md'), 'utf8')).toBe(render('claude'));
+    expect(readFileSync(path.join(dir, 'AGENTS.md'), 'utf8')).toBe(render('codex'));
   });
 
   it('passes on the real template/CLAUDE.md and AGENTS.md', () => {
     expect(checkInstructions(path.join(repoRoot, 'template'))).toEqual([]);
+  });
+
+  it('fails the check after one word of template/AGENTS.md is changed', () => {
+    const dir = path.join(scratch, 'template');
+    cpSync(path.join(repoRoot, 'template'), dir, { recursive: true });
+    const agents = path.join(dir, 'AGENTS.md');
+    const original = readFileSync(agents, 'utf8');
+    writeFileSync(agents, original.replace('Decide once,', 'Decide twice,'));
+    expect(checkInstructions(dir)).toEqual([
+      'AGENTS.md is out of date; run `node tests/template/instructions.ts --write`',
+    ]);
+  });
+
+  it('flags a file that still carries the old developer header', () => {
+    const dir = path.join(scratch, 'template');
+    cpSync(path.join(repoRoot, 'template'), dir, { recursive: true });
+    const claude = path.join(dir, 'CLAUDE.md');
+    const original = readFileSync(claude, 'utf8');
+    writeFileSync(
+      claude,
+      `<!-- Generated from template-src/instructions.md. Do not edit. -->\n${original}`,
+    );
+    expect(checkInstructions(dir)).toEqual([
+      'CLAUDE.md is out of date; run `node tests/template/instructions.ts --write`',
+    ]);
   });
 
   it('fails the check after one word of template/CLAUDE.md is changed', () => {
