@@ -159,7 +159,7 @@ describe('package-launcher', () => {
     const usage = runBash(`bash '${d}/geldar-play'`);
     expect(usage.status).toBe(2);
     expect(usage.stderr + usage.stdout).not.toBe('');
-    const r = runBash(`GP_DIR='${d}'; . '${d}/lib/session.sh'; share_dir`);
+    const r = runBash(`GP_DIR='${d}'; . '${d}/lib/common.sh'; . '${d}/lib/session.sh'; share_dir`);
     expect(r.stdout).toBe(`${d}/share`);
   });
 

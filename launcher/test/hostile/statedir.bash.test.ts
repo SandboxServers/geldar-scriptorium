@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { type Launcher, launchers } from '../harness.ts';
 import { assertStatePerms, attack, benign, modeOf } from './world.ts';
 
-// SC-60o (review N4): the state is private; only pub/allowlist-world.txt and export/ are readable.
+// SC-60o (review N4): the state is private; only the two pub/ allowlist files and session/export are readable.
 // Permission bits are POSIX-only: unverified on win32, CI decides.
 const bash = launchers.find((l) => l.name === 'bash');
 const posix = process.platform !== 'win32';
@@ -43,7 +43,12 @@ describe.skipIf(!bash || !posix)('N4 state permissions (bash; skipped on win32)'
     const base = join(a.world.state, 'abc');
     for (const p of walk(base)) {
       const rel = relative(base, p).replaceAll('\\', '/');
-      if (rel === 'pub' || rel === 'pub/allowlist-world.txt' || rel.startsWith('session/export'))
+      if (
+        rel === 'pub' ||
+        rel === 'pub/allowlist-world.txt' ||
+        rel === 'pub/allowlist-world-ports.txt' ||
+        rel.startsWith('session/export')
+      )
         continue;
       expect(modeOf(p) & 0o077, rel).toBe(0);
     }
