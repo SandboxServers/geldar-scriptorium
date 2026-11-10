@@ -108,7 +108,6 @@ function Get-ToolHint([string]$Tool) {
     'docker' { return 'Install Docker with Compose v2.' }
     'git' { return 'Install git 2.40 or newer.' }
     'tar' { return 'Install tar (Windows 10 and later include it).' }
-    'perl' { return 'Install perl (it comes with Git for Windows).' }
     'tmux' { return 'Install tmux to run several players.' }
     'gh' { return 'Install the GitHub CLI (gh) to create or archive a player.' }
   }
