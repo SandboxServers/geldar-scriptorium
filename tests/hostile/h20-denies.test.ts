@@ -32,7 +32,7 @@ const managedRules = [
   'Bash',
   'WebFetch',
   'WebSearch',
-  ...['Read', 'Edit', 'Write'].flatMap((tool) => [
+  ...['Read', 'Edit'].flatMap((tool) => [
     `${tool}(**/.credentials.json)`,
     `${tool}(//cli-home/**)`,
     `${tool}(//cli-home)`,
@@ -52,14 +52,9 @@ describe('H-20 managed.json denies', () => {
 });
 
 describe('H-20 the other settings files, each on its own', () => {
-  it('play.json denies the four identity paths', () => {
+  it('play.json denies the two identity paths', () => {
     expect(load('play.json').permissions?.deny).toEqual(
-      expect.arrayContaining([
-        'Edit(/memory/identity.md)',
-        'Write(/memory/identity.md)',
-        'Edit(//player/memory/identity.md)',
-        'Write(//player/memory/identity.md)',
-      ]),
+      expect.arrayContaining(['Edit(/memory/identity.md)', 'Edit(//player/memory/identity.md)']),
     );
   });
 
