@@ -9,6 +9,7 @@ const confPath = resolve(repoRoot, 'image/proxy/squid.conf');
 const vendorPath = resolve(repoRoot, 'image/proxy/allowlist-vendor.txt');
 const conf = readFileSync(confPath, 'utf8');
 const vendor = readFileSync(vendorPath, 'utf8');
+const defaultPortsPath = resolve(repoRoot, 'image/proxy/world-ports-default.txt');
 
 // Non-blank, non-comment lines of a Squid config or an allowlist.
 function activeLines(text: string): string[] {
@@ -85,6 +86,28 @@ describe('squid policy (structure)', () => {
     expect(vendorProblems('claude.ai\n').length).toBeGreaterThan(0);
   }, 120_000);
 
+  it('the world port rule is in place, in order, and no Safe_ports line was widened', () => {
+    const lines = activeLines(conf);
+    expect(lines).toContain('acl world_port port "/etc/squid/allowlist-world-ports.txt"');
+    expect(lines).toContain('acl port_80 port 80');
+    expect(lines.filter((l) => l.startsWith('acl Safe_ports'))).toEqual([
+      'acl Safe_ports port 80',
+      'acl Safe_ports port 443',
+    ]);
+    expect(lines.filter((l) => l.startsWith('http_access'))).toEqual([
+      'http_access deny !Safe_ports !world_port',
+      'http_access deny CONNECT port_80',
+      'http_access deny CONNECT !SSL_ports !world_port',
+      'http_access allow allowed_vendor Safe_ports',
+      'http_access allow allowed_world world_port',
+      'http_access deny all',
+    ]);
+    expect(lines).not.toContain('http_access allow allowed_world Safe_ports');
+  }, 120_000);
+
+  it('the default world ports file is exactly 443', () => {
+    expect(readFileSync(defaultPortsPath, 'utf8')).toBe('443\n');
+  }, 120_000);
   it('SQUID_IMAGE is pinned by digest', () => {
     expect(SQUID_IMAGE).toMatch(/^ubuntu\/squid(:[^@]+)?@sha256:[0-9a-f]{64}$/);
   }, 120_000);
@@ -121,6 +144,8 @@ describe.skipIf(!ready)('squid policy (Squid parses the shipped config)', () => 
         `${vendorPath}:/etc/squid/allowlist-vendor.txt:ro`,
         '-v',
         `${emptyWorld}:/etc/squid/allowlist-world.txt:ro`,
+        '-v',
+        `${defaultPortsPath}:/etc/squid/allowlist-world-ports.txt:ro`,
         '--entrypoint',
         'squid',
         SQUID_IMAGE,

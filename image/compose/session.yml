@@ -8,6 +8,7 @@ services:
       - ../proxy/squid.conf:/etc/squid/squid.conf:ro
       - ../proxy/allowlist-vendor.txt:/etc/squid/allowlist-vendor.txt:ro
       - ${GELDAR_WORLD_ALLOWLIST:?}:/etc/squid/allowlist-world.txt:ro
+      - ${GELDAR_WORLD_PORTS:-../proxy/world-ports-default.txt}:/etc/squid/allowlist-world-ports.txt:ro
     networks: [inside, outside]
     # Squid aborts with "setgid: Operation not permitted" without these two.
     cap_drop: [ALL]
