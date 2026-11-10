@@ -28,6 +28,8 @@ COPY --from=deps /opt/geldar /opt/geldar
 RUN for b in memory git verify; do \
       printf '#!/bin/sh\nexec node /opt/geldar/packages/%s/src/cli.ts "$@"\n' "$b" > /usr/local/bin/geldar-$b; \
       chmod 0755 /usr/local/bin/geldar-$b; done
+COPY image/geldar-entrypoint.sh /usr/local/bin/geldar-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/geldar-entrypoint.sh
 COPY image/settings/managed.json /etc/claude-code/managed-settings.json
 COPY image/settings/play.json image/settings/setup.json /etc/geldar/settings/
 RUN printf 'geldar kit\n' > /etc/geldar-kit \
@@ -37,6 +39,10 @@ RUN printf 'geldar kit\n' > /etc/geldar-kit \
  && mkdir -p /player /cli-home && chown player:player /player /cli-home
 LABEL org.opencontainers.image.source="https://github.com/SandboxServers/geldar-scriptorium"
 ENV CLAUDE_CONFIG_DIR=/cli-home DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+# The kit entrypoint seeds the player's workspace trust, then runs the base image's
+# docker-entrypoint.sh. CMD is repeated because an ENTRYPOINT here resets the base image's CMD.
+ENTRYPOINT ["/usr/local/bin/geldar-entrypoint.sh"]
+CMD ["node"]
 USER player
 WORKDIR /player
 

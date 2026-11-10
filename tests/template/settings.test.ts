@@ -48,13 +48,7 @@ const worldTools = [
   'status',
 ].map((tool) => `mcp__geldar__${tool}`);
 const companionTools = ['mcp__geldar_memory__recall', 'mcp__geldar_git__commit_memory'];
-const allowedPathRules = new Set([
-  'Edit(/memory/**)',
-  'Write(/memory/**)',
-  'Edit(/skills/**)',
-  'Write(/skills/**)',
-  'Read(/**)',
-]);
+const allowedPathRules = new Set(['Edit(/memory/**)', 'Edit(/skills/**)', 'Read(/**)']);
 const kitPaths = [
   '/.claude/**',
   '/CLAUDE.md',
@@ -110,9 +104,9 @@ describe('Claude Code settings layers', () => {
     expect(mcp.mcpServers.geldar?.timeout).toBeGreaterThan(240000);
   });
 
-  it('play denies writes to the identity file', () => {
+  it('play denies edits to the identity file, relative and absolute', () => {
     expect(play.permissions?.deny).toEqual(
-      expect.arrayContaining(['Edit(/memory/identity.md)', 'Write(/memory/identity.md)']),
+      expect.arrayContaining(['Edit(/memory/identity.md)', 'Edit(//player/memory/identity.md)']),
     );
   });
 
@@ -120,10 +114,9 @@ describe('Claude Code settings layers', () => {
     expect(setup.permissions?.deny).toContain('mcp__geldar__*');
   });
 
-  it('project denies Edit and Write on every kit file', () => {
+  it('project denies Edit on every kit file', () => {
     for (const path of kitPaths) {
       expect(project.permissions?.deny).toContain(`Edit(${path})`);
-      expect(project.permissions?.deny).toContain(`Write(${path})`);
     }
   });
 
@@ -136,24 +129,17 @@ describe('Claude Code settings layers', () => {
     expect(managed.autoMemoryEnabled).toBe(false);
   });
 
-  it('managed denies reading, editing and writing credentials', () => {
+  it('managed denies reading and editing credentials', () => {
     expect(managed.permissions?.deny).toEqual(
-      expect.arrayContaining([
-        'Read(**/.credentials.json)',
-        'Edit(**/.credentials.json)',
-        'Write(**/.credentials.json)',
-      ]),
+      expect.arrayContaining(['Read(**/.credentials.json)', 'Edit(**/.credentials.json)']),
     );
   });
 
-  it('every Edit rule has a matching Write rule in the same list', () => {
+  it('no layer carries a Write permission rule (Edit rules cover every file-editing tool)', () => {
     for (const [name, settings] of Object.entries(layers)) {
       for (const list of [settings.permissions?.allow ?? [], settings.permissions?.deny ?? []]) {
         for (const rule of list) {
-          if (rule.startsWith('Edit(')) {
-            const write = `Write${rule.slice('Edit'.length)}`;
-            expect(list, `${name} has ${rule} without ${write}`).toContain(write);
-          }
+          expect(rule === 'Write' || rule.startsWith('Write('), `${name} has ${rule}`).toBe(false);
         }
       }
     }

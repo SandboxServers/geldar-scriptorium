@@ -18,12 +18,12 @@
 1. On a Windows and a Linux machine with the prerequisites (D-SC-09; a clean machine is not required, decision 49, and tester feedback covers the README-only claim), a person following only the template README:
    - installs and verifies the launcher;
    - runs `geldar-play new`, `setup` and `play`;
-   - ends with a player repo on GitHub that has a birth commit and **three reflect/commit cycles**, played against the mock world.
+   - ends with a player repo on GitHub that has a birth commit and **at least one played session saved as commits**, against the mock world (functional check only; day-long and multi-day runs wait for real play, decision 53).
 2. Every item in `docs/launcher-hardening.md` has a passing hostile test, and the host repo is unchanged after each hostile run.
 3. The malicious-book CI is green for the pinned Claude Code (spec 8.4b, Phase 2 gate 2), including the 0013 cases (another player's repo, web search, DNS, credential files).
 4. A tagged release publishes all three outputs with signatures and an SBOM. The template repo's commit names the image digest and launcher version it expects.
 5. `geldar-play upgrade` moves an existing player to the new release through a PR the owner merges.
-6. Measured and written in the README: turns and `/usage` per in-game day on Haiku-low, over three in-game days against the mock world (spec 5.15.7).
+6. Measured and written in the README: turns and `/usage` per in-game day on Haiku-low (spec 5.15.7). **Deferred to real play (decision 53):** the numbers come from the first real days, not from mock-world runs.
 
 Packets: [work-packets.md](work-packets.md). Resume card: [RESUME.md](RESUME.md). Process: the [campaign-packet skill](../../../.claude/skills/campaign-packet/SKILL.md) (from SC-03; until then the geldar repo's copy).
 
@@ -162,7 +162,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-70a | 7 | S | Template README in the Patron's voice, `docs/onboarding.md`, README test; `check.ts` exports `forbidden` | Sonnet (general-purpose) | Done | wave 6 |
 | SC-70b | 7 | S | Troubleshooting guide (a heading per message key with three non-empty parts, tested) | Sonnet (general-purpose) | Done | SC-70a, SC-74c, SC-75c, SC-76d |
 | SC-70d | 7 | S | Launcher README, onboarding additions, threat-model rows, troubleshooting guide in the launcher tarball; join | Sonnet (general-purpose) | Done | SC-70a, SC-70b, SC-76b |
-| SC-70c | 7 | S | The measured turns and usage per in-game day, into the README | packet-coder (Haiku) | BlockedDependency | SC-72a, SC-72b |
+| SC-70c | 7 | S | The measured turns and usage per in-game day, into the README | packet-coder (Haiku) | Deferred (real play, decision 53) | first real days of play |
 | SC-71 | 7 | S | Codex CLI support: umbrella for SC-71a to SC-71c (cards: [work-packets-wave7b.md](work-packets-wave7b.md)) | - | BlockedDecision (D-SC-08; SC-71c waits for owner calls C1 and C3) | SC-71a to SC-71c |
 | SC-71a | 7 | S | Codex checks that need no model (pinned binary in a throwaway container); owner permission D3 | main session + owner | BlockedDecision (owner permission D3; not in step 1) | wave 6, D3 |
 | SC-71b | 7 | S | Skills generator for `.agents/skills`, not wired into the template | packet-coder (Haiku) | Done | wave 6 |

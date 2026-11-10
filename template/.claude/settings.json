@@ -23,23 +23,15 @@
       "mcp__geldar_git__commit_memory",
       "Read(/**)",
       "Edit(/memory/**)",
-      "Write(/memory/**)",
-      "Edit(/skills/**)",
-      "Write(/skills/**)"
+      "Edit(/skills/**)"
     ],
     "deny": [
       "Edit(/.claude/**)",
-      "Write(/.claude/**)",
       "Edit(/CLAUDE.md)",
-      "Write(/CLAUDE.md)",
       "Edit(/AGENTS.md)",
-      "Write(/AGENTS.md)",
       "Edit(/.mcp.json)",
-      "Write(/.mcp.json)",
       "Edit(/player.json)",
-      "Write(/player.json)",
-      "Edit(/.gitattributes)",
-      "Write(/.gitattributes)"
+      "Edit(/.gitattributes)"
     ]
   },
   "hooks": {
