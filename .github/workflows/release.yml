@@ -247,7 +247,7 @@ jobs:
 
   template:
     name: template
-    needs: [build, sign]
+    needs: [build, sign, launcher]
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/kit-v')
     permissions:
       id-token: write
@@ -257,6 +257,7 @@ jobs:
       version: ${{ github.ref_name }}
       image: ${{ needs.build.outputs.image }}
       source-sha: ${{ github.sha }}
+      launcher-artifact: launcher-unsigned
 
   release:
     name: release

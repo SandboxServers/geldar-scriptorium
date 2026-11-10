@@ -16,6 +16,9 @@ The workflow is `.github/workflows/release.yml` (added in SC-63). It runs only o
 4. **Scan.** Run trivy and grype on the image. Either scan fails the release on a critical finding.
 5. **Launcher.** Sign the launcher assets and attach them to the release.
 6. **Template.** Publish `template/` to `geldar-player-template` as one commit that names the release triple. The same job writes the image digest and version into the published `player.json` defaults.
+7. **Launcher release in the template repo.** After the tag push, `publish-template.yml` creates a GitHub release of `geldar-player-template` for the same tag. It has two assets, `geldar-play-<version>.tar.gz` and `SHA256SUMS`, the files the launcher job built (the job hands them over as the `launcher-unsigned` artifact). The Patron guide's download link points there. A tag with a hyphen (`-rc1`) is a prerelease. The signatures and the SBOM stay on this repo's release. Only the `gh release create` step holds the App token, and `template-release.ts` checks that the folder holds exactly those two files and that the checksum matches. Decision 52 records why.
+
+If the template tag exists but the release step failed, re-running the publish job publishes nothing new (the tag is already there) and retries the release step. A release that exists already makes `gh` fail, so check the template repo's releases before you re-run.
 
 ## Existing players: `geldar-play upgrade`
 

@@ -125,3 +125,9 @@ Recorded 2026-11-10. **Status:** CHOSEN (owner: "D1 is fine as you suggest"). Th
 - Owner said "do the mock world". The run needs the player's Claude Code to be logged in inside its container (the launcher passes no key or token; the login lives in the per-player CLI volume). That is an interactive consent on the owner's own account, in a TTY session.
 - CHOSEN: the main session did not create the repo or start a session, because it cannot complete the login and a half-made player repo would be junk. OPEN: the owner runs `geldar-play setup <id> --mock ...` once in a terminal and logs in (or tells the main session how they want it done); the rest of SC-72a (three days, checks, `upgrade`) can then be driven. SC-62's vendor-terms check is a related owner item.
 - Finding recorded in `acceptance-wave7.md`: the README does not mention the login.
+
+## 52. The launcher release is created in the template repo
+
+- Campaign review finding 1: the first two candidates had no release in `geldar-player-template`, but `template/README.md` sends Patrons to that repo's releases page for the download. Nothing there was downloadable.
+- CHOSEN: the README cannot link to this repo, because the voice rule forbids the word "scriptorium" under `template/`, so the release goes into the template repo instead. `publish-template.yml` now creates it after the tag push, with the archive and `SHA256SUMS` only (the SBOM and signatures stay on this repo's release). It uses the bot's App token in that one step, through `tools/release/src/template-release.ts`, which refuses any folder that does not hold exactly those two files or whose checksum does not match.
+- OPEN: this is first proven by the next tag. If the release step fails there, the answer is a new candidate tag (`kit-v…-rc<n+1>`). The re-run note in `docs/release.md` covers only a retry of the same tag, and it says to check the template repo's releases first.

@@ -51,7 +51,7 @@ describe('release.yml wiring (SC-63f)', () => {
     );
     expect(needsOf(j.launcher)).toEqual(['sign']);
     expect(needsOf(j['launcher-sign'])).toEqual(['launcher']);
-    expect(needsOf(j.template)).toEqual(['build', 'sign']);
+    expect(needsOf(j.template)).toEqual(['build', 'sign', 'launcher']);
     expect(needsOf(j.release)).toEqual(['build', 'sign', 'launcher-sign', 'template']);
     expect(needsOf(j.rehearse)).toEqual([]);
   });
@@ -61,9 +61,18 @@ describe('release.yml wiring (SC-63f)', () => {
   });
 
   it('catches template falling back to needs: sign', () => {
-    const bad = TEXT.replace('needs: [build, sign]\n    if', 'needs: sign\n    if');
+    const bad = TEXT.replace('needs: [build, sign, launcher]\n    if', 'needs: sign\n    if');
     expect(bad).not.toBe(TEXT);
     expect(needsViolations(bad)).toContain('template: needs.build');
+  });
+
+  it('catches the template job losing its launcher need (the release would have no files)', () => {
+    const bad = TEXT.replace(
+      'needs: [build, sign, launcher]\n    if',
+      'needs: [build, sign]\n    if',
+    );
+    expect(bad).not.toBe(TEXT);
+    expect(needsOf(jobs(bad).template)).not.toContain('launcher');
   });
 
   it('sets the timeouts', () => {
@@ -94,6 +103,15 @@ describe('release.yml wiring (SC-63f)', () => {
     expect(t.with.version).toBe('${{ github.ref_name }}');
     expect(t.with['source-sha']).toBe('${{ github.sha }}');
     expect(t.if).toContain("startsWith(github.ref, 'refs/tags/kit-v')");
+  });
+
+  it('hands the launcher archive to the template job by the artifact the launcher job uploads', () => {
+    const up = (jobs().launcher.steps as Obj[]).find((s) =>
+      String(s.uses ?? '').startsWith('actions/upload-artifact@'),
+    );
+    expect(up?.with.name).toBe('launcher-unsigned');
+    expect(jobs().template.with['launcher-artifact']).toBe(up?.with.name);
+    expect(up?.with.path).toBe('launcher-assets');
   });
 
   it('signs both launcher assets with --bundle', () => {
