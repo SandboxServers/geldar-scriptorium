@@ -15,11 +15,11 @@ Per D-SC-09, on the machine that runs `geldar-play`:
 
 ## The three world values
 
-The real world's address and its private-only shards are set in [launcher/config/world.conf](../launcher/config/world.conf). The file is read as data (`key=value`), never sourced. Until the owner fills these in (SC-72), the launcher refuses or narrows what it does:
+The real world's address and port are set in [launcher/config/world.conf](../launcher/config/world.conf), to `geldar.sandboxservers.games` on port 18443 over TLS. The private-only shard list is blank for now: every shard is watched, and the list is revisited later. The file is read as data (`key=value`), never sourced. If the owner blanks a value, the launcher refuses or narrows what it does:
 
 | Key | What it is | While blank |
 |---|---|---|
-| `mcp_base` | Scheme and host of the world, for example `https://world.example`. No path, no credentials. | `new` refuses with `no_world`: nothing is created. |
+| `mcp_base` | Scheme, host and port of the world, for example `https://geldar.sandboxservers.games:18443`. No path, no credentials. | `new` refuses with `no_world`: nothing is created. |
 | `mcp_port` | The port of the world's MCP: digits only, no leading zero, 1024 to 65535. It must match the port in `mcp_base`. | Only ports 80 and 443 are accepted. |
 | `private_only_shards` | Shard names separated by commas. Their player repositories must be private. | `new` cannot check the shard. It needs an explicit `--private` or `--public`. |
 
@@ -37,7 +37,7 @@ A world token can come from a file given with `--token-file <path>`. The file ho
 
 In this order, for one player:
 
-1. Set `mcp_base` and `mcp_port` in `launcher/config/world.conf` (SC-72 owner inputs), and `private_only_shards` if any shard is private-only.
+1. Check that `mcp_base` and `mcp_port` in `launcher/config/world.conf` name the world (they are set), and add `private_only_shards` if any shard is private-only.
 2. Run `geldar-play new <id> --private` (or `--public` where the launcher asks for it). This creates the player repository from the template and clones it.
 3. Run `geldar-play setup <id>` once. It is the birth conversation, and it writes the birth commit.
 4. Run `geldar-play play <id>`. One `play` is one in-game day: prepare, session, finish.
@@ -47,7 +47,7 @@ Start one player and watch a whole day before a second one. Acceptance on Window
 
 ## The world address and port
 
-The owner sets `mcp_base` and `mcp_port` together, before the first `new`. A URL port is accepted in two cases only: 80 and 443 (written out or left out), or the `mcp_port` value when the URL has the same scheme and host as `mcp_base`. Any other port is refused. That refusal is on purpose: a session never reaches a non-default port the owner did not set. The messages and their fixes are in the [troubleshooting guide](troubleshooting.md#the-world-address-and-port).
+`mcp_base` and `mcp_port` are kept set together, and the owner changes them together. A URL port is accepted in two cases only: 80 and 443 (written out or left out), or the `mcp_port` value when the URL has the same scheme and host as `mcp_base`. Any other port is refused. That refusal is on purpose: a session never reaches a non-default port the owner did not set. The messages and their fixes are in the [troubleshooting guide](troubleshooting.md#the-world-address-and-port).
 
 The proxy reaches the world on the URL's effective port only, and it always refuses CONNECT to port 80.
 

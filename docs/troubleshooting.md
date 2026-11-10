@@ -314,7 +314,7 @@ Why it is safe. The saved commits are on GitHub, and the launcher did not rewrit
 What to do. Run resolve for the player to bring your copy up to date.
 
 ### no_world
-What it means. No world address is set in this version.
+What it means. No world address is set in `launcher/config/world.conf`. The shipped file sets it, so this means the value was blanked.
 Why it is safe. The launcher refused before it created anything.
 What to do. The owner sets the world address in `launcher/config/world.conf`. A player cannot set it.
 
