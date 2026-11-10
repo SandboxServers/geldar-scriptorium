@@ -48,3 +48,7 @@ Owner answer (2026-11-10): `geldar-play new --persona-dir` is not for every Patr
 ## 36. The launcher is downloaded from a GitHub release (D1)
 
 Owner answer (2026-11-10): the Patron downloads the launcher from a GitHub release. Still open: how the Patron guide points to it without the template naming this repo (options in the SC-70a card). **How to apply:** SC-70a stays blocked until the pointer is chosen.
+
+## 37. The world does not detect birth from the player repo (P3)
+
+Geldar answer (2026-11-10): nothing on the geldar side reads the `birth:` message, the identity headings or the player repo; a player is live once the MCP has a player row and a hashed Bearer token for that id. The identity lock means `identity.md` exists in the start tree, so a seeded commit at `new` locks it as the birth commit does. **How to apply:** SC-74 keeps the `birth: <name>` message on the seeded commit (our own invariant). Persona text is plain UTF-8, proposed cap 2000 characters (geldar has not set a final limit); no seeding from the drafts until the owner approves them.
