@@ -12,7 +12,7 @@ Each requirement is one line. Tests are written in SC-60.
   Residual risk (REAL, not fixed): `git archive` honours `export-ignore` and `export-subst` from START's own `.gitattributes`, so a kit file can be silently missing or rewritten in the export (reproduced: `CLAUDE.md` missing). The case is marked `it.fails`. Proposed fix: write blobs from `ls-tree` and `cat-file`, or verify blob ids after extraction, in `launcher/lib/prepare.sh` and `prepare.ps1`.
 - H-05: The workspace is `git clone --no-local --no-hardlinks -c core.autocrlf=false`, then `git remote remove origin`. Never use `--shared` or alternates. Assert that no host path is left in the workspace's `.git/config`. Test: `launcher/test/hostile/h05-clone.test.ts`
 
-  Note (N4): state layout under `<state>/<id>`: directories 0700, files 0600 or 0700; `pub/` is 0755 and holds only `allowlist-world.txt` (0644); `export/` is world readable (`a+rX`) because the session container reads the kit overlays as uid 1000. Tests: `launcher/test/hostile/statedir.bash.test.ts`, `statedir.pwsh.test.ts`. Permission cases run only on POSIX; on Windows the state is under `%LOCALAPPDATA%` with a user-private ACL and they are skipped.
+  Note (N4): state layout under `<state>/<id>`: directories 0700, files 0600 or 0700; `pub/` is 0755 and holds only `allowlist-world.txt` and `allowlist-world-ports.txt` (both 0644); `export/` is world readable (`a+rX`) because the session container reads the kit overlays as uid 1000. Tests: `launcher/test/hostile/statedir.bash.test.ts`, `statedir.pwsh.test.ts`. Permission cases run only on POSIX; on Windows the state is under `%LOCALAPPDATA%` with a user-private ACL and they are skipped.
   Residual risk (open): the helper container (`workspace-init`) mounts `<state>/<id>/session` (0700, `start.bundle` 0600) as uid 1000 with all capabilities dropped; on a Linux host whose uid is not 1000 it may not be able to read them. The card was followed; the owner decision is open (follow-up 11). Not verified locally; CI decides.
 ## During the session
 
@@ -63,7 +63,7 @@ Every `GELDAR_*` name the launchers read is classified in `launcher/test/hostile
 - Gate: `GELDAR_INTERNAL`. Without it, gated variables have no effect.
 - Gated (read through `gp_env` or `Get-GatedEnv`): `GELDAR_EXTRA_COMPOSE`, `GELDAR_HELPER_TIMEOUT_SEC`, `GELDAR_KEEP_PROXY_LOG`, `GELDAR_PRIVATE_SHARDS_TEST`, `GELDAR_SLEEP`, `GELDAR_STUB_*`, `GELDAR_TEMPLATE_URL`, `GELDAR_TEST_FORCE_FF_FAIL`, `GELDAR_TEST_HOOK_AFTER_CLEAN`, `GELDAR_TMUX`, `GELDAR_TOOL_PATH`, `GELDAR_UNSAFE_IMAGE`, `GELDAR_WT`.
 - Human-environment seams (ungated by design): `GELDAR_DOCKER`, `GELDAR_GH`, `GELDAR_GIT`, `GELDAR_KIT_IMAGE` (digest-pinned only), `GELDAR_PLAYERS_DIR`, `GELDAR_SHARE`, `GELDAR_STATE_DIR`. `GELDAR_SHARE` selects the compose files, so whoever controls the human's environment controls them; that is the human's own machine and is accepted (N8).
-- Container variables (set by the launcher, not read from the host): `GELDAR_BRANCH`, `GELDAR_CLI_HOME`, `GELDAR_GID`, `GELDAR_MCP_TOKEN`, `GELDAR_MCP_URL`, `GELDAR_MODE`, `GELDAR_UID`, `GELDAR_WORKSPACE`, `GELDAR_WORLD_ALLOWLIST`.
+- Container variables (set by the launcher, not read from the host): `GELDAR_BRANCH`, `GELDAR_CLI_HOME`, `GELDAR_GID`, `GELDAR_MCP_TOKEN`, `GELDAR_MCP_URL`, `GELDAR_MODE`, `GELDAR_UID`, `GELDAR_WORKSPACE`, `GELDAR_WORLD_ALLOWLIST`, `GELDAR_WORLD_PORTS`.
 
 ## Notes by area
 

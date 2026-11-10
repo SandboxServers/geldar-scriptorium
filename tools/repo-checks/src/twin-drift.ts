@@ -2,8 +2,9 @@
  * Twin drift: the bash and PowerShell launchers must register the same test
  * groups and make the same directories private. Pure functions over text.
  *
- * Groups: `GP_GROUPS="$GP_GROUPS name"` (bash) and `$GP_GROUPS += 'name'` (pwsh),
- * plus the literal `core`, which both launchers print but neither lib registers.
+ * Groups: `GP_GROUPS="$GP_GROUPS name"` (bash) and `$GP_GROUPS += 'name'` (pwsh;
+ * double quotes and a `$script:` prefix are accepted too), plus the literal `core`,
+ * which both launchers print but neither lib registers.
  * Each twin's set must equal its `enabled` list in launcher/test/parity.ts minus
  * `testOnlyGroups`.
  *
@@ -46,7 +47,8 @@ export function bashGroups(libs: TwinFile[]): Set<string> {
 export function pwshGroups(libs: TwinFile[]): Set<string> {
   const groups = new Set<string>(['core']);
   for (const { text } of libs) {
-    for (const m of text.matchAll(/^\$GP_GROUPS \+= '(\w+)'/gm)) groups.add(m[1] as string);
+    for (const m of text.matchAll(/^\$(?:script:)?GP_GROUPS \+= (['"])(\w+)\1/gm))
+      groups.add(m[2] as string);
   }
   return groups;
 }

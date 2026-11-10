@@ -6,8 +6,9 @@ Two allowlists decide what Squid forwards, both `dstdomain` (exact host names):
 
 - `allowlist-vendor.txt` (committed here): the hosts the Claude Code CLI needs, `api.anthropic.com`, `claude.ai` and `platform.claude.com`.
 - `allowlist-world.txt` (not committed): the MCP host from the player's `player.json`. The launcher writes it per session and compose mounts it.
+- `allowlist-world-ports.txt` (the `world_port` ACL, not committed): the effective port of the MCP URL. The launcher writes it into the player's `pub/` folder and sets `GELDAR_WORLD_PORTS` to it. Compose mounts `world-ports-default.txt` (committed here, holds `443`) when `GELDAR_WORLD_PORTS` is unset.
 
-`squid.conf` checks, in order: only ports 80 and 443 (`Safe_ports`), CONNECT only to 443 (`SSL_ports`), then the two allowlists. `http_access deny all` is last, so anything not allowed is refused with 403. Keep it last: a rule after it never runs.
+`squid.conf` checks, in order: ports 80 and 443 (`Safe_ports`) or the world port (`world_port`); CONNECT to port 80 is refused outright (`port_80`); CONNECT only to 443 (`SSL_ports`) or the world port; then the two allowlists. The launcher accepts a non-default port only when it equals `mcp_port`, so that is the only non-default port Squid receives. `http_access deny all` is last, so anything not allowed is refused with 403. Keep it last: a rule after it never runs.
 
 The config never allows `all`, `localnet` or `localhost`. Caching is off, `via` and `forwarded_for` are removed so the request does not reveal the container.
 
