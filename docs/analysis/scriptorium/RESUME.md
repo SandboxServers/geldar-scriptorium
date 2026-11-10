@@ -6,7 +6,7 @@ Read this, then [README.md](README.md) (the ledger) and [worknotes/overnight-dec
 
 **Built on wave 7:** SC-70a, SC-70b, SC-70d (PRs #16, #17, #19), SC-71b, SC-74a to c, SC-75a to c, SC-76a to d, SC-77a to b, SC-78. The wave review and the fix pass are done. CI is scoped by what changed and the slow test groups are sharded (docs/ci.md).
 
-**Remaining on wave 7 (all owner-gated):** SC-71a and SC-71c (Codex decisions D3, C1, C3), SC-72a to c (acceptance runs; need a published `kit-v*` release candidate, `mcp_base`, `mcp_port`, `private_only_shards`, the Caddy site), SC-70c (numbers from SC-72a/b), SC-73 (campaign review; also takes the wave 6 carry-overs: action pins, key-vault step outputs, `jq` skips, coverage join).
+**Remaining on wave 7:** SC-71a and SC-71c (ON HOLD by the owner, decision 46), SC-72a to c (acceptance runs; need a published `kit-v*` release candidate, `mcp_base`, `mcp_port`, `private_only_shards`, the Caddy site), SC-70c (numbers from SC-72a/b), SC-73 (campaign review; also takes the wave 6 carry-overs: action pins, key-vault step outputs, `jq` skips, coverage join).
 
 **Next actions**
 1. Nothing is buildable without the owner. When the owner provides the inputs above, run SC-72a and SC-72b (clean machines, only the README), then SC-72c, SC-70c, SC-73.
