@@ -8,6 +8,7 @@
 !packages/git
 !packages/verify
 !image/settings
+!image/geldar-entrypoint.sh
 **/node_modules
 **/*.test.ts
 **/test-client.ts
