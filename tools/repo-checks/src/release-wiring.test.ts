@@ -103,7 +103,19 @@ describe('release.yml wiring (SC-63f)', () => {
     expect(r).not.toContain('package-launcher.ts');
     const p = runs('launcher').join('\n');
     expect(p).toContain('package-launcher.ts');
-    expect(p).toContain('sha256sum sbom.spdx.json >> SHA256SUMS');
+    expect(p).toContain('sha256sum -c SHA256SUMS');
+  });
+
+  it('keeps the SBOM out of SHA256SUMS, which lists the launcher archive only', () => {
+    const p = runs('launcher').join('\n');
+    expect(p).not.toMatch(/>>\s*SHA256SUMS/);
+    expect(p).not.toMatch(/sbom[^\n]*SHA256SUMS|SHA256SUMS[^\n]*sbom/);
+    const withSbom = TEXT.replace(
+      'sha256sum -c SHA256SUMS\n      - uses: actions/upload-artifact',
+      'sha256sum sbom.spdx.json >> SHA256SUMS\n          sha256sum -c SHA256SUMS\n      - uses: actions/upload-artifact',
+    );
+    expect(withSbom).not.toBe(TEXT);
+    expect(runs('launcher', withSbom).join('\n')).toMatch(/>>\s*SHA256SUMS/);
   });
 
   it('checks the template tag before the release, names the digest and marks prereleases', () => {
