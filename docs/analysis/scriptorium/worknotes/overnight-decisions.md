@@ -56,3 +56,7 @@ Geldar answer (2026-11-10): nothing on the geldar side reads the `birth:` messag
 ## 38. Ranger persona seeds (relayed by the geldar orchestrator; owner to confirm)
 
 The geldar orchestrator relayed (2026-11-10) that the owner approved the six persona seeds on 2026-11-09, held in the geldar repo. Use Identity plus Quirk for `memory/identity.md` and Goals for `memory/goals.md`, unedited; ids unchanged; arrival is staggered (Jason, then Billy and Trini, then Zack and Kimberly, Tommy last); the seeds never mention AI, models, vendors or the show's machinery. Whether the ranger repos are private-only stays the owner's setting (`private_only_shards`). **Status:** relayed by a peer, not heard from the owner in this session; confirm before SC-72c seeds anything. **How to apply:** the persona files stay outside this public repo (SC-74 reads a directory the operator supplies); nothing from them is committed here; SC-74 tests use invented text.
+
+## 39. Ranger player repos are public (relayed by the geldar orchestrator; owner to confirm)
+
+Relayed 2026-11-10: the six ranger repos are public, the launcher default (decision 0013), so `private_only_shards` stays blank for them. Nothing copyrighted goes in a player repo: persona seeds are text only; skin images stay on the owner's machine. **Status:** relayed, not heard from the owner here; it is the default, so no code changes. **How to apply:** SC-72c leaves `private_only_shards` blank for the rangers; the guide and acceptance run do not copy skin files into any player repo.
