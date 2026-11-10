@@ -1,0 +1,208 @@
+[
+  { "name": "both files fine", "files": {}, "args": "", "expect": "ok", "reason": "" },
+  {
+    "name": "goals missing",
+    "files": { "goals": "missing" },
+    "args": "",
+    "expect": "persona_missing",
+    "reason": ""
+  },
+  {
+    "name": "identity missing",
+    "files": { "identity": "missing" },
+    "args": "",
+    "expect": "persona_missing",
+    "reason": ""
+  },
+  {
+    "name": "directory holds only another player",
+    "files": { "layout": "other-id" },
+    "args": "",
+    "expect": "persona_missing",
+    "reason": ""
+  },
+  {
+    "name": "directory missing",
+    "files": { "layout": "no-dir" },
+    "args": "",
+    "expect": "persona_missing",
+    "reason": ""
+  },
+  {
+    "name": "identity empty file",
+    "files": { "identity": { "text": "" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "size"
+  },
+  {
+    "name": "identity 8193 bytes",
+    "files": { "identity": { "fill": 8193 } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "size"
+  },
+  {
+    "name": "goals 4097 bytes",
+    "files": { "goals": { "fill": 4097 } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "size"
+  },
+  {
+    "name": "invalid utf8 byte",
+    "files": { "identity": { "hex": "49 20 61 6d 20 ff 21" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "utf8"
+  },
+  {
+    "name": "overlong form",
+    "files": { "identity": { "hex": "49 20 c0 af 21" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "utf8"
+  },
+  {
+    "name": "lone surrogate bytes",
+    "files": { "identity": { "hex": "49 20 ed a0 80 21" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "utf8"
+  },
+  {
+    "name": "NUL byte",
+    "files": { "identity": { "text": "I am Jason\u0000 the red one.\n" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "control"
+  },
+  {
+    "name": "ESC byte",
+    "files": { "identity": { "text": "I am Jason\u001b[31m red.\n" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "control"
+  },
+  {
+    "name": "C1 control",
+    "files": { "identity": { "text": "I am Jason\u0085 red.\n" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "control"
+  },
+  {
+    "name": "bidi override",
+    "files": { "identity": { "text": "I am Jason ‮ red.\n" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "invisible"
+  },
+  {
+    "name": "zero-width space",
+    "files": { "identity": { "text": "I am Jason​ red.\n" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "invisible"
+  },
+  {
+    "name": "byte order mark",
+    "files": { "identity": { "text": "﻿I am Jason, red.\n" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "invisible"
+  },
+  {
+    "name": "line separator U+2028",
+    "files": { "identity": { "text": "I am Jason  red.\n" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "invisible"
+  },
+  {
+    "name": "soft hyphen",
+    "files": { "identity": { "text": "I am Jason­ red.\n" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "invisible"
+  },
+  {
+    "name": "tag character",
+    "files": { "identity": { "text": "I am Jason 󠁁 red.\n" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "invisible"
+  },
+  {
+    "name": "variation selector",
+    "files": { "identity": { "text": "I am Jason️ red.\n" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "invisible"
+  },
+  {
+    "name": "CRLF is stored as LF",
+    "files": { "identity": { "text": "# Identity\r\n\r\nI am Jason.\r\n" } },
+    "args": "",
+    "expect": "ok",
+    "reason": ""
+  },
+  {
+    "name": "identity only the heading and blank lines",
+    "files": { "identity": { "text": "# Identity\n\n   \n\n" } },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "empty"
+  },
+  {
+    "name": "identity equals the stub",
+    "files": {
+      "identity": { "text": "# Identity\n\nWho you are. Written once, at your birth.\n" }
+    },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "empty"
+  },
+  {
+    "name": "symlink as identity",
+    "files": { "identity": "link" },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "link"
+  },
+  {
+    "name": "symlink as the id directory",
+    "files": { "layout": "id-link" },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "link"
+  },
+  {
+    "name": "symlink as memory",
+    "files": { "layout": "memory-link" },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "link"
+  },
+  {
+    "name": "persona dir is a file",
+    "files": { "layout": "file-dir" },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "type"
+  },
+  {
+    "name": "extra files are never read",
+    "files": { "extras": true },
+    "args": "",
+    "expect": "ok",
+    "reason": ""
+  },
+  {
+    "name": "persona-dir given twice",
+    "files": {},
+    "args": "twice",
+    "expect": "persona_bad",
+    "reason": "twice"
+  }
+]
