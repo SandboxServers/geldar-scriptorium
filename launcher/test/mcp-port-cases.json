@@ -1,0 +1,197 @@
+[
+  { "base": "", "port": "", "url": "https://world.example.com:443/p/x", "ok": true },
+  { "base": "", "port": "", "url": "http://world.test:80/p/x", "ok": true },
+  { "base": "", "port": "", "url": "https://world.example.com:18443/p/x", "ok": false },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "18443",
+    "url": "https://world.example.com:18443/p/x",
+    "ok": true
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "18443",
+    "url": "https://other.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "18443",
+    "url": "https://world.example.com:8443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "18443",
+    "url": "https://world.example.com:18444/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "18443",
+    "url": "https://world.example.com:443/p/x",
+    "ok": true
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "18443",
+    "url": "http://world.example.com:80/p/x",
+    "ok": true
+  },
+  {
+    "base": "https://world.example.com",
+    "port": "18443",
+    "url": "https://world.example.com:18443/p/x",
+    "ok": true
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "22",
+    "url": "https://world.example.com:443/p/x",
+    "ok": true
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "22",
+    "url": "https://world.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "80",
+    "url": "https://world.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "443",
+    "url": "https://world.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "1023",
+    "url": "https://world.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "65536",
+    "url": "https://world.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "018443",
+    "url": "https://world.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "18443x",
+    "url": "https://world.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": " 18443",
+    "url": "https://world.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "١٨٤٤٣",
+    "url": "https://world.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "",
+    "port": "18443",
+    "url": "https://world.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "http://world.test:18443",
+    "port": "18443",
+    "url": "http://world.test:18443/p/x",
+    "ok": true
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "18443",
+    "url": "http://world.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "http://world.test:18443",
+    "port": "18443",
+    "url": "https://world.test:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://user@world.example.com:18443",
+    "port": "18443",
+    "url": "https://world.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443/x",
+    "port": "18443",
+    "url": "https://world.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443 ",
+    "port": "18443",
+    "url": "https://world.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443?x=1",
+    "port": "18443",
+    "url": "https://world.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "18443",
+    "url": "https://World.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "18443",
+    "url": "https://user@world.example.com:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "18443",
+    "url": "https://world.example.com:18443/p/x?q=1",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "18443",
+    "url": "https://world.example.com:18443/p/../x",
+    "ok": false
+  },
+  {
+    "base": "https://localhost:18443",
+    "port": "18443",
+    "url": "https://localhost:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "18443",
+    "url": "https://world.example.com:18443:18443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "18443",
+    "url": "https://world.example.com:+18443/p/x",
+    "ok": false
+  }
+]

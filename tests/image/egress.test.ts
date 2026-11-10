@@ -11,7 +11,8 @@ const ready = dockerReady();
 const composeDir = resolve(repoRoot, 'image/compose');
 const sessionYml = resolve(composeDir, 'session.yml');
 const overlayYml = resolve(composeDir, 'session.test.yml');
-const fixture = resolve(repoRoot, 'tests/image/fixtures/allowlist-world.txt');
+const fixtureDir = resolve(repoRoot, 'tests/image/fixtures');
+const fixture = resolve(fixtureDir, 'allowlist-world.txt');
 const NETTEST_IMAGE = 'geldar-kit-nettest:test';
 const uid = process.getuid?.() ?? 1000;
 const gid = process.getgid?.() ?? 1000;
@@ -36,6 +37,15 @@ function allowlistFile(content: string): string {
   return file;
 }
 
+// Copies a fixture to a file Squid can read, or returns undefined for the compose default.
+function portsFile(name: string | undefined, content?: string): string | undefined {
+  if (name === undefined) return undefined;
+  const file = join(tempDir(), 'allowlist-world-ports.txt');
+  writeFileSync(file, content ?? readFileSync(resolve(fixtureDir, name), 'utf8'));
+  chmodSync(file, 0o644);
+  return file;
+}
+
 // Runs docker compose for one project with both compose files.
 function compose(project: string, args: string[], timeoutMs: number) {
   const r = spawnSync(
@@ -47,7 +57,7 @@ function compose(project: string, args: string[], timeoutMs: number) {
 }
 
 // Brings up one compose project with the given world allowlist; returns its name.
-function composeUp(name: string, allowlist: string): string {
+function composeUp(name: string, allowlist: string, ports?: string): string {
   const project = `geldar-egress-${name}-${process.pid}`;
   projects.push(project);
   composeEnvs.set(project, {
@@ -60,6 +70,9 @@ function composeUp(name: string, allowlist: string): string {
     GELDAR_CLI_HOME: tempDir(),
     GELDAR_WORLD_ALLOWLIST: allowlist,
   });
+  const env = composeEnvs.get(project) as NodeJS.ProcessEnv;
+  if (ports === undefined) delete env.GELDAR_WORLD_PORTS;
+  else env.GELDAR_WORLD_PORTS = ports;
   const up = compose(project, ['up', '-d', '--wait'], 280000);
   if (up.status !== 0) throw new Error(`compose up failed: ${up.stderr}`);
   return project;
@@ -75,6 +88,9 @@ const STATUS = "curl -sS -m 10 -o /dev/null -w '%{http_code}'";
 describe.skipIf(!ready)('egress through the allowlist proxy', () => {
   let main = '';
   let empty = '';
+  let port18443 = '';
+  let defaults = '';
+  let dev = '';
 
   beforeAll(() => {
     buildKit();
@@ -86,8 +102,31 @@ describe.skipIf(!ready)('egress through the allowlist proxy', () => {
   }, 900_000);
 
   beforeAll(() => {
-    main = composeUp('main', allowlistFile(readFileSync(fixture, 'utf8')));
+    const world = readFileSync(fixture, 'utf8');
+    main = composeUp('main', allowlistFile(world), portsFile('allowlist-world-ports-80.txt'));
     empty = composeUp('empty', allowlistFile(''));
+    port18443 = composeUp('p18443', allowlistFile(world), portsFile('allowlist-world-ports.txt'));
+    defaults = composeUp('default', allowlistFile(world));
+    dev = composeUp(
+      'dev',
+      allowlistFile(readFileSync(resolve(fixtureDir, 'allowlist-dev-world.txt'), 'utf8')),
+      portsFile('inline', '8787\n'),
+    );
+    // The overlay's fake world listens on 80 only; give the 18443 project a listener on 18443.
+    const listener = compose(
+      port18443,
+      [
+        'exec',
+        '-d',
+        '-T',
+        'world',
+        'node',
+        '-e',
+        "require('http').createServer((q,r)=>r.end('world ok')).listen(18443)",
+      ],
+      60000,
+    );
+    if (listener.status !== 0) throw new Error(`listener failed: ${listener.stderr}`);
   }, 300_000);
 
   afterAll(() => {
@@ -146,6 +185,40 @@ describe.skipIf(!ready)('egress through the allowlist proxy', () => {
 
   it('refuses a non-standard port on an allowed host', () => {
     expect(inSession(main, `${STATUS} http://world.test:8080/`).stdout.trim()).toBe('403');
+  }, 120_000);
+
+  it('allows the world host on the owner-set port only', () => {
+    const ok = inSession(port18443, 'curl -sS -m 10 http://world.test:18443/');
+    expect(ok.status).toBe(0);
+    expect(ok.stdout.trim()).toBe('world ok');
+    expect(inSession(port18443, 'curl -sS -m 10 -p http://world.test:18443/').stdout.trim()).toBe(
+      'world ok',
+    );
+    // The ports file holds one port only: 443 and 80 on the same host are refused.
+    expect(inSession(port18443, `${STATUS} http://world.test:443/`).stdout.trim()).toBe('403');
+    expect(inSession(port18443, `${STATUS} http://world.test:80/`).stdout.trim()).toBe('403');
+    expect(inSession(port18443, `${STATUS} http://world.test:8080/`).stdout.trim()).toBe('403');
+  }, 120_000);
+
+  it('does not open the owner-set port on a vendor host or with the default ports file', () => {
+    const vendorHost = readFileSync(resolve(repoRoot, 'image/proxy/allowlist-vendor.txt'), 'utf8')
+      .split('\n')
+      .map((l) => l.trim())
+      .find((l) => l !== '' && !l.startsWith('#'));
+    expect(vendorHost).toBeTruthy();
+    expect(inSession(port18443, `${STATUS} http://${vendorHost}:18443/`).stdout.trim()).toBe('403');
+    expect(inSession(defaults, `${STATUS} http://world.test:18443/`).stdout.trim()).toBe('403');
+  }, 120_000);
+
+  it('refuses a CONNECT to the world host on port 80 even when 80 is the world port', () => {
+    const r = inSession(main, 'curl -sS -m 10 -p http://world.test:80/');
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('CONNECT tunnel failed, response 403');
+  }, 120_000);
+
+  it('refuses ports 443 and 80 on a host that has only another world port', () => {
+    expect(inSession(dev, `${STATUS} http://host.docker.internal:443/`).stdout.trim()).toBe('403');
+    expect(inSession(dev, `${STATUS} http://host.docker.internal:80/`).stdout.trim()).toBe('403');
   }, 120_000);
 
   it('an empty allowlist changes the answer to 403', () => {

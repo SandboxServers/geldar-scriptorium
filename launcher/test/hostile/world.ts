@@ -215,6 +215,9 @@ export function expectNoDockerCall(world: World): void {
 export const modeOf = (path: string): number => statSync(path).mode & 0o777;
 
 // N4: the state under <state>/<id> is private; pub/ and export/ are readable by the container.
+// The only files the launcher puts in pub/: the Squid allowlist and the world port file (SC-76).
+const PUB_FILES = new Set(['pub/allowlist-world.txt', 'pub/allowlist-world-ports.txt']);
+
 export function assertStatePerms(stateDir: string, id: string): 'ok' | 'skipped' {
   if (win) return 'skipped';
   const base = join(stateDir, id);
@@ -234,7 +237,7 @@ export function assertStatePerms(stateDir: string, id: string): 'ok' | 'skipped'
       } else if (sub === 'export') {
         if ((m & 0o004) === 0) bad(rel, m);
       } else if (sub === 'pub') {
-        if (rel !== 'pub/allowlist-world.txt' || m !== 0o644) bad(rel, m);
+        if (!PUB_FILES.has(rel) || m !== 0o644) bad(rel, m);
       } else if (m !== 0o600 && m !== 0o700) bad(rel, m);
     }
   };

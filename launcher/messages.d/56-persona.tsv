@@ -1,0 +1,3 @@
+persona_missing	The persona directory %s does not hold memory/identity.md and memory/goals.md for %s. Nothing was created.
+persona_bad	The persona files for %s were refused (%s). Nothing was created.
+created_seeded	Created %s with the persona you gave. It is already born, so setup is not needed. Next: geldar-play play %s

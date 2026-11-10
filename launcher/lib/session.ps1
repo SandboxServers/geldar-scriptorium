@@ -5,16 +5,6 @@ $GP_GROUPS += 'session'
 
 $script:SESSION_UTF8 = [System.Text.UTF8Encoding]::new($false)
 
-# The directory holding compose/ and proxy/ (decision 4). Never read from a clone.
-function Get-ShareDir {
-  if ($env:GELDAR_SHARE) { return $env:GELDAR_SHARE }
-  $sib = Join-Path $GP_DIR '../image'
-  if (Test-Path -LiteralPath (Join-Path $sib 'compose/session.yml') -PathType Leaf) {
-    return (Resolve-Path -LiteralPath $sib).ProviderPath.Replace([char]92, [char]47)
-  }
-  return (Join-Path $GP_DIR 'share')
-}
-
 # A value for a double-quoted YAML scalar: no quote, backslash or control character; $ doubled.
 # Returns $null when the value cannot be quoted.
 function ConvertTo-YamlQuoted([string]$Value) {
@@ -43,14 +33,23 @@ function Write-Allowlist([string]$Sd, [string]$Url) {
   New-Item -ItemType Directory -Path $pub -Force | Out-Null
   $f = Join-Path $pub 'allowlist-world.txt'
   [System.IO.File]::WriteAllText($f, "$h`n", $script:SESSION_UTF8)
+  # The effective port of the URL: the explicit one, else 80 for http and 443 for https. An empty
+  # port (https://host:/p/x) takes the default too, as the bash twin's write_allowlist does.
+  $auth = $Url.Substring($Url.IndexOf('://') + 3).Split('/')[0]
+  $port = ''
+  if ($auth.Contains(':')) { $port = $auth.Substring($auth.IndexOf(':') + 1) }
+  if ($port -eq '') { $port = if ($Url.StartsWith('http://', [StringComparison]::Ordinal)) { '80' } else { '443' } }
+  $pf = Join-Path $pub 'allowlist-world-ports.txt'
+  [System.IO.File]::WriteAllText($pf, "$port`n", $script:SESSION_UTF8)
   if (-not $IsWindows) {
     [System.IO.File]::SetUnixFileMode($pub, [System.IO.UnixFileMode]0x1ED)
     [System.IO.File]::SetUnixFileMode($f, [System.IO.UnixFileMode]0x1A4)
+    [System.IO.File]::SetUnixFileMode($pf, [System.IO.UnixFileMode]0x1A4)
   }
 }
 
 # H-06: the override. Absolute host paths only; one read-only bind per kit entry.
-function Write-Override([string]$Id, [string]$Sd, [string]$Mcp) {
+function Write-Override([string]$Id, [string]$Sd, [string]$Mcp, [bool]$Dev = $false) {
   $f = Join-Path $Sd 'override.yml'
   $exp = Join-Path $Sd 'export'
   if (-not (Test-Path -LiteralPath $exp -PathType Container)) { Die 1 no_such_player $Id $Id }
@@ -75,6 +74,9 @@ function Write-Override([string]$Id, [string]$Sd, [string]$Mcp) {
         Where-Object { $_ -cmatch '^GELDAR_STUB_[A-Z0-9_]+\z' })
     [Array]::Sort($stubs, [StringComparer]::Ordinal)
     foreach ($s in $stubs) { [void]$sb.Append("      ${s}:`n") }
+  }
+  if ($Dev) {
+    [void]$sb.Append("  proxy:`n    extra_hosts:`n      - `"host.docker.internal:host-gateway`"`n")
   }
   [void]$sb.Append("volumes:`n  geldar_ws:`n    external: true`n    name: `"geldar-ws-$Id`"`n")
   [void]$sb.Append("  geldar_cli:`n    external: true`n    name: `"geldar-cli-$Id-claude`"`n")
@@ -132,16 +134,26 @@ function Start-PlayerSession([string]$Id, [string]$Mode) {
   if ([regex]::IsMatch($chk, '[\x00-\x1F\x7F:,]')) { Die 1 bad_state_path }
   $share = (Get-ShareDir).Replace([char]92, [char]47)
 
+  # SC-75: the human-set dev world replaces the URL for this launch only. It goes straight to the
+  # allowlist writer and the override; it is never run through Test-McpUrl.
+  $mcp = $script:PL_MCP_URL
+  $dev = Get-DevWorldUrl $Id
+  if ($dev -ne '') {
+    Say dev_world_active $dev
+    $mcp = $dev
+  }
+
   New-PrivateDir $d
   New-PrivateDir $sd
-  Write-Allowlist $sd $script:PL_MCP_URL
+  Write-Allowlist $sd $mcp
   Invoke-Docker volume create "geldar-cli-$Id-claude" *> $null
   if ($LASTEXITCODE -ne 0) { Die 1 workspace_failed $Id 'the CLI volume could not be created' }
-  Write-Override $Id $sd $script:PL_MCP_URL
+  Write-Override $Id $sd $mcp ($dev -ne '')
 
   $words = @(Get-HarnessCommand claude $Mode)
   $ov = "$sdf/override.yml"
   $wl = (Split-Path -Parent $sdf) + '/pub/allowlist-world.txt'
+  $wp = (Split-Path -Parent $sdf) + '/pub/allowlist-world-ports.txt'
   $files = @('-f', "$share/compose/session.yml", '-f', $ov)
   $extra = Get-GatedEnv 'GELDAR_EXTRA_COMPOSE'
   if ($extra) {
@@ -155,15 +167,15 @@ function Start-PlayerSession([string]$Id, [string]$Mode) {
   $set = @{
     GELDAR_UID = '1000'; GELDAR_GID = '1000'; GELDAR_WORKSPACE = "geldar-ws-$Id"
     GELDAR_CLI_HOME = "geldar-cli-$Id-claude"; KIT_IMAGE = $script:PL_KIT_IMAGE
-    GELDAR_WORLD_ALLOWLIST = $wl; GELDAR_MODE = $Mode
+    GELDAR_WORLD_ALLOWLIST = $wl; GELDAR_WORLD_PORTS = $wp; GELDAR_MODE = $Mode
   }
   $tf = Join-Path $d 'token'
   $runSet = $set.Clone()
   if (Test-Path -LiteralPath $tf -PathType Leaf) { $runSet['GELDAR_MCP_TOKEN'] = Read-FirstLine $tf }
   $runArgs = $cargs + @('run', '--rm') + $tty + @('--label', 'geldar.role=session', 'session') + $words
-  $rc = Invoke-DockerChild $runArgs $runSet @('GH_TOKEN', 'GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'GELDAR_MCP_TOKEN') $false
+  $rc = Invoke-DockerChild $runArgs $runSet @('GH_TOKEN', 'GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'GELDAR_MCP_TOKEN', 'GELDAR_DEV_MCP_URL') $false
   [System.IO.File]::WriteAllText((Join-Path $sd 'exit'), "$rc`n", $script:SESSION_UTF8)
-  [void](Invoke-DockerChild ($cargs + @('down', '--remove-orphans')) $set @('GELDAR_MCP_TOKEN') $true)
+  [void](Invoke-DockerChild ($cargs + @('down', '--remove-orphans')) $set @('GELDAR_MCP_TOKEN', 'GELDAR_DEV_MCP_URL') $true)
   if ($rc -eq 125) { Die 1 compose_failed }
   Say session_end (Sanitize $script:PL_NAME)
 }

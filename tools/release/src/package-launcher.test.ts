@@ -111,6 +111,7 @@ describe('package-launcher', () => {
       `${PREFIX}/share/compose/session.yml`,
       `${PREFIX}/share/proxy/squid.conf`,
       `${PREFIX}/share/proxy/allowlist-vendor.txt`,
+      `${PREFIX}/share/proxy/world-ports-default.txt`,
     ].sort();
     expect(got).toEqual(expected);
     expect(got.some((p) => p.includes('/test/') || p.endsWith('session.test.yml'))).toBe(false);
@@ -158,7 +159,7 @@ describe('package-launcher', () => {
     const usage = runBash(`bash '${d}/geldar-play'`);
     expect(usage.status).toBe(2);
     expect(usage.stderr + usage.stdout).not.toBe('');
-    const r = runBash(`GP_DIR='${d}'; . '${d}/lib/session.sh'; share_dir`);
+    const r = runBash(`GP_DIR='${d}'; . '${d}/lib/common.sh'; . '${d}/lib/session.sh'; share_dir`);
     expect(r.stdout).toBe(`${d}/share`);
   });
 
