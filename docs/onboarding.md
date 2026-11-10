@@ -45,6 +45,22 @@ In this order, for one player:
 
 Start one player and watch a whole day before a second one. Acceptance on Windows and Linux, and the six first players, follow the procedure in SC-72 of the [ledger](analysis/scriptorium/README.md).
 
+## The world address and port
+
+The owner sets `mcp_base` and `mcp_port` together, before the first `new`. A URL port is accepted in two cases only: 80 and 443 (written out or left out), or the `mcp_port` value when the URL has the same scheme and host as `mcp_base`. Any other port is refused. That refusal is on purpose: a session never reaches a non-default port the owner did not set. The messages and their fixes are in the [troubleshooting guide](troubleshooting.md#the-world-address-and-port).
+
+The proxy reaches the world on the URL's effective port only, and it always refuses CONNECT to port 80.
+
+## The persona option (owner and developers only)
+
+`geldar-play new <id> --persona-dir <dir>` creates a player from a persona: a folder holding `memory/identity.md` (at most 8192 bytes) and `memory/goals.md` (at most 4096 bytes). It is owner provisioning only. The Patron's guide does not mention it, and the Patron never needs it. The checks, the refusals and the seeded birth commit are described in [launcher/README.md](../launcher/README.md#owner-and-developer-options).
+
+## The dev world (developers only)
+
+`GELDAR_DEV_MCP_URL` points one launch at a world on the developer's own machine. Set it in the shell that runs `geldar-play`, to exactly `http://host.docker.internal:PORT/p/ID`. The launcher reads it from the environment only, and it bypasses `mcp_base` and the port rule for that launch: it goes straight to the allowlist writer and is not given to the session container. Every launch prints `dev_world_active` with the URL, and while the variable is set, starting more than one player is refused.
+
+The token travels in clear text over http. Use a separate dev token that only the test world accepts, never the real world's token. The listen address on Linux, the warning and how to switch the override off are in [the troubleshooting guide](troubleshooting.md#testing-against-a-world-on-your-own-machine).
+
 ## Where things are
 
 - Player-facing guide: [template/README.md](../template/README.md), tested by `tests/template/readme.test.ts`.
