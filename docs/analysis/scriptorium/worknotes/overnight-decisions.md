@@ -137,3 +137,10 @@ Recorded 2026-11-10. **Status:** CHOSEN (owner: "D1 is fine as you suggest"). Th
 - Owner: "We don't need day long tests even in-game time we just need to validate the functionality. Once we get to real play we can test longevity."
 - CHOSEN: SC-72a/b need install, `new`, `setup` and one `play` session that saves commits, plus the host-clone and `upgrade` checks. The three-in-game-days run and the turns and `/usage` per day (SC-70c) move to the first real days of play. The planner's design for unattended days (bounded in-container driver, day-end marker the `day NNN:` commit; tmux supervisor rejected: screen scraping, a host actor typing into the session, no Windows path) is kept as a design record, not built now; it returns when longevity is tested. Open owner questions kept: caps, next-day scheduling, one login or six, whether a decision record is needed.
 - Consequence: the mock run on 2026-11-10 already met the functional bar for `setup` and one `play` apart from the known findings; remaining functional items are the host-clone check and `upgrade`, on the next candidate.
+
+## 54. rc3 released; the Patron path works
+
+- `kit-v0.1.0-rc3` (run 42901845560): every job passed, including the new step that creates the launcher release in the template repo (decision 52). Template repo: pre-release with exactly `geldar-play-0.1.0-rc3.tar.gz` and `SHA256SUMS` (one line); GHCR `geldar-kit` has tag `0.1.0-rc3`; the template's `CLAUDE.md` has no developer header and no mention of a human.
+- Checked as a Patron would, on the owner's PC with Git's perl removed from PATH: download from the template repo, checksum matches, unpack, the launcher runs. `--version` still prints `0.1.0` (review finding 6, still open).
+- Owner approved the in-world wording (decision 53 era; PR #37).
+- Next: create `ag-jason-01` from rc3 against the local MCP; needs the owner for the player's Claude login and a terminal for a watched day.
