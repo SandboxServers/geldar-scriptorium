@@ -22,6 +22,7 @@ The container a player's session runs in: the three companion servers (`geldar-m
 | Claude Code CLI, exact version | `Dockerfile` `ARG CLAUDE_CODE_VERSION` | `tests/image/build.test.ts` (`claude --version` matches the ARG) |
 | Squid, by digest | `compose/session.yml` | `tests/image/settings.test.ts`, `tests/image/proxy-config.test.ts`, `tests/image/egress.test.ts` |
 | Auto-update off | `Dockerfile` `ENV DISABLE_AUTOUPDATER=1` | `tests/image/build.test.ts` |
+| No account connectors, no tool search | `compose/session.yml` `session` environment and `Dockerfile` `ENV`: `ENABLE_CLAUDEAI_MCP_SERVERS=false`, `ENABLE_TOOL_SEARCH=false` | `tests/image/session-env.test.ts` |
 
 ## Build and test locally
 
@@ -38,7 +39,8 @@ The kit image is built once per vitest run by `tests/image/global-setup.ts`; eac
 ## What the tests cover
 
 - `tests/image/contract.test.ts`: the kit marker is root-owned and unwritable; the image's entrypoint is the kit script and CMD is `node`; settings are byte-equal to the repo files and unwritable; hooks act only with the marker and do not run as root; the workspace is writable for the process uid.
-- `tests/image/entrypoint.test.ts`: no Docker needed. The entrypoint seeds the trust in an absent file, keeps the other keys of an existing one, leaves invalid JSON alone, does nothing without `GELDAR_MODE`, and gives the same bytes on a second run.
+- `tests/image/entrypoint.test.ts`: no Docker needed. The entrypoint seeds the CLI home in an absent file, keeps the other keys of an existing one, keeps an existing theme, leaves invalid JSON alone, does nothing without `GELDAR_MODE`, and gives the same bytes on a second run.
+- `tests/image/session-env.test.ts`: no Docker needed. The session service and the image both set `ENABLE_CLAUDEAI_MCP_SERVERS=false` and `ENABLE_TOOL_SEARCH=false`.
 - `tests/image/cli.test.ts`: against the pinned CLI, managed settings are read from the managed path; the shipped settings are valid; an empty managed file lifts the denies (so the deny case is not vacuous); play and setup settings are accepted; the companions start and connect; `GELDAR_MODE` reaches the servers only when set and changes whether the commit tool refuses.
 - `tests/image/settings.test.ts`: the deny rules for the CLI home and credentials are present and nothing widens permissions with an allow list.
 - `tests/image/proxy-config.test.ts` and `tests/image/egress.test.ts`: the Squid policy structure, `squid -k parse` on the pinned image, and allow or refuse through the proxy on the internal network (see the file for the exact cases).
@@ -46,6 +48,8 @@ The kit image is built once per vitest run by `tests/image/global-setup.ts`; eac
 ## Startup: workspace trust
 
 Claude Code ignores a workspace's `permissions.allow` list until the workspace is trusted, and under `defaultMode: dontAsk` it then refuses every tool. A fresh CLI home has no trust, so `geldar-entrypoint.sh` sets `projects["/player"].hasTrustDialogAccepted` to `true` in `/cli-home/.claude.json` before it starts the CLI. It runs only when `GELDAR_MODE` is set (the launcher sets it for `setup` and `play`) and `/cli-home` is writable. It keeps every other key, including a logged-in session's; it writes through a temp file and a rename, with mode 0600; it leaves a file that is not valid JSON untouched; and it never fails the container. It makes no network calls and never prints the file. The agent cannot read or write `/cli-home` (managed settings deny it), so the seeding widens nothing.
+
+The same run sets three more first-run keys, so no human answers a screen: `hasCompletedOnboarding` true and `theme` `"dark"` (only when no theme is set) in `.claude.json`. It also adds the kit's MCP servers (`geldar`, `geldar_memory`, `geldar_git`) to `enabledMcpjsonServers` in `/cli-home/settings.json` (and deliberately does not set `enableAllProjectMcpServers`, so a server added to `.mcp.json` later is not approved automatically), because the player's workspace is recreated each session and an approval could never persist. `play.json` and `setup.json` carry the same two MCP keys.
 
 ## H-20: structural only in CI
 

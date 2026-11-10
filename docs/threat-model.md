@@ -36,6 +36,7 @@ This is the threat model for the Geldar player kit and its launcher. Each contro
 | Bundle gate | Output sanitising, failure keeps state, crash recovery from stored START | H-15, H-16, H-17 | T-15, T-16, T-17 |
 | Workspace origin | Clean host clone, START held by the launcher, export from `git archive`, isolated clone | H-01 to H-05 | T-01 to T-05 |
 | Settings layers | Hooks inert without the kit marker; reads of the CLI home and credentials denied (managed settings) | H-18, H-20 | T-18, T-20 |
+| Session login | Account connectors off (`ENABLE_CLAUDEAI_MCP_SERVERS=false`): a claude.ai login must not load the account's connectors (mail, calendar, drive, docs) into the session, so signing in never widens what the player can reach | none yet (no H-NN item) | `tests/image/session-env.test.ts` |
 
 ## Accepted risks
 

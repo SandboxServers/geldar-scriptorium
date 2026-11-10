@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { repoRoot, SQUID_IMAGE } from './docker.ts';
 
 type Settings = {
+  enabledMcpjsonServers?: string[];
+  enableAllProjectMcpServers?: boolean;
   permissions?: {
     allow?: string[];
     deny?: string[];
@@ -62,6 +64,14 @@ describe('image managed and play settings', () => {
     const pattern = /^[A-Za-z_*]+(\(.+\))?$/;
     for (const rule of [...managedDeny, ...playDeny, ...(setup.permissions?.deny ?? [])]) {
       expect(rule, rule).toMatch(pattern);
+    }
+  }, 120_000);
+
+  it('play and setup pre-enable the three kit MCP servers, so no approval dialog opens', () => {
+    for (const settings of [play, setup]) {
+      expect(settings.enabledMcpjsonServers).toEqual(['geldar', 'geldar_memory', 'geldar_git']);
+      // Only the three are approved; a server added to .mcp.json later must not be.
+      expect(settings.enableAllProjectMcpServers).toBeUndefined();
     }
   }, 120_000);
 
