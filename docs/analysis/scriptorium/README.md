@@ -188,7 +188,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-77 | 7 | S | Hygiene left from the Wave 6 retro: umbrella for SC-77a and SC-77b (the blob cap, export attributes, the upgrade image pin and NTFS names were already merged in the wave 6 fix pass) | - | BlockedDependency (done when SC-77b is) | SC-77a, SC-77b |
 | SC-77a | 7 | S | Repo check that fails when the bash and PowerShell launchers disagree on registered groups (plus `core`) or on private directories (`export` and `pub` exempt) | Sonnet (general-purpose) | Done | wave 6 |
 | SC-77b | 7 | S | Container recipe for the Linux-only tests, with a digest-consistency test | packet-coder (Haiku) | Done | wave 6 |
-| SC-78 | 7 | S | Template prompt: the knowledge boundary and no-audience rule (decision 40): add the three agreed lines to `template/AGENTS.md` under the voice rule, plus a template test; Sonnet | packet-coder | Planned | wave 6 |
+| SC-78 | 7 | S | Template prompt: the knowledge boundary and no-audience rule (decision 40): add the three agreed lines to `template/AGENTS.md` under the voice rule, plus a template test; Sonnet | packet-coder | Done | wave 6 |
 
 **Cross-campaign dependency:** wave 3 needs `@geldar/contract` from geldar Phase 0 packet P0-01. Waves 0–2 and 4 don't need wave 3. Only SC-55c (not SC-55b) needs wave 3.
 
