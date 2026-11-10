@@ -16,6 +16,7 @@
     "GELDAR_WT"
   ],
   "human_seams": [
+    "GELDAR_DEV_MCP_URL",
     "GELDAR_DOCKER",
     "GELDAR_GH",
     "GELDAR_GIT",
@@ -33,6 +34,7 @@
     "GELDAR_MODE",
     "GELDAR_UID",
     "GELDAR_WORKSPACE",
-    "GELDAR_WORLD_ALLOWLIST"
+    "GELDAR_WORLD_ALLOWLIST",
+    "GELDAR_WORLD_PORTS"
   ]
 }
