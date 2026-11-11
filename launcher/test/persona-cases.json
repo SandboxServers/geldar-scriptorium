@@ -178,6 +178,13 @@
     "reason": "hardlink"
   },
   {
+    "name": "hard link as goals",
+    "files": { "goals": "hardlink" },
+    "args": "",
+    "expect": "persona_bad",
+    "reason": "hardlink"
+  },
+  {
     "name": "symlink as the id directory",
     "files": { "layout": "id-link" },
     "args": "",

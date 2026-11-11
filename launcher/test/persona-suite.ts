@@ -165,7 +165,11 @@ export function personaSuite(l: Launcher): void {
               if (s === 'link') skip = link(join(outside, 'real.md'), at, 'file');
               else if (s === 'hardlink') {
                 writeFileSync(at, good);
-                linkSync(at, join(outside, `${file}.second`));
+                try {
+                  linkSync(at, join(outside, `${file}.second`));
+                } catch (e) {
+                  skip = String(e);
+                }
               } else writeFileSync(at, s === 'ok' ? good : bytesOf(s));
             }
             if (c.files.extras) {
