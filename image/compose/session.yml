@@ -40,6 +40,8 @@ services:
       # deferred tool search: the kit's own MCP tools load up front.
       ENABLE_CLAUDEAI_MCP_SERVERS: "false"
       ENABLE_TOOL_SEARCH: "false"
+      # A 200k window: compaction and the meter lines assume it.
+      CLAUDE_CODE_DISABLE_1M_CONTEXT: "1"
     networks: [inside]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
