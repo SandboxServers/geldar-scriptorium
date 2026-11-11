@@ -42,6 +42,9 @@ services:
       ENABLE_TOOL_SEARCH: "false"
       # A 200k window: compaction and the meter lines assume it.
       CLAUDE_CODE_DISABLE_1M_CONTEXT: "1"
+      # Workers always run the small model.
+      CLAUDE_CODE_SUBAGENT_MODEL: "haiku"
+      CLAUDE_CODE_SUBAGENT_MODEL_FORCE: "1"
     networks: [inside]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

@@ -10,6 +10,8 @@ import { repoRoot } from './docker.ts';
 const sessionVars = { ENABLE_CLAUDEAI_MCP_SERVERS: 'false', ENABLE_TOOL_SEARCH: 'false' };
 // A 200k window: compaction and the meter lines assume it.
 const windowVar = 'CLAUDE_CODE_DISABLE_1M_CONTEXT';
+// Workers always run the small model.
+const workerVars = { CLAUDE_CODE_SUBAGENT_MODEL: 'haiku', CLAUDE_CODE_SUBAGENT_MODEL_FORCE: '1' };
 const compose = readFileSync(resolve(repoRoot, 'image/compose/session.yml'), 'utf8');
 const dockerfile = readFileSync(resolve(repoRoot, 'image/Dockerfile'), 'utf8');
 // The session service's block: from its key to the next top-level key.
@@ -32,5 +34,19 @@ describe('session environment turns off account connectors and tool search', () 
   it('the session service and the image set the 200k window', () => {
     expect(sessionBlock, windowVar).toMatch(new RegExp(`^ {6}${windowVar}: "1"$`, 'm'));
     expect(dockerfile, windowVar).toMatch(new RegExp(`^ENV .*\\b${windowVar}=1(\\s|$)`, 'm'));
+  }, 120_000);
+});
+
+describe('workers always run the small model', () => {
+  it('the session service sets both worker variables', () => {
+    for (const [name, value] of Object.entries(workerVars)) {
+      expect(sessionBlock, name).toMatch(new RegExp(`^ {6}${name}: "${value}"$`, 'm'));
+    }
+  }, 120_000);
+
+  it('the image sets both worker variables', () => {
+    for (const [name, value] of Object.entries(workerVars)) {
+      expect(dockerfile, name).toMatch(new RegExp(`^ENV .*\\b${name}=${value}(\\s|$)`, 'm'));
+    }
   }, 120_000);
 });
