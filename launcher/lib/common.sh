@@ -90,7 +90,7 @@ harness_command() {
   local cli=$1 mode=$2
   case $cli in
     claude)
-      printf '%s\n' claude --settings "/etc/geldar/settings/$mode.json" "/$mode"
+      printf '%s\n' claude --autocompact 100000 --settings "/etc/geldar/settings/$mode.json" "/$mode"
       ;;
     *) return 1 ;;
   esac
