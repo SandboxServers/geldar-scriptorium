@@ -1,8 +1,9 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 type Settings = {
+  agent?: string;
   model?: string;
   effortLevel?: string;
   autoMemoryEnabled?: boolean;
@@ -88,9 +89,17 @@ describe('Claude Code settings layers', () => {
     }
   });
 
-  it('uses effortLevel low and model haiku', () => {
+  it('uses effortLevel low and model sonnet', () => {
     expect(project.effortLevel).toBe('low');
-    expect(project.model).toBe('haiku');
+    expect(project.model).toBe('sonnet');
+  });
+
+  it('starts as the planner agent, whose file exists', () => {
+    expect(project.agent).toBe('planner');
+    const file = fileURLToPath(
+      new URL('../../template/.claude/agents/planner.md', import.meta.url),
+    );
+    expect(existsSync(file)).toBe(true);
   });
 
   it('anchors every PostToolUse matcher', () => {
