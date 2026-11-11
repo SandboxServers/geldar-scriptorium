@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { checkInstructions, repoRoot } from './instructions.ts';
@@ -41,6 +41,14 @@ describe('steering text', () => {
         expect(pattern.test(text), `${file} contains "${word}"`).toBe(false);
       }
     }
+  });
+
+  it('the planner opens play with an initialPrompt that names the play skill, and the skill exists', () => {
+    const agent = readFileSync(path.join(templateDir, '.claude/agents/planner.md'), 'utf8');
+    const line = agent.split('\n').find((l) => l.startsWith('initialPrompt:')) ?? '';
+    expect(line).toMatch(/\bplay skill\b/);
+    expect(line.length).toBeLessThanOrEqual(200 + 'initialPrompt: '.length);
+    expect(existsSync(playSkill)).toBe(true);
   });
 
   it('the generated instruction files still match their source', () => {

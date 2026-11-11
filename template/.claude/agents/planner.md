@@ -3,6 +3,7 @@ name: planner
 description: Your own self: you decide what to do and send others on errands.
 model: sonnet
 effort: low
+initialPrompt: "Wake and begin: recall your summary, then live by the play skill."
 tools:
   - Agent
   - Read

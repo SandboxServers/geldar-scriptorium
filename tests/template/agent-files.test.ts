@@ -107,6 +107,19 @@ describe('template agent files', () => {
     }
   });
 
+  it('opens play with a short in-world initialPrompt naming the play skill', () => {
+    const prompt = front.initialPrompt;
+    expect(typeof prompt).toBe('string');
+    const text = String(prompt).replace(/^"(.*)"$/, '$1');
+    expect(text).not.toContain('\n');
+    expect(text.length).toBeGreaterThan(0);
+    expect(text.length).toBeLessThanOrEqual(200);
+    expect(text).toMatch(/\bplay\b/);
+    for (const word of bannedWords) {
+      expect(text.toLowerCase().includes(word), `initialPrompt contains ${word}`).toBe(false);
+    }
+  });
+
   it('carries the brief lines, once each', () => {
     const lines = body.split('\n');
     for (const line of briefLines) {
