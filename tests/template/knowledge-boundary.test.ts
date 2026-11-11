@@ -21,6 +21,14 @@ function markdownFiles(dir: string): string[] {
   });
 }
 
+function characterFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return characterFiles(full);
+    return /\.(md|sh|json)$/.test(entry.name) ? [full] : [];
+  });
+}
+
 describe('player instructions: knowledge boundary', () => {
   for (const file of ['AGENTS.md', 'CLAUDE.md']) {
     const text = readFileSync(path.join(repoRoot, 'template', file), 'utf8');
@@ -46,7 +54,7 @@ describe('player instructions: knowledge boundary', () => {
   });
 
   it('no file the character reads uses a meta term for its people or tools (SC-79)', () => {
-    const files = markdownFiles(path.join(repoRoot, 'template')).filter(
+    const files = characterFiles(path.join(repoRoot, 'template')).filter(
       (file) => path.basename(file) !== 'README.md' || path.dirname(file) !== path.join(repoRoot, 'template'),
     );
     for (const file of files) {
