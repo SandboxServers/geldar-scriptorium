@@ -21,6 +21,14 @@ function markdownFiles(dir: string): string[] {
   });
 }
 
+function characterFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return characterFiles(full);
+    return /\.(md|sh|json)$/.test(entry.name) ? [full] : [];
+  });
+}
+
 describe('player instructions: knowledge boundary', () => {
   for (const file of ['AGENTS.md', 'CLAUDE.md']) {
     const text = readFileSync(path.join(repoRoot, 'template', file), 'utf8');
@@ -42,6 +50,23 @@ describe('player instructions: knowledge boundary', () => {
   it('no template markdown file names an audience', () => {
     for (const file of markdownFiles(path.join(repoRoot, 'template'))) {
       expect(readFileSync(file, 'utf8'), file).not.toMatch(audienceWords);
+    }
+  });
+
+  it('no file the character reads uses a meta term for its people or tools (SC-79)', () => {
+    const files = characterFiles(path.join(repoRoot, 'template')).filter(
+      (file) =>
+        path.basename(file) !== 'README.md' ||
+        path.dirname(file) !== path.join(repoRoot, 'template'),
+    );
+    for (const file of files) {
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .forEach((line, i) => {
+          for (const banned of ['Your human', 'your human', 'Geldar tools', 'terminal']) {
+            expect(line.includes(banned), `${file}:${i + 1} contains "${banned}"`).toBe(false);
+          }
+        });
     }
   });
 
