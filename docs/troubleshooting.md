@@ -419,7 +419,7 @@ Why it is safe. Nothing was created.
 What to do. Give a directory that holds both files, then run the command again.
 
 ### persona_bad
-What it means. The persona files were refused. The reason is in brackets: size means over the byte cap (8192 bytes for identity.md, 4096 for goals.md); control means a control character; utf8 means not valid UTF-8; invisible means an invisible code point; link means a symbolic link; type means not a plain file or folder; empty means an empty file; twice means the option was given twice.
+What it means. The persona files were refused. The reason is in brackets: size means over the byte cap (8192 bytes for identity.md, 4096 for goals.md); control means a control character; utf8 means not valid UTF-8; invisible means an invisible code point; link means a symbolic link; hardlink means a file with more than one hard link; type means not a plain file or folder; empty means an empty file; twice means the option was given twice.
 Why it is safe. The files are checked before anything is written, so nothing was created.
 What to do. Fix the named problem in the persona files, then run the command again.
 

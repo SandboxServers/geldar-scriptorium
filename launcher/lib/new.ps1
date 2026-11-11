@@ -111,6 +111,13 @@ function Test-PersonaPath([string]$Path, [string]$Kind, [string]$Id, [string]$Di
   if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { Die 1 persona_bad $Id link }
   $isDir = [bool]($item.Attributes -band [IO.FileAttributes]::Directory)
   if (($Kind -ceq 'dir') -ne $isDir) { Die 1 persona_bad $Id type }
+  if (-not $isDir) {
+    # LinkType does not show hard links on Windows; fsutil lists every name of the file.
+    $names = @(& fsutil hardlink list $item.FullName 2>$null)
+    if ($LASTEXITCODE -ne 0 -or @($names | Where-Object { $_ -and $_.Trim() }).Count -gt 1) {
+      Die 1 persona_bad $Id hardlink
+    }
+  }
   return $item
 }
 
