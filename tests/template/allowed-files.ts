@@ -9,6 +9,7 @@ export const allowedFiles: readonly string[] = [
   'template/.gitattributes',
   'template/.gitignore',
   'template/.claude/settings.json',
+  'template/.claude/agents/planner.md',
   'template/.claude/hooks/session-start.sh',
   'template/.claude/hooks/post-tool-use.sh',
   'template/.claude/hooks/session-end.sh',
