@@ -124,6 +124,13 @@ persona_part() {
     [ -d "$p" ] || die 1 persona_bad "$id" type
   else
     [ -f "$p" ] || die 1 persona_bad "$id" type
+    # A second hard link could alias a file outside the persona folder: GNU stat, then BSD stat.
+    local n
+    n=$(stat -c %h -- "$p" 2>/dev/null) || n=$(stat -f %l "$p" 2>/dev/null) || n=
+    case $n in
+      '' | *[!0-9]*) die 1 persona_bad "$id" hardlink ;;
+    esac
+    [ "$n" -le 1 ] || die 1 persona_bad "$id" hardlink
   fi
 }
 

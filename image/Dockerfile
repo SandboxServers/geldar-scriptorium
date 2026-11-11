@@ -38,7 +38,7 @@ RUN printf 'geldar kit\n' > /etc/geldar-kit \
  && chmod 0444 /etc/geldar-kit \
  && mkdir -p /player /cli-home && chown player:player /player /cli-home
 LABEL org.opencontainers.image.source="https://github.com/SandboxServers/geldar-scriptorium"
-ENV CLAUDE_CONFIG_DIR=/cli-home DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 ENABLE_CLAUDEAI_MCP_SERVERS=false ENABLE_TOOL_SEARCH=false
+ENV CLAUDE_CONFIG_DIR=/cli-home DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 ENABLE_CLAUDEAI_MCP_SERVERS=false ENABLE_TOOL_SEARCH=false CLAUDE_CODE_DISABLE_1M_CONTEXT=1
 # The kit entrypoint seeds the player's workspace trust, then runs the base image's
 # docker-entrypoint.sh. CMD is repeated because an ENTRYPOINT here resets the base image's CMD.
 ENTRYPOINT ["/usr/local/bin/geldar-entrypoint.sh"]

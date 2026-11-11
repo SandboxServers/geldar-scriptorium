@@ -294,6 +294,8 @@ stat -c %a "$GELDAR_WORLD_ALLOWLIST" > "${modeOut}"
       const last = runCalls(w).pop() as string[];
       expect(last.slice(last.indexOf('session') + 1)).toEqual([
         'claude',
+        '--autocompact',
+        '100000',
         '--settings',
         `/etc/geldar/settings/${mode}.json`,
         `/${mode}`,

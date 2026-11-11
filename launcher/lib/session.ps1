@@ -86,7 +86,7 @@ function Write-Override([string]$Id, [string]$Sd, [string]$Mcp, [bool]$Dev = $fa
 
 # The one function that builds the harness command words; SC-71 changes it.
 function Get-HarnessCommand([string]$Cli, [string]$Mode) {
-  if ($Cli -ceq 'claude') { return @('claude', '--settings', "/etc/geldar/settings/$Mode.json", "/$Mode") }
+  if ($Cli -ceq 'claude') { return @('claude', '--autocompact', '100000', '--settings', "/etc/geldar/settings/$Mode.json", "/$Mode") }
   throw 'unsupported cli'
 }
 
