@@ -25,7 +25,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bashPath, type Launcher, launchers, repoRoot, run } from '../../launcher/test/harness.ts';
 import { parseScenario } from '../../packages/stub-cli/src/scenario.ts';
 import { buildKit, dockerReady, KIT_IMAGE } from '../image/docker.ts';
-import { cleanPlayer, docker, MOCK_IMAGE, mockMode, writeExtraCompose } from './world.ts';
+import {
+  cleanPlayer,
+  docker,
+  MOCK_IMAGE,
+  mockMode,
+  mockWorldShare,
+  writeExtraCompose,
+} from './world.ts';
 
 const SCEN = 'packages/stub-cli/src/scenarios';
 const IN_IMAGE = '/opt/geldar-stub/packages/stub-cli/src/scenarios';
@@ -123,6 +130,7 @@ describe.each(['bash', 'pwsh'] as const)('end to end (%s)', (name) => {
   chmodSync(join(fakeDir, 'docker'), 0o755);
   if (win) writeFileSync(join(fakeDir, 'gh.cmd'), `@sh "${bashPath(fakeGh)}" %*\r\n`);
   const suffix = `${bash ? 'b' : 'p'}${process.pid}`;
+  const share = mockWorldShare(root);
 
   // One player: its own id, scenario folder, extra compose file and environment.
   function player(tag: string, mockToken: string = token) {
@@ -144,6 +152,7 @@ describe.each(['bash', 'pwsh'] as const)('end to end (%s)', (name) => {
     });
     allIds.push({ id, vols: [extra.proxyLogVolume] });
     const env = (scenario?: string): Record<string, string> => ({
+      GELDAR_SHARE: p(share),
       GELDAR_STATE_DIR: p(state),
       GELDAR_PLAYERS_DIR: p(players),
       ...(bash ? { GELDAR_DOCKER: bashPath(join(fakeDir, 'docker')) } : {}),

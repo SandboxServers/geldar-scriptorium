@@ -10,6 +10,7 @@ Every message geldar-play prints has a section below, named by its key in `launc
 | `created` | The player's repository was made. The message names the next command, `setup`. |
 | `created_seeded` | The player was made from the persona you gave. It is already born, so `setup` is not needed; the next command is `play`. |
 | `public_notice` | The player's repository is public, memory included. This is information, not a failure. |
+| `mock_note` | The player was made with --mock. A mock player plays only through the dev-world setting (GELDAR_DEV_MCP_URL) or a world.conf whose `mcp_base` is the mock's address. This is information, not a failure. |
 | `many_players` | More than three players were started together. Each one uses your plan's limits, so start with one and watch. |
 | `dev_world_active` | GELDAR_DEV_MCP_URL is set and valid, so this launch uses a world on your machine. The message repeats the URL. See the testing section. |
 | `session_start` | A session is starting. Closing it saves the player's memory. |
@@ -27,7 +28,7 @@ Every message geldar-play prints has a section below, named by its key in `launc
 
 ## The world address and port
 
-`mcp_port` in `launcher/config/world.conf` is the port of the world's MCP, set by the owner. It holds digits only, from 1024 to 65535, with no leading zero. Blank means only ports 80 and 443 are ever accepted. When it is set, `mcp_base` carries the same port, for example `https://world.example:18443`.
+`mcp_port` in `launcher/config/world.conf` is the port of the world's MCP, set by the owner. It holds digits only, from 1024 to 65535, with no leading zero. On every port, the host of a player's server address must equal the host of `mcp_base`. Ports 80 and 443 are accepted only on that host, and any other port must also equal `mcp_port`. Blank means only ports 80 and 443 are accepted, and still only on the `mcp_base` host. When it is set, `mcp_base` carries the same port, for example `https://world.example:18443`.
 
 A refused port is a refusal on purpose. The launcher sends a session only to the address and port the owner named, so a world URL with any other port is refused as `bad_url`, and nothing is created or contacted.
 

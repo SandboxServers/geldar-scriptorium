@@ -1,6 +1,37 @@
 [
-  { "base": "", "port": "", "url": "https://world.example.com:443/p/x", "ok": true },
-  { "base": "", "port": "", "url": "http://world.test:80/p/x", "ok": true },
+  {
+    "base": "https://world.example.com",
+    "port": "",
+    "url": "https://world.example.com:443/p/x",
+    "ok": true
+  },
+  { "base": "http://world.test", "port": "", "url": "http://world.test:80/p/x", "ok": true },
+  { "base": "", "port": "", "url": "https://world.example.com:443/p/x", "ok": false },
+  { "base": "", "port": "", "url": "http://world.test/p/x", "ok": false },
+  {
+    "base": "https://world.example.com",
+    "port": "",
+    "url": "https://other.example.com:443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com:18443",
+    "port": "18443",
+    "url": "https://other.example.com:443/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com",
+    "port": "",
+    "url": "https://other.example.com/p/x",
+    "ok": false
+  },
+  {
+    "base": "https://world.example.com",
+    "port": "",
+    "url": "http://world.example.com:80/p/x",
+    "ok": false
+  },
   { "base": "", "port": "", "url": "https://world.example.com:18443/p/x", "ok": false },
   {
     "base": "https://world.example.com:18443",
@@ -36,7 +67,7 @@
     "base": "https://world.example.com:18443",
     "port": "18443",
     "url": "http://world.example.com:80/p/x",
-    "ok": true
+    "ok": false
   },
   {
     "base": "https://world.example.com",

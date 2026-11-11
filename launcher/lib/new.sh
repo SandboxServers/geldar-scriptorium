@@ -17,7 +17,7 @@ gp_sleep() {
 valid_base_url() {
   local re='^https?://[^/@?# ]+$'
   [[ ${1-} =~ $re ]] || return 1
-  valid_mcp_url "$1/p/x"
+  valid_mcp_url "$1/p/x" base
 }
 
 # Reads the token file: one line, trimmed, nothing after it. Sets NEW_TOKEN.
@@ -254,6 +254,7 @@ verb_new() {
   fi
   gh=${GELDAR_GH:-gh}
   [ "$NEW_VIS" = "private" ] || say public_notice
+  [ -z "$mock" ] || say mock_note
 
   # The human's own clone and directory keep the user's normal modes.
   umask 022

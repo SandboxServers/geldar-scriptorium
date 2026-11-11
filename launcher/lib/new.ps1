@@ -13,7 +13,7 @@ function Invoke-GpSleep([double]$Seconds) {
 # A base address: scheme and host only; the host rules are those of Test-McpUrl.
 function Test-BaseUrl([string]$Url) {
   if (-not [regex]::IsMatch($Url, '^https?://[^/@?# ]+\z')) { return $false }
-  return (Test-McpUrl "$Url/p/x")
+  return (Test-McpUrl "$Url/p/x" -Base)
 }
 
 # Reads the token file: one line, trimmed, nothing after it. Returns the token.
@@ -256,6 +256,7 @@ function Verb-new {
   $gh = $env:GELDAR_GH
   if (-not $gh) { $gh = 'gh' }
   if ($newVis -cne 'private') { Say public_notice }
+  if ($mock) { Say mock_note }
 
   $tpl = 'SandboxServers/geldar-player-template'
   if ((Invoke-InDir $players @($gh, 'repo', 'create', $name, '--template', $tpl, "--$newVis")) -ne 0) {

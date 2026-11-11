@@ -20,7 +20,7 @@ The real world's address and port are set in [launcher/config/world.conf](../lau
 | Key | What it is | While blank |
 |---|---|---|
 | `mcp_base` | Scheme, host and port of the world, for example `https://geldar.sandboxservers.games:18443`. No path, no credentials. | `new` refuses with `no_world`: nothing is created. |
-| `mcp_port` | The port of the world's MCP: digits only, no leading zero, 1024 to 65535. It must match the port in `mcp_base`. | Only ports 80 and 443 are accepted. |
+| `mcp_port` | The port of the world's MCP: digits only, no leading zero, 1024 to 65535. It must match the port in `mcp_base`. | Only ports 80 and 443 are accepted, and only on the `mcp_base` host. |
 | `private_only_shards` | Shard names separated by commas. Their player repositories must be private. | `new` cannot check the shard. It needs an explicit `--private` or `--public`. |
 
 A shard name is lowercase letters, digits and dashes. A shard on the list is refused unless the player repository is private (`private_required`).
@@ -47,7 +47,7 @@ Start one player and watch a whole day before a second one. Acceptance on Window
 
 ## The world address and port
 
-`mcp_base` and `mcp_port` are kept set together, and the owner changes them together. A URL port is accepted in two cases only: 80 and 443 (written out or left out), or the `mcp_port` value when the URL has the same scheme and host as `mcp_base`. Any other port is refused. That refusal is on purpose: a session never reaches a non-default port the owner did not set. The messages and their fixes are in the [troubleshooting guide](troubleshooting.md#the-world-address-and-port).
+`mcp_base` and `mcp_port` are kept set together, and the owner changes them together. A URL is accepted only when its scheme and host equal those of `mcp_base`, on every port. Then the port must be 80 or 443 (written out or left out), or the `mcp_port` value. Any other port, or any other host, is refused. That refusal is on purpose: a session never reaches a non-default port the owner did not set. The messages and their fixes are in the [troubleshooting guide](troubleshooting.md#the-world-address-and-port).
 
 The proxy reaches the world on the URL's effective port only, and it always refuses CONNECT to port 80.
 

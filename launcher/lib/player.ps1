@@ -86,8 +86,9 @@ function Test-PrivateHost([string]$Name) {
 }
 
 # A DNS name whose last label holds a letter (so dotted quads, 127.1 and 2130706433 are refused);
-# a port, if any, is 80, 443 or the owner-set world port (Test-WorldPort).
-function Test-McpUrl([string]$Url) {
+# the host must also equal that of mcp_base in world.conf (SC-80); a port, if any, is 80, 443 or
+# the owner-set world port (Test-WorldPort).
+function Test-McpUrl([string]$Url, [switch]$Base) {
   if (-not [regex]::IsMatch($Url, '^https?://[^/@ ]+/[A-Za-z0-9._~/-]*\z')) { return $false }
   $auth = $Url.Substring($Url.IndexOf('://') + 3)
   $auth = $auth.Substring(0, $auth.IndexOf('/'))
@@ -102,7 +103,8 @@ function Test-McpUrl([string]$Url) {
   if (Test-PrivateHost $hostName) { return $false }
   if ([regex]::IsMatch($Url, '/\.\.(/|\z)')) { return $false }
   if (-not (Test-HostLabel $hostName)) { return $false }
-  if ($port -eq '' -or $port -ceq '80' -or $port -ceq '443') { return $true }
+  # SC-80: -Base is for new's own base address, which is not yet a player URL.
+  if ($Base -and ($port -eq '' -or $port -ceq '80' -or $port -ceq '443')) { return $true }
   return (Test-WorldPort $Url $hostName $port)
 }
 
@@ -111,17 +113,20 @@ function Test-HostLabel([string]$HostName) {
   return [regex]::IsMatch($HostName.Substring($HostName.LastIndexOf('.') + 1), '[a-z]')
 }
 
-# A non-default port is accepted only when it equals the owner-set mcp_port of world.conf and the
-# URL has the scheme and host of mcp_base. Fails closed: no reader, no readable file, no port.
+# SC-80: on every port the URL must have the scheme and host of mcp_base; a port other than 80 and
+# 443 must also equal the owner-set mcp_port of world.conf. Fails closed: no reader, no readable
+# file, no mcp_base, no port.
 function Test-WorldPort([string]$Url, [string]$HostName, [string]$Port) {
   if (-not (Get-Command Get-WorldConf -CommandType Function -ErrorAction SilentlyContinue)) { return $false }
   try {
     $want = [string](Get-WorldConf 'mcp_port')
     $base = [string](Get-WorldConf 'mcp_base')
   } catch { return $false }
-  if (-not [regex]::IsMatch($want, '^[1-9][0-9]{3,4}\z')) { return $false }
-  if ([int]$want -lt 1024 -or [int]$want -gt 65535) { return $false }
-  if (-not [regex]::IsMatch($Port, '^[0-9]+\z') -or $Port -cne $want) { return $false }
+  if ($Port -ne '' -and $Port -cne '80' -and $Port -cne '443') {
+    if (-not [regex]::IsMatch($want, '^[1-9][0-9]{3,4}\z')) { return $false }
+    if ([int]$want -lt 1024 -or [int]$want -gt 65535) { return $false }
+    if (-not [regex]::IsMatch($Port, '^[0-9]+\z') -or $Port -cne $want) { return $false }
+  }
   $m = [regex]::Match($base, '^(https?)://([^/@?#:\s]+)(:[0-9]+)?\z')
   if (-not $m.Success) { return $false }
   $bh = $m.Groups[2].Value
