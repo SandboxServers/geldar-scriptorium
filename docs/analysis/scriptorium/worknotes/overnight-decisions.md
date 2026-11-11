@@ -140,7 +140,7 @@ Recorded 2026-11-10. **Status:** CHOSEN (owner: "D1 is fine as you suggest"). Th
 
 ## 55. Model names stay out of template prose (agreed with geldar-93; owner confirmation pending)
 
-Recorded 2026-11-11. **Status:** CHOSEN by the orchestrators; the owner confirms through geldar-93. Model names (`sonnet`, `haiku`) appear only in `template/.claude/settings.json` and agent frontmatter; prose in anything a player reads uses in-world role words and none of "orchestrator", "subagent", "model", "context". **Owner clarification (2026-11-11):** this is not a claim that the character cannot tell it is a program; training data and system prompts already say so. Persona and identity drive how the character deals with the server, from its nature and what it learns about its surroundings and other players. The rule keeps the knowledge boundary honest and the voice coherent; it does not try to hide what the base model is.
+Recorded 2026-11-11. **Status:** CONFIRMED by the owner (relayed by geldar-93, 2026-11-11): model names appear only in settings and agent frontmatter, nowhere else. The meter lines (worker 70k soft and 90k hard, planner 80k) and the `--autocompact` flag are accepted too. Model names (`sonnet`, `haiku`) appear only in `template/.claude/settings.json` and agent frontmatter; prose in anything a player reads uses in-world role words and none of "orchestrator", "subagent", "model", "context". **Owner clarification (2026-11-11):** this is not a claim that the character cannot tell it is a program; training data and system prompts already say so. Persona and identity drive how the character deals with the server, from its nature and what it learns about its surroundings and other players. The rule keeps the knowledge boundary honest and the voice coherent; it does not try to hide what the base model is.
 
 **Owner addition (2026-11-11):** the in-world prose rule changes wording only. The backend behaviour must exist and be tested: the model per role (planner `sonnet`, workers `haiku`), the reasoning effort (`low`), the context window and compaction settings, and the tool limits. **How to apply:** SC-101 to SC-105 and the knowledge-boundary test; every card asserts the backend setting itself, not only the prose.
 
@@ -152,7 +152,7 @@ Recorded 2026-11-11. **Status:** CHOSEN by the orchestrators; the owner confirms
 
 **Owner, 2026-11-11:** the planner persona starts a new worker when a worker is stopped by the PreToolUse meter (SC-104, bash and `jq`, no new dependency), handing it the stopped worker's report. Settled. What remains open is below.
 
-### Still open: the planner's own restart, wrapper loop versus prompt discipline
+### Still open with the owner (geldar-93, 2026-11-11): the planner's own restart, wrapper loop versus prompt discipline
 
 No hook can stop a session or start an agent at a usage threshold, and a subagent cannot compact below 100k. **Status:** OPEN until SC-100 item 9 reports. If an in-session restart is impossible, owner call: build the launcher wrapper loop (SC-109) or accept prompt-level discipline.
 
