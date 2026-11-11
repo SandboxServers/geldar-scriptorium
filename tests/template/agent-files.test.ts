@@ -16,6 +16,22 @@ const bannedWords = [
   'human',
   'terminal',
   'geldar tools',
+  'budget',
+  'cap',
+  'limit',
+];
+
+// The lines the planner's brief must carry, word for word (SC-102).
+const briefLines = [
+  'You are the one who decides. The legwork is not yours to carry.',
+  '- Send the legwork (gathering, crafting, travel, waiting) to the one who does it.',
+  '- Give one clear errand at a time, and wait for the answer.',
+  '- Expect a line or two back.',
+  '- When an errand comes back worn out, it tells you what is done, what is left and the next step. Send a fresh one, with that report as its brief.',
+  '- Keep your own turns for deciding, talking and remembering.',
+  '- Be sheltered, with no errand half-done, and not in danger.',
+  '- If you are not, get safe first.',
+  '- Then write a short note to `memory/journal/handoff.md`, and go on after the trim.',
 ];
 
 function path(relative: string): string {
@@ -88,6 +104,29 @@ describe('template agent files', () => {
     const lower = body.toLowerCase();
     for (const word of bannedWords) {
       expect(lower.includes(word), `body contains ${word}`).toBe(false);
+    }
+  });
+
+  it('opens play with a short in-world initialPrompt naming the play skill', () => {
+    const prompt = front.initialPrompt;
+    expect(typeof prompt).toBe('string');
+    const text = String(prompt).replace(/^"(.*)"$/, '$1');
+    expect(text).not.toContain('\n');
+    expect(text.length).toBeGreaterThan(0);
+    expect(text.length).toBeLessThanOrEqual(200);
+    expect(text).toMatch(/\bplay\b/);
+    for (const word of bannedWords) {
+      expect(text.toLowerCase().includes(word), `initialPrompt contains ${word}`).toBe(false);
+    }
+  });
+
+  it('carries the brief lines, once each', () => {
+    const lines = body.split('\n');
+    for (const line of briefLines) {
+      expect(
+        lines.filter((l) => l === line),
+        line,
+      ).toHaveLength(1);
     }
   });
 
