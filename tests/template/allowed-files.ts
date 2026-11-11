@@ -19,6 +19,7 @@ export const allowedFiles: readonly string[] = [
   'template/.claude/skills/author/SKILL.md',
   'template/.claude/skills/moot/SKILL.md',
   'template/.claude/skills/setup/SKILL.md',
+  'template/.claude/agents/worker.md',
   'template/memory/identity.md',
   'template/memory/goals.md',
   'template/memory/beliefs.md',
