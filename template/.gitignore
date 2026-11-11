@@ -1,4 +1,6 @@
 .DS_Store
 Thumbs.db
-.geldar-token
-*.token
+.geldar-token*
+*.token*
+.env
+.env.*

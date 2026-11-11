@@ -22,8 +22,8 @@ export const forbidden = [
 
 // A token-shaped string: a token assignment with a literal value, or a long literal bearer value.
 export const tokenShapes: readonly RegExp[] = [
-  /GELDAR_MCP_TOKEN=(?!\$\{)\S{8,}/,
-  /Bearer (?!\$\{)[A-Za-z0-9+/=_-]{20,}/,
+  /GELDAR_MCP_TOKEN=[A-Za-z0-9_.~+/=-]{8,}/,
+  /Bearer\s+(?![$<"'`])[A-Za-z0-9_.~+/=-]{8,}/i,
 ];
 
 // Every file under dir, as forward-slash paths relative to dir.
