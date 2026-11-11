@@ -16,7 +16,7 @@ describe('hard-link check structure (pwsh source)', () => {
   const src = readFileSync(join(repoRoot, 'launcher', 'lib', 'new.ps1'), 'utf8');
   it('guards fsutil with IsWindows and falls back to stat', () => {
     expect(src).toMatch(/if \(\$IsWindows\) \{[^}]*?fsutil hardlink list/s);
-    expect(src).toMatch(/\} else \{[^]*?stat @fmt/);
+    expect(src).toMatch(/\} else \{[\s\S]*?stat @fmt/);
     expect(src).toContain("@('-c', '%h'), @('-f', '%l')");
   });
 });
