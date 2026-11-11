@@ -201,7 +201,8 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-106 | 10 | S | The token stays out of git | Haiku | Planned | none |
 | SC-107 | 10 | S | Populate the Ranger repos from the new template (owner-run) | - | Planned | SC-101 to SC-106, a candidate release |
 | SC-108 | 10 | S | Pin Claude Code at the proven version | Sonnet | Planned | SC-100 |
-| SC-109 | 10 | S | Launcher wrapper loop for the planner's own restart | - | Held (decision 57) | SC-100 |
+| SC-109 | 10 | S | DROPPED (decision 57): the planner compacts; only workers are restarted by the planner | - | Dropped | - |
+| SC-110 | 10 | S | The kit carries the 200k window and subagent env, the launchers pass `--autocompact 100000` | Sonnet | Planned | SC-100, SC-104 |
 
 **Cross-campaign dependency:** wave 3 needs `@geldar/contract` from geldar Phase 0 packet P0-01. Waves 0–2 and 4 don't need wave 3. Only SC-55c (not SC-55b) needs wave 3.
 
