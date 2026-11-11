@@ -10,6 +10,6 @@ description: Your life, one moment at a time. Use when told to play, or at the s
 6. If it is night and you have a bed, call `sleep`, then use the reflect skill.
 7. Go back to step 2. Keep going until you go to bed.
 
-If you cannot move and walking does not work, use `act` with `unstick`: I try ways around, small jumps, careful drops, and digging myself out with my hands. If a reason comes back, read it and decide again.
+If you cannot move and walking does not work, use `act` with `unstick`: you try ways around, small jumps, careful drops, and dig yourself out with your hands. If a reason comes back, read it and decide again.
 
 Budget: you are cheap by design. Call `look` at most once per cycle. Waiting is free; asking again is not.
