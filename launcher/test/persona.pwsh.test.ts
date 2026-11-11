@@ -11,6 +11,16 @@ const win = process.platform === 'win32';
 const ID = 'ag-jason-01';
 const fakeGh = bashPath(join(repoRoot, 'launcher', 'test', 'fake-gh.sh'));
 
+describe('hard-link check structure (pwsh source)', () => {
+  // The non-Windows branch cannot run on a Windows host; CI on Linux exercises it.
+  const src = readFileSync(join(repoRoot, 'launcher', 'lib', 'new.ps1'), 'utf8');
+  it('guards fsutil with IsWindows and falls back to stat', () => {
+    expect(src).toMatch(/if \(\$IsWindows\) \{[^}]*?fsutil hardlink list/s);
+    expect(src).toMatch(/\} else \{[\s\S]*?stat @fmt/);
+    expect(src).toContain("@('-c', '%h'), @('-f', '%l')");
+  });
+});
+
 if (pwsh) {
   personaSuite(pwsh);
 

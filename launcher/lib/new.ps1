@@ -111,6 +111,28 @@ function Test-PersonaPath([string]$Path, [string]$Kind, [string]$Id, [string]$Di
   if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { Die 1 persona_bad $Id link }
   $isDir = [bool]($item.Attributes -band [IO.FileAttributes]::Directory)
   if (($Kind -ceq 'dir') -ne $isDir) { Die 1 persona_bad $Id type }
+  if (-not $isDir) {
+    $bad = $true
+    if ($IsWindows) {
+      # LinkType does not show hard links on Windows; fsutil lists every name of the file.
+      # A non-zero exit (for example a non-NTFS volume) is refused too: fail closed as hardlink.
+      try {
+        $names = @(& fsutil hardlink list $item.FullName 2>$null)
+        $bad = ($LASTEXITCODE -ne 0 -or @($names | Where-Object { $_ -and $_.Trim() }).Count -gt 1)
+      } catch { $bad = $true }
+    } else {
+      # GNU stat, then BSD stat, like new.sh; anything but a number of 1 is refused.
+      $n = ''
+      foreach ($fmt in @(@('-c', '%h'), @('-f', '%l'))) {
+        try {
+          $out = (& stat @fmt $item.FullName 2>$null | Select-Object -First 1)
+          if ($LASTEXITCODE -eq 0 -and "$out".Trim() -match '^[0-9]+$') { $n = "$out".Trim(); break }
+        } catch {}
+      }
+      $bad = ($n -eq '' -or [int64]$n -gt 1)
+    }
+    if ($bad) { Die 1 persona_bad $Id hardlink }
+  }
   return $item
 }
 

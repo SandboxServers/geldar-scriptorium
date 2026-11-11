@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { repoRoot } from './harness.ts';
 import { personaCases } from './persona-suite.ts';
 
 describe('persona-cases.json', () => {
@@ -28,8 +31,25 @@ describe('persona-cases.json', () => {
     }
   });
 
+  it('names every refusal reason in the troubleshooting guide', () => {
+    const guide = readFileSync(join(repoRoot, 'docs', 'troubleshooting.md'), 'utf8');
+    for (const c of personaCases) {
+      if (c.reason !== '') expect(guide, c.reason).toMatch(new RegExp(`${c.reason} means`));
+    }
+  });
+
   it('uses only the named reasons and expectations', () => {
-    const reasons = ['size', 'utf8', 'control', 'invisible', 'link', 'type', 'empty', 'twice'];
+    const reasons = [
+      'size',
+      'utf8',
+      'control',
+      'invisible',
+      'link',
+      'hardlink',
+      'type',
+      'empty',
+      'twice',
+    ];
     for (const c of personaCases) {
       expect(['ok', 'persona_missing', 'persona_bad', 'private_required'], c.name).toContain(
         c.expect,
