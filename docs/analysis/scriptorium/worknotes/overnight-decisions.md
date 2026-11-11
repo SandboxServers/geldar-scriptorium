@@ -155,3 +155,10 @@ Recorded 2026-11-11. **Status:** CONFIRMED by the owner (relayed by geldar-93, 2
 ## 58. Answers to the queued owner calls (2026-11-11)
 
 **Status:** CHOSEN (owner). (1) Decision 42: bind the host in `player.json` to `mcp_base` on every port. (2) Decision 43.2: rewrite the template's "Your human", "terminal" and "Geldar tools" wording in-world (SC-79) and add the phrases to the template test's banned list. (3) Decision 43.3: `--persona-dir` refuses hard links, as it does symlinks. **How to apply:** SC-73 follow-ups and SC-79; both launchers and the parity check change together.
+
+## 59. rc5 released; wave 10 (standard play) is in the template
+
+- `kit-v0.1.0-rc5` on `main` at 998df84 (release run 43113957713): every job passed (build, scan, sign, launcher, launcher-sign, template assemble and publish, release; `rehearse` skipped as for a real tag). Owner instruction: "Do the rc". `rc4` (tagged 2026-11-10 at the PR #41 state) was already out.
+- Verified as a Patron would: the template repo has a pre-release with exactly `geldar-play-0.1.0-rc5.tar.gz` and `SHA256SUMS` (one line, checksum OK); the image `ghcr.io/sandboxservers/geldar-kit@sha256:7993f715a210...` pulls anonymously and the published `player.json` names that digest and `kit_version` 0.1.0-rc5; the published tree holds `.claude/agents/planner.md` (sonnet, effort low, `initialPrompt`), `worker.md` (haiku, `mcp__geldar__*`, `maxTurns: 60`), `context-meter.sh`, the PreToolUse entry and the token ignore rules.
+- **OPEN, found while verifying:** the published `player.json` still has `declared_model: "haiku"`. Nothing in the launcher reads it (it is only parsed), but it is the self-reported model (spec 5.15.9) and the player now plays as a Sonnet planner. Owner and geldar-93 call: `sonnet`, or a different wording for a planner-plus-workers player; a template change needs another candidate (`rc6`).
+- **OPEN, unproven on a real kit run:** `mcp__geldar__*` as a wildcard in agent `tools`, `maxTurns` in agent frontmatter, and `initialPrompt` starting play in an interactive terminal (proven headless only; SC-100).
