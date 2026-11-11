@@ -1,6 +1,6 @@
-# SC-100: Claude Code keys spike (host half)
+# SC-100: Claude Code keys spike (host and kit)
 
-Run 2026-11-11 on the owner's Windows desktop, Claude Code 2.1.322, headless `claude -p` in a scratch project outside the repo (a `planner` main agent, a `worker` Haiku agent, hook scripts that log their stdin). About $1.40 of model use in all. **The kit-container half is not done.**
+Run 2026-11-11 on the owner's Windows desktop, Claude Code 2.1.322, headless `claude -p` in a scratch project outside the repo (a `planner` main agent, a `worker` Haiku agent, hook scripts that log their stdin). About $1.40 of model use in all. Kit half run the same day in the kit image (Claude Code 2.1.310, Node 22.23.4, jq 1.7.1, no Python) with a throwaway copy of the ag-jason-01 login volume, deleted afterwards (about $1.15 more).
 
 ## Proven on the host
 
@@ -29,6 +29,19 @@ Run 2026-11-11 on the owner's Windows desktop, Claude Code 2.1.322, headless `cl
 - The owner's account connectors leaked into a worker's read result (a connector instruction text). The kit's connectors-off setting is needed on a host run too (`--strict-mcp-config` hid them in Jason's run).
 - The planner should not rely on a settings key for trimming: the meter (PreToolUse) is the proven guard.
 
-## Left to do
+
+## Kit image results (Claude Code 2.1.310)
+
+- Same as the host on agent, `model`, effort `low`, worker tools (Read only), `agent_id` in subagent hook inputs, 200k window with `CLAUDE_CODE_DISABLE_1M_CONTEXT=1` (the image's own ENV does not set it; the launcher or the template must).
+- **`--autocompact 100000` works.** One automatic compaction: PreCompact fired (`trigger: "auto"`), the SessionStart hook fired again with `source: "compact"`, and the result event carried a `compact_boundary` (147,439 tokens before, 36,723 after). The settings key `modelSettings.<id>.autoCompactWindow` did not do this on the host; use the flag.
+- **It overshoots.** Context sat at about 111k for seven messages and was compacted only when it reached about 147k. One Read result adds about 25k at a time, so a line "near 100k" can fire well past 100k. The planner's meter line should be about 80k, not 90k, and the worker's soft line about 70k.
+- `initialPrompt` fired in the kit as well (headless). Interactive still untested.
+- The kit's Read tool returned about 55% of a single-line 50 KB file even with `allow_large`; irrelevant to play, but it made the compaction test need several files.
+
+## Still open
+
+Interactive `initialPrompt`; `.mcp.json` `${GELDAR_MCP_TOKEN}` expansion and `headersHelper` in the kit; a subagent's own compaction and the `autoCompactWindow` frontmatter key (needs 2.1.296 or later, the kit has 2.1.310: SC-108 decides the pin); decision 57 (can the planner start a fresh self).
+
+## Left to do (superseded by the list above)
 
 Kit-container run of every item above; interactive `initialPrompt`; a compaction run that genuinely crosses 100k (read many files under the Read limit, or feed it with a hook); `.mcp.json` expansion; decision 57.
