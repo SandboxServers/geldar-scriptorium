@@ -304,6 +304,98 @@ stat -c %a "$GELDAR_WORLD_ALLOWLIST" > "${modeOut}"
     }
   });
 
+  it('6b. harness words: run is a fixed wrapper, play and setup are unchanged', () => {
+    const words = (mode: string, model: string) => {
+      const env = { ...w0.env, GELDAR_RUN_MODEL: model };
+      if (launcher.name === 'bash') {
+        const dot = (n: string) => `. "${bashPath(join(repoRoot, 'launcher', 'lib', `${n}.sh`))}"`;
+        const gp = bashPath(join(repoRoot, 'launcher'));
+        const r = runBash(
+          `GP_DIR="${gp}"; GP_GROUPS=; ${dot('common')}; harness_command claude ${mode}`,
+          {
+            env,
+          },
+        );
+        return r.stdout.split(/\r?\n/).filter((l) => l !== '');
+      }
+      const f = join(repoRoot, 'launcher', 'lib', 'session.ps1');
+      const r = spawnSync(
+        launcher.command,
+        ['-NoProfile', '-Command', `. '${f}'; Get-HarnessCommand claude ${mode}`],
+        { encoding: 'utf8', env: childEnv(env) },
+      );
+      return r.stdout.split(/\r?\n/).filter((l) => l !== '');
+    };
+    const w0 = makeWorld();
+    const base =
+      'exec claude --autocompact 100000 --settings /etc/geldar/settings/play.json' +
+      ' -p "$(cat /run-input/prompt.txt)" --max-turns "$GELDAR_RUN_MAX_TURNS"';
+    const tail = ' --output-format stream-json --verbose';
+    expect(words('run', '')).toEqual(['sh', '-c', base + tail]);
+    expect(words('run', 'haiku')).toEqual([
+      'sh',
+      '-c',
+      `${base} --model "$GELDAR_RUN_MODEL"${tail}`,
+    ]);
+    for (const mode of ['play', 'setup']) {
+      expect(words(mode, '')).toEqual([
+        'claude',
+        '--autocompact',
+        '100000',
+        '--settings',
+        `/etc/geldar/settings/${mode}.json`,
+        `/${mode}`,
+      ]);
+    }
+  });
+
+  // The Windows test shims (.cmd) refuse a double quote in an argument by design, so the
+  // end-to-end run for pwsh happens on a real shell only.
+  it('6c. run mode: prompt off the command line, stream saved privately', () => {
+    if (launcher.name === 'pwsh' && win) return;
+    const w = makeWorld();
+    const p = player(w, 'sixc');
+    writeFileSync(join(p.stateDir, 'token'), `${TOKEN}\n`, { mode: 0o600 });
+    const promptFile = join(w.root, 'prompt.txt');
+    const PROMPT = 'You are waking up in the quiet hollow';
+    writeFileSync(promptFile, `${PROMPT}\n`);
+    const sf = join(w.root, 'stream.sh');
+    writeFileSync(sf, 'echo \'{"type":"result"}\'\n');
+    const env = envOf(launcher, w, {
+      FAKE_SESSION: bashPath(sf),
+      GELDAR_RUN_PROMPT_FILE: launcher.name === 'bash' ? bashPath(promptFile) : promptFile,
+      GELDAR_RUN_MODEL: 'haiku',
+    });
+    const a = run(launcher, ['__prepare', p.id, 'play'], { env, timeoutMs: 120_000 });
+    expect(a.status, a.stderr).toBe(0);
+    const r = run(launcher, ['__session', p.id, 'run', '7'], { env, timeoutMs: 120_000 });
+    expect(r.status, r.stderr).toBe(0);
+    const c = runCalls(w).pop() as string[];
+    expect(c.slice(c.indexOf('session') + 1, c.indexOf('session') + 3)).toEqual(['sh', '-c']);
+    expect(c).toContain('-T');
+    expect(c.join(' ')).not.toContain(PROMPT);
+    expect(c.join(' ')).not.toContain(TOKEN);
+    const ov = text(join(sessionDir(p), 'override.yml'));
+    expect(ov).toContain('target: /run-input/prompt.txt');
+    expect(ov).toContain('GELDAR_RUN_MAX_TURNS: "300"');
+    expect(ov).toContain('GELDAR_RUN_MODEL: "haiku"');
+    expect(ov).not.toContain(TOKEN);
+    const stream = join(p.stateDir, 'run', 'session-7.jsonl');
+    expect(text(stream)).toBe('{"type":"result"}\n');
+    expect(text(stream)).not.toContain(TOKEN);
+    expect(stream).not.toContain(TOKEN);
+    if (!win) {
+      expect(statSync(stream).mode & 0o777).toBe(0o600);
+      expect(statSync(join(p.stateDir, 'run')).mode & 0o777).toBe(0o700);
+    }
+    // A missing run number or prompt file is a usage error.
+    expect(run(launcher, ['__session', p.id, 'run'], { env, timeoutMs: 120_000 }).status).toBe(2);
+    const e3 = { ...env, GELDAR_RUN_PROMPT_FILE: '' };
+    expect(
+      run(launcher, ['__session', p.id, 'run', '9'], { env: e3, timeoutMs: 120_000 }).status,
+    ).toBe(2);
+  });
+
   it('7. the token reaches the session by environment only', () => {
     const w = makeWorld();
     const p = player(w, 'seven');

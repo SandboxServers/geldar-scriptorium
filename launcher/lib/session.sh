@@ -51,7 +51,8 @@ write_allowlist() {
 
 # H-06: the override. Absolute host paths only; one read-only bind per kit entry.
 write_override() {
-  local id=$1 sd=$2 mcp=$3 dev=${4-} f="$sd/override.yml" entry name v
+  local id=$1 sd=$2 mcp=$3 dev=${4-} prompt=${5-} turns=${6-} model=${7-}
+  local f="$sd/override.yml" entry name v
   [ -d "$sd/export" ] || die 1 no_such_player "$id" "$id"
   (
     {
@@ -75,9 +76,23 @@ write_override() {
       printf '        read_only: true\n        bind:\n          create_host_path: false\n'
     } >> "$f.new"
   done < <(find "$sd/export" -mindepth 1 -maxdepth 1 -print0 | sort -z)
+  if [ -n "$prompt" ]; then
+    # SC-121: the run prompt file, read-only, at a fixed path; the same path checks as a kit entry.
+    v=$(mount_q "$prompt") || exit 1
+    {
+      printf '      - type: bind\n        source: %s\n        target: /run-input/prompt.txt\n' "$v"
+      printf '        read_only: true\n        bind:\n          create_host_path: false\n'
+    } >> "$f.new"
+  fi
   v=$(yaml_q "$mcp") || die 1 bad_state_path
   {
     printf '    environment:\n      GELDAR_MCP_URL: %s\n      GELDAR_MCP_TOKEN:\n' "$v"
+    if [ -n "$turns" ]; then
+      printf '      GELDAR_RUN_MAX_TURNS: "%s"\n' "$turns"
+    fi
+    if [ -n "$model" ]; then
+      printf '      GELDAR_RUN_MODEL: %s\n' "$(yaml_q "$model")"
+    fi
     if [ "${GELDAR_INTERNAL:-}" = "1" ]; then
       for name in $(compgen -v GELDAR_STUB_ 2> /dev/null); do
         [[ $name =~ ^GELDAR_STUB_[A-Z0-9_]+$ ]] || continue
@@ -93,12 +108,28 @@ write_override() {
   mv "$f.new" "$f"
 }
 
-# start_session id mode: needs prepare_session to have run (export/, start, running).
+# start_session id mode [n]: needs prepare_session to have run (export/, start, running).
+# SC-121: mode run (with its number n) is one headless play session: no TTY, the prompt file named
+# by GELDAR_RUN_PROMPT_FILE mounted read-only, stdout saved to <state>/<id>/run/session-<n>.jsonl.
 start_session() {
-  local id=$1 mode=$2 d sd start share ov wl wp cmd word rc extra dev tty=-T
+  local id=$1 mode=$2 n=${3-} d sd start share ov wl wp cmd word rc extra dev tty=-T
+  local cmode=$2 prompt="" turns="" model="" out=""
   local -a words args files
   case $mode in
-    play | setup) ;;
+    play | setup) [ -z "$n" ] || die 2 usage ;;
+    run)
+      [[ $n =~ ^[0-9]{1,9}$ ]] || die 2 usage
+      cmode=play
+      prompt=${GELDAR_RUN_PROMPT_FILE-}
+      case $prompt in
+        /*) [ -f "$prompt" ] || die 2 usage ;;
+        *) die 2 usage ;;
+      esac
+      turns=${GELDAR_RUN_MAX_TURNS:-300}
+      [[ $turns =~ ^[0-9]{1,6}$ ]] || die 2 usage
+      model=${GELDAR_RUN_MODEL-}
+      [ -z "$model" ] || [[ $model =~ ^[A-Za-z0-9._:/-]+$ ]] || die 2 usage
+      ;;
     *) die 2 usage ;;
   esac
   d=$(player_dir "$id")
@@ -122,7 +153,13 @@ start_session() {
   write_allowlist "$d/pub" "$PL_MCP_URL"
   docker_cmd volume create "geldar-cli-$id-claude" > /dev/null 2>&1 ||
     die 1 workspace_failed "$id" 'the CLI volume could not be created'
-  write_override "$id" "$sd" "$PL_MCP_URL" "$dev"
+  write_override "$id" "$sd" "$PL_MCP_URL" "$dev" "$prompt" "$turns" "$model"
+  if [ "$mode" = run ]; then
+    out="$d/run/session-$n.jsonl"
+    private_mkdir "$d/run"
+    (umask 077 && : > "$out") && chmod 600 "$out" || die 1 bad_state_path
+    tty=-T
+  fi
 
   words=()
   while IFS= read -r word; do
@@ -139,7 +176,7 @@ start_session() {
       *) die 1 bad_state_path ;;
     esac
   fi
-  [ -t 0 ] && tty=""
+  if [ "$mode" != run ] && [ -t 0 ]; then tty=""; fi
   args=(-p "geldar-$id" ${files[@]+"${files[@]}"})
 
   say session_start "$(printf '%s' "$PL_NAME" | sanitize)"
@@ -152,9 +189,14 @@ start_session() {
     fi
     export GELDAR_UID=1000 GELDAR_GID=1000 GELDAR_WORKSPACE="geldar-ws-$id"
     export GELDAR_CLI_HOME="geldar-cli-$id-claude" KIT_IMAGE="$PL_KIT_IMAGE"
-    export GELDAR_WORLD_ALLOWLIST="$wl" GELDAR_WORLD_PORTS="$wp" GELDAR_MODE="$mode"
-    docker_cmd compose "${args[@]}" run --rm ${tty:+$tty} --label geldar.role=session \
-      session "${words[@]}"
+    export GELDAR_WORLD_ALLOWLIST="$wl" GELDAR_WORLD_PORTS="$wp" GELDAR_MODE="$cmode"
+    if [ "$mode" = run ]; then
+      docker_cmd compose "${args[@]}" run --rm ${tty:+$tty} --label geldar.role=session \
+        session "${words[@]}" > "$out"
+    else
+      docker_cmd compose "${args[@]}" run --rm ${tty:+$tty} --label geldar.role=session \
+        session "${words[@]}"
+    fi
   )
   rc=$?
   printf '%s\n' "$rc" > "$sd/exit"
@@ -162,7 +204,7 @@ start_session() {
     unset GELDAR_MCP_TOKEN GELDAR_DEV_MCP_URL
     export GELDAR_UID=1000 GELDAR_GID=1000 GELDAR_WORKSPACE="geldar-ws-$id"
     export GELDAR_CLI_HOME="geldar-cli-$id-claude" KIT_IMAGE="$PL_KIT_IMAGE"
-    export GELDAR_WORLD_ALLOWLIST="$wl" GELDAR_WORLD_PORTS="$wp" GELDAR_MODE="$mode"
+    export GELDAR_WORLD_ALLOWLIST="$wl" GELDAR_WORLD_PORTS="$wp" GELDAR_MODE="$cmode"
     docker_cmd compose "${args[@]}" down --remove-orphans > /dev/null 2>&1
   )
   if [ "$rc" -eq 125 ]; then
@@ -173,6 +215,6 @@ start_session() {
 }
 
 verb___session() {
-  [ $# -eq 2 ] || die 2 usage
-  start_session "$1" "$2"
+  [ $# -eq 2 ] || { [ $# -eq 3 ] && [ "$2" = run ]; } || die 2 usage
+  start_session "$@"
 }

@@ -49,7 +49,7 @@ function Write-Allowlist([string]$Sd, [string]$Url) {
 }
 
 # H-06: the override. Absolute host paths only; one read-only bind per kit entry.
-function Write-Override([string]$Id, [string]$Sd, [string]$Mcp, [bool]$Dev = $false) {
+function Write-Override([string]$Id, [string]$Sd, [string]$Mcp, [bool]$Dev = $false, [string]$Prompt = '', [string]$Turns = '', [string]$Model = '') {
   $f = Join-Path $Sd 'override.yml'
   $exp = Join-Path $Sd 'export'
   if (-not (Test-Path -LiteralPath $exp -PathType Container)) { Die 1 no_such_player $Id $Id }
@@ -66,9 +66,17 @@ function Write-Override([string]$Id, [string]$Sd, [string]$Mcp, [bool]$Dev = $fa
     [void]$sb.Append("      - type: bind`n        source: $v`n        target: `"/player/$name`"`n")
     [void]$sb.Append("        read_only: true`n        bind:`n          create_host_path: false`n")
   }
+  if ($Prompt -ne '') {
+    # SC-121: the run prompt file, read-only, at a fixed path; the same path checks as a kit entry.
+    $v = ConvertTo-MountQuoted $Prompt
+    [void]$sb.Append("      - type: bind`n        source: $v`n        target: /run-input/prompt.txt`n")
+    [void]$sb.Append("        read_only: true`n        bind:`n          create_host_path: false`n")
+  }
   $q = ConvertTo-YamlQuoted $Mcp
   if ($null -eq $q) { Die 1 bad_state_path }
   [void]$sb.Append("    environment:`n      GELDAR_MCP_URL: $q`n      GELDAR_MCP_TOKEN:`n")
+  if ($Turns -ne '') { [void]$sb.Append("      GELDAR_RUN_MAX_TURNS: `"$Turns`"`n") }
+  if ($Model -ne '') { [void]$sb.Append("      GELDAR_RUN_MODEL: $(ConvertTo-YamlQuoted $Model)`n") }
   if ([Environment]::GetEnvironmentVariable('GELDAR_INTERNAL') -eq '1') {
     $stubs = @([Environment]::GetEnvironmentVariables().Keys | ForEach-Object { [string]$_ } |
         Where-Object { $_ -cmatch '^GELDAR_STUB_[A-Z0-9_]+\z' })
@@ -86,6 +94,16 @@ function Write-Override([string]$Id, [string]$Sd, [string]$Mcp, [bool]$Dev = $fa
 
 # The one function that builds the harness command words; SC-71 changes it.
 function Get-HarnessCommand([string]$Cli, [string]$Mode) {
+  if ($Cli -ceq 'claude' -and $Mode -ceq 'run') {
+    # SC-121: one headless run. The prompt is read inside the container from the read-only mounted
+    # file, so it never shows on a host command line; the turn cap and the optional model come from
+    # the container's environment (the override sets them).
+    $line = 'exec claude --autocompact 100000 --settings /etc/geldar/settings/play.json'
+    $line += ' -p "$(cat /run-input/prompt.txt)" --max-turns "$GELDAR_RUN_MAX_TURNS"'
+    if ([Environment]::GetEnvironmentVariable('GELDAR_RUN_MODEL')) { $line += ' --model "$GELDAR_RUN_MODEL"' }
+    $line += ' --output-format stream-json --verbose'
+    return @('sh', '-c', $line)
+  }
   if ($Cli -ceq 'claude') { return @('claude', '--autocompact', '100000', '--settings', "/etc/geldar/settings/$Mode.json", "/$Mode") }
   throw 'unsupported cli'
 }
@@ -93,7 +111,7 @@ function Get-HarnessCommand([string]$Cli, [string]$Mode) {
 # Runs docker as a child process with its own environment (never $env: of this process, so the
 # token is not set here). Stdin and, unless Quiet, stdout and stderr are the launcher's own.
 # A .cmd or .bat shim runs via cmd.exe. Returns the exit code.
-function Invoke-DockerChild([string[]]$DockerArgs, [hashtable]$Set, [string[]]$Unset, [bool]$Quiet) {
+function Invoke-DockerChild([string[]]$DockerArgs, [hashtable]$Set, [string[]]$Unset, [bool]$Quiet, [string]$OutFile = '') {
   $exe = $env:GELDAR_DOCKER
   if (-not $exe) { $exe = 'docker' }
   $found = Get-Command $exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -105,6 +123,8 @@ function Invoke-DockerChild([string[]]$DockerArgs, [hashtable]$Set, [string[]]$U
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
   }
+  # SC-121: with OutFile only stdout is captured, into that (already private) file.
+  if ($OutFile -ne '') { $psi.RedirectStandardOutput = $true }
   try {
     $p = [System.Diagnostics.Process]::Start($psi)
   } catch {
@@ -114,15 +134,39 @@ function Invoke-DockerChild([string[]]$DockerArgs, [hashtable]$Set, [string[]]$U
     $p.BeginOutputReadLine()
     $p.BeginErrorReadLine()
   }
+  if ($OutFile -ne '') {
+    $fs = [System.IO.File]::Open($OutFile, [System.IO.FileMode]::Truncate, [System.IO.FileAccess]::Write)
+    try { $p.StandardOutput.BaseStream.CopyTo($fs) } finally { $fs.Dispose() }
+  }
   $p.WaitForExit()
   $code = $p.ExitCode
   $p.Dispose()
   return $code
 }
 
-# Start-PlayerSession id mode: needs prepare to have run (export/, start, running).
-function Start-PlayerSession([string]$Id, [string]$Mode) {
-  if ($Mode -cne 'play' -and $Mode -cne 'setup') { Die 2 usage }
+# Start-PlayerSession id mode [n]: needs prepare to have run (export/, start, running).
+# SC-121: mode run (with its number n) is one headless play session: no TTY, the prompt file named
+# by GELDAR_RUN_PROMPT_FILE mounted read-only, stdout saved to <state>/<id>/run/session-<n>.jsonl.
+function Start-PlayerSession([string]$Id, [string]$Mode, [string]$N = '') {
+  $cmode = $Mode
+  $prompt = ''
+  $turns = ''
+  $model = ''
+  if ($Mode -ceq 'play' -or $Mode -ceq 'setup') {
+    if ($N -ne '') { Die 2 usage }
+  } elseif ($Mode -ceq 'run') {
+    if ($N -cnotmatch '^[0-9]{1,9}\z') { Die 2 usage }
+    $cmode = 'play'
+    $prompt = [string][Environment]::GetEnvironmentVariable('GELDAR_RUN_PROMPT_FILE')
+    if ($prompt -cnotmatch '^(/|[A-Za-z]:[\\/])' -or -not (Test-Path -LiteralPath $prompt -PathType Leaf)) { Die 2 usage }
+    $turns = [string][Environment]::GetEnvironmentVariable('GELDAR_RUN_MAX_TURNS')
+    if ($turns -eq '') { $turns = '300' }
+    if ($turns -cnotmatch '^[0-9]{1,6}\z') { Die 2 usage }
+    $model = [string][Environment]::GetEnvironmentVariable('GELDAR_RUN_MODEL')
+    if ($model -ne '' -and $model -cnotmatch '^[A-Za-z0-9._:/-]+\z') { Die 2 usage }
+  } else {
+    Die 2 usage
+  }
   $d = Get-PlayerDir $Id
   $sd = Join-Path $d 'session'
   $sf = Join-Path $d 'start'
@@ -148,7 +192,14 @@ function Start-PlayerSession([string]$Id, [string]$Mode) {
   Write-Allowlist $sd $mcp
   Invoke-Docker volume create "geldar-cli-$Id-claude" *> $null
   if ($LASTEXITCODE -ne 0) { Die 1 workspace_failed $Id 'the CLI volume could not be created' }
-  Write-Override $Id $sd $mcp ($dev -ne '')
+  Write-Override $Id $sd $mcp ($dev -ne '') $prompt $turns $model
+  $out = ''
+  if ($Mode -ceq 'run') {
+    New-PrivateDir (Join-Path $d 'run')
+    $out = Join-Path (Join-Path $d 'run') "session-$N.jsonl"
+    [System.IO.File]::WriteAllBytes($out, [byte[]]@())
+    if (-not $IsWindows) { [System.IO.File]::SetUnixFileMode($out, [System.IO.UnixFileMode]0x180) }
+  }
 
   $words = @(Get-HarnessCommand claude $Mode)
   $ov = "$sdf/override.yml"
@@ -160,20 +211,20 @@ function Start-PlayerSession([string]$Id, [string]$Mode) {
     if ($extra -match '^(/|[A-Za-z]:)') { $files += @('-f', $extra) } else { Die 1 bad_state_path }
   }
   $tty = @()
-  if ([Console]::IsInputRedirected) { $tty = @('-T') }
+  if ([Console]::IsInputRedirected -or $Mode -ceq 'run') { $tty = @('-T') }
   $cargs = @('compose', '-p', "geldar-$Id") + $files
 
   Say session_start (Sanitize $script:PL_NAME)
   $set = @{
     GELDAR_UID = '1000'; GELDAR_GID = '1000'; GELDAR_WORKSPACE = "geldar-ws-$Id"
     GELDAR_CLI_HOME = "geldar-cli-$Id-claude"; KIT_IMAGE = $script:PL_KIT_IMAGE
-    GELDAR_WORLD_ALLOWLIST = $wl; GELDAR_WORLD_PORTS = $wp; GELDAR_MODE = $Mode
+    GELDAR_WORLD_ALLOWLIST = $wl; GELDAR_WORLD_PORTS = $wp; GELDAR_MODE = $cmode
   }
   $tf = Join-Path $d 'token'
   $runSet = $set.Clone()
   if (Test-Path -LiteralPath $tf -PathType Leaf) { $runSet['GELDAR_MCP_TOKEN'] = Read-FirstLine $tf }
   $runArgs = $cargs + @('run', '--rm') + $tty + @('--label', 'geldar.role=session', 'session') + $words
-  $rc = Invoke-DockerChild $runArgs $runSet @('GH_TOKEN', 'GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'GELDAR_MCP_TOKEN', 'GELDAR_DEV_MCP_URL') $false
+  $rc = Invoke-DockerChild $runArgs $runSet @('GH_TOKEN', 'GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'GELDAR_MCP_TOKEN', 'GELDAR_DEV_MCP_URL') $false $out
   [System.IO.File]::WriteAllText((Join-Path $sd 'exit'), "$rc`n", $script:SESSION_UTF8)
   [void](Invoke-DockerChild ($cargs + @('down', '--remove-orphans')) $set @('GELDAR_MCP_TOKEN', 'GELDAR_DEV_MCP_URL') $true)
   if ($rc -eq 125) { Die 1 compose_failed }
@@ -181,6 +232,6 @@ function Start-PlayerSession([string]$Id, [string]$Mode) {
 }
 
 function Verb-__session {
-  if ($args.Count -ne 2) { Die 2 usage }
-  Start-PlayerSession ([string]$args[0]) ([string]$args[1])
+  if ($args.Count -ne 2 -and -not ($args.Count -eq 3 -and [string]$args[1] -ceq 'run')) { Die 2 usage }
+  Start-PlayerSession ([string]$args[0]) ([string]$args[1]) $(if ($args.Count -eq 3) { [string]$args[2] } else { '' })
 }
