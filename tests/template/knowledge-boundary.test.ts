@@ -55,7 +55,9 @@ describe('player instructions: knowledge boundary', () => {
 
   it('no file the character reads uses a meta term for its people or tools (SC-79)', () => {
     const files = characterFiles(path.join(repoRoot, 'template')).filter(
-      (file) => path.basename(file) !== 'README.md' || path.dirname(file) !== path.join(repoRoot, 'template'),
+      (file) =>
+        path.basename(file) !== 'README.md' ||
+        path.dirname(file) !== path.join(repoRoot, 'template'),
     );
     for (const file of files) {
       readFileSync(file, 'utf8')
