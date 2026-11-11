@@ -40,7 +40,7 @@ Run 2026-11-11 on the owner's Windows desktop, Claude Code 2.1.322, headless `cl
 
 ## Still open
 
-Interactive `initialPrompt`; `.mcp.json` `${GELDAR_MCP_TOKEN}` expansion and `headersHelper` in the kit; a subagent's own compaction and the `autoCompactWindow` frontmatter key (needs 2.1.296 or later, the kit has 2.1.310: SC-108 decides the pin); decision 57 (can the planner start a fresh self).
+Interactive `initialPrompt`; `.mcp.json` `${GELDAR_MCP_TOKEN}` expansion and `headersHelper` in the kit; a subagent's own compaction and the `autoCompactWindow` frontmatter key (needs 2.1.296 or later, the kit has 2.1.310: SC-108 decides the pin); decision 57 (closed 2026-11-11: the planner compacts, it does not restart itself).
 
 ## Left to do (superseded by the list above)
 

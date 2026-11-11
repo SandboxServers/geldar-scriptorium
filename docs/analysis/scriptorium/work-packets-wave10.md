@@ -36,7 +36,7 @@ On the pinned candidate version, in a scratch directory with no credentials and 
 6b. The PreToolUse hook input carries `agent_id` and `transcript_path`, and the subagent's transcript is at `<session>/subagents/agent-<id>.jsonl` with `usage` on assistant lines (the owner's `haiku_context_cap.py` assumes this; it has a debug-log switch because "some versions" differ). Log a real hook input and confirm; confirm a deny reason is shown to the model.
 7. `PreCompact` fires on `auto` and `manual`; exit 2 blocks it; stdout becomes summary instructions; it cannot stop the session or start an agent; `SessionStart` with matcher `compact` re-injects state.
 8. `.mcp.json` `${GELDAR_MCP_TOKEN}` expansion in `headers`; `headersHelper` re-runs on 401 and can read a gitignored file; project servers prompt for approval interactively (the kit pre-approves, PR #40).
-9. Whether the main agent can start a fresh agent for itself, or the only hard "stop and restart" is a wrapper loop in the launcher (`claude -p` in a loop keyed on a state file). Decision 57 depends on this.
+9. (Closed by decision 57: the planner does not restart itself.)
 
 **Run every item twice: inside the kit container and on a plain host** (geldar-93, 2026-11-11: Jason's Colo run was a bare host `claude -p` with `--mcp-config` and `--strict-mcp-config`, no kit, Claude Code 2.1.322, Opus default effort, 49 turns, about 4.0M cache-read tokens, about $0.90 API-equivalent; the MCP tools were deferred behind tool search once). Item 2 (`initialPrompt`) and item 6b (hook inputs) also need a headless `-p` run, where first-run screens do not appear and the interactive prompt path does not apply.
 
@@ -52,7 +52,7 @@ Output: the worknote, and the answers fed back into the cards below before any o
 
 - **Branch** `scriptorium/sc-102-planner-brief`. Depends on: SC-79, SC-100.
 - **Files:** the planner agent body, `template/AGENTS.md` (shared; one section), `tests/template/knowledge-boundary.test.ts`.
-- **Content, in-world prose:** hand the legwork (gather, craft, travel, wait) to the ones who do it, one clear errand at a time; expect a line or two back; keep your own turns for deciding, talking and remembering. Before the planner's context is trimmed: be sheltered, no errand half-done, not in danger; if not safe, get safe first; then write the resume note and continue as a fresh self. The persona lines stay: never mention being an AI; you must eat, you can die.
+- **Content, in-world prose:** hand the legwork (gather, craft, travel, wait) to the ones who do it, one clear errand at a time; expect a line or two back; keep your own turns for deciding, talking and remembering. Before the planner's context is trimmed: be sheltered, no errand half-done, not in danger; if not safe, get safe first; then write the resume note and carry on after the trim. The persona lines stay: never mention being an AI; you must eat, you can die.
 - **Test:** the required lines exist; no meta words; the persona lines are unchanged. **Revert checks:** delete the safe-first lines; add "orchestrator".
 
 ## SC-103: the worker (Haiku)
@@ -69,10 +69,10 @@ Output: the worknote, and the answers fed back into the cards below before any o
 - **Files:** `template/.claude/hooks/context-meter.sh` (bash; decided 2026-11-11: no Python and no new dependency. Parser order, first that exists: `jq` (the kit image has it), then `node` (the kit has it too), then a plain `grep`/`sed` read of the last assistant line's `usage` numbers, so a developer's machine without `jq` (SC-100 found none in Git Bash) still gets a working meter. `tail` the transcript's last lines first; the transcript can be large. The three parsers must give the same number on the same fixture: the test runs the fixture through each parser that is present and, for the sed path, forces it by hiding `jq` and `node` from PATH), `template/.claude/settings.json` (a `PreToolUse` entry, matcher `*`, that runs it; plus `CLAUDE_CODE_DISABLE_1M_CONTEXT=1` and the launcher passes `--autocompact 100000` (proven in the kit on 2.1.310: auto compaction, PreCompact and SessionStart `compact` both fire; the CLI accepts only `auto` or 100k to 1M; the `modelSettings.<id>.autoCompactWindow` settings key had no effect; see [claude-keys-spike.md](worknotes/claude-keys-spike.md))), `template/.claude/hooks/session-start.sh` (re-inject the planner's resume note on `compact`), `tests/template/hooks.test.ts`.
 - **Behaviour (backend, must be real):**
   - Worker: soft line near 80k, hard line at 90k (both configurable by env; SC-100 numbers: soft 70k, planner 80k, hard 90k). Soft line about 70k (SC-100 found compaction overshoots: one Read adds about 25k, so the line must sit well below the real limit). Soft: deny once with an in-world "you are worn out: get somewhere safe and send back your report". Hard: deny every call with the same words, no tools. The worker's reply is the hand-off.
-  - Planner: its own line near 80k. Deny with "before you rest: be sheltered, no errand half-done, not in danger; if not, get safe first; then write the resume note and carry on fresh". The window setting trims at 100000 as the backstop.
+  - Planner: its own line near 80k. Deny with "before you rest: be sheltered, no errand half-done, not in danger; if not, get safe first; then write the resume note and carry on after the trim". The window setting trims at 100000 as the backstop.
   - Fails open. Reads no network. Never logs tool input.
 - **The deny text is read by the player, so it is in-world** (decision 40): no "context", "token", "model", "subagent", "cap". The numbers live only in env and settings.
-- **Who restarts (owner, 2026-11-11):** the planner persona starts the fresh worker when a worker hits the line, handing it the stopped worker's report as its brief. That part is settled and needs no wrapper. **Still open (decision 57):** only whether the planner can start a fresh self at its own line; SC-100 item 9. The hook gives the stop signal; it cannot start an agent.
+- **Who restarts (owner, 2026-11-11, decision 57):** the planner persona starts the fresh worker when a worker hits the line, handing it the stopped worker's report as its brief. The planner itself does not restart: it compacts and the resume note comes back through the SessionStart `compact` hook. No wrapper loop.
 - **Test (`hooks.test.ts`, with a fixture transcript):** a Haiku fixture over the hard line is denied and its output holds no banned word; at the soft line it is denied once; under the line it is allowed; a Sonnet main-session fixture is only touched at its own line; a missing, empty or malformed transcript is allowed; all three parsers return the same token count on the same fixture; the settings entry has matcher `*` and the right command; the env values are present. **Revert checks:** raise the cap to 500000: the denial case fails; make the hook crash on bad input and exit non-zero: the fail-open case fails; put "context" in the deny text: the word check fails.
 
 ## SC-105: auto-start (Haiku)
@@ -98,9 +98,9 @@ Output: the worknote, and the answers fed back into the cards below before any o
 
 - Depends on: SC-100. The kit pin moves from 2.1.257 to the version SC-100 proved (2.1.296 at least if the per-subagent window is used). Files: the kit's Dockerfile pin and its digest-consistency test, the pin check, `docs/ci.md`. Revert check: lower the pin below the floor: the test fails.
 
-## SC-109: the stop-and-restart wrapper (held on decision 57)
+## SC-109: dropped (decision 57, owner 2026-11-11)
 
-- Written only if SC-100 item 9 says no in-session restart exists. Scope: the launcher loops `claude -p` keyed on a state file the planner writes (`memory/journal/handoff.md` plus a `safe` flag), bounded, with a visible message per restart. Both launchers; parity check. Re-slice when decision 57 is made.
+The launcher wrapper loop for the planner's own restart is not built. The planner compacts (`--autocompact 100000`, SC-110) and is re-briefed by the SessionStart `compact` hook; only workers are stopped and restarted by the planner.
 
 ---
 

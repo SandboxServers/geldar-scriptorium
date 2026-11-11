@@ -148,13 +148,9 @@ Recorded 2026-11-11. **Status:** CONFIRMED by the owner (relayed by geldar-93, 2
 
 **Status:** CHOSEN (owner requirements relayed). The template runs a Sonnet 5.5 low-effort planner with Haiku workers limited to `mcp__geldar__*`, a 200k session with the planner trimmed near 100k only when safe in the world, workers ending themselves near 90k with a hand-off note, auto-start of `play`, and the token never committed. The six Ranger repos (and later the TNG repos) are populated from the template after a candidate release; Jason's seed comes from geldar `docs/analysis/phase0/worknotes/ranger-personas-draft.md`. Cards: [work-packets-wave10.md](../work-packets-wave10.md). The geldar player guide stays out of the template; the README says "see your operator's player guide".
 
-## 57. Hard stop-and-restart: the planner restarts workers; its own restart is OPEN
+## 57. The planner compacts; only workers are stopped and restarted (owner, 2026-11-11)
 
-**Owner, 2026-11-11:** the planner persona starts a new worker when a worker is stopped by the PreToolUse meter (SC-104, bash and `jq`, no new dependency), handing it the stopped worker's report. Settled. What remains open is below.
-
-### Still open with the owner (geldar-93, 2026-11-11): the planner's own restart, wrapper loop versus prompt discipline
-
-No hook can stop a session or start an agent at a usage threshold, and a subagent cannot compact below 100k. **Status:** OPEN until SC-100 item 9 reports. If an in-session restart is impossible, owner call: build the launcher wrapper loop (SC-109) or accept prompt-level discipline.
+**Status:** CHOSEN (owner, relayed by geldar-93). The planner does not start another copy of itself when it is the root identity of the session: it compacts (`--autocompact 100000`, SC-110), and the SessionStart hook with source `compact` re-injects its resume note (SC-104). Workers (Haiku) are the ones that stop at a safe point, near 90k, and the planner starts a fresh worker with the stopped worker's report as its brief, so no wrapper loop is needed. **How to apply:** SC-109 (the launcher wrapper loop for the planner's own restart) is dropped; SC-102 and SC-104 keep the safe-first rule before the planner's own compaction (shelter, no errand half-done, not in danger), but nothing starts a fresh planner. Background: no hook can stop a session or start an agent at a usage threshold, and a subagent cannot compact below 100k (SC-100).
 
 ## 58. Answers to the queued owner calls (2026-11-11)
 
