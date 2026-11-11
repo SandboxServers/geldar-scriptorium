@@ -13,7 +13,7 @@ function Invoke-GpSleep([double]$Seconds) {
 # A base address: scheme and host only; the host rules are those of Test-McpUrl.
 function Test-BaseUrl([string]$Url) {
   if (-not [regex]::IsMatch($Url, '^https?://[^/@?# ]+\z')) { return $false }
-  return (Test-McpUrl "$Url/p/x")
+  return (Test-McpUrl "$Url/p/x" -Base)
 }
 
 # Reads the token file: one line, trimmed, nothing after it. Returns the token.

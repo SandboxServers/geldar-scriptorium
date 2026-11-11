@@ -14,6 +14,7 @@ export const urlCases = JSON.parse(
   readFileSync(join(here, 'mcp-url-cases.json'), 'utf8'),
 ) as UrlCase[];
 
+// SC-80: rows check the URL shape only, so they run in base mode (no mcp_base binding).
 // Runs every row through the launcher's own URL check in one process and compares with the table.
 export function urlSuite(launcher: Launcher): void {
   describe(`mcp_url table (${launcher.name})`, () => {
@@ -24,7 +25,7 @@ export function urlSuite(launcher: Launcher): void {
         const lib = bashPath(join(repoRoot, 'launcher', 'lib', 'player.sh'));
         const list = urls.map((u) => `'${u}'`).join(' ');
         r = runLib(launcher, {
-          bash: `. '${lib}'; for u in ${list}; do if valid_mcp_url "$u"; then echo ok; else echo no; fi; done`,
+          bash: `. '${lib}'; for u in ${list}; do if valid_mcp_url "$u" base; then echo ok; else echo no; fi; done`,
           pwsh: '',
         });
       } else {
@@ -32,7 +33,7 @@ export function urlSuite(launcher: Launcher): void {
         const list = urls.map((u) => `'${u.replace(/'/g, "''")}'`).join(',');
         r = runLib(launcher, {
           bash: '',
-          pwsh: `. '${lib}'; foreach ($u in @(${list})) { if (Test-McpUrl $u) { 'ok' } else { 'no' } }`,
+          pwsh: `. '${lib}'; foreach ($u in @(${list})) { if (Test-McpUrl $u -Base) { 'ok' } else { 'no' } }`,
         });
       }
       expect(r.status, r.stderr).toBe(0);

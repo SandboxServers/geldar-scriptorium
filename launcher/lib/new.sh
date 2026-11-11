@@ -17,7 +17,7 @@ gp_sleep() {
 valid_base_url() {
   local re='^https?://[^/@?# ]+$'
   [[ ${1-} =~ $re ]] || return 1
-  valid_mcp_url "$1/p/x"
+  valid_mcp_url "$1/p/x" base
 }
 
 # Reads the token file: one line, trimmed, nothing after it. Sets NEW_TOKEN.

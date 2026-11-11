@@ -81,25 +81,33 @@ valid_mcp_url() {
     *[a-z]*) ;;
     *) return 1 ;;
   esac
-  case $port in
-    '' | 80 | 443) ;;
-    *) mcp_port_ok "$url" "$host" "$port" || return 1 ;;
-  esac
+  # SC-80: a second argument "base" is for new's own base address, which is not yet a player URL.
+  if [ "${2-}" = base ]; then
+    case $port in
+      '' | 80 | 443) return 0 ;;
+    esac
+  fi
+  mcp_port_ok "$url" "$host" "$port" || return 1
   return 0
 }
 
-# SC-76: a port other than 80 and 443 is accepted only when it equals the owner-set mcp_port in
-# the launcher's own world.conf and the URL's scheme and host equal those of mcp_base. Fails
-# closed: no reader, no match, no port.
+# SC-76, SC-80: on every port the URL's scheme and host must equal those of mcp_base in the
+# launcher's own world.conf; a port other than 80 and 443 must also equal the owner-set mcp_port.
+# Fails closed: no reader, no mcp_base, no match, no port.
 mcp_port_ok() {
   local url=$1 host=$2 port=$3 LC_ALL=C cfg base hre='^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$' bre='^(https?)://([^/@:?#[:space:]]+)(:[0-9]+)?$' bhost
   type world_conf > /dev/null 2>&1 || return 1
-  cfg=$(world_conf mcp_port)
-  case $cfg in
-    '' | *[!0-9]* | 0*) return 1 ;;
+  case $port in
+    '' | 80 | 443) ;;
+    *)
+      cfg=$(world_conf mcp_port)
+      case $cfg in
+        '' | *[!0-9]* | 0*) return 1 ;;
+      esac
+      [ "${#cfg}" -le 5 ] && [ "$cfg" -ge 1024 ] && [ "$cfg" -le 65535 ] || return 1
+      [ "$port" = "$cfg" ] || return 1
+      ;;
   esac
-  [ "${#cfg}" -le 5 ] && [ "$cfg" -ge 1024 ] && [ "$cfg" -le 65535 ] || return 1
-  [ "$port" = "$cfg" ] || return 1
   base=$(world_conf mcp_base)
   [[ $base =~ $bre ]] || return 1
   [ "${url%%://*}" = "${BASH_REMATCH[1]}" ] || return 1

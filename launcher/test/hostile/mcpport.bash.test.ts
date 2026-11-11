@@ -105,7 +105,7 @@ if (bash) {
     });
 
     it('a default https url writes 443', { timeout: T }, () => {
-      const d = session('mcp_base=\nmcp_port=\n', null);
+      const d = session('mcp_base=https://mcp.registry.test\nmcp_port=\n', null);
       expect(d.b.status, d.b.stderr).toBe(0);
       expect(readFileSync(join(d.p.stateDir, 'pub', 'allowlist-world-ports.txt'), 'utf8')).toBe(
         '443\n',
@@ -113,7 +113,7 @@ if (bash) {
     });
 
     it('an http url writes 80', { timeout: T }, () => {
-      const h = session('mcp_base=\nmcp_port=\n', 'http://world.test/p/x');
+      const h = session('mcp_base=http://world.test\nmcp_port=\n', 'http://world.test/p/x');
       expect(h.b.status, h.b.stderr).toBe(0);
       expect(readFileSync(join(h.p.stateDir, 'pub', 'allowlist-world-ports.txt'), 'utf8')).toBe(
         '80\n',
@@ -121,7 +121,10 @@ if (bash) {
     });
 
     it('an https url with an empty port writes 443', { timeout: T }, () => {
-      const d = session('mcp_base=\nmcp_port=\n', 'https://world.example.com:/p/x');
+      const d = session(
+        'mcp_base=https://world.example.com\nmcp_port=\n',
+        'https://world.example.com:/p/x',
+      );
       expect(d.b.status, d.b.stderr).toBe(0);
       expect(readFileSync(join(d.p.stateDir, 'pub', 'allowlist-world-ports.txt'), 'utf8')).toBe(
         '443\n',
@@ -129,7 +132,7 @@ if (bash) {
     });
 
     it('an http url with an empty port writes 80', { timeout: T }, () => {
-      const h = session('mcp_base=\nmcp_port=\n', 'http://world.test:/p/x');
+      const h = session('mcp_base=http://world.test\nmcp_port=\n', 'http://world.test:/p/x');
       expect(h.b.status, h.b.stderr).toBe(0);
       expect(readFileSync(join(h.p.stateDir, 'pub', 'allowlist-world-ports.txt'), 'utf8')).toBe(
         '80\n',
@@ -140,6 +143,24 @@ if (bash) {
       timeout: T,
     }, () => {
       const s = session(GOOD, 'https://other.example.com:18443/p/x');
+      expectRefusal(s.a, 'bad_player_json', { status: 1 });
+      expectNoDockerCall(s.w);
+    });
+
+    // SC-80: the host must equal mcp_base on the default ports too.
+    it('a wrong host on 443 is refused with no docker call', { timeout: T }, () => {
+      const s = session(GOOD, 'https://other.example.com:443/p/x');
+      expectRefusal(s.a, 'bad_player_json', { status: 1 });
+      expectNoDockerCall(s.w);
+    });
+
+    it('the right host on 443 passes', { timeout: T }, () => {
+      const s = session(GOOD, 'https://world.example.com:443/p/x');
+      expect(s.b.status, s.b.stderr).toBe(0);
+    });
+
+    it('a missing mcp_base refuses a default-port url', { timeout: T }, () => {
+      const s = session('mcp_base=\nmcp_port=\n', 'https://world.example.com:443/p/x');
       expectRefusal(s.a, 'bad_player_json', { status: 1 });
       expectNoDockerCall(s.w);
     });

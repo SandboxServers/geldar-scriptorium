@@ -50,6 +50,7 @@ This is the threat model for the Geldar player kit and its launcher. Each contro
 | --- | --- | --- |
 | Symlink swap between the commit tool's path check and hashing | Closed by SC-60j (`O_NOFOLLOW`, `fstat`, dev/ino check); Linux cases run in CI | none |
 | Case-folded path collision with a START path | Closed by SC-60k (bash) and SC-60l (PowerShell) in the host re-check | none |
+| Decision 42: the player's server host was not bound to `mcp_base` on ports 80 and 443 | Closed by SC-80 (the scheme and host must equal `mcp_base` on every port; a missing `mcp_base` refuses) | none |
 | MB-05: a planted standing instruction the model recalls | Accepted risk (in-game manipulation, Principle 5); it can only become a memory commit that the gate checks | none |
 | H-04: `git archive` honours `export-ignore` and `export-subst` | Open, real | `launcher/lib/prepare.sh`, `prepare.ps1`; fix card not yet assigned |
 | H-10: no per-blob size cap | Open, real | `packages/verify/src`, `launcher/lib/recheck.*`; fix card not yet assigned |
