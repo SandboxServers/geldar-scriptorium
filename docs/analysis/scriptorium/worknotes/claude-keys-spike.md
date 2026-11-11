@@ -29,7 +29,6 @@ Run 2026-11-11 on the owner's Windows desktop, Claude Code 2.1.322, headless `cl
 - The owner's account connectors leaked into a worker's read result (a connector instruction text). The kit's connectors-off setting is needed on a host run too (`--strict-mcp-config` hid them in Jason's run).
 - The planner should not rely on a settings key for trimming: the meter (PreToolUse) is the proven guard.
 
-
 ## Kit image results (Claude Code 2.1.310)
 
 - Same as the host on agent, `model`, effort `low`, worker tools (Read only), `agent_id` in subagent hook inputs, 200k window with `CLAUDE_CODE_DISABLE_1M_CONTEXT=1` (the image's own ENV does not set it; the launcher or the template must).
