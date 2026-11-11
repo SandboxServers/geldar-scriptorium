@@ -137,3 +137,25 @@ Recorded 2026-11-10. **Status:** CHOSEN (owner: "D1 is fine as you suggest"). Th
 - Owner: "We don't need day long tests even in-game time we just need to validate the functionality. Once we get to real play we can test longevity."
 - CHOSEN: SC-72a/b need install, `new`, `setup` and one `play` session that saves commits, plus the host-clone and `upgrade` checks. The three-in-game-days run and the turns and `/usage` per day (SC-70c) move to the first real days of play. The planner's design for unattended days (bounded in-container driver, day-end marker the `day NNN:` commit; tmux supervisor rejected: screen scraping, a host actor typing into the session, no Windows path) is kept as a design record, not built now; it returns when longevity is tested. Open owner questions kept: caps, next-day scheduling, one login or six, whether a decision record is needed.
 - Consequence: the mock run on 2026-11-10 already met the functional bar for `setup` and one `play` apart from the known findings; remaining functional items are the host-clone check and `upgrade`, on the next candidate.
+
+## 55. Model names stay out of template prose (agreed with geldar-93; owner confirmation pending)
+
+Recorded 2026-11-11. **Status:** CHOSEN by the orchestrators; the owner confirms through geldar-93. Model names (`sonnet`, `haiku`) appear only in `template/.claude/settings.json` and agent frontmatter; prose in anything a player reads uses in-world role words and none of "orchestrator", "subagent", "model", "context". **Owner clarification (2026-11-11):** this is not a claim that the character cannot tell it is a program; training data and system prompts already say so. Persona and identity drive how the character deals with the server, from its nature and what it learns about its surroundings and other players. The rule keeps the knowledge boundary honest and the voice coherent; it does not try to hide what the base model is.
+
+**Owner addition (2026-11-11):** the in-world prose rule changes wording only. The backend behaviour must exist and be tested: the model per role (planner `sonnet`, workers `haiku`), the reasoning effort (`low`), the context window and compaction settings, and the tool limits. **How to apply:** SC-101 to SC-105 and the knowledge-boundary test; every card asserts the backend setting itself, not only the prose.
+
+## 56. Template standard-play brief and the Ranger repos (geldar-93, 2026-11-11)
+
+**Status:** CHOSEN (owner requirements relayed). The template runs a Sonnet 5.5 low-effort planner with Haiku workers limited to `mcp__geldar__*`, a 200k session with the planner trimmed near 100k only when safe in the world, workers ending themselves near 90k with a hand-off note, auto-start of `play`, and the token never committed. The six Ranger repos (and later the TNG repos) are populated from the template after a candidate release; Jason's seed comes from geldar `docs/analysis/phase0/worknotes/ranger-personas-draft.md`. Cards: [work-packets-wave10.md](../work-packets-wave10.md). The geldar player guide stays out of the template; the README says "see your operator's player guide".
+
+## 57. Hard stop-and-restart: the planner restarts workers; its own restart is OPEN
+
+**Owner, 2026-11-11:** the planner persona starts a new worker when a worker is stopped by the PreToolUse meter (SC-104, bash and `jq`, no new dependency), handing it the stopped worker's report. Settled. What remains open is below.
+
+### Still open: the planner's own restart, wrapper loop versus prompt discipline
+
+No hook can stop a session or start an agent at a usage threshold, and a subagent cannot compact below 100k. **Status:** OPEN until SC-100 item 9 reports. If an in-session restart is impossible, owner call: build the launcher wrapper loop (SC-109) or accept prompt-level discipline.
+
+## 58. Answers to the queued owner calls (2026-11-11)
+
+**Status:** CHOSEN (owner). (1) Decision 42: bind the host in `player.json` to `mcp_base` on every port. (2) Decision 43.2: rewrite the template's "Your human", "terminal" and "Geldar tools" wording in-world (SC-79) and add the phrases to the template test's banned list. (3) Decision 43.3: `--persona-dir` refuses hard links, as it does symlinks. **How to apply:** SC-73 follow-ups and SC-79; both launchers and the parity check change together.
