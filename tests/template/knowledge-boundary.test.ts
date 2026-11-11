@@ -45,6 +45,21 @@ describe('player instructions: knowledge boundary', () => {
     }
   });
 
+  it('no file the character reads uses a meta term for its people or tools (SC-79)', () => {
+    const files = markdownFiles(path.join(repoRoot, 'template')).filter(
+      (file) => path.basename(file) !== 'README.md' || path.dirname(file) !== path.join(repoRoot, 'template'),
+    );
+    for (const file of files) {
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .forEach((line, i) => {
+          for (const banned of ['Your human', 'your human', 'Geldar tools', 'terminal']) {
+            expect(line.includes(banned), `${file}:${i + 1} contains "${banned}"`).toBe(false);
+          }
+        });
+    }
+  });
+
   it('the three SC-78 lines use no meta term (decision 40)', () => {
     for (const line of [boundary, bedLine, intentLine]) expect(line).not.toMatch(metaTerms);
   });
