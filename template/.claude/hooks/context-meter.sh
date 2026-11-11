@@ -57,32 +57,45 @@ read_fields() {
   esac
 }
 
-# Prints "<size>\t<model>" for one assistant line given as $1: the sum of the
-# three usage numbers, and the model name.
+# Prints "<size>\t<model>" for the last usable assistant line among the lines
+# given as $1: the sum of the three usage numbers, and the model name.
 read_usage() {
   case "$parser" in
     jq)
-      printf '%s' "$1" | jq -r '[((.message.usage.input_tokens // 0) + (.message.usage.cache_read_input_tokens // 0) + (.message.usage.cache_creation_input_tokens // 0)), (.message.model // "")] | @tsv'
+      printf '%s\n' "$1" | jq -Rr 'fromjson? | select(type == "object" and .type == "assistant" and (.message.usage | type) == "object") | [((.message.usage.input_tokens // 0) + (.message.usage.cache_read_input_tokens // 0) + (.message.usage.cache_creation_input_tokens // 0)), (.message.model // "")] | @tsv' | tail -n 1
       ;;
     node)
-      printf '%s' "$1" | node -e '
+      # Skips unparseable lines; the last assistant line with usage wins.
+      printf '%s\n' "$1" | node -e '
         let s = "";
         process.stdin.on("data", (d) => (s += d));
         process.stdin.on("end", () => {
-          const m = JSON.parse(s).message || {};
-          const u = m.usage || {};
-          const n = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
-          console.log(n + "\t" + (m.model || ""));
+          let out = "";
+          for (const l of s.split("\n")) {
+            let j;
+            try { j = JSON.parse(l); } catch { continue; }
+            if (!j || j.type !== "assistant" || !j.message || !j.message.usage) continue;
+            const m = j.message;
+            const u = m.usage;
+            const n = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+            out = n + "\t" + (m.model || "");
+          }
+          if (out === "") process.exit(1);
+          console.log(out);
         });'
       ;;
     sed)
-      local total=0 v k
+      # Only the text after the last "usage" key counts, so a tool input that
+      # happens to hold the same words cannot change the sum.
+      local total=0 v k last rest
+      last="$(printf '%s\n' "$1" | tail -n 1)"
+      rest="$(printf '%s' "$last" | sed 's/^.*"usage" *://')"
       for k in input_tokens cache_read_input_tokens cache_creation_input_tokens; do
-        v="$(printf '%s' "$1" | grep -o "\"$k\" *: *[0-9]*" | head -n 1 | sed 's/^[^:]*: *//')"
+        v="$(printf '%s' "$rest" | grep -o "\"$k\" *: *[0-9]*" | head -n 1 | sed 's/^[^:]*: *//')"
         case "$v" in *[!0-9]*) return 1 ;; esac
         total=$((total + ${v:-0}))
       done
-      printf '%s\t%s\n' "$total" "$(printf '%s' "$1" | sed_field model)"
+      printf '%s\t%s\n' "$total" "$(printf '%s' "$last" | sed_field model)"
       ;;
   esac
 }
@@ -112,15 +125,42 @@ fields="$(read_fields 2> /dev/null)" || exit 0
 } <<< "$fields"
 [ -n "${transcript_path:-}" ] || exit 0
 
+transcript_path="$(printf '%s' "$transcript_path" | tr -d '\r')"
+# A Windows-style path (backslashes) becomes the shell's own form.
+case "$transcript_path" in
+  *\\*)
+    if command -v cygpath > /dev/null 2>&1; then
+      transcript_path="$(cygpath -u "$transcript_path" 2> /dev/null)" || exit 0
+    else
+      transcript_path="${transcript_path//\\//}"
+    fi
+    ;;
+esac
+
 file="$transcript_path"
 if [ -n "${agent_id:-}" ]; then
   file="${transcript_path%.jsonl}/subagents/agent-${agent_id}.jsonl"
 fi
 [ -f "$file" ] && [ -r "$file" ] || exit 0
 
-line="$(tail -n 200 "$file" 2> /dev/null | grep -E '"type" *: *"assistant"' | tail -n 1)"
-[ -n "$line" ] || exit 0
-usage="$(read_usage "$line" 2> /dev/null)" || exit 0
+# Only the last 3 MB are read; when the file is larger the first line of that
+# slice can be cut short, so it is dropped.
+tail_bytes=3000000
+read_tail() {
+  local bytes
+  bytes="$(wc -c < "$file" 2> /dev/null | tr -d ' ')"
+  case "$bytes" in '' | *[!0-9]*) return 1 ;; esac
+  if [ "$bytes" -gt "$tail_bytes" ]; then
+    tail -c 3000000 "$file" | tail -n +2
+  else
+    tail -c 3000000 "$file"
+  fi
+}
+
+# Complete assistant lines that carry usage: a cut-off last line is ignored.
+lines="$(read_tail 2> /dev/null | grep -E '"type" *: *"assistant"' | grep '"usage"' | grep -E '\}[[:space:]]*$' | tail -n 50)"
+[ -n "$lines" ] || exit 0
+usage="$(read_usage "$lines" 2> /dev/null)" || exit 0
 size="${usage%%$'\t'*}"
 model="${usage#*$'\t'}"
 case "$size" in '' | *[!0-9]*) exit 0 ;; esac
@@ -138,7 +178,7 @@ else
   case "$model" in *sonnet*) ;; *) exit 0 ;; esac
   [ -n "${session_id:-}" ] || exit 0
   if [ "$size" -ge "$planner_line" ] && first_time "$session_id"; then
-    deny "Before you rest, be sheltered: no errand half-done, and not in danger. If not, get safe first. Then write your resume note to memory/journal/handoff.md and carry on fresh."
+    deny "Before you rest, be sheltered: no errand half-done, and not in danger. If not, get safe first. Then write your resume note to memory/journal/handoff.md, then go on with what you were doing, and do that action again afterwards."
   fi
 fi
 exit 0

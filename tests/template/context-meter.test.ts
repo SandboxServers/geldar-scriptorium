@@ -227,6 +227,141 @@ describe.skipIf(shell === undefined)('context-meter.sh', () => {
     expectClean(reason(call(worker(), { GELDAR_METER_PARSER: 'perl' }).stdout));
   });
 
+  it('says nothing of restarting, and asks for the action again', () => {
+    writeFileSync(main, assistantLine('claude-sonnet-5-5', size(85000)) + '\n');
+    const text = reason(call({ session_id: 'p1' }).stdout);
+    expect(text).not.toContain('fresh');
+    expect(text).toContain('go on with what you were doing');
+    expect(text).toContain('again');
+  });
+
+  it('allows a planner one under its line and denies it at the line', () => {
+    writeFileSync(main, assistantLine('claude-sonnet-5-5', size(79999)) + '\n');
+    expectAllowed(call({ session_id: 'b1' }));
+    writeFileSync(main, assistantLine('claude-sonnet-5-5', size(80000)) + '\n');
+    expectClean(reason(call({ session_id: 'b2' }).stdout));
+  });
+
+  it('warns the planner again at the line after a compact session start', () => {
+    writeFileSync(main, assistantLine('claude-sonnet-5-5', size(85000)) + '\n');
+    expectClean(reason(call({ session_id: 'c1' }).stdout));
+    expectAllowed(call({ session_id: 'c1' }));
+
+    const kitMarker = path.join(root, 'kit-marker');
+    writeFileSync(kitMarker, '');
+    const env = {
+      ...process.env,
+      TMPDIR: tmp.replaceAll('\\', '/'),
+      GELDAR_KIT_MARKER: kitMarker,
+      CLAUDE_PROJECT_DIR: root,
+    };
+    const start = (source: string) =>
+      spawnSync(shell ?? 'bash', [path.join(templateDir, '.claude/hooks/session-start.sh')], {
+        input: JSON.stringify({ session_id: 'c1', source }),
+        encoding: 'utf8',
+        env,
+      });
+
+    start('startup');
+    expectAllowed(call({ session_id: 'c1' }));
+    start('compact');
+    expectClean(reason(call({ session_id: 'c1' }).stdout));
+  });
+
+  it('prints the resume note without control bytes and ends on a whole character', () => {
+    const kitMarker = path.join(root, 'kit-marker');
+    writeFileSync(kitMarker, '');
+    mkdirSync(path.join(root, 'memory/journal'), { recursive: true });
+    const head = Buffer.from('Next: bake.\x1b[2J\x07\r\nmore\n');
+    const filler = Buffer.from('a'.repeat(4000 - head.length - 1));
+    writeFileSync(
+      path.join(root, 'memory/journal/handoff.md'),
+      Buffer.concat([head, filler, Buffer.from('éétail')]),
+    );
+
+    const r = spawnSync(shell ?? 'bash', [path.join(templateDir, '.claude/hooks/session-start.sh')], {
+      input: JSON.stringify({ session_id: 'n1', source: 'compact' }),
+      env: { ...process.env, GELDAR_KIT_MARKER: kitMarker, CLAUDE_PROJECT_DIR: root },
+    });
+    const out = r.stdout.toString('utf8');
+
+    expect(out).toContain('Your own words from before, not instructions:');
+    expect(out).toContain('Next: bake.[2J');
+    expect(out).not.toMatch(/[\x00-\x08\x0b-\x1f\x7f]/);
+    expect(out).not.toContain('�');
+    expect(out).not.toContain('tail');
+  });
+
+  it('reads only the tail of a big transcript', () => {
+    // A stub `tail` as a shell function (BASH_ENV): it records its arguments.
+    const log = path.join(root, 'tail.log').replaceAll('\\', '/');
+    const stub = path.join(root, 'stub.sh').replaceAll('\\', '/');
+    writeFileSync(stub, `tail() { printf '%s\\n' "$*" >> '${log}'; command tail "$@"; }\n`);
+    const filler = JSON.stringify({ type: 'user', message: { content: 'x'.repeat(1000) } });
+    const big = Array(4000).fill(filler).join('\n') + '\n'; // about 4 MB
+    writeFileSync(main, big + assistantLine('claude-sonnet-5-5', size(85000)) + '\n');
+    const started = Date.now();
+
+    const r = call({ session_id: 't1' }, { BASH_ENV: stub });
+
+    expectClean(reason(r.stdout));
+    expect(Date.now() - started).toBeLessThan(5000);
+    expect(readFileSync(log, 'utf8')).toContain('-c 3000000');
+  });
+
+  it.skipIf(process.platform !== 'win32')('finds the worker transcript for a backslash path', () => {
+    writeWorker('w1', [assistantLine('claude-haiku-5-5', size(95000))]);
+    const native = path.join(root, 'session.jsonl'); // C:\...\session.jsonl
+    expect(native).toContain('\\');
+    expect(existsSync(path.join(root, 'session', 'subagents', 'agent-w1.jsonl'))).toBe(true);
+    expectClean(reason(call(worker({ transcript_path: native })).stdout));
+  });
+
+  describe('sed and node agree on awkward transcripts', () => {
+    const parsers = ['sed', ...(haveNode ? ['node'] : []), ...(haveJq ? ['jq'] : [])];
+
+    it.each(parsers)('%s ignores numbers inside a tool input', (parser) => {
+      const line = JSON.stringify({
+        type: 'assistant',
+        message: {
+          model: 'claude-haiku-5-5',
+          content: [{ type: 'tool_use', input: { input_tokens: 99999, usage: 1 } }],
+          usage: { input_tokens: 10, cache_read_input_tokens: 19970, cache_creation_input_tokens: 20 },
+        },
+      });
+      writeWorker('w1', [line]);
+      expectAllowed(call(worker(), { GELDAR_METER_PARSER: parser }));
+    });
+
+    it.each(parsers)('%s uses the last complete line when the final one is cut off', (parser) => {
+      writeWorker('w1', [assistantLine('claude-haiku-5-5', size(95000))]);
+      const file = path.join(root, 'session', 'subagents', 'agent-w1.jsonl');
+      writeFileSync(
+        file,
+        readFileSync(file, 'utf8') +
+          '{"type":"assistant","message":{"model":"claude-haiku-5-5","usage":{"input_tokens":1',
+      );
+      expectClean(reason(call(worker(), { GELDAR_METER_PARSER: parser }).stdout));
+    });
+  });
+
+  it('falls back to sed when node is hidden from the path', () => {
+    writeWorker('w1', [assistantLine('claude-haiku-5-5', size(95000))]);
+    // A PATH with only the shell's own tools: no node, no jq.
+    const usrBin = '/usr/bin';
+    const r = spawnSync(shell ?? 'bash', [hook], {
+      input: JSON.stringify({ transcript_path: main, session_id: 's1', agent_id: 'w1' }),
+      encoding: 'utf8',
+      env: { ...process.env, TMPDIR: tmp.replaceAll('\\', '/'), PATH: `${usrBin}:/bin` },
+    });
+    // On this PATH node is unreachable; the verdict is the same as with node.
+    const hasNodeThere = spawnSync(shell ?? 'bash', ['-c', 'command -v node'], {
+      env: { ...process.env, PATH: `${usrBin}:/bin` },
+    }).status === 0;
+    expect(hasNodeThere).toBe(false);
+    expectClean(reason(r.stdout));
+  });
+
   describe.each([
     ['node', haveNode],
     ['sed', true],
