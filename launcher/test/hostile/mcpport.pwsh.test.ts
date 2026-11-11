@@ -110,7 +110,7 @@ if (pwsh) {
       }, () => {
         const w = makeWorld();
         const p = makePlayer(w, { id: 'abc' });
-        if (url !== 'https://mcp.registry.test/mcp') setUrl(w, p.clone, url);
+        setUrl(w, p.clone, url);
         const dump = join(w.root, 'dump.sh');
         writeFileSync(dump, 'env > "$FAKE_OUT"\n');
         const out = join(w.root, 'env-dump.txt');

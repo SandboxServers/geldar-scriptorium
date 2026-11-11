@@ -2,7 +2,16 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { devWorldSuite } from '../devworld-suite.ts';
-import { bashPath, git, launchers, makePlayer, makeWorld, repoRoot, run } from '../harness.ts';
+import {
+  bashPath,
+  FIXTURE_MCP_HOST,
+  git,
+  launchers,
+  makePlayer,
+  makeWorld,
+  repoRoot,
+  run,
+} from '../harness.ts';
 import { expectNoDockerCall, expectRefusal } from './world.ts';
 
 // SC-75c: the dev-world override of the PowerShell launcher (decision 33).
@@ -103,7 +112,7 @@ if (pwsh) {
       expect(o).not.toContain('host.docker.internal');
       expect(o).not.toContain('extra_hosts');
       const h = readFileSync(join(q.stateDir, 'pub', 'allowlist-world.txt'), 'utf8');
-      expect(h).toBe('mcp.registry.test\n');
+      expect(h).toBe(`${FIXTURE_MCP_HOST}\n`);
       expect(existsSync(join(p.stateDir, 'pub', 'allowlist-world.txt'))).toBe(true);
     });
   });

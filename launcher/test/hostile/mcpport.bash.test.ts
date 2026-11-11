@@ -105,7 +105,10 @@ if (bash) {
     });
 
     it('a default https url writes 443', { timeout: T }, () => {
-      const d = session('mcp_base=https://mcp.registry.test\nmcp_port=\n', null);
+      const d = session(
+        'mcp_base=https://mcp.registry.test\nmcp_port=\n',
+        'https://mcp.registry.test/mcp',
+      );
       expect(d.b.status, d.b.stderr).toBe(0);
       expect(readFileSync(join(d.p.stateDir, 'pub', 'allowlist-world-ports.txt'), 'utf8')).toBe(
         '443\n',
