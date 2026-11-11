@@ -234,6 +234,7 @@ function Verb-new {
   $gh = $env:GELDAR_GH
   if (-not $gh) { $gh = 'gh' }
   if ($newVis -cne 'private') { Say public_notice }
+  if ($mock) { Say mock_note }
 
   $tpl = 'SandboxServers/geldar-player-template'
   if ((Invoke-InDir $players @($gh, 'repo', 'create', $name, '--template', $tpl, "--$newVis")) -ne 0) {

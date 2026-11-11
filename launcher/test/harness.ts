@@ -233,6 +233,15 @@ export function git(cwd: string, args: string[], env?: Record<string, string>): 
   return r.stdout.trim();
 }
 
+// SC-80: a player's mcp_url host must equal mcp_base of the launcher's world.conf, and most tests use
+// a share without one, so the fixture URL is built from the shipped file's mcp_base.
+const shippedBase =
+  /^mcp_base=(.+?)\r?$/m.exec(
+    readFileSync(join(repoRoot, 'launcher', 'config', 'world.conf'), 'utf8'),
+  )?.[1] ?? '';
+export const FIXTURE_MCP_HOST = new URL(shippedBase).hostname;
+export const FIXTURE_MCP_URL = `${shippedBase}/mcp`;
+
 export interface Player {
   id: string;
   clone: string;
@@ -254,7 +263,7 @@ export function makePlayer(
     player_id: opts.id,
     name: opts.id,
     shard: 'test',
-    mcp_url: 'https://mcp.registry.test/mcp',
+    mcp_url: FIXTURE_MCP_URL,
     harness: 'claude',
     declared_model: 'haiku',
     kit_version: '0.0.0',

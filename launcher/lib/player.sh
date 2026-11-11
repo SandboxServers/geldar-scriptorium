@@ -59,7 +59,8 @@ private_host() {
 }
 
 # Is the host part of an mcp_url acceptable: a DNS name whose last label holds a letter, so
-# IP forms (dotted quads, 127.1, 2130706433) are refused. A port, if any, is 80 or 443.
+# IP forms (dotted quads, 127.1, 2130706433) are refused. The host must also equal that of
+# mcp_base in world.conf (SC-80); a port, if any, is 80, 443 or the owner-set mcp_port.
 valid_mcp_url() {
   local url=$1 re='^https?://[^/@ ]+/[A-Za-z0-9._~/-]*$' auth host port="" hre='^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$'
   [[ $url =~ $re ]] || return 1

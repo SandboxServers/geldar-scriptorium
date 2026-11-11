@@ -33,7 +33,7 @@ These two options are not in the Patron's guide ([template/README.md](../templat
 `launcher/config/world.conf` is read as data, never sourced. Set by the owner (see [onboarding](../docs/onboarding.md)):
 
 - `mcp_base`: scheme, host and port of the world (`https://geldar.sandboxservers.games:18443` in the shipped file), with no path and no credentials. Blank means `new` refuses with `no_world`.
-- `mcp_port`: the world's MCP port, digits only, 1024 to 65535. Blank means only ports 80 and 443 are accepted. A non-default port is accepted only when it equals `mcp_port` and the URL's scheme and host equal those of `mcp_base`.
+- `mcp_port`: the world's MCP port, digits only, 1024 to 65535. Blank means only ports 80 and 443 are accepted. On every port the URL's scheme and host must equal those of `mcp_base`, and a non-default port must also equal `mcp_port`.
 - `private_only_shards`: shard names separated by commas. Their player repositories must be private. Blank in the shipped file: all shards are currently watched, and the list is revisited later.
 
 Each session writes the world's host and effective port for the proxy (`pub/allowlist-world.txt` and `pub/allowlist-world-ports.txt`). The proxy reaches the world on that port (Squid's `world_port` ACL), and it refuses CONNECT to port 80.

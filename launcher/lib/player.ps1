@@ -86,7 +86,8 @@ function Test-PrivateHost([string]$Name) {
 }
 
 # A DNS name whose last label holds a letter (so dotted quads, 127.1 and 2130706433 are refused);
-# a port, if any, is 80, 443 or the owner-set world port (Test-WorldPort).
+# the host must also equal that of mcp_base in world.conf (SC-80); a port, if any, is 80, 443 or
+# the owner-set world port (Test-WorldPort).
 function Test-McpUrl([string]$Url, [switch]$Base) {
   if (-not [regex]::IsMatch($Url, '^https?://[^/@ ]+/[A-Za-z0-9._~/-]*\z')) { return $false }
   $auth = $Url.Substring($Url.IndexOf('://') + 3)

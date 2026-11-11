@@ -14,6 +14,8 @@ import {
   bashExe,
   bashPath,
   childEnv,
+  FIXTURE_MCP_HOST,
+  FIXTURE_MCP_URL,
   forGroup,
   git,
   type Launcher,
@@ -212,7 +214,7 @@ describe.each(forGroup('session'))('session ($name)', (launcher) => {
 
   it('4. H-08: the allowlist the launcher exports is the bare host, 0644', () => {
     const w = makeWorld();
-    const p = player(w, 'four', {}, 'https://mcp.registry.test:443/mcp/v1');
+    const p = player(w, 'four', {}, `${FIXTURE_MCP_URL}/v1`);
     // umask 077 makes a missing chmod visible: mkdir and printf would give 0700 and 0600.
     // pwsh has no umask; it runs as is (the mode check below is POSIX-only anyway).
     const strict =
@@ -234,7 +236,7 @@ stat -c %a "$GELDAR_WORLD_ALLOWLIST" > "${modeOut}"
     const r = start(strict, w, p, 'play', { FAKE_SESSION: bashPath(sf) });
     expect(r.status, r.stderr).toBe(0);
     expect(text(join(w.root, 'al-path.txt'))).toMatch(/allowlist-world\.txt$/);
-    expect(text(join(w.root, 'al-content.txt'))).toBe('mcp.registry.test\n');
+    expect(text(join(w.root, 'al-content.txt'))).toBe(`${FIXTURE_MCP_HOST}\n`);
     if (!win) expect(text(join(w.root, 'al-mode.txt')).trim()).toBe('644');
   });
 

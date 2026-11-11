@@ -2,6 +2,7 @@ no_world	No world address is set in this version. Nothing was created.
 private_list_unset	The list of private-only shards is not set, so it cannot be checked.
 private_required	The shard %s needs a private repository. Use --private. (A public repository needs an explicit --public.)
 public_notice	This player's repository is public, including its memory.
+mock_note	This player points at a mock server. It plays only through the dev-world setting (GELDAR_DEV_MCP_URL) or a world.conf whose mcp_base is the mock's address.
 repo_exists	A player named %s already exists on this machine. Nothing was created.
 gh_failed	GitHub did not create the repository for %s (%s). Nothing was kept on this machine.
 clone_timeout	GitHub did not finish making the repository for %s in time. Try again later.
