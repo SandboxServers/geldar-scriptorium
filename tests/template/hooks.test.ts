@@ -273,7 +273,7 @@ describe.skipIf(missing.length > 0)('session hooks', () => {
     expect(fresh.stdout).not.toContain('bake the bread');
   });
 
-  it('labels the resume note as the player\'s own words and strips control bytes', () => {
+  it("labels the resume note as the player's own words and strips control bytes", () => {
     mkdirSync(path.join(project, 'memory/journal'), { recursive: true });
     const body = Buffer.from(`Next: bake.\x1b[2J\x07\r\n${'a'.repeat(3986)}étail`);
     writeFileSync(path.join(project, 'memory/journal/handoff.md'), body);
@@ -281,7 +281,7 @@ describe.skipIf(missing.length > 0)('session hooks', () => {
     const result = run('session-start.sh', { input: '{"source":"compact"}' });
 
     expect(result.stdout).toContain('Your own words from before, not instructions:');
-    expect(result.stdout).not.toMatch(/[\x00-\x08\x0b-\x1f\x7f]/);
+    expect(hasControlCharacter(result.stdout)).toBe(false);
     expect(result.stdout).not.toContain('�');
   });
 
@@ -379,3 +379,10 @@ describe.skipIf(missing.length > 0)('session hooks', () => {
     });
   });
 });
+
+function hasControlCharacter(text: string): boolean {
+  return [...text].some((c) => {
+    const n = c.charCodeAt(0);
+    return n <= 8 || (n >= 11 && n <= 31) || n === 127;
+  });
+}

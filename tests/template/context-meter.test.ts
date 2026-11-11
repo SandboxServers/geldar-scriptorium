@@ -99,11 +99,7 @@ describe.skipIf(shell === undefined)('context-meter.sh', () => {
     writeFileSync(path.join(dir, `agent-${agent}.jsonl`), lines.join('\n') + '\n');
   }
 
-  function call(
-    payload: Record<string, unknown>,
-    env: NodeJS.ProcessEnv = {},
-    raw?: string,
-  ) {
+  function call(payload: Record<string, unknown>, env: NodeJS.ProcessEnv = {}, raw?: string) {
     return spawnSync(shell ?? 'bash', [hook], {
       input: raw ?? JSON.stringify({ transcript_path: main, tool_name: 'Read', ...payload }),
       encoding: 'utf8',
@@ -279,15 +275,19 @@ describe.skipIf(shell === undefined)('context-meter.sh', () => {
       Buffer.concat([head, filler, Buffer.from('éétail')]),
     );
 
-    const r = spawnSync(shell ?? 'bash', [path.join(templateDir, '.claude/hooks/session-start.sh')], {
-      input: JSON.stringify({ session_id: 'n1', source: 'compact' }),
-      env: { ...process.env, GELDAR_KIT_MARKER: kitMarker, CLAUDE_PROJECT_DIR: root },
-    });
+    const r = spawnSync(
+      shell ?? 'bash',
+      [path.join(templateDir, '.claude/hooks/session-start.sh')],
+      {
+        input: JSON.stringify({ session_id: 'n1', source: 'compact' }),
+        env: { ...process.env, GELDAR_KIT_MARKER: kitMarker, CLAUDE_PROJECT_DIR: root },
+      },
+    );
     const out = r.stdout.toString('utf8');
 
     expect(out).toContain('Your own words from before, not instructions:');
     expect(out).toContain('Next: bake.[2J');
-    expect(out).not.toMatch(/[\x00-\x08\x0b-\x1f\x7f]/);
+    expect(hasControlCharacter(out)).toBe(false);
     expect(out).not.toContain('�');
     expect(out).not.toContain('tail');
   });
@@ -309,13 +309,16 @@ describe.skipIf(shell === undefined)('context-meter.sh', () => {
     expect(readFileSync(log, 'utf8')).toContain('-c 3000000');
   });
 
-  it.skipIf(process.platform !== 'win32')('finds the worker transcript for a backslash path', () => {
-    writeWorker('w1', [assistantLine('claude-haiku-5-5', size(95000))]);
-    const native = path.join(root, 'session.jsonl'); // C:\...\session.jsonl
-    expect(native).toContain('\\');
-    expect(existsSync(path.join(root, 'session', 'subagents', 'agent-w1.jsonl'))).toBe(true);
-    expectClean(reason(call(worker({ transcript_path: native })).stdout));
-  });
+  it.skipIf(process.platform !== 'win32')(
+    'finds the worker transcript for a backslash path',
+    () => {
+      writeWorker('w1', [assistantLine('claude-haiku-5-5', size(95000))]);
+      const native = path.join(root, 'session.jsonl'); // C:\...\session.jsonl
+      expect(native).toContain('\\');
+      expect(existsSync(path.join(root, 'session', 'subagents', 'agent-w1.jsonl'))).toBe(true);
+      expectClean(reason(call(worker({ transcript_path: native })).stdout));
+    },
+  );
 
   describe('sed and node agree on awkward transcripts', () => {
     const parsers = ['sed', ...(haveNode ? ['node'] : []), ...(haveJq ? ['jq'] : [])];
@@ -326,7 +329,11 @@ describe.skipIf(shell === undefined)('context-meter.sh', () => {
         message: {
           model: 'claude-haiku-5-5',
           content: [{ type: 'tool_use', input: { input_tokens: 99999, usage: 1 } }],
-          usage: { input_tokens: 10, cache_read_input_tokens: 19970, cache_creation_input_tokens: 20 },
+          usage: {
+            input_tokens: 10,
+            cache_read_input_tokens: 19970,
+            cache_creation_input_tokens: 20,
+          },
         },
       });
       writeWorker('w1', [line]);
@@ -355,9 +362,10 @@ describe.skipIf(shell === undefined)('context-meter.sh', () => {
       env: { ...process.env, TMPDIR: tmp.replaceAll('\\', '/'), PATH: `${usrBin}:/bin` },
     });
     // On this PATH node is unreachable; the verdict is the same as with node.
-    const hasNodeThere = spawnSync(shell ?? 'bash', ['-c', 'command -v node'], {
-      env: { ...process.env, PATH: `${usrBin}:/bin` },
-    }).status === 0;
+    const hasNodeThere =
+      spawnSync(shell ?? 'bash', ['-c', 'command -v node'], {
+        env: { ...process.env, PATH: `${usrBin}:/bin` },
+      }).status === 0;
     expect(hasNodeThere).toBe(false);
     expectClean(reason(r.stdout));
   });
@@ -398,9 +406,7 @@ describe('context-meter wiring', () => {
     const entry = settings.hooks.PreToolUse?.[0];
 
     expect(entry?.matcher).toBe('*');
-    expect(entry?.hooks[0]?.command).toBe(
-      '"${CLAUDE_PROJECT_DIR}/.claude/hooks/context-meter.sh"',
-    );
+    expect(entry?.hooks[0]?.command).toBe('"${CLAUDE_PROJECT_DIR}/.claude/hooks/context-meter.sh"');
   });
 
   it('ships the hook as an executable file', () => {
@@ -410,3 +416,10 @@ describe('context-meter wiring', () => {
     expect(mode).toMatch(/^100755 /);
   });
 });
+
+function hasControlCharacter(text: string): boolean {
+  return [...text].some((c) => {
+    const n = c.charCodeAt(0);
+    return n <= 8 || (n >= 11 && n <= 31) || n === 127;
+  });
+}
