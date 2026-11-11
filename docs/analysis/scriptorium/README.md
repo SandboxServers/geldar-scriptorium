@@ -189,6 +189,20 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-77a | 7 | S | Repo check that fails when the bash and PowerShell launchers disagree on registered groups (plus `core`) or on private directories (`export` and `pub` exempt) | Sonnet (general-purpose) | Done | wave 6 |
 | SC-77b | 7 | S | Container recipe for the Linux-only tests, with a digest-consistency test | packet-coder (Haiku) | Done | wave 6 |
 | SC-78 | 7 | S | Template prompt: the knowledge boundary and no-audience rule (decision 40): add the three agreed lines to `template/AGENTS.md` under the voice rule, plus a template test; Sonnet | packet-coder | Done | wave 6 |
+| SC-79 | 10 | S | Template wording in-world: setup skill "your human", "Geldar tools", with test (decision 58) | Sonnet | Planned | none |
+| SC-80 | 10 | S | Bind the player.json host to mcp_base on every port, bash and PowerShell (decision 42/58) | Sonnet | Planned | none |
+| SC-81 | 10 | S | `--persona-dir` refuses hard links, bash and PowerShell (decision 43.3/58) | Sonnet | Planned | none |
+| SC-100 | 10 | S | Spike: prove the Claude Code keys in the kit and on a plain host ([wave 10](work-packets-wave10.md)) | main session | Planned | none |
+| SC-101 | 10 | S | Template default identity: planner agent, sonnet, effort low | Haiku | Planned | SC-100, SC-79 |
+| SC-102 | 10 | S | The planner's brief, in-world | Sonnet | Planned | SC-79, SC-100 |
+| SC-103 | 10 | S | The worker agent: haiku, Geldar tools only | Haiku | Planned | SC-100, SC-101 |
+| SC-104 | 10 | S | Context meter (PreToolUse, bash and jq) and compaction guard | Sonnet | Planned | SC-100, SC-103 |
+| SC-105 | 10 | S | Auto-start of play | Haiku | Planned | SC-100, SC-101 |
+| SC-106 | 10 | S | The token stays out of git | Haiku | Planned | none |
+| SC-107 | 10 | S | Populate the Ranger repos from the new template (owner-run) | - | Planned | SC-101 to SC-106, a candidate release |
+| SC-108 | 10 | S | Pin Claude Code at the proven version | Sonnet | Planned | SC-100 |
+| SC-109 | 10 | S | DROPPED (decision 57): the planner compacts; only workers are restarted by the planner | - | Dropped | - |
+| SC-110 | 10 | S | The kit carries the 200k window and subagent env, the launchers pass `--autocompact 100000` | Sonnet | Planned | SC-100, SC-104 |
 
 **Cross-campaign dependency:** wave 3 needs `@geldar/contract` from geldar Phase 0 packet P0-01. Waves 0–2 and 4 don't need wave 3. Only SC-55c (not SC-55b) needs wave 3.
 
