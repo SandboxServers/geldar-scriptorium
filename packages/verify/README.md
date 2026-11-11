@@ -10,4 +10,6 @@ Stable reason ids (`REASONS`): `bad_arguments`, `verify_error`, `bundle_too_larg
 
 Public surface (`src/index.ts`): `verify`, `parseVerifyArgs`, `VerifyInput`, `REASONS`, `Reason`, `Verdict`, `verdict`, `MAX_BUNDLE_BYTES`, `MAX_COMMITS`.
 
+Run `geldar-verify run-summary` with a `claude -p --output-format stream-json --verbose` transcript on stdin: stdout is one JSON line `{cost, turns, is_error, last_text, result_seen, tools}` (no tool inputs or results). Exit 0 always, 2 for any option.
+
 Run its tests from the repo root with `./scriptorium.ps1 pnpm vitest run packages/verify` (or `./scriptorium.ps1 check` for everything).
