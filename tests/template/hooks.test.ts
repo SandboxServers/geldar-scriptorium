@@ -261,6 +261,25 @@ describe.skipIf(missing.length > 0)('session hooks', () => {
     expect(result.stdout.trimEnd().split('\n').length).toBeLessThanOrEqual(12);
   });
 
+  it('hands back the resume note after a compact, and only then', () => {
+    mkdirSync(path.join(project, 'memory/journal'), { recursive: true });
+    writeFileSync(path.join(project, 'memory/journal/handoff.md'), 'Next: bake the bread.\n');
+
+    const after = run('session-start.sh', { input: '{"source":"compact"}' });
+    const fresh = run('session-start.sh', { input: '{"source":"startup"}' });
+
+    expect(after.status).toBe(0);
+    expect(after.stdout).toContain('Next: bake the bread.');
+    expect(fresh.stdout).not.toContain('bake the bread');
+  });
+
+  it('prints nothing extra after a compact when no resume note exists', () => {
+    const result = run('session-start.sh', { input: '{"source":"compact"}' });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).not.toContain('resume note');
+  });
+
   it('falls back to "you" when player.json has no name', () => {
     const result = run('session-start.sh');
 
