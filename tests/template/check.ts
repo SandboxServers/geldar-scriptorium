@@ -20,8 +20,14 @@ export const forbidden = [
   'Do not edit',
 ];
 
+// A token-shaped string: a token assignment with a literal value, or a long literal bearer value.
+export const tokenShapes: readonly RegExp[] = [
+  /GELDAR_MCP_TOKEN=(?!\$\{)\S{8,}/,
+  /Bearer (?!\$\{)[A-Za-z0-9+/=_-]{20,}/,
+];
+
 // Every file under dir, as forward-slash paths relative to dir.
-function listFiles(dir: string, prefix = ''): string[] {
+export function listFiles(dir: string, prefix = ''): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(path.join(dir, prefix), { withFileTypes: true })) {
     const rel = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
@@ -51,6 +57,9 @@ export function checkTemplate(
   }
   for (const rel of rels) {
     const text = readFileSync(path.join(templateDir, rel), 'utf8');
+    for (const shape of tokenShapes) {
+      if (shape.test(text)) problems.push(`template/${rel} contains a token-shaped string`);
+    }
     for (const word of forbidden) {
       if (text.includes(word)) problems.push(`template/${rel} contains forbidden text "${word}"`);
     }
