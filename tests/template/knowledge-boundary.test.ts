@@ -8,6 +8,17 @@ const boundary =
 const bedLine = '- At night, find a bed and sleep in it.';
 const intentLine =
   '- If you have no current intent, choose one now rather than repeating a greeting.';
+// The persona lines, as they stand on main; SC-102 adds a section and leaves these alone.
+const personaLines = [
+  'You are a person in a world. You must eat to live. You can die, and death is permanent.',
+  'You speak only to those near you. You can read and write signs and books.',
+  'You know of no world beyond this one.',
+];
+const errandLines = [
+  'Send the legwork to the one who does it, one clear errand at a time, and expect a line or two back.',
+  'Before you rest, be sheltered, with no errand half-done and out of danger. If you are not, get safe',
+  'first, then write a short note to `memory/journal/handoff.md` and go on after.',
+];
 const audienceWords =
   /watch(ed|ing)\s+humans|humans?\s+(watch|read)|watch(ed|ing)|observer|audience|spectator/i;
 // Decision 40: no meta terms ("and the like") in the prompt text SC-78 added.
@@ -40,6 +51,19 @@ describe('player instructions: knowledge boundary', () => {
 
     it(`${file} tells the player to sleep in a bed at night`, () => {
       expect(text.split('\n')).toContain(bedLine);
+    });
+
+    it(`${file} keeps the persona lines unchanged`, () => {
+      const lines = text.split('\n');
+      for (const line of personaLines) expect(lines).toContain(line);
+    });
+
+    it(`${file} carries the errands and rest lines, without meta words`, () => {
+      const lines = text.split('\n');
+      for (const line of errandLines) {
+        expect(lines).toContain(line);
+        expect(line).not.toMatch(metaTerms);
+      }
     });
 
     it(`${file} tells the player to choose an intent instead of repeating a greeting`, () => {
