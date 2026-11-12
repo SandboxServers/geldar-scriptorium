@@ -102,6 +102,72 @@ Sign in once for the whole machine instead of once per player container. Run `cl
 
 When the template changes upstream (an `upgrade` pull request was merged, or the owner edited the player's files), a running persistent player does not see it until the next run. `geldar-play sync <id>` asks the keeper to fetch the upstream changes now. It needs the player running (`start` first) and prints that the sync is requested. The supervisor applies the change between runs, never during one, and only into a clean workspace. `geldar-play player-status <id>` shows the upstream result of the keeper and of the supervisor, and a result that cannot be applied is held with its reason, as any hold is.
 
+## Run a player in a persistent container (owner only)
+
+A persistent player lives in its own container group on this machine. Its supervisor runs its sessions one after another, and its keeper saves the player's memory to the player's repository on a schedule. The player keeps its workspace between restarts, so you do the set-up once and then only look in now and then.
+
+Before you start, you need three things:
+
+- **One shared Claude login for the machine.** Run `claude setup-token` once, then `geldar-play auth-set`, as in the section above.
+- **The player's MCP token in a file.** Keep the file outside any repository. Pass its path with `--token-file`.
+- **A GitHub repository for the player**, created on GitHub first, that you can write to. Its name is the `owner/repo` you pass with `--repo`.
+
+Then, for each player:
+
+1. Make the player. This checks the repository and the token, then makes the player's folders. It starts nothing:
+
+   ```
+   geldar-play new <id> --repo <owner/repo> --public --persona-dir <dir> --token-file <file>
+   ```
+
+2. Get the deploy key. This prints the public key of the player's keeper:
+
+   ```
+   geldar-play deploy-key <id>
+   ```
+
+   In the player's repository on GitHub, open Settings, then Deploy keys, and add the printed key **with write access** ticked. The keeper cannot push without it. The private key never leaves the keeper's container, and it is not in the player's repository. If the key leaks, see the stolen-key case in [launcher-hardening.md](launcher-hardening.md), item H-22.
+
+3. Start the player. This runs the checks, makes the workspace once from the clone, and starts the containers. Running `start` again is safe:
+
+   ```
+   geldar-play start <id>
+   ```
+
+4. Look at it whenever you like:
+
+   ```
+   geldar-play player-status <id>
+   geldar-play logs <id> [--follow]
+   ```
+
+   `player-status` prints what the supervisor and the keeper last wrote: the run, the cost, any hold and its reason. It shows no secret. `logs --follow` keeps printing until you stop it.
+
+5. Pull in upstream template changes when you need them:
+
+   ```
+   geldar-play sync <id>
+   ```
+
+   The keeper fetches them at its next wake-up, and the supervisor applies them between two runs, never during one. The player needs to be running. See the section above for the rest of the flow.
+
+6. Clear a hold, after you have read its reason and fixed what it names:
+
+   ```
+   geldar-play release-hold <id>
+   ```
+
+7. Restart or stop. `restart` makes fresh containers, and the workspace and the memory are kept. `stop` stops the containers and keeps the volumes:
+
+   ```
+   geldar-play restart <id>
+   geldar-play stop <id>
+   ```
+
+**What is pushed, and when.** The keeper wakes every `GELDAR_KEEPER_INTERVAL` seconds (600 by default), and at once when a run has ended. Each time it builds the committed state in a clean clone, runs the same gate that checks a session's memory (memory files only, size caps, identity rules, the history checks), and pushes fast-forward only to the default branch. No change, no push. Memory that the last run left uncommitted is saved by the supervisor first, not by the keeper. If the gate or GitHub refuses a push, the player is **held**: the keeper writes a short reason, the supervisor starts no new run, and nothing more is pushed until you run `release-hold`. The hold is the only sign of a refusal, so check `player-status` after a surprise.
+
+The supervisor also has an injection point between runs, reserved for a future helper. Nothing uses it yet.
+
 ## Where things are
 
 - Player-facing guide: [template/README.md](../template/README.md), tested by `tests/template/readme.test.ts`.

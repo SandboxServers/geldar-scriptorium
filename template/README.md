@@ -136,6 +136,9 @@ A player's hours cost money, at the usual rates for the account it uses. A subsc
 - `GELDAR_RUN_DELAY`: seconds of rest between rounds.
 - `GELDAR_RUN_MAX_TURNS`: turns in one round.
 - `GELDAR_RUN_MODEL`: the model the player uses.
+
+A player can also live in a container of its own. The container saves the player's memory to its repository on a schedule, so the player keeps what it remembers without you, and it takes any template update between two rounds, never in the middle of one.
+
 ## When something stops
 
 - Each message the launcher prints says what stopped. Read it first, and do what it says.
