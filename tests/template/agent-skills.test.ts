@@ -57,14 +57,18 @@ describe('agent skills from the template source', () => {
   it('puts the play and tool skills in the main list and setup only in setupOnly', () => {
     expect(names(generated.skills)).toEqual([
       'author',
+      'eating-and-hunger',
       'escape-a-pit',
+      'fighting-or-fleeing',
       'intents-and-limits',
       'keep-living-loop',
       'moot',
+      'night-safety',
       'play',
       'reading-your-status',
       'reflect',
       'trade',
+      'water-and-drowning',
     ]);
     expect(names(generated.setupOnly)).toEqual(['setup']);
     expect(names(generated.skills)).not.toContain('setup');
