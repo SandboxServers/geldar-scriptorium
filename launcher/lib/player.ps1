@@ -242,11 +242,12 @@ function Invoke-PlayerCompose([string]$Id, [string[]]$ComposeArgs) {
   Set-PlayerRemote $Id
   Set-PlayerSecrets $Id
   $sd = Get-ShareDir
-  $unset = 'GH_TOKEN', 'GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'GELDAR_DEV_MCP_URL', 'GELDAR_MCP_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'
+  $unset = 'GH_TOKEN', 'GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'GELDAR_DEV_MCP_URL', 'GELDAR_MCP_URL', 'GELDAR_MCP_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'
   $set = @{
     KIT_IMAGE = $script:PL_KIT_IMAGE
     GELDAR_ID = $Id
     GELDAR_KEEPER_REMOTE = $script:PL_REMOTE
+    GELDAR_MCP_URL = $script:PL_MCP_URL
     GELDAR_DEPLOY_KEY_FILE = "$d/deploy-key"
     GELDAR_WORLD_ALLOWLIST = "$d/pub/allowlist-world.txt"
     GELDAR_WORLD_PORTS = "$d/pub/allowlist-world-ports.txt"

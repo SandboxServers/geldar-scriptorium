@@ -105,7 +105,12 @@ describe('the child process', () => {
     const f = makeFixture(
       { stopAt: 1, last: 'hello' },
       { GELDAR_PLAYER_UID: '1234', GELDAR_PLAYER_GID: '4321', GELDAR_RUN_MODEL: 'opus' },
-      { CLAUDE_CODE_OAUTH_TOKEN: secret, GELDAR_MCP_TOKEN: mcp, HTTPS_PROXY: 'http://proxy:3128' },
+      {
+        CLAUDE_CODE_OAUTH_TOKEN: secret,
+        GELDAR_MCP_TOKEN: mcp,
+        GELDAR_MCP_URL: 'https://world.example/p/p1',
+        HTTPS_PROXY: 'http://proxy:3128',
+      },
     );
     await f.supervisor.run();
     const spec = f.runs()[0];
@@ -126,6 +131,7 @@ describe('the child process', () => {
       GELDAR_RUN_MODEL: 'opus',
       CLAUDE_CODE_OAUTH_TOKEN: secret,
       GELDAR_MCP_TOKEN: mcp,
+      GELDAR_MCP_URL: 'https://world.example/p/p1',
       HTTPS_PROXY: 'http://proxy:3128',
     });
     expect(spec.stdoutPath).toBe(join(f.stateDir, 'session-1.jsonl'));

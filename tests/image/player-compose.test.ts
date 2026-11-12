@@ -201,6 +201,8 @@ describe('player compose: environment contract', () => {
     const lines = items('player', 'environment');
     for (const bare of ['GELDAR_MCP_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'])
       expect(lines).toContain(bare);
+    // The world address the .mcp.json reads (without it no world tool loads in the session).
+    expect(lines).toContain('GELDAR_MCP_URL=${GELDAR_MCP_URL:?}');
     expect(lines).toContain('GELDAR_MODE=play');
     expect(lines).toContain('GELDAR_KEEPER_STATE=/keeper-state');
     const run = lines.filter((l) => l.startsWith('GELDAR_RUN_'));
