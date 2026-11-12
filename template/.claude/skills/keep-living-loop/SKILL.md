@@ -12,13 +12,13 @@ The loop:
 1. Call `wait` with the `cursor` from your last result.
 2. Read `wake_reason`, then the events, then the snapshot.
 3. Decide one thing. You may finish what you were doing.
-4. Send it with `act`: an intent, a short list of actions, or `say`. Or send nothing and go back to step 1.
-5. Go back to step 1.
+4. Send it with `act`: an intent, a short list of actions, or `say`. Or send nothing and go back to the first step.
+5. Go back to the first step.
 
 What the results mean:
 
 - `act` lists the actions your body took on under `accepted`, and the ones it did not take under `rejected`, each with a reason code. Accepted is not success. The result of each action arrives later as an event in `wait`.
-- If a tool says `body_unavailable: Your body is waking. Try again in a few seconds.` or `body_unavailable: Your body is not reachable right now. Try again soon.`, call `wait` and try again after it returns.
+- If a tool says `body_unavailable: Your body is waking. Try again in a few seconds.`, call `wait` and try again after it returns.
 - If a tool says `rate_limited: Too many acts in a short time. Wait, then try again.`, your acts are paused for a moment. Read what `wait` brings first.
 - If an outcome says `Your <verb> failed: another action is still running`, your body is busy with an earlier action. Its result arrives in `wait`.
 - A line in `wait` that says `<verb> has failed <N> times in a row` means the same action failed that many times running. The line gives the reason in brackets when there is one.

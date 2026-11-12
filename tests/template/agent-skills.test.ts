@@ -54,8 +54,18 @@ describe('agent skills from the template source', () => {
     }
   });
 
-  it('puts the five play skills in the main list and setup only in setupOnly', () => {
-    expect(names(generated.skills)).toEqual(['author', 'moot', 'play', 'reflect', 'trade']);
+  it('puts the play and tool skills in the main list and setup only in setupOnly', () => {
+    expect(names(generated.skills)).toEqual([
+      'author',
+      'escape-a-pit',
+      'intents-and-limits',
+      'keep-living-loop',
+      'moot',
+      'play',
+      'reading-your-status',
+      'reflect',
+      'trade',
+    ]);
     expect(names(generated.setupOnly)).toEqual(['setup']);
     expect(names(generated.skills)).not.toContain('setup');
   });
