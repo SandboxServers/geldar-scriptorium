@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { bashPath, forGroup, git } from './harness.ts';
+import { bashPath, forGroup, git, repoRoot } from './harness.ts';
 import { ID, MOCK, newRun, rawCommit, type Setup, setupWorld, useTemplate } from './new-support.ts';
 
 vi.setConfig({ testTimeout: 180_000 });
@@ -35,19 +35,31 @@ describe.each(forGroup('new'))('new --repo --kit-version ($name)', (l) => {
     writeFileSync(join(s.ghRoot, 'other-repo.vis'), 'public');
   }
 
-  // A template repository with one tagged commit per tag; each commit's README.md says its tag.
+  // A template repository with one tagged commit per tag; each commit's README.md says its tag and
+  // each carries the shipped player.json (a clone without it is not a player repository).
   // No tags at all makes a template with no kit-v tag.
   function seedTags(s: Setup, tags: string[]) {
     const dir = join(s.w.root, 'tplkit');
     mkdirSync(dir, { recursive: true });
     git(dir, ['init', '-q', '-b', 'main']);
+    const player = readFileSync(join(repoRoot, 'template', 'player.json'), 'utf8');
     let head: string | undefined;
     for (const t of tags) {
-      head = rawCommit(dir, [{ name: 'README.md', mode: '100644', body: `${t}\n` }], head);
+      head = rawCommit(
+        dir,
+        [
+          { name: 'README.md', mode: '100644', body: `${t}\n` },
+          { name: 'player.json', mode: '100644', body: player },
+        ],
+        head,
+      );
       git(dir, ['tag', `kit-v${t}`, head]);
     }
     if (!head) {
-      head = rawCommit(dir, [{ name: 'README.md', mode: '100644', body: 'untagged\n' }]);
+      head = rawCommit(dir, [
+        { name: 'README.md', mode: '100644', body: 'untagged\n' },
+        { name: 'player.json', mode: '100644', body: player },
+      ]);
       git(dir, ['update-ref', 'refs/heads/main', head]);
     }
     useTemplate(s, dir);
