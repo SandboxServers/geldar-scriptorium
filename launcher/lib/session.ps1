@@ -124,12 +124,17 @@ function Invoke-DockerChild([string[]]$DockerArgs, [hashtable]$Set, [string[]]$U
     $psi.RedirectStandardError = $true
   }
   # SC-121: with OutFile only stdout is captured, into that (already private) file.
-  if ($OutFile -ne '') { $psi.RedirectStandardOutput = $true }
+  # The headless run reads no stdin: the pipe is closed at once, so the child sees end of input.
+  if ($OutFile -ne '') {
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardInput = $true
+  }
   try {
     $p = [System.Diagnostics.Process]::Start($psi)
   } catch {
     return 127
   }
+  if ($OutFile -ne '') { $p.StandardInput.Close() }
   if ($Quiet) {
     $p.BeginOutputReadLine()
     $p.BeginErrorReadLine()
@@ -158,12 +163,15 @@ function Start-PlayerSession([string]$Id, [string]$Mode, [string]$N = '') {
     if ($N -cnotmatch '^[0-9]{1,9}\z') { Die 2 usage }
     $cmode = 'play'
     $prompt = [string][Environment]::GetEnvironmentVariable('GELDAR_RUN_PROMPT_FILE')
-    if ($prompt -cnotmatch '^(/|[A-Za-z]:[\\/])' -or -not (Test-Path -LiteralPath $prompt -PathType Leaf)) { Die 2 usage }
+    $pchk = [regex]::Replace($prompt.Replace([char]92, [char]47), '^[A-Za-z]:(?=/)', '')
+    if ($prompt -cnotmatch '^(/|[A-Za-z]:[\\/])' -or [regex]::IsMatch($pchk, '[\x00-\x1F\x7F:,]') -or -not (Test-Path -LiteralPath $prompt -PathType Leaf)) {
+      Die 2 run_setting_bad GELDAR_RUN_PROMPT_FILE
+    }
     $turns = [string][Environment]::GetEnvironmentVariable('GELDAR_RUN_MAX_TURNS')
     if ($turns -eq '') { $turns = '300' }
-    if ($turns -cnotmatch '^[0-9]{1,6}\z') { Die 2 usage }
+    if ($turns -cnotmatch '^[0-9]{1,6}\z') { Die 2 run_setting_bad GELDAR_RUN_MAX_TURNS }
     $model = [string][Environment]::GetEnvironmentVariable('GELDAR_RUN_MODEL')
-    if ($model -ne '' -and $model -cnotmatch '^[A-Za-z0-9._:/-]+\z') { Die 2 usage }
+    if ($model -ne '' -and $model -cnotmatch '^[A-Za-z0-9._:/-]+\z') { Die 2 run_setting_bad GELDAR_RUN_MODEL }
   } else {
     Die 2 usage
   }
@@ -177,6 +185,16 @@ function Start-PlayerSession([string]$Id, [string]$Mode, [string]$N = '') {
   $chk = [regex]::Replace($sdf, '^[A-Za-z]:(?=/)', '')
   if ([regex]::IsMatch($chk, '[\x00-\x1F\x7F:,]')) { Die 1 bad_state_path }
   $share = (Get-ShareDir).Replace([char]92, [char]47)
+  $out = ''
+  if ($Mode -ceq 'run') {
+    # A link at the run folder or the stream file would make the launcher truncate its target.
+    $runDir = Join-Path $d 'run'
+    $out = Join-Path $runDir "session-$N.jsonl"
+    foreach ($lp in @($runDir, $out)) {
+      $li = Get-Item -LiteralPath $lp -Force -ErrorAction SilentlyContinue
+      if ($li -and ($li.LinkType -or $li.LinkTarget)) { Die 1 bad_state_path }
+    }
+  }
 
   # SC-75: the human-set dev world replaces the URL for this launch only. It goes straight to the
   # allowlist writer and the override; it is never run through Test-McpUrl.
@@ -193,12 +211,19 @@ function Start-PlayerSession([string]$Id, [string]$Mode, [string]$N = '') {
   Invoke-Docker volume create "geldar-cli-$Id-claude" *> $null
   if ($LASTEXITCODE -ne 0) { Die 1 workspace_failed $Id 'the CLI volume could not be created' }
   Write-Override $Id $sd $mcp ($dev -ne '') $prompt $turns $model
-  $out = ''
   if ($Mode -ceq 'run') {
     New-PrivateDir (Join-Path $d 'run')
-    $out = Join-Path (Join-Path $d 'run') "session-$N.jsonl"
-    [System.IO.File]::WriteAllBytes($out, [byte[]]@())
-    if (-not $IsWindows) { [System.IO.File]::SetUnixFileMode($out, [System.IO.UnixFileMode]0x180) }
+    # Created with the private mode from the start where the platform allows it.
+    if ($IsWindows) {
+      [System.IO.File]::WriteAllBytes($out, [byte[]]@())
+    } else {
+      $fo = [System.IO.FileStreamOptions]::new()
+      $fo.Mode = [System.IO.FileMode]::Create
+      $fo.Access = [System.IO.FileAccess]::Write
+      $fo.UnixCreateMode = [System.IO.UnixFileMode]0x180
+      ([System.IO.FileStream]::new($out, $fo)).Dispose()
+      [System.IO.File]::SetUnixFileMode($out, [System.IO.UnixFileMode]0x180)
+    }
   }
 
   $words = @(Get-HarnessCommand claude $Mode)

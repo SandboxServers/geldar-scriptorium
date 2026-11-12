@@ -184,6 +184,11 @@ What it means. The container did not start.
 Why it is safe. Nothing was saved. The launcher does not retry for you.
 What to do. Check that Docker is running, then start the session again.
 
+### run_setting_bad
+What it means. A setting for the headless run is not valid. The message names the variable: GELDAR_RUN_PROMPT_FILE, GELDAR_RUN_MAX_TURNS or GELDAR_RUN_MODEL.
+Why it is safe. The launcher refused before it started, so nothing was mounted and nothing ran.
+What to do. Set that variable again: a full path to the prompt file, a whole number of turns, or a plain model name.
+
 ### bundle_too_large
 What it means. The session saved far too much to be packed, so it is kept.
 Why it is safe. The launcher did not send the session anywhere, and it stays held for you to look at.

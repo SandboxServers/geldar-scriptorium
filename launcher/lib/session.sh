@@ -122,13 +122,14 @@ start_session() {
       cmode=play
       prompt=${GELDAR_RUN_PROMPT_FILE-}
       case $prompt in
-        /*) [ -f "$prompt" ] || die 2 usage ;;
-        *) die 2 usage ;;
+        *[[:cntrl:]]* | *,* | *:*) die 2 run_setting_bad GELDAR_RUN_PROMPT_FILE ;;
+        /*) [ -f "$prompt" ] || die 2 run_setting_bad GELDAR_RUN_PROMPT_FILE ;;
+        *) die 2 run_setting_bad GELDAR_RUN_PROMPT_FILE ;;
       esac
       turns=${GELDAR_RUN_MAX_TURNS:-300}
-      [[ $turns =~ ^[0-9]{1,6}$ ]] || die 2 usage
+      [[ $turns =~ ^[0-9]{1,6}$ ]] || die 2 run_setting_bad GELDAR_RUN_MAX_TURNS
       model=${GELDAR_RUN_MODEL-}
-      [ -z "$model" ] || [[ $model =~ ^[A-Za-z0-9._:/-]+$ ]] || die 2 usage
+      [ -z "$model" ] || [[ $model =~ ^[A-Za-z0-9._:/-]+$ ]] || die 2 run_setting_bad GELDAR_RUN_MODEL
       ;;
     *) die 2 usage ;;
   esac
@@ -140,6 +141,11 @@ start_session() {
     *[[:cntrl:]]* | *,* | *:*) die 1 bad_state_path ;;
   esac
   share=$(share_dir)
+  if [ "$mode" = run ]; then
+    # A link at the run folder or the stream file would make the launcher truncate its target.
+    out="$d/run/session-$n.jsonl"
+    if [ -L "$d/run" ] || [ -L "$out" ]; then die 1 bad_state_path; fi
+  fi
 
   # SC-75: a set GELDAR_DEV_MCP_URL replaces the URL for this launch only. It goes straight to the
   # allowlist writer and the override; it is never passed through valid_mcp_url.
@@ -155,7 +161,6 @@ start_session() {
     die 1 workspace_failed "$id" 'the CLI volume could not be created'
   write_override "$id" "$sd" "$PL_MCP_URL" "$dev" "$prompt" "$turns" "$model"
   if [ "$mode" = run ]; then
-    out="$d/run/session-$n.jsonl"
     private_mkdir "$d/run"
     (umask 077 && : > "$out") && chmod 600 "$out" || die 1 bad_state_path
     tty=-T
@@ -192,7 +197,7 @@ start_session() {
     export GELDAR_WORLD_ALLOWLIST="$wl" GELDAR_WORLD_PORTS="$wp" GELDAR_MODE="$cmode"
     if [ "$mode" = run ]; then
       docker_cmd compose "${args[@]}" run --rm ${tty:+$tty} --label geldar.role=session \
-        session "${words[@]}" > "$out"
+        session "${words[@]}" < /dev/null > "$out"
     else
       docker_cmd compose "${args[@]}" run --rm ${tty:+$tty} --label geldar.role=session \
         session "${words[@]}"
