@@ -25,7 +25,8 @@ export interface KeeperDeps {
   now: () => Date;
 }
 
-export type RunOutcome = 'pushed' | 'unchanged' | 'held';
+/** 'waiting_for_upstream_sync': the remote is ahead and its offer is on disk; nothing is pushed yet. */
+export type RunOutcome = 'pushed' | 'unchanged' | 'held' | 'waiting_for_upstream_sync';
 
 export interface RunResult {
   outcome: RunOutcome;
@@ -123,10 +124,22 @@ function push(cfg: KeeperConfig, deps: KeeperDeps, tip: string): void {
   if (listed.split(/\s+/)[0] !== tip) throw new Refusal('hash_mismatch');
 }
 
-function steps(cfg: KeeperConfig, deps: KeeperDeps): RunOutcome {
+// The private clone, made on first use: a bare repository that holds only what is fetched.
+function prepareClone(cfg: KeeperConfig, deps: KeeperDeps): void {
   mkdirSync(cfg.clone, { recursive: true });
   mustSucceed(call(cfg, deps, ['init', '--bare', '-q', '-b', cfg.branch, '.']), 'clone_failed');
-  const tip = fetchWorkspace(cfg, deps);
+}
+
+// The push step. An offer on disk means the remote is ahead of the workspace with checked commits:
+// the supervisor applies the offer between runs and rebases the local commits, so the push waits
+// for the next cycle, which finds a fast-forward. That is a wait, not a hold.
+function steps(
+  cfg: KeeperConfig,
+  deps: KeeperDeps,
+  tip: string,
+  upstream: UpstreamOutcome,
+): RunOutcome {
+  if (upstream.result === 'offered') return 'waiting_for_upstream_sync';
   if (tip === readLastPushed(cfg.state)) return 'unchanged';
   const remoteHead = fetchRemote(cfg, deps);
   if (remoteHead === tip) {
@@ -150,8 +163,11 @@ export async function runOnce(cfg: KeeperConfig, deps: KeeperDeps): Promise<RunR
     result = { outcome: 'held', reason: 'already_held' };
   } else {
     try {
-      upstream = await fetchUpstream(cfg, deps);
-      result = { outcome: steps(cfg, deps) };
+      prepareClone(cfg, deps);
+      const tip = fetchWorkspace(cfg, deps);
+      // The upstream step runs before any push, so its result is recorded even when the push waits.
+      upstream = await fetchUpstream(cfg, deps, tip);
+      result = { outcome: steps(cfg, deps, tip, upstream) };
     } catch (error) {
       const reason = error instanceof Refusal ? error.message : 'keeper_error';
       writeHeld(cfg.state, reason);

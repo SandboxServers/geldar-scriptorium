@@ -52,6 +52,24 @@ describe('the clean path', () => {
     expect(w.pushes()).toBe(1);
   });
 
+  test('a remote ahead with a checked commit waits for the sync and is not held', async () => {
+    const w = fresh();
+    w.write('memory/journal/day1.md', 'day one\n');
+    w.commit('journal');
+    w.remoteChange((dir) => {
+      mkdirSync(join(dir, 'skills'), { recursive: true });
+      writeFileSync(join(dir, 'skills', 'new.md'), 'a new skill\n');
+    });
+    expect((await runOnce(w.cfg, w.deps)).outcome).toBe('waiting_for_upstream_sync');
+    expect(held(w)).toBeNull();
+    expect(w.pushes()).toBe(0);
+    expect(JSON.parse(readFileSync(join(w.cfg.state, 'status.json'), 'utf8'))).toMatchObject({
+      last_result: 'waiting_for_upstream_sync',
+      upstream_result: 'offered',
+      held: false,
+    });
+  });
+
   test('a run with nothing new on the first start pushes nothing', async () => {
     const w = fresh();
     expect((await runOnce(w.cfg, w.deps)).outcome).toBe('unchanged');

@@ -24,18 +24,27 @@ until a person removes it.
 `geldar-keeper-connect <host> <port>` is the ProxyCommand helper. `geldar-keeper --once` runs a
 single cycle.
 
-**Upstream offers (SC-167).** Each cycle also fetches the remote branch read only. When it is a
-fast-forward of the last pushed head, the commits pass the upstream checks (at most 200 commits,
-no symlink, no submodule, no unsafe path, nothing under `memory/`, no blob over 2 MiB) and are
-written to `upstream.bundle` with `upstream.json` beside it. Each refusal removes the offer and
-writes no bundle. A diverged remote is recorded, not held. Applying the bundle is the supervisor's
-job, between runs; this package only offers it.
+**Upstream offers (SC-167).** Each cycle also fetches the remote branch read only, after the
+workspace fetch and before any push. The base is the merge-base of the workspace tip and the remote
+tip, so a player that has never pushed is offered too. When the remote holds commits the workspace
+lacks, those commits pass the upstream checks (at most 200 commits, no symlink, no submodule, no
+unsafe path, nothing under `memory/`, no blob over 2 MiB) and are written to `upstream.bundle` with
+`upstream.json` beside it. Each refusal removes the offer and writes no bundle. A diverged remote
+(one that lost the last pushed head, or shares no history) is recorded, not held. Applying the
+bundle is the supervisor's job, between runs; this package only offers it.
 
-`upstream.json` keys: `head` (the offered commit), `base` (the last pushed head), `commits` (the
+While an offer is on disk and the remote is ahead, the push waits: the cycle records
+`waiting_for_upstream_sync` and pushes nothing, and HELD is not written. Once the workspace
+contains the remote tip, the offer is removed and the next cycle pushes a fast-forward. A remote
+commit that touches `memory/`, or a rewritten remote history, is still held with
+`not_fast_forward`.
+
+`upstream.json` keys: `head` (the offered commit), `base` (the merge-base), `commits` (the
 count), `created_utc`.
 
 `status.json` keys added: `upstream_head` (the offered head, or null) and `upstream_result`
-(`offered`, `none`, `diverged` or `refused: <code>`).
+(`offered`, `none`, `diverged` or `refused: <code>`). `last_result` is one of `pushed`,
+`unchanged`, `waiting_for_upstream_sync`, or `held: <reason>`.
 
 A `sync-request` file in the keeper state folder wakes the loop at once for an upstream check. It
 is deleted when the cycle that serves it finishes.

@@ -44,7 +44,7 @@ describe('an upstream change on top of the pushed tip', () => {
     const base = await pushedBase(w);
     const head = w.remoteChange(template);
     const result = await runOnce(w.cfg, w.deps);
-    expect(result.outcome).toBe('unchanged');
+    expect(result.outcome).toBe('waiting_for_upstream_sync');
     expect(held(w)).toBe(false);
     expect(JSON.parse(readFileSync(manifestFile(w), 'utf8'))).toEqual({
       head,
@@ -100,6 +100,76 @@ describe('an upstream change on top of the pushed tip', () => {
     await runOnce(w.cfg, w.deps);
     expect(status(w)).toMatchObject({ upstream_result: 'offered' });
     expect(existsSync(w.sentinel)).toBe(false);
+  });
+});
+
+// A workspace that has never pushed: its one local commit touches memory/ and the remote holds
+// the start commit, so the merge-base of the two tips is that start commit.
+describe('a never-pushed player whose remote is ahead', () => {
+  test('is offered the template commit as a bundle, and waits instead of holding', async () => {
+    const w = fresh();
+    w.write('memory/journal/day1.md', 'day one\n');
+    w.commit('journal');
+    const base = w.git(w.ws, ['rev-parse', 'HEAD~1']);
+    const head = w.remoteChange(template);
+    const result = await runOnce(w.cfg, w.deps);
+    expect(result.outcome).toBe('waiting_for_upstream_sync');
+    expect(held(w)).toBe(false);
+    expect(w.pushes()).toBe(0);
+    expect(JSON.parse(readFileSync(manifestFile(w), 'utf8'))).toEqual({
+      head,
+      base,
+      commits: 1,
+      created_utc: '2026-01-02T03:04:05.000Z',
+    });
+    expect(status(w)).toMatchObject({
+      last_result: 'waiting_for_upstream_sync',
+      upstream_head: head,
+      upstream_result: 'offered',
+    });
+  });
+
+  test('is pushed once the workspace is rebased onto the offer, and the offer is cleared', async () => {
+    const w = fresh();
+    w.write('memory/journal/day1.md', 'day one\n');
+    const tip = w.commit('journal');
+    const head = w.remoteChange(template);
+    expect((await runOnce(w.cfg, w.deps)).outcome).toBe('waiting_for_upstream_sync');
+    // The supervisor applies the offer and rebases the local commit onto it.
+    w.git(w.ws, ['fetch', '-q', bundleFile(w), 'refs/heads/main']);
+    w.git(w.ws, ['rebase', '-q', 'FETCH_HEAD']);
+    expect(w.git(w.ws, ['rev-parse', 'HEAD^'])).toBe(head);
+    expect(w.git(w.ws, ['rev-parse', 'HEAD'])).not.toBe(tip);
+    expect((await runOnce(w.cfg, w.deps)).outcome).toBe('pushed');
+    expect(w.remoteHead()).toBe(w.git(w.ws, ['rev-parse', 'HEAD']));
+    expect(w.pushes()).toBe(1);
+    expect(existsSync(bundleFile(w))).toBe(false);
+    expect(existsSync(manifestFile(w))).toBe(false);
+    expect(status(w)).toMatchObject({ upstream_head: null, upstream_result: 'none', held: false });
+  });
+
+  test('a remote commit that touches memory/ is held as before, with no offer', async () => {
+    const w = fresh();
+    w.remoteMoves();
+    w.write('memory/journal/two.md', 'two\n');
+    w.commit('two');
+    expect((await runOnce(w.cfg, w.deps)).outcome).toBe('held');
+    expect(readFileSync(join(w.cfg.state, 'HELD'), 'utf8')).toMatch(/not_fast_forward/);
+    expect(existsSync(bundleFile(w))).toBe(false);
+    expect(w.pushes()).toBe(0);
+  });
+
+  test('a rewritten remote history with local work is held as before', async () => {
+    const w = fresh();
+    await pushedBase(w);
+    w.write('memory/journal/two.md', 'two\n');
+    w.commit('two');
+    const rewritten = w.remoteChange(template, true);
+    expect((await runOnce(w.cfg, w.deps)).outcome).toBe('held');
+    expect(readFileSync(join(w.cfg.state, 'HELD'), 'utf8')).toMatch(/not_fast_forward/);
+    expect(w.remoteHead()).toBe(rewritten);
+    expect(existsSync(bundleFile(w))).toBe(false);
+    expect(status(w)).toMatchObject({ upstream_head: null, upstream_result: 'diverged' });
   });
 });
 

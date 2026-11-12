@@ -17,6 +17,8 @@ export interface UpstreamOutcome {
 export const BUNDLE = 'upstream.bundle';
 export const MANIFEST = 'upstream.json';
 
+const SHA = /^[0-9a-f]{40}$/;
+
 // Removes the offer. Done before a new one is written and whenever the offer is no longer valid.
 function clearOffer(cfg: KeeperConfig): void {
   for (const name of [MANIFEST, BUNDLE, `${BUNDLE}.tmp`]) {
@@ -65,27 +67,49 @@ function offer(cfg: KeeperConfig, deps: KeeperDeps, base: string, head: string):
   return { head, result: 'offered' };
 }
 
-// One upstream check, run before the workspace fetch of each cycle. Read only on the remote; it
-// never throws and never sets HELD, because an upstream refusal is not a push refusal. The base
-// is the tip the keeper last pushed: the remote must be a fast-forward of it.
-export async function fetchUpstream(cfg: KeeperConfig, deps: KeeperDeps): Promise<UpstreamOutcome> {
-  const base = readLastPushed(cfg.state);
-  if (base === null) {
-    clearOffer(cfg);
-    return { head: null, result: 'none' };
-  }
+// True when `ancestor` is reachable from `tip`. Only exit 0 and 1 are answers; anything else is an
+// error, never a no.
+function isAncestor(cfg: KeeperConfig, deps: KeeperDeps, ancestor: string, tip: string): boolean {
+  const result = call(cfg, deps, ['merge-base', '--is-ancestor', ancestor, tip]);
+  if (result.status !== 0 && result.status !== 1) throw new Refusal('upstream_error');
+  return result.status === 0;
+}
+
+// The best common ancestor of the workspace tip and the remote tip, or null when they share none.
+function mergeBase(cfg: KeeperConfig, deps: KeeperDeps, tip: string, head: string): string | null {
+  const result = call(cfg, deps, ['merge-base', tip, head]);
+  if (result.status === 1) return null;
+  const base = result.stdout.trim();
+  if (result.status !== 0 || !SHA.test(base)) throw new Refusal('upstream_error');
+  return base;
+}
+
+// One upstream check, run each cycle after the workspace fetch and before any push. Read only on
+// the remote; it never throws and never sets HELD, because an upstream refusal is not a push
+// refusal. The base is the merge-base of the workspace tip and the remote tip, so a player that
+// has never pushed is offered too. A remote that lost the last pushed head is diverged.
+export async function fetchUpstream(
+  cfg: KeeperConfig,
+  deps: KeeperDeps,
+  tip: string,
+): Promise<UpstreamOutcome> {
+  const last = readLastPushed(cfg.state);
   try {
     const head = fetchRemote(cfg, deps);
-    if (head === base) {
+    // The workspace already holds the remote tip: nothing is ahead, so any old offer is stale.
+    if (isAncestor(cfg, deps, head, tip)) {
       clearOffer(cfg);
       return { head: null, result: 'none' };
     }
-    const ancestor = call(cfg, deps, ['merge-base', '--is-ancestor', base, head]);
-    if (ancestor.status === 1) {
+    if (last !== null && !isAncestor(cfg, deps, last, head)) {
       clearOffer(cfg);
       return { head: null, result: 'diverged' };
     }
-    if (ancestor.status !== 0) throw new Refusal('upstream_error');
+    const base = mergeBase(cfg, deps, tip, head);
+    if (base === null) {
+      clearOffer(cfg);
+      return { head: null, result: 'diverged' };
+    }
     if (alreadyOffered(cfg, base, head)) return { head, result: 'offered' };
     const code = inspectUpstream(cfg, deps, base, head);
     if (code !== null) return refused(cfg, code);
