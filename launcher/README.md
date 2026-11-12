@@ -6,20 +6,21 @@
 
 | Verb | What it does |
 |---|---|
-| `new <id>` | Creates the player repo on GitHub from the template and clones it. `--mock <url>` and `--token-file` point it at a mock world; `--public` or `--private` sets visibility (required when the private-only shard list is unset and the world is not a mock). |
+| `new <id>` | Creates the player repo on GitHub from the template and clones it. `--mock <url>` and `--token-file` point it at a mock world; `--public` or `--private` sets visibility (required when the private-only shard list is unset and the world is not a mock). `--repo <owner/name>` is for owner provisioning only, not for Patrons (see below). |
 | `setup <id>` | The one-time setup session (`GELDAR_MODE=setup`) that writes the birth commit. |
 | `play <id>...` | One in-game day for each player. With several ids it opens tabs (`tmux` on bash, Windows Terminal on PowerShell). |
 | `resolve <id>` | Saves or discards a held session (see below). |
-| `archive <id>` | Archives the player repo on GitHub after a typed confirmation and removes the local copy. |
+| `archive <id>` | Archives the player repo on GitHub after a typed confirmation and removes the local copy. It needs the clone's origin URL to end in `player-<id>`, so a player made with `--repo` under another name cannot be archived by the launcher. |
 | `status` | One line per player: id, state, branch, reason if held. |
 
 `--cli codex` is refused with a message; only the Claude Code CLI is supported (D-SC-08). Prerequisites per verb are in `verb_needs` in `geldar-play` (D-SC-09). The real world's address and port are set in [config/world.conf](config/world.conf); the private-only shard list is blank for now, and is revisited later.
 
 ## Owner and developer options
 
-These two options are not in the Patron's guide ([template/README.md](../template/README.md)). Give them to the owner and to developers only.
+These options are not in the Patron's guide ([template/README.md](../template/README.md)). Give them to the owner and to developers only.
 
 - **`new <id> --persona-dir <dir>`** (owner provisioning only). The directory holds `memory/identity.md` (at most 8192 bytes) and `memory/goals.md` (at most 4096 bytes). Both are checked before anything is created: no control characters, valid UTF-8, no invisible code points, no links, plain files only, no empty file, and the option given once. A refused file gives `persona_bad` with the reason and creates nothing. A good persona makes a player that is already born, so `setup` is not needed (`created_seeded`).
+- **`new <id> --repo <owner/name>`** (owner provisioning only, not for Patrons). Fills an existing repository, which must hold only a first commit of README.md, LICENSE and .gitignore, from the newest released template tag instead of creating `player-<id>`. The visibility must match. A failure after the clone says `adopt_failed`. A token file given to `--token-file` may read `GELDAR_MCP_TOKEN=<value>` or the bare value; a byte-order mark or a NUL byte is refused.
 - **`GELDAR_DEV_MCP_URL`** (developer seam, the human's own environment only). Set it, in the shell that runs `geldar-play`, to exactly `http://host.docker.internal:PORT/p/ID`, with PORT from 1024 to 65535 and no leading zero, and ID the player's own id. The launcher reads it from the environment only, never from `player.json` or a file. The one check is that exact shape; a wrong value is refused with `dev_world_bad` before any lock, state or Docker call. The value is not checked against `mcp_base`. It replaces the world URL for that launch only, goes straight to the allowlist writer, and is not given to the session container. Each launch prints `dev_world_active`, and while it is set, starting more than one player is refused (`dev_world_single`). The token travels in clear text over http, so use a separate dev token. Setup and the listen-address rules are in [the troubleshooting guide](../docs/troubleshooting.md#testing-against-a-world-on-your-own-machine).
 
 ## Directories

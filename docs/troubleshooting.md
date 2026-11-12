@@ -395,7 +395,7 @@ Why it is safe. Nothing was created, and the existing player is untouched.
 What to do. Choose another name, or use the existing player.
 
 ### gh_failed
-What it means. GitHub did not finish a step of making the repository. The message names the step: create, add, commit or push.
+What it means. GitHub did not finish a step of making the repository. The message names the step: create, template, add, commit or push.
 Why it is safe. Nothing was kept on this machine: the launcher removed its local folder for the attempt.
 What to do. Check that gh is signed in and has access. If the step was add, commit or push, the repository was already made on GitHub, so read the message after this one before you try again.
 
@@ -409,6 +409,41 @@ What it means. The repository player-<id> was made on GitHub, but a later step f
 Why it is safe. The launcher did not write the player's state, so no half-made player is left on this machine.
 What to do. Delete the repository player-<id> on GitHub, then run new for the same id again. While the repository is still there, the next new stops at the create step.
 
+### repo_bad
+What it means. The value given to --repo is not owner/name. The owner has letters, digits and dashes (up to 39); the name has letters, digits and . _ - (up to 100); the name is not . or .., and --repo is given once.
+Why it is safe. The launcher refused the option before it called GitHub, so nothing was created.
+What to do. Give the value as owner/name, for example SandboxServers/player-mmpr-pink.
+
+### repo_missing
+What it means. The repository given to --repo was not found, or gh cannot see it. The message names it.
+Why it is safe. The launcher stopped before it cloned or changed anything.
+What to do. Check the spelling and that gh is signed in with access to that repository, then run new again.
+
+### repo_visibility
+What it means. The repository given to --repo has a different visibility from the one asked for. The message names the repository, its visibility and the requested one.
+Why it is safe. The launcher stopped before it cloned or changed anything.
+What to do. Pass --public or --private to match the repository, or change the repository's visibility on GitHub first.
+
+### repo_not_empty
+What it means. The repository given to --repo must hold at least one of README.md, LICENSE and .gitignore, and nothing else, at the top level. It holds other files, or a link in place of one of those names, or it has no commit yet, or gh could not list its files.
+Why it is safe. The launcher fills only a repository it has verified as nearly empty. It stopped before it changed anything on GitHub (a local clone it made is removed), and it never force-pushes.
+What to do. Give the repository its first commit with one initial README (GitHub offers this when you create it), or remove the extra files on GitHub, then run new again.
+
+### adopt_failed
+What it means. A step failed after new cloned the repository given to --repo (the message names it: clone, template, add, commit or push). The repository may already hold the first commit for the player, for example when a push was cut off by the time limit.
+Why it is safe. The launcher removed its local folder and wrote no state, and it never force-pushes. It does not delete a repository that was there before.
+What to do. Look at the repository on GitHub. If it holds the player's files, clear it (delete the files and commit, or recreate the repository with its initial README), then run new again. If it holds only the README, run new again.
+
+### template_unpinned
+What it means. The template repository has no released kit version (a tag kit-v followed by a version), so new --repo has nothing fixed to copy from.
+Why it is safe. The launcher stopped before it cloned or changed anything.
+What to do. Ask the owner to release the template, or try again later.
+
+### template_too_big
+What it means. The template holds more than 2000 files or more than 20 MB, so new --repo refused to copy it.
+Why it is safe. The launcher removed its local clone and changed nothing on GitHub.
+What to do. Tell the owner: the template release is not the size the launcher expects.
+
 ### bad_shard
 What it means. The shard name is not allowed.
 Why it is safe. The launcher checked the name before it created anything.
@@ -420,7 +455,7 @@ Why it is safe. The launcher refused the address before it created anything.
 What to do. The owner corrects the address in `launcher/config/world.conf`. A port is allowed only when it is the `mcp_port`.
 
 ### bad_token
-What it means. The token file is not valid. It needs one line of 16 to 200 letters, digits, or . _ ~ -
+What it means. The token file is not valid. It needs one line of 16 to 200 letters, digits, or `. _ ~ -`. The line may start with `GELDAR_MCP_TOKEN=` (the form Geldar writes); any other prefix is refused.
 Why it is safe. The launcher refused the file before it created anything.
 What to do. Replace the file with a token in that form. Never paste a token into a chat or a commit.
 
