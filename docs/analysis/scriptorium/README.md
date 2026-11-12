@@ -209,6 +209,12 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-123 | 11 | S | The PowerShell twin of SC-122 | Sonnet | Planned | SC-120, SC-121, SC-122 |
 | SC-124 | 11 | S | Docs for the supervisor: Patron README section, hardening item, threat model, troubleshooting | Sonnet | Planned | SC-122, SC-123 |
 | SC-125 | 11 | S | List the `unstick` verb in the play skill and guide | Haiku | Held (geldar PR #151) | none |
+| SC-130 | 12 | S | `geldar-verify director-record` and the failure reasons in `run-summary` ([wave 12](work-packets-wave12.md)) | Sonnet | Planned | SC-120 |
+| SC-131 | 12 | S | The director call: its prompt, settings and throwaway container, both launchers | Sonnet | Planned | SC-130, SC-121 |
+| SC-132 | 12 | S | `geldar-verify director-check`: schema, banned words, echo rule | Sonnet | Planned | SC-120 |
+| SC-133 | 12 | S | Supervisor integration of the director, bash | Sonnet | Planned | SC-122, SC-131, SC-132 |
+| SC-134 | 12 | S | The PowerShell twin of SC-133 | Sonnet | Planned | SC-133 |
+| SC-135 | 12 | S | Director docs, hardening item, threat-model rows and the owner-run live check | Sonnet | Planned | SC-133, SC-134 |
 
 **Cross-campaign dependency:** wave 3 needs `@geldar/contract` from geldar Phase 0 packet P0-01. Waves 0–2 and 4 don't need wave 3. Only SC-55c (not SC-55b) needs wave 3.
 
