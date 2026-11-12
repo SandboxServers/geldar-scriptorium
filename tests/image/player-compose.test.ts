@@ -230,6 +230,7 @@ describe('player compose: environment contract', () => {
         'HOME',
         'GELDAR_KEEPER_REMOTE',
         'GELDAR_KEEPER_KEY',
+        'GELDAR_KEEPER_PLAYER_ID',
         'GELDAR_KEEPER_INTERVAL',
         'GELDAR_KEEPER_WORKSPACE',
         'GELDAR_KEEPER_CLONE',
@@ -246,6 +247,7 @@ describe('player compose: environment contract', () => {
       'GELDAR_KEEPER_STATE=/keeper-state',
       'GELDAR_KEEPER_SUPERVISOR_STATE=/supervisor-state',
       'GELDAR_KEEPER_PROXY=proxy-keeper:3128',
+      'GELDAR_KEEPER_PLAYER_ID=${GELDAR_ID:?}',
     ]) {
       expect(lines).toContain(want);
     }
