@@ -56,6 +56,8 @@ Each requirement is one line. Tests are written in SC-60.
 
   The settings contain deny rules for the CLI home and `.credentials.json`; every other spelling of a credential path is covered only by `blockReadsOutsideWorkingDirectories` plus the live check in SC-62, which has not run yet.
   Symlink swap (the known gap above): closed in `packages/git` by SC-60j (`O_NOFOLLOW` open, `fstat` regular file, device and inode compared, 1 MiB cap); its Linux-only cases run in CI.
+- The adopt path (`new --repo`) writes only into a repository it verified: it exists, has the requested visibility, and holds only README.md, LICENSE and .gitignore at the top level. It never force-pushes. The existing repository is checked twice: by name through gh, and by `git ls-tree` in its clone (plain files named README.md, LICENSE or .gitignore only, so a link cannot carry the copy outside the clone); each destination is removed before it is written. The template is the newest non-prerelease `kit-v*` tag, found as `upgrade` finds it, cloned shallow with hooks off and object checks on, with no checkout until its file list is checked (modes 100644 or 100755, at most 2000 files and 20 MB, no `..`, `.` or `.git` path part in any letter case). With no kit tag the adopt is refused (`template_unpinned`). Any failure after the clone says `adopt_failed`, because a cut-off push may already have reached the remote. Test: `launcher/test/new.test.ts`
+
 ## Test seams
 
 Every `GELDAR_*` name the launchers read is classified in `launcher/test/hostile/seams.json` (sorted, unique; `seams.test.ts` scans the sources and fails on an unclassified name).
