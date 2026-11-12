@@ -2,9 +2,9 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { verify } from '@geldar/scriptorium-verify';
+import { call, fetchRemote, mustSucceed, Refusal } from './clone.ts';
 import type { KeeperConfig } from './config.ts';
 import type { GitRunner } from './git.ts';
-import { hardenedArgs, hardenedEnv } from './git.ts';
 import {
   ensureState,
   isHeld,
@@ -14,6 +14,7 @@ import {
   writeStatus,
 } from './state.ts';
 import type { Transport } from './transport.ts';
+import type { UpstreamOutcome } from './upstream.ts';
 import { fetchUpstream } from './upstream.ts';
 
 export interface KeeperDeps {
@@ -32,28 +33,6 @@ export interface RunResult {
 }
 
 const SHA = /^[0-9a-f]{40}$/;
-
-class Refusal extends Error {}
-
-// Runs one git call in the private clone; the extra `-c` settings come before the subcommand.
-function call(
-  cfg: KeeperConfig,
-  deps: KeeperDeps,
-  args: readonly string[],
-  opts: { config?: readonly string[]; env?: NodeJS.ProcessEnv } = {},
-): { status: number; stdout: string } {
-  const configArgs = (opts.config ?? []).flatMap((setting) => ['-c', setting]);
-  return deps.git(
-    cfg.clone,
-    [...hardenedArgs(cfg.hooksDir), ...configArgs, ...args],
-    hardenedEnv(opts.env),
-  );
-}
-
-function mustSucceed(result: { status: number; stdout: string }, reason: string): string {
-  if (result.status !== 0) throw new Refusal(reason);
-  return result.stdout.trim();
-}
 
 // Reads only objects and the one branch from the workspace, as a plain path, from inside the
 // private clone. Nothing in the workspace's .git/config or hooks is ever consulted by us: the
@@ -81,35 +60,6 @@ function fetchWorkspace(cfg: KeeperConfig, deps: KeeperDeps): string {
   );
   if (!SHA.test(tip)) throw new Refusal('workspace_fetch_failed');
   return tip;
-}
-
-function fetchRemote(cfg: KeeperConfig, deps: KeeperDeps): string {
-  const { transport } = deps;
-  mustSucceed(
-    call(
-      cfg,
-      deps,
-      [
-        'fetch',
-        '--no-tags',
-        '--no-recurse-submodules',
-        '--',
-        transport.url,
-        `refs/heads/${cfg.branch}`,
-      ],
-      {
-        config: transport.config,
-        env: transport.env,
-      },
-    ),
-    'remote_fetch_failed',
-  );
-  const head = mustSucceed(
-    call(cfg, deps, ['rev-parse', '--verify', '--quiet', 'FETCH_HEAD^{commit}']),
-    'remote_fetch_failed',
-  );
-  if (!SHA.test(head)) throw new Refusal('remote_fetch_failed');
-  return head;
 }
 
 function gate(cfg: KeeperConfig, deps: KeeperDeps, tip: string, remoteHead: string): void {
@@ -185,14 +135,16 @@ function steps(cfg: KeeperConfig, deps: KeeperDeps): RunOutcome {
 
 // One keeper cycle. While HELD exists nothing is fetched and nothing is pushed. Any refusal or
 // failure writes HELD with a short fixed reason; nothing is retried until a person removes it.
+// The upstream check runs first; its refusals are recorded in status.json and never set HELD.
 export async function runOnce(cfg: KeeperConfig, deps: KeeperDeps): Promise<RunResult> {
   ensureState(cfg.state);
   let result: RunResult;
+  let upstream: UpstreamOutcome = { head: null, result: 'not_checked' };
   if (isHeld(cfg.state)) {
     result = { outcome: 'held', reason: 'already_held' };
   } else {
     try {
-      await fetchUpstream();
+      upstream = await fetchUpstream(cfg, deps);
       result = { outcome: steps(cfg, deps) };
     } catch (error) {
       const reason = error instanceof Refusal ? error.message : 'keeper_error';
@@ -205,6 +157,8 @@ export async function runOnce(cfg: KeeperConfig, deps: KeeperDeps): Promise<RunR
     last_result:
       result.reason === undefined ? result.outcome : `${result.outcome}: ${result.reason}`,
     last_pushed_head: readLastPushed(cfg.state),
+    upstream_head: upstream.head,
+    upstream_result: upstream.result,
     interval_seconds: cfg.intervalSeconds,
     held: isHeld(cfg.state),
   });
