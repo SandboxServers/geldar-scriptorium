@@ -158,15 +158,6 @@ describe('refusals end in HELD and nothing is pushed', () => {
     expect(w.remoteHead()).toBe(before);
   });
 
-  test('an unreachable remote', async () => {
-    const w = fresh();
-    w.write('memory/journal/four.md', 'four\n');
-    w.commit('four');
-    rmSync(w.remote, { recursive: true, force: true });
-    expect((await runOnce(w.cfg, w.deps)).outcome).toBe('held');
-    expect(held(w)).toBe('remote_fetch_failed');
-  });
-
   test('HELD stops all work until it is removed', async () => {
     const w = fresh();
     w.write('notes.txt', 'bad\n');
@@ -185,6 +176,77 @@ describe('refusals end in HELD and nothing is pushed', () => {
     rmSync(join(w.cfg.state, 'HELD'));
     expect((await runOnce(w.cfg, w.deps)).outcome).toBe('pushed');
     expect(w.remoteHead()).toBe(tip);
+  });
+});
+
+describe('a failed remote fetch is retried before it holds', () => {
+  // The remote is unreachable while its folder is moved away; it is back once moved back.
+  const away = (w: World) => renameSync(w.remote, `${w.remote}.away`);
+  const back = (w: World) => renameSync(`${w.remote}.away`, w.remote);
+  const status = (w: World) => JSON.parse(readFileSync(join(w.cfg.state, 'status.json'), 'utf8'));
+
+  test('one failed fetch does not hold; the cycle ends as remote_unreachable', async () => {
+    const w = fresh();
+    w.write('memory/journal/four.md', 'four\n');
+    w.commit('four');
+    away(w);
+    expect((await runOnce(w.cfg, w.deps)).outcome).toBe('remote_unreachable');
+    expect(held(w)).toBeNull();
+    expect(status(w)).toMatchObject({
+      last_result: 'remote_unreachable',
+      remote_failures: 1,
+      held: false,
+    });
+  });
+
+  test('a fetch that works again resets the count and pushes', async () => {
+    const w = fresh();
+    w.write('memory/journal/five.md', 'five\n');
+    const tip = w.commit('five');
+    away(w);
+    expect((await runOnce(w.cfg, w.deps)).outcome).toBe('remote_unreachable');
+    back(w);
+    expect((await runOnce(w.cfg, w.deps)).outcome).toBe('pushed');
+    expect(w.remoteHead()).toBe(tip);
+    expect(status(w)).toMatchObject({ last_result: 'pushed', remote_failures: 0, held: false });
+  });
+
+  test('fetchFailLimit failures in a row hold, and a held keeper makes no git calls', async () => {
+    const w = fresh();
+    w.cfg.fetchFailLimit = 3;
+    away(w);
+    expect((await runOnce(w.cfg, w.deps)).outcome).toBe('remote_unreachable');
+    expect((await runOnce(w.cfg, w.deps)).outcome).toBe('remote_unreachable');
+    expect(held(w)).toBeNull();
+    expect(await runOnce(w.cfg, w.deps)).toEqual({
+      outcome: 'held',
+      reason: 'remote_fetch_failed',
+    });
+    expect(held(w)).toBe('remote_fetch_failed');
+    expect(status(w)).toMatchObject({ held: true, last_result: 'held: remote_fetch_failed' });
+    const callsBefore = w.calls.length;
+    expect((await runOnce(w.cfg, w.deps)).outcome).toBe('held');
+    expect(w.calls.length).toBe(callsBefore);
+  });
+
+  test('the failure count survives a restart', async () => {
+    const w = fresh();
+    away(w);
+    await runOnce(w.cfg, w.deps);
+    expect(readFileSync(join(w.cfg.state, 'remote-failures'), 'utf8')).toBe('1\n');
+    // Only the state folder carries the count, so a limit of 2 holds on the second failure.
+    w.cfg.fetchFailLimit = 2;
+    expect((await runOnce(w.cfg, w.deps)).outcome).toBe('held');
+    expect(held(w)).toBe('remote_fetch_failed');
+  });
+
+  test('an unrelated failure still holds at once', async () => {
+    const w = fresh();
+    w.write('notes.txt', 'not memory\n');
+    w.commit('bad');
+    expect((await runOnce(w.cfg, w.deps)).outcome).toBe('held');
+    expect(held(w)).toMatch(/^gate: .*path_not_allowed/);
+    expect(status(w)).toMatchObject({ remote_failures: 0 });
   });
 });
 

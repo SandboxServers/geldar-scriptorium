@@ -10,8 +10,10 @@ import {
   ensureState,
   isHeld,
   readLastPushed,
+  readRemoteFailures,
   writeHeld,
   writeLastPushed,
+  writeRemoteFailures,
   writeStatus,
 } from './state.ts';
 import type { Transport } from './transport.ts';
@@ -25,8 +27,16 @@ export interface KeeperDeps {
   now: () => Date;
 }
 
-/** 'waiting_for_upstream_sync': the remote is ahead and its offer is on disk; nothing is pushed yet. */
-export type RunOutcome = 'pushed' | 'unchanged' | 'held' | 'waiting_for_upstream_sync';
+/**
+ * 'waiting_for_upstream_sync': the remote is ahead and its offer is on disk; nothing is pushed yet.
+ * 'remote_unreachable': the remote fetch failed; nothing is held and the cycle is retried soon.
+ */
+export type RunOutcome =
+  | 'pushed'
+  | 'unchanged'
+  | 'held'
+  | 'waiting_for_upstream_sync'
+  | 'remote_unreachable';
 
 export interface RunResult {
   outcome: RunOutcome;
@@ -142,6 +152,7 @@ function steps(
   if (upstream.result === 'offered') return 'waiting_for_upstream_sync';
   if (tip === readLastPushed(cfg.state)) return 'unchanged';
   const remoteHead = fetchRemote(cfg, deps);
+  writeRemoteFailures(cfg.state, 0);
   if (remoteHead === tip) {
     writeLastPushed(cfg.state, tip);
     return 'unchanged';
@@ -152,8 +163,27 @@ function steps(
   return 'pushed';
 }
 
-// One keeper cycle. While HELD exists nothing is fetched and nothing is pushed. Any refusal or
-// failure writes HELD with a short fixed reason; nothing is retried until a person removes it.
+// A failed remote fetch is connectivity, not history: the first ones end the cycle as
+// 'remote_unreachable' and the keeper retries on the short interval. Only the fetchFailLimit-th
+// failure in a row writes HELD. Every other refusal or failure writes HELD at once.
+function failure(cfg: KeeperConfig, error: unknown): RunResult {
+  const reason = error instanceof Refusal ? error.message : 'keeper_error';
+  if (reason === 'remote_fetch_failed') {
+    const failures = readRemoteFailures(cfg.state) + 1;
+    if (failures < cfg.fetchFailLimit) {
+      writeRemoteFailures(cfg.state, failures);
+      return { outcome: 'remote_unreachable' };
+    }
+  }
+  writeHeld(cfg.state, reason);
+  // A person's release-hold starts a fresh count, so one more blip does not hold at once.
+  writeRemoteFailures(cfg.state, 0);
+  return { outcome: 'held', reason };
+}
+
+// One keeper cycle. While HELD exists nothing is fetched and nothing is pushed. A failed remote
+// fetch is retried (see failure). Any other refusal or failure writes HELD with a short fixed
+// reason; nothing is retried until a person removes it.
 // The upstream check runs first; its refusals are recorded in status.json and never set HELD.
 export async function runOnce(cfg: KeeperConfig, deps: KeeperDeps): Promise<RunResult> {
   ensureState(cfg.state);
@@ -169,9 +199,7 @@ export async function runOnce(cfg: KeeperConfig, deps: KeeperDeps): Promise<RunR
       upstream = await fetchUpstream(cfg, deps, tip);
       result = { outcome: steps(cfg, deps, tip, upstream) };
     } catch (error) {
-      const reason = error instanceof Refusal ? error.message : 'keeper_error';
-      writeHeld(cfg.state, reason);
-      result = { outcome: 'held', reason };
+      result = failure(cfg, error);
     }
   }
   writeStatus(cfg.state, {
@@ -182,6 +210,7 @@ export async function runOnce(cfg: KeeperConfig, deps: KeeperDeps): Promise<RunR
     upstream_head: upstream.head,
     upstream_result: upstream.result,
     interval_seconds: cfg.intervalSeconds,
+    remote_failures: readRemoteFailures(cfg.state),
     held: isHeld(cfg.state),
   });
   deps.log(`keeper: ${result.outcome}${result.reason === undefined ? '' : ` (${result.reason})`}`);

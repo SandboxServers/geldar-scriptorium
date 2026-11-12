@@ -5,7 +5,9 @@ The loop in the `keeper` service of the player group (decision 64). Every
 state folder, it fetches the committed history of the read-only workspace into its private bare
 clone with hardened git, runs the `geldar-verify` gate on it and pushes fast-forward only to the
 repository's branch over SSH with the deploy key. Any refusal writes `HELD` and stops pushing
-until a person removes it.
+until a person removes it. A failed remote fetch is connectivity, not history: it does not write
+`HELD` at first. The keeper retries on `GELDAR_KEEPER_RETRY_SECONDS`, and only after
+`GELDAR_KEEPER_FETCH_FAILS` failures in a row does it write `HELD` `remote_fetch_failed`.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -13,9 +15,11 @@ until a person removes it.
 | `GELDAR_KEEPER_PLAYER_ID` | required | the player id the gate checks identities against |
 | `GELDAR_KEEPER_KEY` | `/run/secrets/geldar-deploy-key` | the deploy key file |
 | `GELDAR_KEEPER_INTERVAL` | `600` | seconds between runs |
+| `GELDAR_KEEPER_RETRY_SECONDS` | `60` | seconds to wait after a failed remote fetch (10 to 3600) |
+| `GELDAR_KEEPER_FETCH_FAILS` | `10` | failed remote fetches in a row that write `HELD` (1 to 1000) |
 | `GELDAR_KEEPER_WORKSPACE` | `/workspace` | the workspace volume, read-only |
 | `GELDAR_KEEPER_CLONE` | `/clone` | the private bare clone |
-| `GELDAR_KEEPER_STATE` | `/keeper-state` | `status.json`, `HELD`, `last-pushed-head` |
+| `GELDAR_KEEPER_STATE` | `/keeper-state` | `status.json`, `HELD`, `last-pushed-head`, `remote-failures` |
 | `GELDAR_KEEPER_SUPERVISOR_STATE` | `/supervisor-state` | read-only; only `checkpoint-request` is looked at |
 | `GELDAR_KEEPER_BRANCH` | `main` | the branch in the workspace and the remote |
 | `GELDAR_KEEPER_PROXY` | `proxy-keeper:3128` | the proxy the CONNECT helper uses |
@@ -44,7 +48,10 @@ count), `created_utc`.
 
 `status.json` keys added: `upstream_head` (the offered head, or null) and `upstream_result`
 (`offered`, `none`, `diverged` or `refused: <code>`). `last_result` is one of `pushed`,
-`unchanged`, `waiting_for_upstream_sync`, or `held: <reason>`.
+`unchanged`, `waiting_for_upstream_sync`, `remote_unreachable` (the remote fetch failed; no HELD
+yet), or `held: <reason>`. `remote_failures` is the count of failed remote fetches in a row (0
+after a fetch that worked); it is kept in the `remote-failures` file in the state folder, so a
+restart keeps it.
 
 A `sync-request` file in the keeper state folder wakes the loop at once for an upstream check. It
 is deleted when the cycle that serves it finishes.

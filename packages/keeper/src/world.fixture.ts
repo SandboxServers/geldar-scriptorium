@@ -106,6 +106,8 @@ export function makeWorld(): World {
     remote,
     key: keyFile,
     intervalSeconds: 600,
+    retrySeconds: 60,
+    fetchFailLimit: 10,
     workspace: ws,
     clone: join(root, 'clone'),
     state: join(root, 'state'),

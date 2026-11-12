@@ -20,8 +20,13 @@ export interface Status {
   /** A short fixed code: offered, none, diverged or refused: <code>. */
   upstream_result: string;
   interval_seconds: number;
+  /** Consecutive cycles whose remote fetch failed; 0 after a fetch that worked. */
+  remote_failures: number;
   held: boolean;
 }
+
+/** The largest failure count kept; it is also the largest GELDAR_KEEPER_FETCH_FAILS allowed. */
+export const MAX_REMOTE_FAILURES = 1000;
 
 /** Writes a file through a temporary sibling and a rename, so a reader sees all or nothing. */
 export function writeAtomic(file: string, text: string): void {
@@ -54,6 +59,21 @@ export function readLastPushed(state: string): string | null {
 
 export function writeLastPushed(state: string, head: string): void {
   writeAtomic(join(state, 'last-pushed-head'), `${head}\n`);
+}
+
+// The consecutive failed remote fetches, kept in the keeper's own state folder so a restart keeps
+// the count. A missing or damaged file reads as 0; the value read is capped.
+export function readRemoteFailures(state: string): number {
+  try {
+    const text = readFileSync(join(state, 'remote-failures'), 'utf8').trim();
+    return /^\d{1,9}$/.test(text) ? Math.min(Number(text), MAX_REMOTE_FAILURES) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function writeRemoteFailures(state: string, count: number): void {
+  writeAtomic(join(state, 'remote-failures'), `${Math.min(count, MAX_REMOTE_FAILURES)}\n`);
 }
 
 export function writeStatus(state: string, status: Status): void {
