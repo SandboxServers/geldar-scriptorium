@@ -189,14 +189,18 @@ export class Supervisor {
   }
 
   /** One git call as the player, hardened (see hardenedArgs); its stdout comes back when `capture` is set. */
-  private async git(args: string[], capture: boolean): Promise<{ code: number; out: string }> {
+  private async git(
+    args: string[],
+    capture: boolean,
+    env: Record<string, string> = {},
+  ): Promise<{ code: number; out: string }> {
     const out = this.path('upstream.out');
     if (capture) rmSync(out, { force: true });
     const code = await this.deps.exec(
       this.asPlayer({
         file: 'git',
         args: [...hardenedArgs(this.path('no-hooks')), ...args],
-        env: { ...childEnv(this.settings, this.env), ...GIT_ENV },
+        env: { ...childEnv(this.settings, this.env), ...GIT_ENV, ...env },
         ...(capture ? { stdoutPath: out } : {}),
       }),
     );
@@ -211,7 +215,7 @@ export class Supervisor {
     mkdirSync(this.path('no-hooks'), { recursive: true, mode: 0o700 });
     const report = await syncUpstream(
       this.settings,
-      (args, capture) => this.git(args, capture),
+      (args, capture, env) => this.git(args, capture, env),
       (text) => this.log(text),
     );
     if (report.head !== null) this.upstreamHead = report.head;
