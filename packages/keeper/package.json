@@ -1,0 +1,24 @@
+{
+  "name": "@geldar/scriptorium-keeper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "geldar-keeper: the gate-and-push loop that runs beside the player container",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cli": "./src/cli.ts"
+  },
+  "dependencies": {
+    "@geldar/scriptorium-verify": "workspace:*"
+  },
+  "devDependencies": {
+    "@geldar/scriptorium-path-rule": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "bin": {
+    "geldar-keeper": "./src/cli.ts",
+    "geldar-keeper-connect": "./src/connect-cli.ts"
+  }
+}
