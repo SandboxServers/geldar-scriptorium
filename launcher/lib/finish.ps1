@@ -18,6 +18,11 @@ function Suspend-Finish([string]$Id, [string]$Reason) {
   if (Test-Path -LiteralPath (Join-Path $d 'mode') -PathType Leaf) { $mode = Read-FirstLine (Join-Path $d 'mode') }
   $text = "reason=$Reason`nstart=$start`nmode=$mode`nbranch=$($script:PL_BRANCH)`n"
   [System.IO.File]::WriteAllText((Join-Path $held 'info'), $text, [System.Text.UTF8Encoding]::new($false))
+  # Inside a run cycle the hold ends the cycle with code 3, not the supervisor (lib/run.ps1).
+  if ($script:GP_DIE_THROWS) {
+    $script:GP_DIE_CODE = 3
+    throw 'geldar-die'
+  }
   exit 3
 }
 
