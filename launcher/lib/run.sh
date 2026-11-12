@@ -45,9 +45,36 @@ run_sleep() {
   return 0
 }
 
+# A stop signal (INT, TERM, HUP) never kills a running cycle or the summary call: it sets the
+# flag, which ends the loop after the current round, and wakes the sleep.
 run_on_signal() {
+  [ "$RUN_STOP_FLAG" -ne 0 ] || say run_stopping
   RUN_STOP_FLAG=1
   [ -z "$RUN_SLEEP_PID" ] || kill "$RUN_SLEEP_PID" 2> /dev/null
+}
+
+# run_lock <id>: the lock folder appears whole (its pid file already in it) by one rename. An
+# empty or unreadable pid means someone is starting: wait up to 2 seconds. Stale only when a
+# pid is there and no such process exists.
+run_lock() {
+  local id=$1 l="$RUN_DIR/lock" t="$RUN_DIR/lock.$$" pid waited=0
+  while :; do
+    rm -rf "$t"
+    { mkdir "$t" && printf '%s\n' "$$" > "$t/pid"; } || die 1 bad_state_path
+    if [ ! -e "$l" ] && mv "$t" "$l" 2> /dev/null && [ "$(cat "$l/pid" 2> /dev/null)" = "$$" ]; then
+      return 0
+    fi
+    rm -rf "$t"
+    pid=$(cat "$l/pid" 2> /dev/null)
+    if [[ $pid =~ ^[0-9]+$ ]]; then
+      if kill -0 "$pid" 2> /dev/null; then die 1 run_already_running "$id" "$l" "$pid"; fi
+      rm -rf "$l"
+      continue
+    fi
+    [ "$waited" -lt 4 ] || die 1 run_already_running "$id" "$l" "unknown"
+    waited=$((waited + 1))
+    sleep 0.5
+  done
 }
 
 run_cleanup() {
@@ -67,14 +94,18 @@ run_num() {
 
 # The one-line summary JSON of a stream file (empty when none can be had).
 run_summary() {
-  local stream=$1 c
+  local stream=$1 c name
   [ -f "$stream" ] || return 0
+  trap '' INT TERM HUP
   c=$(gp_env GELDAR_RUN_SUMMARY_CMD)
   if [ -n "$c" ]; then
     "$c" "$stream" 2> /dev/null | head -n 1
     return 0
   fi
-  docker_cmd run --rm -i --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+  name="geldar-$$-run-summary"
+  run_bounded 120 --container "$name" docker_cmd run --rm -i --label geldar.role=run-summary --name "$name" \
+    --memory 1g --pids-limit 256 --log-driver none \
+    --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
     --entrypoint geldar-verify "$PL_KIT_IMAGE" run-summary < "$stream" 2> /dev/null | head -n 1
 }
 
@@ -152,7 +183,7 @@ run_cycle() {
   d=$(player_dir "$id")
   out="$RUN_DIR/session-$n.jsonl"
   prompt=$(run_prompt "$id" "$n") || exit 1
-  if [ "${GELDAR_RUN_DRY:-}" = 1 ]; then
+  if [ "$(gp_env GELDAR_RUN_DRY)" = 1 ]; then
     (umask 077 && printf '{"dry":true}\n' > "$out") && chmod 600 "$out" || return 1
     c=$(gp_env GELDAR_RUN_DRY_CMD)
     [ -z "$c" ] || "$c" "$n" "$out"
@@ -199,18 +230,18 @@ verb_run() {
   RUN_DIR="$d/run"
   if [ -L "$RUN_DIR" ]; then die 1 bad_state_path; fi
   private_mkdir "$d/run"
-  if ! mkdir "$RUN_DIR/lock" 2> /dev/null; then
-    if kill -0 "$(cat "$RUN_DIR/lock/pid" 2> /dev/null)" 2> /dev/null; then
-      die 1 run_already_running "$id"
-    fi
-    rm -rf "$RUN_DIR/lock"
-    mkdir "$RUN_DIR/lock" 2> /dev/null || die 1 run_already_running "$id"
-  fi
-  printf '%s\n' "$$" > "$RUN_DIR/lock/pid"
+  run_lock "$id"
   RUN_LOCKED=1
   trap run_cleanup EXIT
-  trap run_on_signal INT TERM
-  rm -f "$RUN_DIR/STOP"
+  trap run_on_signal INT TERM HUP
+  # A manual STOP is stale at the start and cleared; one the supervisor wrote itself is not.
+  if [ -f "$RUN_DIR/STOP" ]; then
+    IFS= read -r seen < "$RUN_DIR/STOP"
+    case $seen in
+      auto:*) die 1 run_stopped_auto "${seen#auto:}" "$RUN_DIR/STOP" ;;
+    esac
+    rm -f "$RUN_DIR/STOP"
+  fi
   RUN_STARTED=$(run_fmt "$(run_now)" stamp)
   delay=$delay_base
   n=0
@@ -231,7 +262,7 @@ verb_run() {
     n=$(run_next_number)
     run_status_write "$n" running "$last" "$sum"
     t0=$(run_now)
-    ( run_cycle "$id" "$n" ) &
+    ( trap '' INT TERM HUP; run_cycle "$id" "$n" ) &
     cpid=$!
     wait "$cpid"
     rc=$?
@@ -248,7 +279,7 @@ verb_run() {
     seen=$(run_field "$sum" result_seen false)
     printf '%s,%s,%s,%s\n' "$n" "$(run_fmt "$t1" stamp)" "$turns_done" "$cost_done" >> "$RUN_DIR/costs.csv"
     ok=1
-    if [ "$secs" -lt "$fast" ] || [ "$err" = true ] || [ "$seen" != true ]; then ok=0; fi
+    if [ "$rc" -ne 0 ] || [ "$secs" -lt "$fast" ] || [ "$err" = true ] || [ "$seen" != true ]; then ok=0; fi
     if [ "$ok" -eq 1 ]; then
       fails=0
       delay=$delay_base
@@ -262,8 +293,14 @@ verb_run() {
     cost=$(run_cost_today "$(run_fmt "$t1" date)")
     run_log "run=$n turns=$turns_done cost=$cost_done secs=$secs exit=$rc result=$last delay=$delay fails=$fails"
     run_status_write "$n" sleeping "$last" "$cost"
+    if [ "$rc" -eq 3 ] || [ -d "$d/held" ]; then
+      (umask 077 && printf 'auto: the saved session was held back\n' > "$RUN_DIR/STOP")
+      say run_held "$id" "$id"
+      stop_fail=1
+      break
+    fi
     if [ "$fails" -ge "$max_fails" ]; then
-      (umask 077 && printf 'stopped after %s failed cycles in a row\n' "$fails" > "$RUN_DIR/STOP")
+      (umask 077 && printf 'auto: %s failed cycles in a row\n' "$fails" > "$RUN_DIR/STOP")
       say run_too_many_failures "$fails"
       stop_fail=1
       break
@@ -309,6 +346,6 @@ verb_run_stop() {
   [ -d "$d" ] || die 1 no_such_player "$id" "$id"
   if [ -L "$d/run" ]; then die 1 bad_state_path; fi
   private_mkdir "$d/run"
-  (umask 077 && printf 'stop requested\n' > "$d/run/STOP")
+  (umask 077 && printf 'manual\n' > "$d/run/STOP")
   say run_stop_requested "$id"
 }

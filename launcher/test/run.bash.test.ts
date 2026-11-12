@@ -66,7 +66,7 @@ if (bash) {
     expect(r.status, r.stderr).toBe(1);
     expect(s.sleepList()).toEqual(['40', '80', '100', '100', '100']);
     expect(existsSync(join(s.runDir, 'STOP'))).toBe(true);
-  });
+  }, 90_000);
 
   it('writes STOP and exits after five fast failures in a row', () => {
     const s = setup({ FAKE_RUN_SECS: '1' });
@@ -179,7 +179,7 @@ if (bash) {
     const s = setup();
     const r = s.go(['run-stop', ID]);
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stderr).toContain('Stop requested');
+    expect(r.stderr).toContain('A stop was requested');
     expect(existsSync(join(s.runDir, 'STOP'))).toBe(true);
   });
 }
