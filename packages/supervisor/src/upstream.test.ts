@@ -36,11 +36,15 @@ function scene(root: string): Scene {
   git(origin, 'init', '-q', '-b', 'main');
   git(origin, 'config', 'user.name', 'Test');
   git(origin, 'config', 'user.email', 'test@example.test');
+  // Line endings are fixed here: a machine-wide autocrlf would check the clone out as CRLF, and the
+  // apply (which ignores global config) would then see every file as changed.
+  git(origin, 'config', 'core.autocrlf', 'false');
   const base = commit(origin, 'journal.md', 'day one\n', 'base');
-  git(root, 'clone', '-q', origin, 'ws');
+  git(root, '-c', 'core.autocrlf=false', 'clone', '-q', origin, 'ws');
   const ws = join(root, 'ws');
   git(ws, 'config', 'user.name', 'Test');
   git(ws, 'config', 'user.email', 'test@example.test');
+  git(ws, 'config', 'core.autocrlf', 'false');
   return { origin, ws, base };
 }
 
@@ -92,7 +96,8 @@ function withRealGit(f: ReturnType<typeof makeFixture>): void {
 }
 
 const gitSpecs = (specs: ExecSpec[]) => specs.filter((s) => s.file === 'git');
-const sub = (specs: ExecSpec[], word: string) => gitSpecs(specs).filter((s) => s.args.includes(word));
+const sub = (specs: ExecSpec[], word: string) =>
+  gitSpecs(specs).filter((s) => s.args.includes(word));
 const at = (specs: ExecSpec[], name: string) =>
   specs.findIndex((s) => s.file === 'sh' && s.stdoutPath?.endsWith(name));
 
@@ -114,7 +119,10 @@ describe('applying upstream between runs', { timeout: 60_000 }, () => {
     const fetches = sub(f.specs, 'fetch');
     expect(fetches).toHaveLength(1);
     const idx = f.specs.indexOf(fetches[0] as ExecSpec);
-    expect(idx).toBeGreaterThan(r1);
+    // The save that follows run 1 marks its end: the apply must come after it, before run 2.
+    const saved1 = f.specs.findIndex((s) => s.file === 'geldar-git');
+    expect(idx).toBeGreaterThan(saved1);
+    expect(saved1).toBeGreaterThan(r1);
     expect(idx).toBeLessThan(r2);
     expect(git(s.ws, 'rev-parse', 'HEAD')).toBe(newHead);
     expect(f.read('status.json')).toContain(`"upstream_head":"${newHead}"`);
@@ -124,6 +132,7 @@ describe('applying upstream between runs', { timeout: 60_000 }, () => {
   it('defers while the workspace has uncommitted changes', async () => {
     const f = makeFixture({ stopAt: 1 }, {}, ENV);
     const s = scene(f.root);
+    commit(s.origin, 'template.md', 'new template\n', 'template change');
     const head = publish(f.keeperDir, s);
     writeFileSync(join(s.ws, 'scratch.txt'), 'unsaved\n');
     withRealGit(f);
@@ -143,7 +152,6 @@ describe('applying upstream between runs', { timeout: 60_000 }, () => {
     publish(f.keeperDir, s);
     withRealGit(f);
     expect(await f.supervisor.run()).toBe(0);
-    console.log('DEBUG', f.read('supervisor.log'), f.read('status.json'), f.specs.map((x) => `${x.file} ${x.args.join(' ')}`).join('\n'));
     expect(git(s.ws, 'rev-parse', 'HEAD^')).toBe(head);
     expect(git(s.ws, 'log', '-1', '--format=%s')).toBe('memory: a note');
     expect(git(s.ws, 'rev-parse', 'HEAD')).not.toBe(memory);

@@ -180,7 +180,7 @@ export class Supervisor {
         file: 'git',
         args: [...hardenedArgs(this.path('no-hooks')), ...args],
         env: { ...childEnv(this.settings, this.env), ...GIT_ENV },
-        stdoutPath: capture ? out : undefined,
+        ...(capture ? { stdoutPath: out } : {}),
       }),
     );
     return { code, out: capture && existsSync(out) ? readFileSync(out, 'utf8') : '' };

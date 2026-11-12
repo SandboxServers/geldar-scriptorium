@@ -121,7 +121,10 @@ export async function syncUpstream(
   );
   if (fetched.code !== 0) return fail('fetch');
   const ahead = !(await isAncestor(git, head, m.head));
-  if (ahead && !((await isAncestor(git, m.base, head)) && (await isAncestor(git, m.base, m.head)))) {
+  if (
+    ahead &&
+    !((await isAncestor(git, m.base, head)) && (await isAncestor(git, m.base, m.head)))
+  ) {
     return fail('base');
   }
   const step = ahead ? ['rebase', '--onto', m.head, m.base] : ['merge', '--ff-only', 'FETCH_HEAD'];
