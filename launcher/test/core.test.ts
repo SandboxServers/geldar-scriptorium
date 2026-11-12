@@ -80,7 +80,9 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     for (const args of [[], ['frobnicate']]) {
       const r = run(launcher, args, { env: envOf(launcher, w) });
       expect(r.status).toBe(2);
-      expect(r.stderr).toContain('Usage: geldar-play new|setup|play|resolve|archive|status');
+      expect(r.stderr).toContain(
+        'Usage: geldar-play new|setup|play|run|run-status|run-stop|resolve|archive|status|upgrade|start|stop|restart|player-status|logs|deploy-key|release-hold|sync|auth-set|auth-status|auth-clear',
+      );
     }
     const caps = run(launcher, ['--capabilities'], { env: envOf(launcher, w) });
     expect(caps.stdout.split('\n')).toContain('core');

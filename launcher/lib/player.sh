@@ -416,11 +416,12 @@ verb_release_hold() {
   say player_released "$id"
 }
 
-# pl_running id: true when the keeper and the supervisor are both running (the persistent group).
+# pl_running id: true when the keeper and the player are both running (the persistent group). The
+# names are the compose service names in image/compose/player.yml; `ps` prints one per line.
 pl_running() {
   local up
   up=$(pl_compose "$1" ps --status running --format '{{.Service}}' 2> /dev/null) || return 1
-  printf '%s\n' "$up" | grep -qx keeper && printf '%s\n' "$up" | grep -qx supervisor
+  printf '%s\n' "$up" | grep -qx keeper && printf '%s\n' "$up" | grep -qx player
 }
 
 # sync <id>: asks the keeper to fetch upstream now. It touches sync-request in the keeper's state; the
