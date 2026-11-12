@@ -85,10 +85,26 @@ describe('play skill', () => {
       'You hear thunder far off to the west.',
       'Health does not regenerate naturally while hunger is low. Hunger falls over time.',
       'You died. Something struck you down. You wake at the spawn with nothing.',
+      'You died in the nether. Something struck you down. You wake at the spawn with nothing.',
+      'You dropped 3 oak_log, 1 stone_pickaxe near x=190 y=61 z=224.',
       'You dropped N items where you died.',
     ]) {
       expect(body).toContain(line);
     }
+    expect(body).toContain('"and N more"');
+  });
+
+  it('names the place of a death only in the quoted death line', () => {
+    const quoted =
+      'You died in the nether. Something struck you down. You wake at the spawn with nothing.';
+    expect(body).toContain(quoted);
+    expect(body.replace(quoted, '')).not.toMatch(/nether|overworld/i);
+  });
+
+  it('says what a death drops and where, in the prose of the death step', () => {
+    expect(body).toContain('Weigh the cause first');
+    expect(body).toContain('know that they may be gone by the time you return');
+    expect(body).toContain('what killed you');
   });
 
   it('keeps the new reading sections free of meta words and digits', () => {
@@ -97,7 +113,8 @@ describe('play skill', () => {
     expect(start).toBeGreaterThan(-1);
     expect(end).toBeGreaterThan(start);
     const section = body.slice(start, end);
-    expect(section).not.toMatch(/\d/);
+    // The world's quoted fixed lines may carry digits; the prose may not.
+    expect(section.replace(/"[^"]*"/g, '')).not.toMatch(/\d/);
     expect(section).not.toMatch(
       /\b(outcomes?|events?|reflexes?|lives?|life's|respawns?|games?|counters?|budgets?|kit|tools? call|API|MCP|server)\b/i,
     );
@@ -144,6 +161,10 @@ describe('reflect skill', () => {
     expect(body).toContain(
       'If you died today, write first what killed you, what you dropped and where, and what it taught you.',
     );
+    expect(body).toContain('the death line may name where in the world you died');
+    expect(body).toContain('the drop line names what you dropped and roughly where');
+    expect(body).toContain('things may be gone by the time you return');
+    expect(body).not.toMatch(/nether|overworld/i);
     expect(body).not.toMatch(/\b(lives?|respawns?|games?|counters?|outcomes?|events?)\b/i);
     expect(body).not.toMatch(/dimension|\breach\b|register|sign-up|sound wake/i);
   });
