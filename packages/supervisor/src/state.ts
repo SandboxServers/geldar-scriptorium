@@ -63,8 +63,8 @@ export function writeAutoStop(settings: Settings, reason: string): void {
 
 /**
  * Takes the single-supervisor lock: a folder with its pid file already in it, put in place by one
- * rename. An empty or unreadable pid means someone is starting (waits up to 2 seconds); stale only
- * when a pid is there and no such process exists. Returns false when another supervisor lives.
+ * rename. An empty or unreadable pid means someone is starting (waits up to 2 seconds); stale when
+ * the pid is not a live supervisor (see holderIsLive). Returns false when another supervisor lives.
  */
 export async function acquireLock(settings: Settings, deps: Deps): Promise<boolean> {
   const lock = statePath(settings, 'lock');
@@ -89,7 +89,7 @@ export async function acquireLock(settings: Settings, deps: Deps): Promise<boole
       pid = '';
     }
     if (/^[0-9]+$/.test(pid)) {
-      if (deps.alive(Number.parseInt(pid, 10))) return false;
+      if (holderIsLive(Number.parseInt(pid, 10), deps)) return false;
       rmSync(lock, { recursive: true, force: true });
       continue;
     }
@@ -97,6 +97,19 @@ export async function acquireLock(settings: Settings, deps: Deps): Promise<boole
     waited++;
     await deps.sleep(0.5, () => false);
   }
+}
+
+/**
+ * True when the pid in a lock belongs to a running supervisor. Our own pid is never a live holder
+ * (a lock left by a previous container can name the pid we have now). A pid that exists but whose
+ * command line is another program (docker-init as PID 1 of a recreated container, say) is stale.
+ * When the command line cannot be read, the alive check alone decides.
+ */
+function holderIsLive(pid: number, deps: Deps): boolean {
+  if (pid === deps.pid || !deps.alive(pid)) return false;
+  const cmdline = deps.cmdline?.(pid) ?? null;
+  if (cmdline === null) return true;
+  return /geldar-supervisor|packages\/supervisor\/src\/cli\.ts/.test(cmdline);
 }
 
 /** Releases the lock taken by acquireLock. */
