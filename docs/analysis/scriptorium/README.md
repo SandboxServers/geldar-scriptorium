@@ -215,6 +215,12 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-133 | 12 | S | Supervisor integration of the director, bash | Sonnet | Planned | SC-122, SC-131, SC-132 |
 | SC-134 | 12 | S | The PowerShell twin of SC-133 | Sonnet | Planned | SC-133 |
 | SC-135 | 12 | S | Director docs, hardening item, threat-model rows and the owner-run live check | Sonnet | Planned | SC-133, SC-134 |
+| SC-150 | 13 | S | Reading your results: the action and action_failed outcome events (geldar C5-02) ([wave 13](work-packets-wave13.md)) | Sonnet | Held (geldar 'landed') | none |
+| SC-151 | 13 | S | Waking after a death in the play and reflect skills; Patron note on thought visibility (C5-03) | Sonnet | Held (geldar 'landed') | none |
+| SC-152 | 13 | S | The give, note and follow verbs in the play skill and guide (C5-04) | Sonnet | Held (geldar 'landed') | none |
+| SC-153 | 13 | S | Craft and smelt guidance in the play skill, no recipe knowledge (C5-05, C5-06) | Sonnet | Held (geldar 'landed') | none |
+| SC-154 | 13 | S | author, moot, offer and write_sign: skills that wait on the Body (C5-07 to C5-10) | Sonnet | Held (geldar 'landed' and owner decisions) | none |
+| SC-155 | 13 | S | Patron README items: Kino, skins, thought-visibility opt-in | Haiku | Held (owner decisions and deploy) | none |
 
 **Cross-campaign dependency:** wave 3 needs `@geldar/contract` from geldar Phase 0 packet P0-01. Waves 0–2 and 4 don't need wave 3. Only SC-55c (not SC-55b) needs wave 3.
 
