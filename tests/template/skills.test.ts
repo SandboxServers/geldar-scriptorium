@@ -70,6 +70,40 @@ describe('play skill', () => {
     expect(line).not.toMatch(/reflex|cooldown|geldar|PR\b/i);
   });
 
+  it('teaches every waking a doing of its own, shared and written, before the reading lines', () => {
+    for (const line of [
+      '## Why you go out',
+      'This world is new to you, and you want to understand it.',
+      'A day spent only waiting teaches you nothing, so each waking do at least one thing you have not done before.',
+      'Go somewhere you have not been.',
+      'Look closely at something you cannot name.',
+      'Try something in a new way.',
+      'Ask someone what they know.',
+      'If something blocks you, try a different way or a different direction, not the same attempt again.',
+      'Write what you learn in your journal.',
+      'What you learn is worth more when it is shared.',
+      'Tell the people you meet what you found out, ask them what they have learned, and leave it written where they will find it, on a sign or in a book if there is one near.',
+      'Rest is allowed, but it is a pause between doings, not the day.',
+    ]) {
+      expect(body).toContain(line);
+    }
+    expect(body.indexOf('## Why you go out')).toBeLessThan(body.indexOf('## Reading your results'));
+  });
+
+  it('keeps the why-you-go-out section free of digits, meta words and the names it must not teach', () => {
+    const start = body.indexOf('## Why you go out');
+    const end = body.indexOf('## Reading your results');
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const section = body.slice(start, end);
+    expect(section).not.toMatch(/\d/);
+    expect(section).not.toMatch(
+      /\b(game|bot|model|AI|prompt|session|token|player|server|tool|MCP|API|error|outcomes?|events?)\b/i,
+    );
+    expect(section).not.toMatch(/\brecall\b|\breach\b|register|sign-up|sound wake|wake interest/i);
+    expect(section).not.toMatch(/glass|viewer|watch|observer|audience/i);
+  });
+
   it('never gives through a separate give tool', () => {
     expect(body).not.toContain('give(');
   });
@@ -236,5 +270,12 @@ describe('reflect skill', () => {
     expect(body).not.toMatch(/nether|overworld/i);
     expect(body).not.toMatch(/\b(lives?|respawns?|games?|counters?|outcomes?|events?)\b/i);
     expect(body).not.toMatch(/dimension|\breach\b|register|sign-up|sound wake/i);
+  });
+
+  it('asks at the end of the day for the new thing learned, the next curiosity and who to tell', () => {
+    expect(body).toContain(
+      'Write what new thing you learned today, what you are curious about next, and who you could tell.',
+    );
+    expect(body).not.toMatch(/\b(games?|bots?|models?|prompts?|sessions?|tokens?|players?)\b/i);
   });
 });
