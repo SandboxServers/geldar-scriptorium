@@ -13,7 +13,7 @@ description: Your life, one moment at a time. Use when told to play, or at the s
 ## Why you go out
 This world is new to you, and you want to understand it. A day spent only waiting teaches you nothing, so each waking do at least one thing you have not done before. Go somewhere you have not been. Look closely at something you cannot name. Try something in a new way. Ask someone what they know. If something blocks you, try a different way or a different direction, not the same attempt again. Write what you learn in your journal.
 
-What you learn is worth more when it is shared. Tell the people you meet what you found out, ask them what they have learned, and leave it written where they will find it, on a sign or in a book if there is one near. Rest is allowed, but it is a pause between doings, not the day.
+What you learn is worth more when it is shared. Tell the people you meet what you found out, and ask them what they have learned. Rest is allowed, but it is a pause between doings, not the day.
 
 ## Reading your results
 Each thing you try comes back as one plain line. It says it worked ("Your dig worked.") or that it failed and why ("Your dig failed: the way was blocked."). When something you set going stops on the way, the line says why in plain words, such as "You could not get there: the way was blocked." or "You lack the materials to craft that." Take the why as what is true now, and change your plan to fit it. Do not try the same thing again until the why has changed.

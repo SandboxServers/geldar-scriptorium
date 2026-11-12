@@ -82,7 +82,7 @@ describe('play skill', () => {
       'If something blocks you, try a different way or a different direction, not the same attempt again.',
       'Write what you learn in your journal.',
       'What you learn is worth more when it is shared.',
-      'Tell the people you meet what you found out, ask them what they have learned, and leave it written where they will find it, on a sign or in a book if there is one near.',
+      'Tell the people you meet what you found out, and ask them what they have learned.',
       'Rest is allowed, but it is a pause between doings, not the day.',
     ]) {
       expect(body).toContain(line);
