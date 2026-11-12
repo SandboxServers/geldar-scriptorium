@@ -119,7 +119,9 @@ export interface Opts {
 
 // Grants the current user full control of each path and removes the inherited grants.
 function restrictToOwner(paths: string[]) {
-  const who = spawnSync('whoami', ['/user', '/fo', 'csv', '/nh'], { encoding: 'utf8' });
+  // The Windows whoami by full path: Git's GNU whoami can come first on PATH and has no /user.
+  const whoami = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'whoami.exe');
+  const who = spawnSync(whoami, ['/user', '/fo', 'csv', '/nh'], { encoding: 'utf8' });
   const sid = `*${who.stdout.split('"')[3]}`;
   for (const f of paths) {
     const grant = statSync(f).isDirectory() ? `${sid}:(OI)(CI)F` : `${sid}:F`;
