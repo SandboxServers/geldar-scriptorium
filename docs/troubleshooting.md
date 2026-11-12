@@ -25,6 +25,11 @@ Every message geldar-play prints has a section below, named by its key in `launc
 | `verify_ok` | The check of the session passed, and saving carries on. |
 | `upgrade_current` | The kit in the player is already this version, so nothing was changed. |
 | `upgrade_done` | The kit upgrade is ready as a pull request. Memory was not touched. Review the pull request before you merge it. |
+| `player_started` | The persistent player's containers are started. They run until you stop them. |
+| `player_restarted` | The persistent player's containers were recreated. Its workspace and memory are kept. |
+| `player_stopped` | The persistent player's containers are stopped. Its volumes are kept. |
+| `player_not_held` | The player is not held, so release-hold had nothing to remove. |
+| `player_released` | The hold on the persistent player is removed. The next launch may go ahead. |
 
 ## The world address and port
 
@@ -612,3 +617,58 @@ What to do. To revoke the token itself, run `claude setup-token` again or use th
 What it means. What was given is not a usable token. It must be exactly one line of 20 to 400 letters, digits and the characters `.`, `_`, `~` and `-`. Spaces, an equals sign or a second line are refused.
 Why it is safe. Nothing was stored and the old token, if any, is unchanged. The refused text is not shown.
 What to do. Run `claude setup-token`, copy only the token it prints, and run `auth-set` again.
+
+### player_remote_bad
+What it means. The keeper of the persistent player cannot push its work, because the clone's origin is not a GitHub repository this launcher can use. Only github.com addresses are accepted.
+Why it is safe. The launcher checks the address before it starts any container, so nothing was pushed and nothing was started.
+What to do. Point the clone's origin at the player's GitHub repository, then start the player again.
+
+### player_ws_failed
+What it means. The workspace volume for the persistent player could not be made from the host clone.
+Why it is safe. The launcher removed the half-made volume, so nothing was started and the clone was not changed.
+What to do. Check that Docker is running and that the clone is readable, then start the player again.
+
+### player_no_key
+What it means. The persistent player has no deploy key yet, so the keeper cannot push.
+Why it is safe. The launcher refused before any container started, so nothing was pushed or changed.
+What to do. Run deploy-key for the player, add the printed public key to its repository with write access, then start again.
+
+### player_no_token
+What it means. The persistent player has no MCP token file, so it cannot reach its world.
+Why it is safe. The launcher refused before any container started. No token was read or printed.
+What to do. Store the player's token, then start the player again.
+
+### player_no_login
+What it means. No shared Claude login is stored, so the player cannot run its harness.
+Why it is safe. The launcher refused before any container started. The stored login, if any, was not printed.
+What to do. Run auth-set to store the login, then start the player again.
+
+### player_no_status
+What it means. One part of player-status could not be read. The message names the part: supervisor or keeper. The player may not have started yet, or its volume may be missing.
+Why it is safe. player-status only reads files and prints nothing secret. The other parts are still shown.
+What to do. Start the player, then run player-status again. If it stays the same, look at the player's logs.
+
+### player_held
+What it means. The persistent player is held, and the reason is printed after it. A hold stops every launch until it is released.
+Why it is safe. A held player does not start, so nothing new was saved or pushed.
+What to do. Read the reason, fix what it names, then run release-hold to clear the hold.
+
+### player_key_failed
+What it means. The deploy key for the persistent player could not be made.
+Why it is safe. The new key was made in its own folder and was not moved into place, so an old key, if there is one, is kept.
+What to do. Check that ssh-keygen works on this machine or that Docker is running, then run deploy-key again.
+
+### player_key_rotated
+What it means. A new deploy key was made for the persistent player, and the public key is printed above this line.
+Why it is safe. Nothing was pushed with the new key yet. The old key no longer works for the keeper once the new one is in place.
+What to do. Add the new public key to the player's repository with write access, and remove the old one there.
+
+### player_key_add
+What it means. The public key printed above is the deploy key of the persistent player. This message only tells you what to do with it.
+Why it is safe. Printing the public key shows no secret: the private key stays in the player's folder.
+What to do. Add the public key to the player's repository as a deploy key with write access.
+
+### player_release_failed
+What it means. The hold on the persistent player could not be removed, so it is still set.
+Why it is safe. The hold stays in place, so no launch goes ahead.
+What to do. Check that Docker is running, then run release-hold again.

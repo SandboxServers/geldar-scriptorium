@@ -167,3 +167,251 @@ TEXT
   PL_MODEL=$PLV_declared_model
   PL_KIT_IMAGE=$GP_IMAGE
 }
+
+# SC-163a: the persistent player (decision 64). One compose project per player: geldar-player-<id>.
+# pl_keeper_remote id: sets PL_REMOTE, the keeper's push address, from the clone's origin (github.com only).
+pl_keeper_remote() {
+  local id=$1 url rest=""
+  url=$(git_cmd -C "$PL_CLONE" remote get-url origin 2> /dev/null) || url=""
+  url=${url%/}
+  url=${url%.git}
+  case $url in
+    https://github.com/*) rest=${url#https://github.com/} ;;
+    git@github.com:*) rest=${url#git@github.com:} ;;
+    ssh://git@github.com/*) rest=${url#ssh://git@github.com/} ;;
+    *) die 1 player_remote_bad "$id" ;;
+  esac
+  [[ $rest =~ ^([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)$ ]] || die 1 player_remote_bad "$id"
+  PL_REMOTE="ssh://git@ssh.github.com:443/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}.git"
+}
+
+# pl_secrets id: sets PL_SECRET_MCP (the MCP token file) and PL_SECRET_LOGIN (the shared login), both
+# empty when absent. Only the masking and the compose environment read them; nothing is printed.
+pl_secrets() {
+  local d
+  d=$(player_dir "$1")
+  PL_SECRET_MCP=""
+  PL_SECRET_LOGIN=""
+  if [ -f "$d/token" ] && [ ! -L "$d/token" ]; then
+    IFS= read -r PL_SECRET_MCP < "$d/token" || true
+  fi
+  if auth_usable; then
+    PL_SECRET_LOGIN=$(auth_load) || PL_SECRET_LOGIN=""
+  fi
+}
+
+# pl_compose id args...: docker compose for the player's project. The values are passed in the
+# environment; the tokens go in by name only, so no argument ever carries one.
+pl_compose() {
+  local id=$1 d share
+  shift
+  d=$(player_dir "$id")
+  share=$(share_dir)
+  case $d in
+    *[[:cntrl:]]* | *,* | *:*) die 1 bad_state_path ;;
+  esac
+  pl_keeper_remote "$id"
+  (
+    unset GH_TOKEN GITHUB_TOKEN ANTHROPIC_API_KEY GELDAR_DEV_MCP_URL GELDAR_MCP_TOKEN CLAUDE_CODE_OAUTH_TOKEN
+    pl_secrets "$id"
+    if [ -n "$PL_SECRET_MCP" ]; then export GELDAR_MCP_TOKEN="$PL_SECRET_MCP"; fi
+    if [ -n "$PL_SECRET_LOGIN" ]; then export CLAUDE_CODE_OAUTH_TOKEN="$PL_SECRET_LOGIN"; fi
+    export KIT_IMAGE="$PL_KIT_IMAGE" GELDAR_ID="$id" GELDAR_KEEPER_REMOTE="$PL_REMOTE"
+    export GELDAR_DEPLOY_KEY_FILE="$d/deploy-key" GELDAR_WORLD_ALLOWLIST="$d/pub/allowlist-world.txt"
+    export GELDAR_WORLD_PORTS="$d/pub/allowlist-world-ports.txt"
+    docker_cmd compose -p "geldar-player-$id" -f "$share/compose/player.yml" "$@"
+  )
+}
+
+# pl_mask: stdin to stdout with the stored secrets and token-like text replaced by [masked].
+pl_mask() {
+  PL_MASK_A=${PL_SECRET_MCP:-} PL_MASK_B=${PL_SECRET_LOGIN:-} perl -pe '
+    BEGIN { $a = $ENV{PL_MASK_A}; $b = $ENV{PL_MASK_B} }
+    s/\Q$a\E/[masked]/g if length $a;
+    s/\Q$b\E/[masked]/g if length $b;
+    s/GELDAR_MCP_TOKEN=\S*/GELDAR_MCP_TOKEN=[masked]/g;
+    s/sk-ant-[A-Za-z0-9_-]*/[masked]/g;
+    s/(CLAUDE_CODE_OAUTH_TOKEN|oauth[_-]?token)[ :=]+\S+/$1 [masked]/gi;
+  '
+}
+
+# pl_helper id role vol uid mode script: runs script in a throwaway container as uid, with the
+# volume vol mounted at /vol (mode ro or rw). The container gets no other volume and no secret.
+pl_helper() {
+  local id=$1 role=$2 vol=$3 uid=$4 mode=$5 script=$6
+  helper_run "player-$role" "geldar-$role-$id" "$PL_KIT_IMAGE" --user "$uid:$uid" -v "$vol:/vol:$mode" -- "$script"
+}
+
+# pl_allowlist id: the world allowlist files for the proxy (the same writer as the session).
+pl_allowlist() {
+  local d
+  d=$(player_dir "$1")
+  private_mkdir "$d"
+  write_allowlist "$d/pub" "$PL_MCP_URL"
+}
+
+# pl_prepare_ws id: the workspace volume gets the host clone once (a copy with its .git). A volume
+# that already holds a .git is kept as it is, so a second start changes nothing.
+pl_prepare_ws() {
+  local id=$1 name="geldar-ws-$1"
+  if helper_run player-ws "geldar-wscheck-$id" "$PL_KIT_IMAGE" -v "$name:/player:ro" -- 'test -e /player/.git' > /dev/null 2>&1; then
+    return 0
+  fi
+  if helper_run player-ws "geldar-wsinit-$id" "$PL_KIT_IMAGE" -v "$PL_CLONE:/in:ro" -v "$name:/player" -- 'cp -a /in/. /player/' > /dev/null 2>&1; then
+    return 0
+  fi
+  docker_cmd volume rm "$name" > /dev/null 2>&1
+  die 1 player_ws_failed "$id"
+}
+
+# pl_ready id: what a start needs: the deploy key, the MCP token file and the shared login.
+pl_ready() {
+  local d
+  d=$(player_dir "$1")
+  [ -f "$d/deploy-key" ] || die 1 player_no_key "$1"
+  [ -f "$d/token" ] || die 1 player_no_token "$1"
+  auth_usable || die 1 player_no_login
+}
+
+# start <id>: the checks, the workspace once, then compose up -d (idempotent).
+verb_start() {
+  [ $# -eq 1 ] || die 2 usage
+  read_player "$1"
+  pl_ready "$1"
+  lock_acquire "$1"
+  pl_allowlist "$1"
+  pl_prepare_ws "$1"
+  pl_compose "$1" up -d || die 1 compose_failed
+  say player_started "$1"
+}
+
+# restart <id>: the same checks, then the containers are recreated.
+verb_restart() {
+  [ $# -eq 1 ] || die 2 usage
+  read_player "$1"
+  pl_ready "$1"
+  lock_acquire "$1"
+  pl_allowlist "$1"
+  pl_compose "$1" up -d --force-recreate || die 1 compose_failed
+  say player_restarted "$1"
+}
+
+# stop <id>: stops the containers; the volumes are kept.
+verb_stop() {
+  [ $# -eq 1 ] || die 2 usage
+  read_player "$1"
+  lock_acquire "$1"
+  pl_compose "$1" stop || die 1 compose_failed
+  say player_stopped "$1"
+}
+
+# pl_status_part id role vol uid script: one part of player-status, with secrets masked. A part that
+# cannot be read (no volume, no file, a failed helper) prints player_no_status for its role instead.
+pl_status_part() {
+  local id=$1 role=$2 vol=$3 uid=$4 script=$5 out
+  out=$(pl_helper "$id" "$role" "$vol" "$uid" ro "$script" 2> /dev/null) || {
+    say player_no_status "$role"
+    return 0
+  }
+  printf '%s\n' "$out" | pl_mask
+}
+
+# player-status <id>: container states, the supervisor's status.json, the keeper's push time
+# (last_pushed_head and last_run_utc from its status.json), HELD if set.
+# Reads only the files named here; no secret is printed.
+verb_player_status() {
+  [ $# -eq 1 ] || die 2 usage
+  local id=$1 reason
+  read_player "$id"
+  pl_secrets "$id"
+  pl_compose "$id" ps --all --format '{{.Service}} {{.State}}' 2> /dev/null | pl_mask
+  printf 'supervisor status:\n'
+  pl_status_part "$id" supervisor "geldar-sup-$id" 1001 'cat /vol/status.json'
+  printf 'keeper status:\n'
+  pl_status_part "$id" keeper "geldar-keep-$id" 1002 'grep -E "\"(last_pushed_head|last_run_utc)\"" /vol/status.json'
+  if reason=$(pl_helper "$id" keeper "geldar-keep-$id" 1002 ro 'cat /vol/HELD' 2> /dev/null); then
+    say player_held "$(printf '%s' "$reason" | sanitize)"
+  fi
+}
+
+# logs <id> [--follow]: the supervisor's log and the containers' output, with the secrets masked.
+verb_logs() {
+  [ $# -ge 1 ] && [ $# -le 2 ] || die 2 usage
+  local id=$1 follow=0
+  case ${2-} in
+    '') ;;
+    --follow) follow=1 ;;
+    *) die 2 usage ;;
+  esac
+  read_player "$id"
+  pl_secrets "$id"
+  if [ "$follow" -eq 1 ]; then
+    pl_compose "$id" logs --no-color --follow player keeper | pl_mask
+    return 0
+  fi
+  pl_helper "$id" supervisor "geldar-sup-$id" 1001 ro 'tail -n 200 /vol/supervisor.log' 2> /dev/null | pl_mask || true
+  pl_compose "$id" logs --no-color --tail 200 player keeper 2> /dev/null | pl_mask
+}
+
+# pl_make_key id dir: a new ed25519 key (no passphrase) in dir/deploy-key and dir/deploy-key.pub.
+# ssh-keygen on the host when there is one, else ssh-keygen in a throwaway kit container. The key
+# is made in its own folder, so the container never sees the token files.
+pl_make_key() {
+  local id=$1 d=$2 kg tmp
+  kg=$(gp_env GELDAR_SSH_KEYGEN)
+  [ -n "$kg" ] || kg=ssh-keygen
+  tmp="$d/keygen"
+  rm -rf "$tmp"
+  private_mkdir "$d/keygen"
+  if command -v "$kg" > /dev/null 2>&1; then
+    "$kg" -q -t ed25519 -N '' -C "geldar-$id" -f "$tmp/deploy-key" < /dev/null > /dev/null 2>&1 ||
+      die 1 player_key_failed "$id"
+  else
+    helper_run player-key "geldar-key-$id" "$PL_KIT_IMAGE" --user "$(id -u):$(id -g)" -v "$tmp:/out" -- \
+      "ssh-keygen -q -t ed25519 -N '' -C geldar-$id -f /out/deploy-key" > /dev/null 2>&1 ||
+      die 1 player_key_failed "$id"
+  fi
+  [ -f "$tmp/deploy-key" ] && [ -f "$tmp/deploy-key.pub" ] || die 1 player_key_failed "$id"
+  chmod 600 "$tmp/deploy-key" "$tmp/deploy-key.pub"
+  mv -f "$tmp/deploy-key" "$d/deploy-key"
+  mv -f "$tmp/deploy-key.pub" "$d/deploy-key.pub"
+  rm -rf "$tmp"
+}
+
+# deploy-key <id> [--rotate]: prints the public key only. --rotate makes a new key first.
+verb_deploy_key() {
+  [ $# -ge 1 ] && [ $# -le 2 ] || die 2 usage
+  local id=$1 rotate=0 d
+  case ${2-} in
+    '') ;;
+    --rotate) rotate=1 ;;
+    *) die 2 usage ;;
+  esac
+  read_player "$id"
+  d=$(player_dir "$id")
+  private_mkdir "$d"
+  if [ "$rotate" -eq 1 ] || [ ! -f "$d/deploy-key.pub" ] || [ ! -f "$d/deploy-key" ]; then
+    pl_make_key "$id" "$d"
+  fi
+  cat "$d/deploy-key.pub"
+  if [ "$rotate" -eq 1 ]; then
+    say player_key_rotated "$id"
+  else
+    say player_key_add "$id"
+  fi
+}
+
+# release-hold <id>: prints the HELD reason, then removes HELD: the only way to clear it.
+verb_release_hold() {
+  [ $# -eq 1 ] || die 2 usage
+  local id=$1 reason
+  read_player "$id"
+  if ! reason=$(pl_helper "$id" keeper "geldar-keep-$id" 1002 ro 'cat /vol/HELD' 2> /dev/null); then
+    say player_not_held "$id"
+    return 0
+  fi
+  say player_held "$(printf '%s' "$reason" | sanitize)"
+  pl_helper "$id" keeper "geldar-keep-$id" 1002 rw 'rm -f /vol/HELD' > /dev/null 2>&1 ||
+    die 1 player_release_failed "$id"
+  say player_released "$id"
+}
