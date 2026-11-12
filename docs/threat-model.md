@@ -37,6 +37,11 @@ This is the threat model for the Geldar player kit and its launcher. Each contro
 | Workspace origin | Clean host clone, START held by the launcher, export from `git archive`, isolated clone | H-01 to H-05 | T-01 to T-05 |
 | Settings layers | Hooks inert without the kit marker; reads of the CLI home and credentials denied (managed settings) | H-18, H-20 | T-18, T-20 |
 | Session login | Account connectors off (`ENABLE_CLAUDEAI_MCP_SERVERS=false`): a claude.ai login must not load the account's connectors (mail, calendar, drive, docs) into the session, so signing in never widens what the player can reach | none yet (no H-NN item) | `tests/image/session-env.test.ts` |
+| Workspace origin (keeper) | A malicious workspace (hooks, config, symlinks, submodules) fetched by the keeper: fetched into a private clone with hardened git (no hooks, no fsmonitor, no `includeIf`), the gate runs before any push, the workspace is mounted read-only | H-22 | none yet (SC-164) |
+| Deploy key | A stolen deploy key pushes only to its one repository, and only as a fast-forward; `deploy-key <id> --rotate` makes a new key, and the old one is removed on GitHub | H-22 | none yet (SC-164) |
+| Upstream sync | The supervisor applies upstream changes as the `player` user, between runs only, with hardened git and fast-forward only; a change it cannot apply is held | H-22 | none yet (SC-164, SC-167) |
+| Keeper hold | `HELD` is the only signal of a rejection: a refused push writes it with a short reason, and the supervisor starts no new run until a person releases it | H-22 | none yet (SC-164) |
+| Supervisor capabilities | Ambient SETUID and SETGID, kept only to start each run as `player`; each run's child ends with an empty capability set and no new privileges | H-22 | a real container check is owed to SC-164 |
 
 ## Accepted risks
 
