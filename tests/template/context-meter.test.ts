@@ -197,8 +197,14 @@ describe.skipIf(shell === undefined)('context-meter.sh', () => {
     expectAllowed(call({ session_id: 'p1' }));
     writeWorker('w1', [assistantLine('claude-sonnet-5-5', size(150000))]);
     expectAllowed(call(worker()));
-    writeFileSync(main, assistantLine('claude-haiku-5-5', size(150000)) + '\n');
-    expectAllowed(call({ session_id: 'p2' }));
+  });
+
+  it('denies a Haiku planner once at its line, like a Sonnet one', () => {
+    writeFileSync(main, assistantLine('claude-haiku-5-5', size(85000)) + '\n');
+    expectClean(reason(call({ session_id: 'h1' }).stdout));
+    expectAllowed(call({ session_id: 'h1' }));
+    writeFileSync(main, assistantLine('claude-haiku-5-5', size(60000)) + '\n');
+    expectAllowed(call({ session_id: 'h2' }));
   });
 
   it('allows a missing, empty or malformed transcript and bad input', () => {

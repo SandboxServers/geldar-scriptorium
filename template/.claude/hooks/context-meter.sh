@@ -175,7 +175,7 @@ if [ -n "${agent_id:-}" ]; then
     deny "You are worn out. Get somewhere safe and send back your report."
   fi
 else
-  case "$model" in *sonnet*) ;; *) exit 0 ;; esac
+  case "$model" in *sonnet* | *haiku*) ;; *) exit 0 ;; esac
   [ -n "${session_id:-}" ] || exit 0
   if [ "$size" -ge "$planner_line" ] && first_time "$session_id"; then
     deny "Before you rest, be sheltered: no errand half-done, and not in danger. If not, get safe first. Then write your resume note to memory/journal/handoff.md, then go on with what you were doing, and do that action again afterwards."
