@@ -146,10 +146,13 @@ export function setup(l: Launcher, opts: Opts = {}) {
     writeFileSync(join(p.stateDir, 'deploy-key'), `${KEY}\n`, { mode: 0o600 });
   if (opts.token !== false) writeFileSync(join(p.stateDir, 'token'), `${MCP}\n`, { mode: 0o600 });
   if (opts.login !== false) {
-    mkdirSync(join(w.state, 'auth'), { recursive: true });
+    mkdirSync(join(w.state, 'auth'), { recursive: true, mode: 0o700 });
+    chmodSync(join(w.state, 'auth'), 0o700);
     const login = opts.login ?? LOGIN;
     writeFileSync(join(w.state, 'auth', 'claude-oauth-token'), `${login}\n`, { mode: 0o600 });
   }
+  // The launchers refuse a login, key or state folder that others can read.
+  chmodSync(p.stateDir, 0o700);
   // The pwsh launcher on Windows refuses a login or key that others can read: the fixtures restrict
   // their folders and files to the owner, as the real launcher does (temp folders carry extra grants).
   if (win && l.name === 'pwsh') {
