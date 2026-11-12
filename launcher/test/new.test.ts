@@ -1,123 +1,22 @@
-import { randomBytes } from 'node:crypto';
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { forGroup, git } from './harness.ts';
 import {
-  bashExe,
-  bashPath,
-  forGroup,
-  git,
-  type Launcher,
-  makeWorld,
-  repoRoot,
-  run,
-  type World,
-} from './harness.ts';
+  filesUnder,
+  ID,
+  MOCK,
+  newRun,
+  privateQuad,
+  type Setup,
+  setupWorld,
+  token,
+  tokenFile,
+  win,
+} from './new-support.ts';
 import { timingIt } from './timing.ts';
 
 vi.setConfig({ testTimeout: 180_000 });
-
-const fakeGh = bashPath(join(repoRoot, 'launcher', 'test', 'fake-gh.sh'));
-const win = process.platform === 'win32';
-const ID = 'abc';
-const HOST = { name: 'Host', email: 'host@example.test' };
-const MOCK = 'http://world.test';
-// A private-network address, built from parts so the repo holds no such literal.
-const privateQuad = [10, 0, 0, 1].join('.');
-
-interface Setup {
-  w: World;
-  ghRoot: string;
-  env: Record<string, string>;
-  envPwsh: Record<string, string>;
-  ghCalls(): string[][];
-}
-
-function setupWorld(conf = 'mcp_base=\nprivate_only_shards=\n'): Setup {
-  const w = makeWorld();
-  const ghRoot = join(w.root, 'gh');
-  const shareDir = join(w.root, 'share');
-  mkdirSync(join(shareDir, 'config'), { recursive: true });
-  writeFileSync(join(shareDir, 'config', 'world.conf'), conf);
-  writeFileSync(join(w.fakeDir, 'gh'), `#!/bin/sh\nexec sh "${fakeGh}" "$@"\n`);
-  chmodSync(join(w.fakeDir, 'gh'), 0o755);
-  if (win && bashExe) writeFileSync(join(w.fakeDir, 'gh.cmd'), `@"${bashExe}" "${fakeGh}" %*\r\n`);
-  // The host's own identity, with signing switched on.
-  writeFileSync(
-    join(w.root, 'gitconfig'),
-    `[user]\n\tname = ${HOST.name}\n\temail = ${HOST.email}\n[commit]\n\tgpgsign = true\n[tag]\n\tgpgsign = true\n[init]\n\tdefaultBranch = main\n`,
-  );
-  const env = {
-    ...w.env,
-    GELDAR_GH: bashPath(join(w.fakeDir, 'gh')),
-    GELDAR_SHARE: bashPath(shareDir),
-    GELDAR_SLEEP: '0',
-    FAKE_GH_ROOT: bashPath(ghRoot),
-    FAKE_GH_TEMPLATE: bashPath(join(repoRoot, 'template')),
-    GIT_AUTHOR_NAME: HOST.name,
-    GIT_AUTHOR_EMAIL: HOST.email,
-    GIT_COMMITTER_NAME: HOST.name,
-    GIT_COMMITTER_EMAIL: HOST.email,
-  };
-  // pwsh starts the fakes itself, so it gets native paths and the .cmd shim on Windows.
-  const envPwsh = {
-    ...env,
-    ...w.envPwsh,
-    GELDAR_GH: join(w.fakeDir, win ? 'gh.cmd' : 'gh'),
-    GELDAR_SHARE: shareDir,
-  };
-  const ghCalls = () => {
-    const f = join(ghRoot, 'calls.log');
-    if (!existsSync(f)) return [];
-    return readFileSync(f, 'utf8')
-      .split('\n')
-      .filter(Boolean)
-      .map((l) => l.split('\t'));
-  };
-  return { w, ghRoot, env, envPwsh, ghCalls };
-}
-
-function token(): string {
-  return randomBytes(24).toString('base64url');
-}
-
-function tokenFile(l: Launcher, w: World, body: string): string {
-  const f = join(w.root, 'tok.txt');
-  writeFileSync(f, body);
-  return l.name === 'bash' ? bashPath(f) : f;
-}
-
-function newRun(
-  l: Launcher,
-  s: Setup,
-  args: string[],
-  extra: Record<string, string> = {},
-  timeoutMs = 120_000,
-) {
-  return run(l, ['new', ...args], {
-    env: { ...(l.name === 'bash' ? s.env : s.envPwsh), ...extra },
-    timeoutMs,
-  });
-}
-
-function filesUnder(dir: string, rel = ''): string[] {
-  const out: string[] = [];
-  for (const e of readdirSync(join(dir, rel), { withFileTypes: true })) {
-    if (e.name === '.git') continue;
-    const r = rel ? `${rel}/${e.name}` : e.name;
-    if (e.isDirectory()) out.push(...filesUnder(dir, r));
-    else out.push(r);
-  }
-  return out;
-}
 
 describe.each(forGroup('new'))('new ($name)', (l) => {
   const clonePath = (s: Setup) => join(s.w.players, `player-${ID}`);
@@ -312,6 +211,15 @@ describe.each(forGroup('new'))('new ($name)', (l) => {
     const pj = JSON.parse(readFileSync(join(clonePath(s), 'player.json'), 'utf8'));
     expect(pj.mcp_url).toBe(`https://world.test/p/${ID}`);
     expect(s.ghCalls().find((c) => c[1] === 'create')).toContain('--public');
+  });
+
+  it('17. without --repo, new still calls gh repo create and never views a repository', () => {
+    const s = setupWorld();
+    const r = newRun(l, s, [ID, '--mock', MOCK]);
+    expect(r.status, r.stderr).toBe(0);
+    const calls = s.ghCalls();
+    expect(calls.some((c) => c[1] === 'create')).toBe(true);
+    expect(calls.some((c) => c[1] === 'view' || c[0] === 'api')).toBe(false);
   });
 
   timingIt('10. a gh that hangs is bounded and leaves nothing local', () => {
