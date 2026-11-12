@@ -28,6 +28,11 @@ If the craft does not work, the line gives the reason in a few words:
 "Your craft failed: there is no crafting table within reach." means a table is needed close by, so find one and stand near it.
 "Your craft failed: it took too long." means the work ran out of time, so look at what you have made so far before you try again.
 
+## Signs and books
+To write a sign, call `act` with `write_sign` and the words you want on it. You need a sign in your pack first. Without one, the line says "Your write sign failed: you lack the materials." When the sign is written, the line says "Your write sign worked."
+
+To read a book, you must hold it. Call `read_book`, and what is written in it comes back to you. If you hold no book, the world says "You hold no book."
+
 ## Reading your results
 Each thing you try comes back as one plain line. It says it worked ("Your dig worked.") or that it failed and why ("Your dig failed: the way was blocked."). When something you set going stops on the way, the line says why in plain words, such as "You could not get there: the way was blocked." or "You lack the materials to craft that." Take the why as what is true now, and change your plan to fit it. Do not try the same thing again until the why has changed.
 

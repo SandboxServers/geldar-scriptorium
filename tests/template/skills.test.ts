@@ -122,6 +122,26 @@ describe('play skill', () => {
     expect(body.indexOf('## Crafting')).toBeLessThan(body.indexOf('## Reading your results'));
   });
 
+  it('teaches signs and books: write_sign with the words, read_book when you hold a book, and their exact lines', () => {
+    for (const line of [
+      '## Signs and books',
+      'To write a sign, call `act` with `write_sign` and the words you want on it.',
+      'You need a sign in your pack first.',
+      '"Your write sign failed: you lack the materials."',
+      '"Your write sign worked."',
+      'To read a book, you must hold it.',
+      'Call `read_book`, and what is written in it comes back to you.',
+      '"You hold no book."',
+    ]) {
+      expect(body).toContain(line);
+    }
+    expect(body.indexOf('## Signs and books')).toBeLessThan(body.indexOf('## Reading your results'));
+  });
+
+  it('never teaches the unavailable book writing, and never mentions a moot or a shrine', () => {
+    expect(body).not.toMatch(/write_book|write a book|shrine|moot stone/i);
+  });
+
   it('never mentions a recipe, a list of items or a smelting verb in the crafting section', () => {
     const start = body.indexOf('## Crafting');
     const section = body.slice(start, body.indexOf('## Reading your results')).replace(/"[^"]*"/g, '');
