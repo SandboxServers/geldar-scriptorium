@@ -24,9 +24,9 @@ $GP_VERSION = '0.1.0'
 function Get-VerbNeeds([string]$Verb) {
   switch ($Verb) {
     { $_ -in 'new', 'archive' } { return @('docker', 'git', 'gh') }
-    { $_ -in 'setup', 'play', '__prepare', '__session', '__finish' } { return @('docker', 'git', 'tar') }
+    { $_ -in 'setup', 'play', 'run', '__prepare', '__session', '__finish' } { return @('docker', 'git', 'tar') }
     'resolve' { return @('docker', 'git') }
-    'status' { return @('git') }
+    { $_ -in 'status', 'run_status' } { return @('git') }
     'upgrade' { return @('git', 'gh') }
   }
   return @()
@@ -70,7 +70,7 @@ switch -CaseSensitive ($verb) {
   { $_ -in '__prepare', '__session', '__finish', '__bounded' } {
     if ((Get-GatedEnv 'GELDAR_INTERNAL') -ne '1') { Die 2 internal_only }
   }
-  { $_ -in 'new', 'setup', 'play', 'resolve', 'archive', 'status', 'upgrade' } { }
+  { $_ -in 'new', 'setup', 'play', 'run', 'run-status', 'run-stop', 'resolve', 'archive', 'status', 'upgrade' } { }
   default { Die 2 usage }
 }
 
@@ -81,7 +81,7 @@ if ($verb -ceq '__bounded') {
 }
 
 $gpArgs = $rest
-if ($verb -in 'new', 'setup', 'play') { $gpArgs = @((@(Read-CliOption $rest))[0]) }
+if ($verb -in 'new', 'setup', 'play', 'run') { $gpArgs = @((@(Read-CliOption $rest))[0]) }
 
 if ($verb -cne 'status' -and $gpArgs.Count -lt 1) { Die 2 usage }
 if ($gpArgs.Count -ge 1 -and -not (Test-PlayerId $gpArgs[0])) { Die 2 bad_player_id $gpArgs[0] }
@@ -91,6 +91,9 @@ if ($verb -ceq 'play' -and $gpArgs.Count -ge 2) {
   }
   $verb = 'play_many'
 }
+
+if ($verb -ceq 'run-status') { $verb = 'run_status' }
+if ($verb -ceq 'run-stop') { $verb = 'run_stop' }
 
 $needs = @(Get-VerbNeeds $verb)
 Need @needs

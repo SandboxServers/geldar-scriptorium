@@ -6,6 +6,8 @@
 $GP_GROUPS = @()
 $script:GP_MSG = @{}
 $script:GP_LOCK_ID = ''
+$script:GP_DIE_THROWS = $false
+$script:GP_DIE_CODE = 1
 
 # Test-only variables are read only through this function (decision 9): the value when
 # GELDAR_INTERNAL=1, else the empty string.
@@ -56,6 +58,11 @@ function Die {
   $code = [int]$args[0]
   $rest = @($args | Select-Object -Skip 1)
   Say @rest
+  # The run supervisor ends one cycle on a refusal, not the launcher (lib/run.ps1).
+  if ($script:GP_DIE_THROWS) {
+    $script:GP_DIE_CODE = $code
+    throw 'geldar-die'
+  }
   exit $code
 }
 
