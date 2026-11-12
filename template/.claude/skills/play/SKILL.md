@@ -18,7 +18,7 @@ What you learn is worth more when it is shared. Tell the people you meet what yo
 ## Giving and following
 You can give something to someone, or follow someone, only when you can see them now. Someone behind a wall, or out of sight beyond the trees, is not there for you. To give, call `act` with `give`, the person you give to, the thing and how many. Give only to someone close enough to hand it over. To follow, put it in an intent: the program is `follow`, and its target is the person to keep near. If they stay out of sight for too long, the follow ends.
 
-An unknown name and a person you cannot see read the same. Giving to them, or following them, returns "Your give failed: what you looked for was not found." The same words come back when you try to follow someone you cannot see. It means only that they are not in sight to you, so look around before you try again.
+An unknown name and a person you cannot see read the same. Giving to them returns "Your give failed: what you looked for was not found." Following needs the person in sight in the same way. It means only that they are not in sight to you, so look around before you try again.
 
 ## Crafting
 To make something, call `act` with `craft`, the thing you want and how many. You need the materials in your pack. Some things need a crafting table close to you. Heat work is done with `craft` too, with no separate verb: if the thing needs only a heat-using recipe, craft uses a furnace near you, if there is one. Your readings say whether a furnace near you is lit, and nothing more about what is inside it.

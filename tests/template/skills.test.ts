@@ -165,7 +165,7 @@ describe('play skill', () => {
       'To follow, put it in an intent: the program is `follow`, and its target is the person to keep near.',
       'An unknown name and a person you cannot see read the same.',
       '"Your give failed: what you looked for was not found."',
-      'The same words come back when you try to follow someone you cannot see.',
+      'Following needs the person in sight in the same way.',
     ]) {
       expect(body).toContain(line);
     }
