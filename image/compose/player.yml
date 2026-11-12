@@ -1,0 +1,187 @@
+# The persistent player group (decision 64): one compose project per player, geldar-<id>.
+# Names only, no IP addresses. Files mounted into a proxy must be 0644, directories 0755.
+#
+# Privilege design. `player` and `keeper` start as root so the entrypoint can fix the ownership of the
+# mounted state volumes; the capability set is cap_drop ALL plus the four that this needs and nothing
+# else: CHOWN and FOWNER (chown and chmod the state directories), SETUID and SETGID (drop to the service
+# user with setpriv). The entrypoint drops to `supervisor` (1001) or `keeper` (1002) at once with
+# no_new_privs. The supervisor alone keeps SETUID and SETGID as ambient capabilities, to start each run
+# as `player` (1000); the keeper keeps none. no-new-privileges stays on: setuid() does not need it off.
+# The proxies are Squid, which starts as root and needs SETUID and SETGID to drop to its own user.
+services:
+  proxy-player:
+    image: ubuntu/squid@sha256:6a097f68bae708cedbabd6188d68c7e2e7a38cedd05a176e1cc0ba29e3bbe029
+    volumes:
+      - ../proxy/squid.conf:/etc/squid/squid.conf:ro
+      - ../proxy/allowlist-vendor.txt:/etc/squid/allowlist-vendor.txt:ro
+      - ${GELDAR_WORLD_ALLOWLIST:?}:/etc/squid/allowlist-world.txt:ro
+      - ${GELDAR_WORLD_PORTS:-../proxy/world-ports-default.txt}:/etc/squid/allowlist-world-ports.txt:ro
+    networks: [inside, outside]
+    cap_drop: [ALL]
+    cap_add: [SETUID, SETGID]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run
+      - /var/log/squid:mode=1777
+    cpus: 0.5
+    mem_limit: 256m
+    pids_limit: 64
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "grep -q ':0C38 .* 0A ' /proc/net/tcp /proc/net/tcp6"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  proxy-keeper:
+    image: ubuntu/squid@sha256:6a097f68bae708cedbabd6188d68c7e2e7a38cedd05a176e1cc0ba29e3bbe029
+    volumes:
+      - ../proxy/squid-keeper.conf:/etc/squid/squid.conf:ro
+      - ../proxy/allowlist-keeper.txt:/etc/squid/allowlist-keeper.txt:ro
+    networks: [keeper-net, outside]
+    cap_drop: [ALL]
+    cap_add: [SETUID, SETGID]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run
+      - /var/log/squid:mode=1777
+    cpus: 0.5
+    mem_limit: 256m
+    pids_limit: 64
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "grep -q ':0C38 .* 0A ' /proc/net/tcp /proc/net/tcp6"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  player:
+    image: ${KIT_IMAGE:?}
+    user: "0:0"
+    entrypoint: ["/usr/local/bin/geldar-player-entrypoint"]
+    working_dir: /player
+    volumes:
+      - workspace:/player
+      - cli-home:/cli-home
+      - supervisor-state:/state/supervisor
+      - keeper-state:/keeper-state:ro
+    environment:
+      - HOME=/tmp
+      # Lowercase matters: curl ignores uppercase HTTP_PROXY.
+      - HTTP_PROXY=http://proxy-player:3128
+      - HTTPS_PROXY=http://proxy-player:3128
+      - http_proxy=http://proxy-player:3128
+      - https_proxy=http://proxy-player:3128
+      - NO_PROXY=
+      - GELDAR_MODE=play
+      - GELDAR_KEEPER_STATE=/keeper-state
+      # Name only: the value is passed through from the launcher's environment, never written here.
+      - GELDAR_MCP_TOKEN
+      - CLAUDE_CODE_OAUTH_TOKEN
+      - GELDAR_RUN_DAILY_CAP_USD
+      - GELDAR_RUN_DELAY
+      - GELDAR_RUN_FAST_SEC
+      - GELDAR_RUN_MAX_DELAY
+      - GELDAR_RUN_MAX_FAILS
+      - GELDAR_RUN_MAX_TURNS
+      - GELDAR_RUN_MODEL
+      - GELDAR_RUN_SLEEP
+    networks: [inside]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, SETUID, SETGID]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777
+    cpus: 2
+    mem_limit: 4g
+    pids_limit: 512
+    restart: unless-stopped
+    # The supervisor touches the heartbeat; /state/supervisor is closed to root without DAC_OVERRIDE, so
+    # the check runs as the supervisor user.
+    healthcheck:
+      test: ["CMD-SHELL", "setpriv --reuid=1001 --regid=1001 --clear-groups sh -c 'test $$(( $$(date +%s) - $$(stat -c %Y /state/supervisor/heartbeat) )) -le 120'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    depends_on:
+      proxy-player:
+        condition: service_healthy
+
+  keeper:
+    image: ${KIT_IMAGE:?}
+    user: "0:0"
+    entrypoint: ["/usr/local/bin/geldar-keeper-entrypoint"]
+    working_dir: /clone
+    volumes:
+      - workspace:/workspace:ro
+      - supervisor-state:/supervisor-state:ro
+      - keeper-state:/keeper-state
+      - clone:/clone
+    environment:
+      - HOME=/tmp
+      - GELDAR_KEEPER_REMOTE=${GELDAR_KEEPER_REMOTE:?}
+      - GELDAR_KEEPER_KEY=/run/secrets/deploy_key
+      - GELDAR_KEEPER_INTERVAL=${GELDAR_KEEPER_INTERVAL:-600}
+      - GELDAR_KEEPER_WORKSPACE=/workspace
+      - GELDAR_KEEPER_CLONE=/clone
+      - GELDAR_KEEPER_STATE=/keeper-state
+      - GELDAR_KEEPER_SUPERVISOR_STATE=/supervisor-state
+      - GELDAR_KEEPER_PROXY=proxy-keeper:3128
+    secrets:
+      - source: deploy_key
+        target: deploy_key
+        uid: "1002"
+        gid: "1002"
+        mode: 0400
+    networks: [keeper-net]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, SETUID, SETGID]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777
+    cpus: 1
+    mem_limit: 1g
+    pids_limit: 256
+    restart: unless-stopped
+    # The keeper writes status.json after every pass; three intervals without a write is unhealthy. The
+    # check runs as the keeper user (the state directory is closed to root without DAC_OVERRIDE).
+    healthcheck:
+      test: ["CMD-SHELL", "setpriv --reuid=1002 --regid=1002 --clear-groups sh -c 'test $$(( $$(date +%s) - $$(stat -c %Y /keeper-state/status.json) )) -le $$(( 3 * GELDAR_KEEPER_INTERVAL ))'"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+    depends_on:
+      proxy-keeper:
+        condition: service_healthy
+
+secrets:
+  # The per-player deploy key, a file on the host (0600). Only `keeper` mounts it.
+  deploy_key:
+    file: ${GELDAR_DEPLOY_KEY_FILE:?}
+
+networks:
+  inside:
+    internal: true
+  keeper-net:
+    internal: true
+  outside: {}
+
+volumes:
+  workspace:
+    name: geldar-ws-${GELDAR_ID:?}
+  cli-home:
+    name: geldar-cli-${GELDAR_ID:?}-claude
+  supervisor-state:
+    name: geldar-sup-${GELDAR_ID:?}
+  keeper-state:
+    name: geldar-keep-${GELDAR_ID:?}
+  clone:
+    name: geldar-clone-${GELDAR_ID:?}
