@@ -41,7 +41,7 @@ This is the threat model for the Geldar player kit and its launcher. Each contro
 | Deploy key | A stolen deploy key pushes only to its one repository, and only as a fast-forward; `deploy-key <id> --rotate` makes a new key, and the old one is removed on GitHub | H-22 | none yet (SC-164) |
 | Upstream sync | The supervisor applies upstream changes as the `player` user, between runs only, with hardened git and fast-forward only; a change it cannot apply is held | H-22 | none yet (SC-164, SC-167) |
 | Keeper hold | `HELD` is the only signal of a rejection: a refused push writes it with a short reason, and the supervisor starts no new run until a person releases it | H-22 | none yet (SC-164) |
-| Supervisor capabilities | Ambient SETUID and SETGID, kept only to start each run as `player`; each run's child ends with an empty capability set and no new privileges | H-22 | none yet (SC-164) |
+| Supervisor capabilities | Ambient SETUID and SETGID, kept only to start each run as `player`; each run's child ends with an empty capability set and no new privileges | H-22 | a real container check is owed to SC-164 |
 
 ## Accepted risks
 
