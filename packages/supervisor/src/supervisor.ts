@@ -27,8 +27,11 @@ import { GIT_ENV, hardenedArgs, syncUpstream } from './upstream.ts';
 
 /** The reason written to STOP when the keeper's HELD marker is present. */
 export const HELD_REASON = 'the keeper held the history';
+/** The first line of the STOP file the supervisor writes while HELD exists. */
+const HOLD_STOP = `auto: ${HELD_REASON}`;
 
 const HEARTBEAT_MS = 30_000;
+const HOLD_POLL_SECS = 10;
 const SAVE_MESSAGE = 'session end: unsaved memory';
 const SYSTEM_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
 
@@ -121,7 +124,7 @@ export class Supervisor {
     });
   }
 
-  private status(run: number, state: string, last: string, cost: number): void {
+  private status(run: number, state: string, last: string, cost: number, held?: string): void {
     const body = {
       run,
       state,
@@ -131,6 +134,7 @@ export class Supervisor {
       upstream_head: this.upstreamHead,
       upstream_result: this.upstreamResult,
       updated: fmt(this.deps.now(), 'stamp'),
+      ...(held === undefined ? {} : { held_reason: held }),
     };
     writePrivate(this.path('status.json'), `${JSON.stringify(body)}\n`);
   }
@@ -143,8 +147,20 @@ export class Supervisor {
     return existsSync(heldPath(this.settings));
   }
 
+  /** The first line of HELD (the keeper's reason), or null when the supervisor cannot read it. */
+  private heldReason(): string | null {
+    try {
+      return readFileSync(heldPath(this.settings), 'utf8').split('\n')[0]?.trim() ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** A stop ends the loop; the supervisor's own hold STOP does not (the hold keeps it waiting). */
   private shouldStop(): boolean {
-    return this.stopFlag || existsSync(this.path('STOP'));
+    if (this.stopFlag) return true;
+    const seen = readStop(this.settings);
+    return seen !== null && seen !== HOLD_STOP;
   }
 
   private asPlayer(spec: Pick<ExecSpec, 'file' | 'args'> & Partial<ExecSpec>): ExecSpec {
@@ -223,18 +239,14 @@ export class Supervisor {
 
   private async loop(): Promise<number> {
     const s = this.settings;
-    // A manual STOP is stale at the start and cleared; one the supervisor wrote itself is not.
+    // A manual STOP is stale at the start and cleared; one the supervisor wrote itself is not,
+    // except the hold STOP, which is cleared here and written again by the rounds if HELD still exists.
     const seen = readStop(s);
-    if (seen?.startsWith('auto:')) {
+    if (seen?.startsWith('auto:') && seen !== HOLD_STOP) {
       this.deps.say(`The supervisor stopped itself: ${seen.slice(6)} (${this.path('STOP')}).`);
       return 1;
     }
     if (seen !== null) rmSync(this.path('STOP'), { force: true });
-    if (this.held()) {
-      writeAutoStop(s, HELD_REASON);
-      this.deps.say(`The supervisor stopped itself: ${HELD_REASON}.`);
-      return 1;
-    }
     this.started = fmt(this.deps.now(), 'stamp');
     this.beat();
     const stopBeat = this.deps.every(HEARTBEAT_MS, () => this.beat());
@@ -255,9 +267,13 @@ export class Supervisor {
     this.deps.say('The supervisor started.');
     while (!this.shouldStop()) {
       if (this.held()) {
-        writeAutoStop(s, HELD_REASON);
-        failed = true;
-        break;
+        await this.hold(n, last);
+        if (this.shouldStop()) {
+          const seen = readStop(s);
+          failed = seen?.startsWith('auto:') === true && seen !== HOLD_STOP;
+          break;
+        }
+        continue;
       }
       const e = this.deps.now();
       const sum = costToday(s.stateDir, fmt(e, 'date'));
@@ -305,11 +321,6 @@ export class Supervisor {
         `run=${n} turns=${turns} cost=${cost} secs=${secs} exit=${code} result=${last} delay=${delay} fails=${fails}`,
       );
       this.status(n, 'sleeping', last, today);
-      if (this.held()) {
-        writeAutoStop(s, HELD_REASON);
-        failed = true;
-        break;
-      }
       if (fails >= s.maxFails) {
         writeAutoStop(s, `${fails} failed cycles in a row`);
         this.deps.say(`${fails} cycles in a row failed; the supervisor stopped itself.`);
@@ -320,11 +331,30 @@ export class Supervisor {
       if (!ok) this.deps.say(`Cycle ${n} failed; waiting ${delay} seconds.`);
       await this.deps.sleep(delay, () => this.shouldStop());
     }
-    if (failed && this.held()) this.deps.say(`The supervisor stopped itself: ${HELD_REASON}.`);
     this.status(n, 'stopped', last, costToday(s.stateDir, fmt(this.deps.now(), 'date')));
     this.log('stopped');
     this.deps.say(`The supervisor stopped after run ${n}.`);
     return failed ? 1 : 0;
+  }
+
+  /**
+   * While HELD exists no run starts. Writes the hold STOP and state `held` once, then polls every
+   * few seconds (the heartbeat goes on meanwhile). When HELD is gone it clears its own hold STOP
+   * only; any other STOP, or a stop request, returns at once with that STOP still in place.
+   */
+  private async hold(n: number, last: string): Promise<void> {
+    const s = this.settings;
+    writeAutoStop(s, HELD_REASON);
+    const cost = costToday(s.stateDir, fmt(this.deps.now(), 'date'));
+    this.status(n, 'held', last, cost, this.heldReason() ?? undefined);
+    this.log('held by the keeper; no run starts until HELD is removed');
+    this.deps.say(`The keeper holds the history; the supervisor waits (${heldPath(s)}).`);
+    while (this.held() && !this.shouldStop()) {
+      await this.deps.sleep(HOLD_POLL_SECS, () => this.shouldStop());
+    }
+    if (this.held()) return;
+    if (readStop(s) === HOLD_STOP) rmSync(this.path('STOP'), { force: true });
+    this.log('hold released');
   }
 
   /** One headless run as a child of the player user: writes the prompt file, returns the exit code. */
