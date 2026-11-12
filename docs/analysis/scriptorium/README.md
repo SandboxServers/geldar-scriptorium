@@ -215,6 +215,8 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-133 | 12 | S | Supervisor integration of the director, bash | Sonnet | Planned | SC-122, SC-131, SC-132 |
 | SC-134 | 12 | S | The PowerShell twin of SC-133 | Sonnet | Planned | SC-133 |
 | SC-135 | 12 | S | Director docs, hardening item, threat-model rows and the owner-run live check | Sonnet | Planned | SC-133, SC-134 |
+| SC-140 | 11 | S | One shared Claude login for every player container: `auth-set`, `auth-status`, `auth-clear` and the session environment, both launchers (owner request; PR #65) | Sonnet | Review (security review fixes in progress) | none |
+| SC-141 | 11 | S | `new --repo <owner/name>` fills an existing empty repo from the template; token files accept the `GELDAR_MCP_TOKEN=` prefix, both launchers (owner request; PR #66) | Sonnet | Review (review fixes in progress) | none |
 | SC-150 | 13 | S | Reading your results: the action and action_failed outcome events (geldar C5-02) ([wave 13](work-packets-wave13.md)) | Sonnet | Held (geldar 'landed') | none |
 | SC-151 | 13 | S | Waking after a death in the play and reflect skills; Patron note on thought visibility (C5-03) | Sonnet | Held (geldar 'landed') | none |
 | SC-152 | 13 | S | The give, note and follow verbs in the play skill and guide (C5-04) | Sonnet | Held (geldar 'landed') | none |
