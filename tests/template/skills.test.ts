@@ -95,7 +95,8 @@ describe('play skill', () => {
     const end = body.indexOf('## Reading your results');
     expect(start).toBeGreaterThan(-1);
     expect(end).toBeGreaterThan(start);
-    const section = body.slice(start, end);
+    // The quoted world texts (such as the craft reason "within reach") are the world's own words.
+    const section = body.slice(start, end).replace(/"[^"]*"/g, '');
     expect(section).not.toMatch(/\d/);
     expect(section).not.toMatch(
       /\b(game|bot|model|AI|prompt|session|token|player|server|tool|MCP|API|error|outcomes?|events?)\b/i,
@@ -104,8 +105,73 @@ describe('play skill', () => {
     expect(section).not.toMatch(/glass|viewer|watch|observer|audience/i);
   });
 
+  it('teaches crafting: how to try it, the three reason lines, and the furnace that heat work uses', () => {
+    for (const line of [
+      '## Crafting',
+      'To make something, call `act` with `craft`, the thing you want and how many.',
+      'You need the materials in your pack.',
+      'Some things need a crafting table close to you.',
+      'Heat work is done with `craft` too, with no separate verb: if the thing needs only a heat-using recipe, craft uses a furnace near you, if there is one.',
+      'Your readings say whether a furnace near you is lit, and nothing more about what is inside it.',
+      '"Your craft failed: you lack the materials."',
+      '"Your craft failed: there is no crafting table within reach."',
+      '"Your craft failed: it took too long."',
+    ]) {
+      expect(body).toContain(line);
+    }
+    expect(body.indexOf('## Crafting')).toBeLessThan(body.indexOf('## Reading your results'));
+  });
+
+  it('teaches signs and books: write_sign with the words, read_book when you hold a book, and their exact lines', () => {
+    for (const line of [
+      '## Signs and books',
+      'To write a sign, call `act` with `write_sign` and the words you want on it.',
+      'You need a sign in your pack first.',
+      '"Your write sign failed: you lack the materials."',
+      '"Your write sign worked."',
+      'To read a book, you must hold it.',
+      'Call `read_book`, and what is written in it comes back to you.',
+      '"You hold no book."',
+    ]) {
+      expect(body).toContain(line);
+    }
+    expect(body.indexOf('## Signs and books')).toBeLessThan(
+      body.indexOf('## Reading your results'),
+    );
+  });
+
+  it('never teaches the unavailable book writing, and never mentions a moot or a shrine', () => {
+    expect(body).not.toMatch(/write_book|write a book|shrine|moot stone/i);
+  });
+
+  it('never mentions a recipe, a list of items or a smelting verb in the crafting section', () => {
+    const start = body.indexOf('## Crafting');
+    const section = body
+      .slice(start, body.indexOf('## Reading your results'))
+      .replace(/"[^"]*"/g, '');
+    expect(section).not.toMatch(/recipe book|smelt|ingredient|\bplanks?\b|\blogs?\b|\bcobble/i);
+  });
+
   it('never gives through a separate give tool', () => {
     expect(body).not.toContain('give(');
+  });
+
+  it('teaches giving and following: only to someone you can see, and the exact unseen line', () => {
+    for (const line of [
+      '## Giving and following',
+      'You can give something to someone, or follow someone, only when you can see them now.',
+      'Someone behind a wall, or out of sight beyond the trees, is not there for you.',
+      'To give, call `act` with `give`, the person you give to, the thing and how many.',
+      'To follow, put it in an intent: the program is `follow`, and its target is the person to keep near.',
+      'An unknown name and a person you cannot see read the same.',
+      '"Your give failed: what you looked for was not found."',
+      'Following needs the person in sight in the same way.',
+    ]) {
+      expect(body).toContain(line);
+    }
+    expect(body.indexOf('## Giving and following')).toBeLessThan(
+      body.indexOf('## Reading your results'),
+    );
   });
 
   it('teaches the world fixed lines for results, hurt, sounds, body and death', () => {
@@ -146,16 +212,38 @@ describe('play skill', () => {
     const end = body.indexOf('Budget:');
     expect(start).toBeGreaterThan(-1);
     expect(end).toBeGreaterThan(start);
-    const section = body.slice(start, end);
-    // The world's quoted fixed lines may carry digits; the prose may not.
-    expect(section.replace(/"[^"]*"/g, '')).not.toMatch(/\d/);
+    // The world's quoted fixed lines may carry digits and words such as "events"; the prose may not.
+    const section = body.slice(start, end).replace(/"[^"]*"/g, '');
+    expect(section).not.toMatch(/\d/);
     expect(section).not.toMatch(
       /\b(outcomes?|events?|reflexes?|lives?|life's|respawns?|games?|counters?|budgets?|kit|tools? call|API|MCP|server)\b/i,
     );
   });
 
+  it('teaches the new result lines exactly, and what each one means', () => {
+    for (const line of [
+      '"Your <verb> failed: it changed nothing."',
+      'Look again and choose something else.',
+      '"Your goto failed: the body is stuck and every way out failed."',
+      'Look around, then decide your next move from where you actually stand.',
+      '"Reflex eat: your hunger was low, so you ate."',
+      'The food you have seen is listed in what your senses report, newest first, with its kind and where it is.',
+      '"<verb> <target> has failed <N> times in a row (<reason>); position unchanged for <M> minutes."',
+      'It means this attempt is not working where you stand, so change your approach and do not repeat it.',
+      '"Nothing has changed since you last slept: same place, same belongings, same health, no new events."',
+      'There is nothing new to act on yet, so go out and look for what is new.',
+      '"Your body is waking. Try again in a few seconds."',
+      'Wait a few seconds, then look again.',
+    ]) {
+      expect(body).toContain(line);
+    }
+  });
+
   it('never mentions dimensions, reach, register or a sound wake', () => {
-    expect(body).not.toMatch(/dimension|\breach\b|register|sign-up|sound wake|wake interest/i);
+    // Only the quoted world texts may carry the word reach (the craft reason, quoted exactly).
+    expect(body.replace(/"[^"]*"/g, '')).not.toMatch(
+      /dimension|\breach\b|register|sign-up|sound wake|wake interest/i,
+    );
     expect(body).not.toContain('you heard a sound');
   });
 
@@ -232,6 +320,25 @@ describe('play skill', () => {
     ]) {
       expect(body).toContain(line);
     }
+  });
+});
+
+describe('play and trade never promise what is not yet in the world', () => {
+  // Moot, author, offer, propose and vote are not available; no skill may say otherwise.
+  const unavailable = /\b(offer|propose|vote|moot|author)/i;
+
+  for (const name of ['play', 'trade']) {
+    it(`${name} skill does not promise offer, propose, vote, moot or author`, () => {
+      const body = parseSkill(readSkill(name)).body;
+      expect(body).not.toMatch(unavailable);
+    });
+  }
+
+  it('trade still says a deal is made by speech and given through act', () => {
+    const body = parseSkill(readSkill('trade')).body;
+    expect(body).toContain(
+      '- When a deal is agreed, give through `act`. Speech alone moves nothing.',
+    );
   });
 });
 
