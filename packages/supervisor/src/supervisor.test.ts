@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { makeFixture, onPoll, START } from './fixture.ts';
+import { type Behaviour, makeFixture, onPoll, START } from './fixture.ts';
 import { readSettings, SettingError } from './settings.ts';
 import { installSignals } from './signals.ts';
 
@@ -45,6 +45,54 @@ describe('failures and backoff', () => {
     onPoll(b, () => b.supervisor.requestStop());
     expect(await b.supervisor.run()).toBe(0);
     expect(b.read('STOP')).toBe('auto: 1 failed cycles in a row\n');
+  });
+
+  it('counts a fast run that made tool calls and ended cleanly as ok', async () => {
+    const f = makeFixture({ secs: 1, tools: 3 }, { GELDAR_RUN_MAX_FAILS: '1' });
+    onPoll(f, () => f.supervisor.requestStop());
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.read('supervisor.log')).toMatch(/run=1 .*result=ok delay=20 fails=0/);
+    expect(f.has('STOP')).toBe(false);
+  });
+
+  it('counts a fast run with no tool call as a failure', async () => {
+    const f = makeFixture({ secs: 1, tools: 0 }, { GELDAR_RUN_MAX_FAILS: '1' });
+    onPoll(f, () => f.supervisor.requestStop());
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.read('supervisor.log')).toMatch(/run=1 .*result=failed/);
+    expect(f.read('STOP')).toBe('auto: 1 failed cycles in a row\n');
+  });
+
+  it('resets the failure counter when a short run with tool calls succeeds', async () => {
+    const b: Behaviour = { secs: 1 };
+    const f = makeFixture(b, { GELDAR_RUN_MAX_FAILS: '2' });
+    onPoll(f, (poll) => {
+      if (poll === 1) b.tools = 3;
+      if (poll === 2) b.tools = 0;
+      if (poll === 3) f.supervisor.requestStop();
+    });
+    expect(await f.supervisor.run()).toBe(0);
+    const log = f.read('supervisor.log');
+    expect(log).toMatch(/run=1 .*result=failed delay=40 fails=1/);
+    expect(log).toMatch(/run=2 .*result=ok delay=20 fails=0/);
+    expect(log).toMatch(/run=3 .*result=failed delay=40 fails=1/);
+    expect(f.has('STOP')).toBe(false);
+  });
+
+  it('counts an error result as a failure even when the run made tool calls', async () => {
+    const f = makeFixture({ secs: 1, tools: 3, err: true }, { GELDAR_RUN_MAX_FAILS: '1' });
+    onPoll(f, () => f.supervisor.requestStop());
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.read('supervisor.log')).toMatch(/run=1 .*result=failed/);
+    expect(f.read('STOP')).toBe('auto: 1 failed cycles in a row\n');
+  });
+
+  it('counts a slow run with no tool call as ok', async () => {
+    const f = makeFixture({ secs: 100, tools: 0 }, { GELDAR_RUN_MAX_FAILS: '1' });
+    onPoll(f, () => f.supervisor.requestStop());
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.read('supervisor.log')).toMatch(/run=1 .*result=ok/);
+    expect(f.has('STOP')).toBe(false);
   });
 });
 

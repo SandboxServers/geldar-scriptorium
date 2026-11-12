@@ -312,8 +312,15 @@ export class Supervisor {
       const done = await summarizeFile(this.path(`session-${n}.jsonl`));
       const turns = done?.turns ?? 0;
       const cost = done?.cost ?? 0;
+      // A short run is a failure only when it made no tool call: a character that acts and then ends
+      // its session in seconds is working, not broken. An error result or a missing result always fails.
+      const noCalls = Object.keys(done?.tools ?? {}).length === 0;
       const ok =
-        code === 0 && secs >= s.fastSec && done !== null && !done.is_error && done.result_seen;
+        code === 0 &&
+        done !== null &&
+        !done.is_error &&
+        done.result_seen &&
+        (secs >= s.fastSec || !noCalls);
       appendFileSync(this.path('costs.csv'), `${n},${fmt(t1, 'stamp')},${turns},${cost}\n`, {
         mode: 0o600,
       });

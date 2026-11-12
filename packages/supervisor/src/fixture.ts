@@ -15,6 +15,8 @@ export interface Behaviour {
   cost?: number;
   err?: boolean;
   last?: string;
+  /** Tool calls made in the run (each one a tool_use entry in the stream). */
+  tools?: number;
   seen?: boolean;
   rc?: number;
   saveRc?: number;
@@ -78,7 +80,20 @@ export function makeFixture(
       behaviour.during?.();
       const n = Number(/session-(\d+)\.jsonl$/.exec(spec.stdoutPath ?? '')?.[1]);
       const lines = [
-        { type: 'assistant', message: { content: [{ type: 'text', text: behaviour.last ?? '' }] } },
+        {
+          type: 'assistant',
+          message: {
+            content: [
+              { type: 'text', text: behaviour.last ?? '' },
+              ...Array.from({ length: behaviour.tools ?? 0 }, () => ({
+                type: 'tool_use',
+                name: 'Read',
+                id: 'tool',
+                input: {},
+              })),
+            ],
+          },
+        },
       ];
       if (behaviour.seen !== false) {
         lines.push({
