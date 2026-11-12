@@ -130,6 +130,34 @@ describe('play skill', () => {
     const section = body.slice(start);
     expect(section).not.toMatch(/recall|reach/i);
   });
+
+  it('teaches looking with view: what it shows, when to use it, and that it is free', () => {
+    for (const line of [
+      '## Looking with `view`',
+      'It tells you what fills the left, ahead and right of you, and what is up, level with you and down.',
+      'If walls close in on every side, you are enclosed.',
+      'A small grid of marks shows the same thing at a glance: "." is air and "#" is solid.',
+      'Use it before you move into the unknown, when something seems wrong, after you wake, and when you are hurt or trapped.',
+      'Looking with `view` costs nothing.',
+      'What you see is what is in front of you now, not a map.',
+      'If `view` fails, wait a moment and view again.',
+      '`view` costs nothing, so it is not counted in that.',
+    ]) {
+      expect(body).toContain(line);
+    }
+  });
+
+  it('keeps the view section free of tool jargon, digits and the names it must not teach', () => {
+    const start = body.indexOf('## Looking with `view`');
+    const end = body.indexOf('Budget:');
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const section = body.slice(start, end);
+    expect(section.replace(/"[^"]*"/g, '')).not.toMatch(/\d/);
+    expect(section).not.toMatch(/\b(game|bot|model|tool|MCP|API|server|error|unavailable)\b/i);
+    expect(section).not.toMatch(/`see`|`reach`|`recall`|\bsee\(|\breach\(/);
+    expect(section).not.toMatch(/sound wake|wake interest|register|sign-up/i);
+  });
 });
 
 describe('setup skill', () => {
