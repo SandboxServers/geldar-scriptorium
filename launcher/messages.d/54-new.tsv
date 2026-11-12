@@ -11,8 +11,11 @@ created	Created %s. Next: geldar-play setup %s
 repo_bad	The --repo value is not allowed. Use owner/name: the owner has letters, digits and dashes, and the name has letters, digits and . _ -  Nothing was created.
 repo_missing	The repository %s was not found, or gh cannot see it. Nothing was changed.
 repo_visibility	The repository %s is %s, but %s was asked for. Nothing was changed.
-repo_not_empty	The repository %s already holds files other than README.md, LICENSE and .gitignore, or its files could not be listed. Nothing was changed.
+repo_not_empty	The repository %s must hold only README.md, LICENSE and .gitignore at the top level, and at least one of them. It holds other files, links, no commit, or its files could not be listed. Nothing was changed.
 bad_shard	The shard name is not allowed. Use lowercase letters, digits and dashes.
 bad_url	The world address is not allowed. Use http or https and a host name only.
 bad_token	The token file is not valid. It needs one line of 16 to 200 letters, digits or . _ ~ - (optionally after GELDAR_MCP_TOKEN=)
+adopt_failed	The repository %s may already hold the first commit for %s (%s). Check it on GitHub; if it holds the player's files, run new again after clearing it.
+template_unpinned	The template has no released kit version to copy from, so the repository was not filled. Nothing was changed.
+template_too_big	The template holds more than 2000 files or 20 MB, so the repository was not filled. Nothing was changed.
 setup_empty	Setup finished without writing who you are. Run: geldar-play setup %s

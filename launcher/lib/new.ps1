@@ -19,7 +19,11 @@ function Test-BaseUrl([string]$Url) {
 # Reads the token file: one line, trimmed, nothing after it. Returns the token.
 function Read-TokenFile([string]$Path) {
   if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { Die 1 bad_token }
-  $lines = [System.IO.File]::ReadAllText($Path, [System.Text.UTF8Encoding]::new($false)).Split("`n")
+  # A leading byte-order mark or any NUL byte (UTF-16 has them) is refused, as the bash twin does.
+  $bytes = [System.IO.File]::ReadAllBytes($Path)
+  if ($bytes.Count -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) { Die 1 bad_token }
+  if ($bytes -contains 0) { Die 1 bad_token }
+  $lines = [System.Text.UTF8Encoding]::new($false).GetString($bytes).Split("`n")
   for ($i = 1; $i -lt $lines.Count; $i++) {
     if ($lines[$i].TrimEnd("`r") -ne '') { Die 1 bad_token }
   }
@@ -188,16 +192,34 @@ function Read-Persona([string]$Dir, [string]$Id) {
 }
 
 # Ends new after GitHub made the repository: removes the local clone, then prints the message and the
-# recovery line. Arguments: clone folder, player id, then the message key and its arguments.
+# recovery line. Arguments: clone folder, player id, step, then the message key and its arguments.
+# For an adopted repository every failure says adopt_failed: the commit may already be on the remote.
 function Die-AfterCreate {
   $clone = [string]$args[0]
   $id = [string]$args[1]
-  $rest = @($args | Select-Object -Skip 2)
+  $step = [string]$args[2]
+  $rest = @($args | Select-Object -Skip 3)
   Remove-Item -LiteralPath $clone -Recurse -Force -ErrorAction SilentlyContinue
+  if ($script:NEW_ADOPT) {
+    Say adopt_failed $script:NEW_REPO $id $step
+    exit 1
+  }
   Say @rest
-  # An adopted repository was there before new ran, so there is nothing of ours to delete on GitHub.
-  if (-not $script:NEW_ADOPT) { Say repo_on_github $id }
+  Say repo_on_github $id
   exit 1
+}
+
+# Ends new on a refusal after the clone but before anything was committed: the local clone goes, and
+# so does the players folder if this run made it. Arguments: clone folder, then the message and arguments.
+function Die-AdoptRefuse {
+  $clone = [string]$args[0]
+  $rest = @($args | Select-Object -Skip 1)
+  Remove-Item -LiteralPath $clone -Recurse -Force -ErrorAction SilentlyContinue
+  if ($script:NEW_PLAYERS_MADE -and (Test-Path -LiteralPath $script:NEW_PLAYERS_DIR -PathType Container) -and
+    -not @(Get-ChildItem -LiteralPath $script:NEW_PLAYERS_DIR -Force)) {
+    Remove-Item -LiteralPath $script:NEW_PLAYERS_DIR -Force -ErrorAction SilentlyContinue
+  }
+  Die 1 @rest
 }
 
 # Checks the repository --repo names before anything is written: it exists, its visibility is the
@@ -215,52 +237,98 @@ function Test-AdoptRepo([string]$Gh, [string]$Repo, [string]$Want) {
   }
   $c = Invoke-BoundedOut 120 @($Gh, 'api', "repos/$Repo/contents", '--jq', 'map(.name)')
   if ($c.Code -ne 0) { Die 1 repo_not_empty $Repo }
-  # The answer is a JSON array of names; the quoted strings are the names.
+  # The answer is a JSON array of names; the quoted strings are the names. An empty list is refused:
+  # a repository with no commit cannot be filled, and an answer that cannot be read is no answer.
+  $count = 0
   foreach ($m in [regex]::Matches($c.Text, '"([^"]*)"')) {
     $n = $m.Groups[1].Value
     if ($n -cne 'README.md' -and $n -cne 'LICENSE' -and $n -cne '.gitignore') { Die 1 repo_not_empty $Repo }
+    $count++
   }
+  if ($count -eq 0) { Die 1 repo_not_empty $Repo }
 }
 
-# Copies the template's files (a shallow clone of the pinned template repository) into the clone.
-# Nothing under .git crosses and a link in the template is refused. Returns the paths that git
-# records as executable, or $null on a refusal.
-function Copy-TemplateInto([string]$Gh, [string]$Clone) {
+# Checks the clone of an adopted repository: git must list nothing but plain files (mode 100644) named
+# README.md, LICENSE or .gitignore, so no link can carry the template copy out of the clone.
+function Test-AdoptClone([string]$Clone) {
+  $ls = Invoke-GitOut $Clone 120 @('ls-tree', '-r', '-z', 'HEAD')
+  if ($ls.Code -ne 0) { return $false }
+  $count = 0
+  foreach ($rec in $ls.Text.Split([char]0)) {
+    if ($rec -eq '') { continue }
+    $tab = $rec.IndexOf("`t")
+    if ($tab -lt 0) { return $false }
+    $mode = $rec.Substring(0, $tab).Split(' ')[0]
+    $p = $rec.Substring($tab + 1)
+    if ($mode -cne '100644') { return $false }
+    if ($p -cne 'README.md' -and $p -cne 'LICENSE' -and $p -cne '.gitignore') { return $false }
+    $count++
+  }
+  return ($count -gt 0)
+}
+
+# Picks the template release the way upgrade does: the newest kit-v tag that is not a prerelease, from
+# GELDAR_TEMPLATE_URL (under GELDAR_INTERNAL=1) or the template repository. Returns @(url, tag); no
+# tag is template_unpinned.
+function Get-AdoptTemplateTag {
+  $url = Get-TemplateUrl
+  $best = ''
+  foreach ($v in @(Get-ReleaseVersions $url)) {
+    if ($v.Contains('-')) { continue }
+    if ($best -eq '' -or (Compare-Kit $v $best) -gt 0) { $best = $v }
+  }
+  if (-not $best) { Die 1 template_unpinned }
+  return , @($url, "kit-v$best")
+}
+
+# Copies the template's files (a shallow, hardened, unchecked-out clone of the pinned tag) into the
+# clone. Nothing under .git crosses and a link in the template is refused. Returns the paths that git
+# records as executable, $null on a refusal, or 'big' when the template holds more than 2000 files
+# or 20 MB.
+function Copy-TemplateInto([string]$Url, [string]$Tag, [string]$Clone) {
   $tmp = Join-Path ([IO.Path]::GetTempPath()) ('gp-tpl.' + [guid]::NewGuid().ToString('N').Substring(0, 12))
   New-Item -ItemType Directory -Path $tmp -Force | Out-Null
   try {
-    if ((Invoke-InDir $tmp @($Gh, 'repo', 'clone', 'SandboxServers/geldar-player-template', 'tpl', '--', '--depth', '1')) -ne 0) {
-      return $null
-    }
     $src = Join-Path $tmp 'tpl'
-    $ls = Invoke-GitOut $src 120 @('ls-files', '-s', '-z')
+    $words = @(Get-GitWords -c fetch.fsckObjects=true -c transfer.fsckObjects=true -c core.autocrlf=false `
+        clone -q --no-checkout --depth 1 --branch $Tag -- $Url $src)
+    if ((Invoke-BoundedQuiet 120 @words) -ne 0) { return $null }
+    $ls = Invoke-GitOut $src 120 @('ls-tree', '-r', '-l', '-z', 'HEAD')
     if ($ls.Code -ne 0) { return $null }
     $paths = @()
     $exec = @()
+    $total = [int64]0
     foreach ($rec in $ls.Text.Split([char]0)) {
       if ($rec -eq '') { continue }
       $tab = $rec.IndexOf("`t")
       if ($tab -lt 0) { return $null }
-      $mode = $rec.Substring(0, $tab).Split(' ')[0]
+      $meta = $rec.Substring(0, $tab).Split(' ', [StringSplitOptions]::RemoveEmptyEntries)
+      $mode = $meta[0]
       $p = $rec.Substring($tab + 1)
       if ($mode -ceq '100755') { $exec += $p } elseif ($mode -cne '100644') { return $null }
-      if ("/$p/" -match '/(\.\.|\.|\.git)/' -or $p.StartsWith('/') -or $p.Contains('\')) { return $null }
-      $item = Get-Item -LiteralPath (Join-Path $src $p) -Force -ErrorAction SilentlyContinue
-      if (-not $item -or $item.PSIsContainer -or $item.LinkType) { return $null }
+      if ($meta.Count -lt 4 -or $meta[3] -notmatch '^[0-9]+\z') { return $null }
+      $total += [int64]$meta[3]
+      if ($paths.Count + 1 -gt 2000 -or $total -gt 20971520) { return 'big' }
+      if ("/$p/".ToLowerInvariant() -match '/(\.\.|\.|\.git)/' -or $p.StartsWith('/') -or $p.Contains('\') -or $p.Contains("`n")) { return $null }
       $paths += $p
     }
     if ($paths.Count -eq 0) { return $null }
+    $co = Invoke-GitOut $src 120 @('-c', 'core.autocrlf=false', 'checkout', '-q', 'HEAD', '--', '.')
+    if ($co.Code -ne 0) { return $null }
     foreach ($p in $paths) {
+      $item = Get-Item -LiteralPath (Join-Path $src $p) -Force -ErrorAction SilentlyContinue
+      if (-not $item -or $item.PSIsContainer -or $item.LinkType) { return $null }
       $to = Join-Path $Clone $p
       New-Item -ItemType Directory -Path (Split-Path -Parent $to) -Force | Out-Null
+      # The destination goes first, so a link put there after the check is not written through.
+      Remove-Item -LiteralPath $to -Force -ErrorAction SilentlyContinue
       [IO.File]::Copy((Join-Path $src $p), $to, $true)
     }
     return , $exec
   } finally {
     Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
   }
-}
-function Verb-new {
+}function Verb-new {
   $id = [string]$args[0]
   $more = @($args | Select-Object -Skip 1 | ForEach-Object { [string]$_ })
   $vis = ''
@@ -323,11 +391,18 @@ function Verb-new {
   if ((Test-Path -LiteralPath (Join-Path $players $name)) -or (Test-Path -LiteralPath (Join-Path $d 'clone'))) {
     Die 1 repo_exists $id
   }
-  New-Item -ItemType Directory -Path $players -Force | Out-Null
   $gh = $env:GELDAR_GH
   if (-not $gh) { $gh = 'gh' }
   $script:NEW_ADOPT = [bool]$repo
-  if ($repo) { Test-AdoptRepo $gh $repo $newVis }
+  $script:NEW_REPO = $repo
+  $tplPin = $null
+  if ($repo) {
+    Test-AdoptRepo $gh $repo $newVis
+    $tplPin = Get-AdoptTemplateTag
+  }
+  $script:NEW_PLAYERS_DIR = $players
+  $script:NEW_PLAYERS_MADE = -not (Test-Path -LiteralPath $players)
+  New-Item -ItemType Directory -Path $players -Force | Out-Null
   if ($newVis -cne 'private') { Say public_notice }
   if ($mock) { Say mock_note }
 
@@ -349,14 +424,17 @@ function Verb-new {
     }
     if ($ok) { break }
     Remove-Item -LiteralPath $clone -Recurse -Force -ErrorAction SilentlyContinue
-    if ($n -ge 5) { Die-AfterCreate $clone $id clone_timeout $id }
+    if ($n -ge 5) { Die-AfterCreate $clone $id clone clone_timeout $id }
     Invoke-GpSleep 3
   }
 
   $adds = @('player.json')
   if ($repo) {
-    $exec = Copy-TemplateInto $gh $clone
-    if ($null -eq $exec) { Die-AfterCreate $clone $id gh_failed $id 'template' }
+    # Only the three names git lists in the clone may be there; a link would carry the copy outside it.
+    if (-not (Test-AdoptClone $clone)) { Die-AdoptRefuse $clone repo_not_empty $repo }
+    $exec = Copy-TemplateInto $tplPin[0] $tplPin[1] $clone
+    if ($exec -is [string]) { Die-AdoptRefuse $clone template_too_big }
+    if ($null -eq $exec) { Die-AfterCreate $clone $id template gh_failed $id template }
     $adds = @('-A')
   }
   Write-PlayerJson (Join-Path $clone 'player.json') $id $shard $url
@@ -368,7 +446,7 @@ function Verb-new {
     if (-not $repo) { $adds += 'memory/identity.md', 'memory/goals.md' }
   }
   Invoke-Git -C $clone add @adds *> $null
-  if ($LASTEXITCODE -ne 0) { Die-AfterCreate $clone $id gh_failed $id 'add' }
+  if ($LASTEXITCODE -ne 0) { Die-AfterCreate $clone $id add gh_failed $id add }
   if ($repo) {
     foreach ($p in @($exec)) { Invoke-Git -C $clone update-index --chmod=+x -- $p *> $null }
   }
@@ -388,9 +466,9 @@ function Verb-new {
   } finally {
     foreach ($k in $saved.Keys) { [Environment]::SetEnvironmentVariable($k, $saved[$k]) }
   }
-  if ($rc -ne 0) { Die-AfterCreate $clone $id gh_failed $id 'commit' }
+  if ($rc -ne 0) { Die-AfterCreate $clone $id commit gh_failed $id commit }
   $words = Get-GitWords -C $clone push -q origin HEAD
-  if ((Invoke-BoundedQuiet 120 @words) -ne 0) { Die-AfterCreate $clone $id gh_failed $id 'push' }
+  if ((Invoke-BoundedQuiet 120 @words) -ne 0) { Die-AfterCreate $clone $id push gh_failed $id push }
 
   New-PrivateDir (Get-StateDir)
   New-PrivateDir $d

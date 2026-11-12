@@ -1,13 +1,16 @@
 import { randomBytes } from 'node:crypto';
 import {
   chmodSync,
+  cpSync,
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readdirSync,
   readFileSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -89,7 +92,7 @@ function token(): string {
   return randomBytes(24).toString('base64url');
 }
 
-function tokenFile(l: Launcher, w: World, body: string): string {
+function tokenFile(l: Launcher, w: World, body: string | Buffer): string {
   const f = join(w.root, 'tok.txt');
   writeFileSync(f, body);
   return l.name === 'bash' ? bashPath(f) : f;
@@ -117,6 +120,85 @@ function filesUnder(dir: string, rel = ''): string[] {
     else out.push(r);
   }
   return out;
+}
+
+const IDENT = [
+  '-c',
+  'user.name=S',
+  '-c',
+  'user.email=s@example.test',
+  '-c',
+  'commit.gpgsign=false',
+  '-c',
+  'tag.gpgsign=false',
+];
+
+interface RawEntry {
+  name: string;
+  mode: string;
+  body: string | Buffer;
+}
+
+// A commit holding exactly these top-level entries, built from raw objects so that git's own path
+// checks (links, dot names, quotes) do not get in the way. Returns the commit id.
+function rawCommit(dir: string, entries: RawEntry[], parent?: string): string {
+  const tmp = mkdtempSync(join(tmpdir(), 'raw-'));
+  const shas = new Map<string, string>();
+  const parts: Buffer[] = [];
+  const sorted = [...entries].sort((a, b) =>
+    Buffer.compare(Buffer.from(a.name), Buffer.from(b.name)),
+  );
+  for (const e of sorted) {
+    const key = Buffer.from(e.body).toString('base64');
+    let sha = shas.get(key);
+    if (!sha) {
+      writeFileSync(join(tmp, 'blob'), e.body);
+      sha = git(dir, ['hash-object', '-w', join(tmp, 'blob')]);
+      shas.set(key, sha);
+    }
+    parts.push(Buffer.from(`${e.mode} ${e.name}\0`), Buffer.from(sha, 'hex'));
+  }
+  writeFileSync(join(tmp, 'tree'), Buffer.concat(parts));
+  const tree = git(dir, ['hash-object', '-t', 'tree', '-w', '--literally', join(tmp, 'tree')]);
+  return git(dir, [...IDENT, 'commit-tree', tree, ...(parent ? ['-p', parent] : []), '-m', 'raw']);
+}
+
+// Points the launcher at a template repository (the upgrade path's seam, GELDAR_TEMPLATE_URL).
+function useTemplate(s: Setup, dir: string) {
+  s.env.GELDAR_TEMPLATE_URL = bashPath(dir);
+  s.envPwsh.GELDAR_TEMPLATE_URL = dir;
+}
+
+// The shipped template as a released kit: tagged kit-v1.0.0, then one later commit that is not tagged.
+function seedTemplate(s: Setup): string {
+  const dir = join(s.w.root, 'tplrepo');
+  mkdirSync(dir, { recursive: true });
+  git(dir, ['init', '-q', '-b', 'main']);
+  cpSync(join(repoRoot, 'template'), dir, { recursive: true });
+  git(dir, ['add', '-A']);
+  // The index of this repository is the truth about the executable bit, whatever the file system says.
+  for (const line of git(repoRoot, ['ls-files', '-s', 'template']).split('\n')) {
+    const m = /^100755 \S+ \d+\t(.+)$/.exec(line);
+    if (m) git(dir, ['update-index', '--chmod=+x', '--', m[1].slice('template/'.length)]);
+  }
+  git(dir, [...IDENT, 'commit', '-q', '-m', 'release']);
+  git(dir, ['tag', 'kit-v1.0.0']);
+  writeFileSync(join(dir, 'README.md'), 'LATER, untagged\n');
+  git(dir, ['add', '-A']);
+  git(dir, [...IDENT, 'commit', '-q', '-m', 'later']);
+  useTemplate(s, dir);
+  return dir;
+}
+
+// A template whose released tag holds exactly these entries.
+function seedRawTemplate(s: Setup, entries: RawEntry[]) {
+  const dir = join(s.w.root, 'tplraw');
+  mkdirSync(dir, { recursive: true });
+  git(dir, ['init', '-q', '-b', 'main']);
+  const c = rawCommit(dir, entries);
+  git(dir, ['update-ref', 'refs/heads/main', c]);
+  git(dir, ['tag', 'kit-v1.0.0', c]);
+  useTemplate(s, dir);
 }
 
 describe.each(forGroup('new'))('new ($name)', (l) => {
@@ -326,28 +408,25 @@ describe.each(forGroup('new'))('new ($name)', (l) => {
     REPO,
     ...extra,
   ];
+  // Seeds the bare Acme/other-repo with the given files (or raw entries) and the pinned template.
   function seedRepo(s: Setup, vis: string, files: Record<string, string> = { 'README.md': 'x\n' }) {
-    const work = join(s.w.root, 'seed');
-    mkdirSync(work, { recursive: true });
-    git(s.w.root, ['init', '-q', '--bare', '-b', 'main', bareOf(s)]);
-    git(work, ['init', '-q', '-b', 'main']);
-    for (const [f, body] of Object.entries(files)) {
-      mkdirSync(join(work, f, '..'), { recursive: true });
-      writeFileSync(join(work, f), body);
-    }
-    const id = [
-      '-c',
-      'user.name=S',
-      '-c',
-      'user.email=s@example.test',
-      '-c',
-      'commit.gpgsign=false',
-    ];
-    git(work, ['add', '-A']);
-    git(work, [...id, 'commit', '-q', '-m', 'Initial commit']);
-    git(work, ['push', '-q', bareOf(s), 'main']);
-    writeFileSync(join(s.ghRoot, 'other-repo.vis'), vis);
+    seedRepoRaw(
+      s,
+      vis,
+      Object.entries(files).map(([name, body]) => ({ name, mode: '100644', body })),
+    );
   }
+  function seedRepoRaw(s: Setup, vis: string, entries: RawEntry[]) {
+    git(s.w.root, ['init', '-q', '--bare', '-b', 'main', bareOf(s)]);
+    git(bareOf(s), ['update-ref', 'refs/heads/main', rawCommit(bareOf(s), entries)]);
+    writeFileSync(join(s.ghRoot, 'other-repo.vis'), vis);
+    seedTemplate(s);
+  }
+  // A players folder that does not exist yet: a refusal must not leave it behind.
+  const fresh = (s: Setup) => {
+    const p = join(s.w.root, 'fresh-players');
+    return { p, env: { GELDAR_PLAYERS_DIR: l.name === 'bash' ? bashPath(p) : p } };
+  };
   const bareHead = (s: Setup) => git(bareOf(s), ['rev-parse', 'main']);
 
   it('11. --repo fills an empty repository from the template, with the persona', () => {
@@ -384,8 +463,9 @@ describe.each(forGroup('new'))('new ($name)', (l) => {
     const s = setupWorld();
     seedRepo(s, 'private');
     const before = bareHead(s);
-    const r = newRun(l, s, adoptArgs());
+    const r = newRun(l, s, adoptArgs(), fresh(s).env);
     expect(r.status, r.stderr).toBe(1);
+    expect(existsSync(fresh(s).p)).toBe(false);
     expect(r.stderr).toContain(`${REPO} is private, but public was asked for`);
     expect(s.ghCalls().some((c) => c[1] === 'clone' || c[1] === 'create')).toBe(false);
     expect(existsSync(clonePath(s))).toBe(false);
@@ -395,17 +475,19 @@ describe.each(forGroup('new'))('new ($name)', (l) => {
   it('13. --repo refuses a repository holding other files', () => {
     const s = setupWorld();
     seedRepo(s, 'public', { 'README.md': 'x\n', 'src/a.txt': 'a\n' });
-    const r = newRun(l, s, adoptArgs());
+    const r = newRun(l, s, adoptArgs(), fresh(s).env);
     expect(r.status, r.stderr).toBe(1);
-    expect(r.stderr).toContain('already holds files other than');
+    expect(existsSync(fresh(s).p)).toBe(false);
+    expect(r.stderr).toContain('must hold only README.md, LICENSE and .gitignore');
     expect(s.ghCalls().some((c) => c[1] === 'clone')).toBe(false);
     expect(existsSync(clonePath(s))).toBe(false);
   });
 
   it('14. --repo refuses a repository that is not there, and a bad value', () => {
     const s = setupWorld();
-    const r = newRun(l, s, adoptArgs());
+    const r = newRun(l, s, adoptArgs(), fresh(s).env);
     expect(r.status, r.stderr).toBe(1);
+    expect(existsSync(fresh(s).p)).toBe(false);
     expect(r.stderr).toContain('was not found');
     const b = newRun(l, s, [ID, '--mock', MOCK, '--public', '--repo', 'no/such/thing']);
     expect(b.status, b.stderr).toBe(1);
@@ -416,14 +498,184 @@ describe.each(forGroup('new'))('new ($name)', (l) => {
   it('15. --repo refuses a template that holds a symlink', () => {
     const s = setupWorld();
     seedRepo(s, 'public');
+    seedRawTemplate(s, [
+      { name: 'README.md', mode: '100644', body: 'r\n' },
+      { name: 'link', mode: '120000', body: 'README.md' },
+    ]);
     const before = bareHead(s);
-    const r = newRun(l, s, adoptArgs(), { FAKE_GH_TEMPLATE_LINK: '1' });
+    const r = newRun(l, s, adoptArgs(), fresh(s).env);
     expect(r.status, r.stderr).toBe(1);
-    expect(r.stderr).toContain('(template)');
+    expect(r.stderr).toContain('may already hold the first commit for abc (template)');
+    expect(r.stderr).not.toContain('already made on GitHub');
+    expect(existsSync(join(fresh(s).p, `player-${ID}`))).toBe(false);
+    expect(existsSync(join(s.w.state, ID))).toBe(false);
+    expect(bareHead(s)).toBe(before);
+  });
+
+  it('15b. --repo refuses a template path of .., .GIT or a case variant of .git', () => {
+    for (const name of ['..', '.GIT', '.Git']) {
+      const s = setupWorld();
+      seedRepo(s, 'public');
+      seedRawTemplate(s, [
+        { name: 'README.md', mode: '100644', body: 'r\n' },
+        { name, mode: '100644', body: 'x\n' },
+      ]);
+      const before = bareHead(s);
+      const r = newRun(l, s, adoptArgs());
+      expect(r.status, `${name}: ${r.stderr}`).toBe(1);
+      expect(r.stderr).toContain('(template)');
+      expect(existsSync(clonePath(s))).toBe(false);
+      expect(bareHead(s)).toBe(before);
+    }
+  });
+
+  it('15c. --repo refuses a template of more than 2000 files, and one of more than 20 MB', () => {
+    const many: RawEntry[] = [];
+    for (let i = 0; i <= 2000; i++) many.push({ name: `f${i}`, mode: '100644', body: 'x\n' });
+    const big = [{ name: 'big', mode: '100644', body: Buffer.alloc(21 * 1024 * 1024, 97) }];
+    for (const entries of [many, big]) {
+      const s = setupWorld();
+      seedRepo(s, 'public');
+      seedRawTemplate(s, entries);
+      const before = bareHead(s);
+      const r = newRun(l, s, adoptArgs(), fresh(s).env);
+      expect(r.status, r.stderr).toBe(1);
+      expect(r.stderr).toContain('more than 2000 files or 20 MB');
+      expect(existsSync(fresh(s).p)).toBe(false);
+      expect(existsSync(join(s.w.state, ID))).toBe(false);
+      expect(bareHead(s)).toBe(before);
+    }
+  });
+
+  it('18. --repo copies the tagged template, not a later untagged commit', () => {
+    const s = setupWorld();
+    seedRepo(s, 'public');
+    const r = newRun(l, s, adoptArgs());
+    expect(r.status, r.stderr).toBe(0);
+    const readme = readFileSync(join(clonePath(s), 'README.md'), 'utf8');
+    expect(readme).not.toContain('LATER');
+    expect(readme).toBe(readFileSync(join(repoRoot, 'template', 'README.md'), 'utf8'));
+    expect(git(bareOf(s), ['show', 'main:README.md'])).not.toContain('LATER');
+  });
+
+  it('19. --repo with no released template tag is refused: template_unpinned, nothing changed', () => {
+    const s = setupWorld();
+    seedRepo(s, 'public');
+    git(join(s.w.root, 'tplrepo'), ['tag', '-d', 'kit-v1.0.0']);
+    const before = bareHead(s);
+    const r = newRun(l, s, adoptArgs(), fresh(s).env);
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toContain('no released kit version');
+    expect(s.ghCalls().some((c) => c[1] === 'clone')).toBe(false);
+    expect(existsSync(fresh(s).p)).toBe(false);
+    expect(bareHead(s)).toBe(before);
+  });
+
+  it('20. --repo refuses a repository whose README.md is a link; nothing outside changes', () => {
+    const s = setupWorld();
+    const outside = join(s.w.root, 'outside.txt');
+    writeFileSync(outside, 'keep\n');
+    seedRepoRaw(s, 'public', [{ name: 'README.md', mode: '120000', body: bashPath(outside) }]);
+    const before = bareHead(s);
+    const r = newRun(l, s, adoptArgs(), fresh(s).env);
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toContain('must hold only README.md, LICENSE and .gitignore');
+    expect(readFileSync(outside, 'utf8')).toBe('keep\n');
+    expect(existsSync(fresh(s).p)).toBe(false);
+    expect(existsSync(join(s.w.state, ID))).toBe(false);
+    expect(bareHead(s)).toBe(before);
+  });
+
+  it('21. the copy removes a file that appears in the clone after the check', () => {
+    const s = setupWorld();
+    seedRepo(s, 'public');
+    const outside = join(s.w.root, 'outside.txt');
+    writeFileSync(outside, 'keep\n');
+    const r = newRun(l, s, adoptArgs(), { FAKE_GH_RACE_LINK: bashPath(outside) });
+    expect(r.status, r.stderr).toBe(0);
+    expect(readFileSync(outside, 'utf8')).toBe('keep\n');
+    expect(readFileSync(join(clonePath(s), 'README.md'), 'utf8')).toBe(
+      readFileSync(join(repoRoot, 'template', 'README.md'), 'utf8'),
+    );
+  });
+
+  it('22. the pushed commit keeps the executable hooks at mode 100755', () => {
+    const s = setupWorld();
+    seedRepo(s, 'public');
+    const r = newRun(l, s, adoptArgs());
+    expect(r.status, r.stderr).toBe(0);
+    const want = git(repoRoot, ['ls-files', '-s', 'template/.claude/hooks'])
+      .split('\n')
+      .map((x) => /^100755 \S+ \d+\ttemplate\/(.+\.sh)$/.exec(x)?.[1])
+      .filter((x): x is string => !!x);
+    expect(want.length).toBeGreaterThan(0);
+    const have = git(bareOf(s), ['ls-tree', '-r', 'main']).split('\n');
+    for (const p of want) {
+      expect(
+        have.find((x) => x.endsWith(`\t${p}`)),
+        p,
+      ).toMatch(/^100755 /);
+    }
+  });
+
+  it('23. a push the remote rejects ends adopt_failed; clone and state are gone', () => {
+    const s = setupWorld();
+    seedRepo(s, 'public');
+    const hook = join(bareOf(s), 'hooks', 'pre-receive');
+    writeFileSync(hook, '#!/bin/sh\nexit 1\n');
+    chmodSync(hook, 0o755);
+    const before = bareHead(s);
+    const r = newRun(l, s, adoptArgs());
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toContain(
+      `The repository ${REPO} may already hold the first commit for abc (push)`,
+    );
+    expect(r.stderr).not.toContain('did not create the repository');
     expect(r.stderr).not.toContain('already made on GitHub');
     expect(existsSync(clonePath(s))).toBe(false);
     expect(existsSync(join(s.w.state, ID))).toBe(false);
     expect(bareHead(s)).toBe(before);
+  });
+
+  it('24. an empty contents list, a failing one and a repository with no commit are refused', () => {
+    for (const mode of ['empty', 'error', 'nocommit']) {
+      const s = setupWorld();
+      if (mode === 'nocommit') {
+        git(s.w.root, ['init', '-q', '--bare', '-b', 'main', bareOf(s)]);
+        writeFileSync(join(s.ghRoot, 'other-repo.vis'), 'public');
+        seedTemplate(s);
+      } else {
+        seedRepo(s, 'public');
+      }
+      const extra = mode === 'nocommit' ? {} : { FAKE_GH_API: mode };
+      const r = newRun(l, s, adoptArgs(), { ...fresh(s).env, ...extra });
+      expect(r.status, `${mode}: ${r.stderr}`).toBe(1);
+      expect(r.stderr).toContain('must hold only README.md, LICENSE and .gitignore');
+      expect(s.ghCalls().some((c) => c[1] === 'clone')).toBe(false);
+      expect(existsSync(fresh(s).p)).toBe(false);
+    }
+  });
+
+  it('25. a second --repo is refused', () => {
+    const s = setupWorld();
+    seedRepo(s, 'public');
+    const r = newRun(l, s, adoptArgs(['--repo', REPO]), fresh(s).env);
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toContain('--repo value is not allowed');
+    expect(s.ghCalls()).toEqual([]);
+    expect(existsSync(fresh(s).p)).toBe(false);
+  });
+
+  it('26. a file name with a quote in the repository is refused (the list is escaped JSON)', () => {
+    const s = setupWorld();
+    seedRepoRaw(s, 'public', [
+      { name: 'README.md', mode: '100644', body: 'x\n' },
+      { name: 'a"b', mode: '100644', body: 'x\n' },
+    ]);
+    const r = newRun(l, s, adoptArgs(), fresh(s).env);
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toContain('must hold only README.md, LICENSE and .gitignore');
+    expect(existsSync(fresh(s).p)).toBe(false);
   });
 
   it('16. a token file may carry the GELDAR_MCP_TOKEN= prefix; other prefixes are refused', () => {
@@ -438,10 +690,15 @@ describe.each(forGroup('new'))('new ($name)', (l) => {
     ]);
     expect(a.status, a.stderr).toBe(0);
     expect(readFileSync(join(s.w.state, ID, 'token'), 'utf8').trim()).toBe(t);
+    const bom = Buffer.from([0xef, 0xbb, 0xbf]);
     for (const body of [
       `OTHER_TOKEN=${t}\n`,
       `GELDAR_MCP_TOKEN=GELDAR_MCP_TOKEN=${t}\n`,
       'GELDAR_MCP_TOKEN=short\n',
+      Buffer.concat([bom, Buffer.from(`GELDAR_MCP_TOKEN=${t}\n`)]),
+      Buffer.concat([bom, Buffer.from(`${t}\n`)]),
+      Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(`${t}\n`, 'utf16le')]),
+      Buffer.from(`${t}\n`, 'utf16le'),
     ]) {
       const s2 = setupWorld();
       const b = newRun(l, s2, [ID, '--mock', MOCK, '--token-file', tokenFile(l, s2.w, body)]);
