@@ -268,7 +268,7 @@ pl_prepare_ws() {
 pl_ready() {
   local d
   d=$(player_dir "$1")
-  [ -f "$d/deploy-key" ] || die 1 player_no_key "$1" "$1"
+  [ -f "$d/deploy-key" ] || die 1 player_no_key "$1"
   [ -f "$d/token" ] || die 1 player_no_token "$1"
   auth_usable || die 1 player_no_login
 }
@@ -305,7 +305,19 @@ verb_stop() {
   say player_stopped "$1"
 }
 
-# player-status <id>: container states, the supervisor's and the keeper's status.json, HELD if set.
+# pl_status_part id role vol uid script: one part of player-status, with secrets masked. A part that
+# cannot be read (no volume, no file, a failed helper) prints player_no_status for its role instead.
+pl_status_part() {
+  local id=$1 role=$2 vol=$3 uid=$4 script=$5 out
+  out=$(pl_helper "$id" "$role" "$vol" "$uid" ro "$script" 2> /dev/null) || {
+    say player_no_status "$role"
+    return 0
+  }
+  printf '%s\n' "$out" | pl_mask
+}
+
+# player-status <id>: container states, the supervisor's status.json, the keeper's push time
+# (last_pushed_head and last_run_utc from its status.json), HELD if set.
 # Reads only the files named here; no secret is printed.
 verb_player_status() {
   [ $# -eq 1 ] || die 2 usage
@@ -314,11 +326,9 @@ verb_player_status() {
   pl_secrets "$id"
   pl_compose "$id" ps --all --format '{{.Service}} {{.State}}' 2> /dev/null | pl_mask
   printf 'supervisor status:\n'
-  pl_helper "$id" supervisor "geldar-sup-$id" 1001 ro 'cat /vol/status.json' 2> /dev/null | pl_mask ||
-    say player_no_status supervisor
+  pl_status_part "$id" supervisor "geldar-sup-$id" 1001 'cat /vol/status.json'
   printf 'keeper status:\n'
-  pl_helper "$id" keeper "geldar-keep-$id" 1002 ro 'cat /vol/status.json && stat -c "written %y" /vol/status.json' 2> /dev/null | pl_mask ||
-    say player_no_status keeper
+  pl_status_part "$id" keeper "geldar-keep-$id" 1002 'grep -E "\"(last_pushed_head|last_run_utc)\"" /vol/status.json'
   if reason=$(pl_helper "$id" keeper "geldar-keep-$id" 1002 ro 'cat /vol/HELD' 2> /dev/null); then
     say player_held "$(printf '%s' "$reason" | sanitize)"
   fi
