@@ -73,6 +73,46 @@ describe('play skill', () => {
   it('never gives through a separate give tool', () => {
     expect(body).not.toContain('give(');
   });
+
+  it('teaches the world fixed lines for results, hurt, sounds, body and death', () => {
+    for (const line of [
+      'Your dig failed: the way was blocked.',
+      'You could not get there: the way was blocked.',
+      'You lack the materials to craft that.',
+      'An arrow hit you from behind.',
+      'You are burning.',
+      'You hear hissing close to the north.',
+      'You hear thunder far off to the west.',
+      'Health does not regenerate naturally while hunger is low. Hunger falls over time.',
+      'You died. Something struck you down. You wake at the spawn with nothing.',
+      'You dropped N items where you died.',
+    ]) {
+      expect(body).toContain(line);
+    }
+  });
+
+  it('keeps the new reading sections free of meta words and digits', () => {
+    const start = body.indexOf('## Reading your results');
+    const end = body.indexOf('Budget:');
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const section = body.slice(start, end);
+    expect(section).not.toMatch(/\d/);
+    expect(section).not.toMatch(
+      /\b(outcomes?|events?|reflexes?|lives?|life's|respawns?|games?|counters?|budgets?|kit|tools? call|API|MCP|server)\b/i,
+    );
+  });
+
+  it('never mentions dimensions, reach, register or a sound wake', () => {
+    expect(body).not.toMatch(/dimension|\breach\b|register|sign-up|sound wake|wake interest/i);
+    expect(body).not.toContain('you heard a sound');
+  });
+
+  it('keeps the recall and reach tools out of the new reading and waking sections', () => {
+    const start = body.indexOf('## Reading your results');
+    const section = body.slice(start);
+    expect(section).not.toMatch(/recall|reach/i);
+  });
 });
 
 describe('setup skill', () => {
@@ -94,5 +134,17 @@ describe('setup skill', () => {
 
   it('says the character may be fictional', () => {
     expect(skill.body).toContain('fictional');
+  });
+});
+
+describe('reflect skill', () => {
+  const body = parseSkill(readSkill('reflect')).body;
+
+  it('writes the lesson of a death in the character voice, with no meta words', () => {
+    expect(body).toContain(
+      'If you died today, write first what killed you, what you dropped and where, and what it taught you.',
+    );
+    expect(body).not.toMatch(/\b(lives?|respawns?|games?|counters?|outcomes?|events?)\b/i);
+    expect(body).not.toMatch(/dimension|\breach\b|register|sign-up|sound wake/i);
   });
 });
