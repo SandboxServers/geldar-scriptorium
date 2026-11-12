@@ -1,6 +1,24 @@
-import { existsSync, readFileSync } from 'node:fs';
+import {
+  chmodSync,
+  closeSync,
+  constants,
+  existsSync,
+  fstatSync,
+  lstatSync,
+  mkdtempSync,
+  openSync,
+  readFileSync,
+  readSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { MAX_BUNDLE_BYTES } from '@geldar/scriptorium-verify';
 import type { Settings } from './settings.ts';
+
+/** The keeper's bundle file name in its state folder. */
+const BUNDLE = 'upstream.bundle';
 
 /** The keeper's manifest (`upstream.json`): the upstream head it bundled and the workspace tip it is based on. */
 export interface Manifest {
@@ -102,6 +120,51 @@ async function undo(git: UpstreamGit, head: string): Promise<void> {
   await git(['reset', '--hard', '--quiet', head], false);
 }
 
+/** The keeper's bundle, read whole. A symlink, a non-regular file or one over the cap is null. */
+function readBundle(source: string): Buffer | null {
+  const link = lstatSync(source, { throwIfNoEntry: false });
+  if (link === undefined || !link.isFile()) return null;
+  let fd: number | undefined;
+  try {
+    fd = openSync(source, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const st = fstatSync(fd);
+    if (!st.isFile() || st.size > MAX_BUNDLE_BYTES) return null;
+    const body = Buffer.alloc(st.size);
+    readSync(fd, body, 0, st.size, 0);
+    return body;
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+/**
+ * Fetches `head` from a copy of the keeper's bundle that the player user can read (the keeper's own
+ * copy is readable by the supervisor alone). The copy sits in a fresh folder that is removed whatever
+ * the outcome. Returns the git exit code, or null when the bundle was refused and nothing ran.
+ */
+async function fetchFromCopy(
+  bundle: string,
+  head: string,
+  git: UpstreamGit,
+): Promise<number | null> {
+  const body = readBundle(bundle);
+  if (body === null) return null;
+  const dir = mkdtempSync(join(tmpdir(), 'geldar-bundle-'));
+  const file = join(dir, BUNDLE);
+  try {
+    chmodSync(dir, 0o755);
+    writeFileSync(file, body, { flag: 'wx', mode: 0o644 });
+    chmodSync(file, 0o644);
+    return (await git(['fetch', '--no-tags', '--no-recurse-submodules', file, head], false)).code;
+  } catch {
+    return null;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 /**
  * Applies the keeper's bundle to the workspace as the player, between runs only. A fast-forward
  * when the workspace has no commits of its own; otherwise its memory-only commits are rebased onto
@@ -128,12 +191,9 @@ export async function syncUpstream(
     log('upstream deferred: the workspace has uncommitted changes');
     return { result: 'none', head };
   }
-  const bundle = join(settings.keeperDir, 'upstream.bundle');
-  const fetched = await git(
-    ['fetch', '--no-tags', '--no-recurse-submodules', bundle, m.head],
-    false,
-  );
-  if (fetched.code !== 0) return fail('fetch');
+  const fetched = await fetchFromCopy(join(settings.keeperDir, BUNDLE), m.head, git);
+  if (fetched === null) return fail('bundle');
+  if (fetched !== 0) return fail('fetch');
   const ahead = !(await isAncestor(git, head, m.head));
   if (
     ahead &&

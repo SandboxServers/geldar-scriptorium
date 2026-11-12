@@ -1,8 +1,8 @@
 import { EventEmitter } from 'node:events';
-import { mkdirSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { makeFixture, START } from './fixture.ts';
+import { makeFixture, onPoll, START } from './fixture.ts';
 import { readSettings, SettingError } from './settings.ts';
 import { installSignals } from './signals.ts';
 
@@ -15,14 +15,14 @@ const BANNED =
 describe('failures and backoff', () => {
   it('doubles the delay on failures and caps it', async () => {
     const f = makeFixture({ secs: 1 }, { GELDAR_RUN_MAX_FAILS: '6', GELDAR_RUN_MAX_DELAY: '100' });
-    expect(await f.supervisor.run()).toBe(1);
-    expect(f.sleeps).toEqual([40, 80, 100, 100, 100]);
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.sleeps.slice(0, 5)).toEqual([40, 80, 100, 100, 100]);
     expect(f.read('STOP')).toMatch(/^auto: 6 failed cycles in a row\n$/);
   });
 
-  it('writes STOP and exits after five fast failures in a row', async () => {
+  it('writes STOP after five fast failures in a row and idles, starting no run', async () => {
     const f = makeFixture({ secs: 1 });
-    expect(await f.supervisor.run()).toBe(1);
+    expect(await f.supervisor.run()).toBe(0);
     expect(f.said.join('\n')).toContain('5 cycles in a row failed');
     expect(f.read('STOP')).toBe('auto: 5 failed cycles in a row\n');
     expect(f.has('session-5.jsonl')).toBe(true);
@@ -97,10 +97,52 @@ describe('STOP, the lock and the numbering', () => {
     expect(await f.supervisor.run()).toBe(0);
     expect(f.has('session-1.jsonl')).toBe(true);
     f.put('STOP', 'auto: 5 failed cycles in a row\n');
-    expect(await f.supervisor.run()).toBe(1);
-    expect(f.said.join('\n')).toContain('stopped itself: 5 failed cycles in a row');
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.said.join('\n')).toContain('5 failed cycles in a row');
     expect(f.read('STOP')).toMatch(/^auto: /);
     expect(f.has('session-2.jsonl')).toBe(false);
+  });
+
+  it('idles at a STOP at start: no run, the heartbeat goes on, state stopped with the reason', async () => {
+    const f = makeFixture({ stopAt: 1 });
+    f.put('STOP', 'auto: upstream sync: rebase\n');
+    const beats: string[] = [];
+    onPoll(f, (poll) => {
+      for (const beat of f.beats) beat();
+      beats.push(f.read('heartbeat'));
+      if (poll === 3) f.supervisor.requestStop();
+    });
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.runs()).toHaveLength(0);
+    expect(new Set(beats).size).toBe(3);
+    const status = f.read('status.json');
+    expect(status).toMatch(/"state":"stopped"/);
+    expect(status).toContain('"stop_reason":"auto: upstream sync: rebase"');
+    expect(f.read('supervisor.log').split('no run starts until STOP is removed')).toHaveLength(2);
+  });
+
+  it('resumes the runs when the owner removes STOP', async () => {
+    const f = makeFixture({ stopAt: 1 });
+    f.put('STOP', 'auto: 5 failed cycles in a row\n');
+    onPoll(f, (poll) => {
+      if (poll === 2) rmSync(join(f.stateDir, 'STOP'));
+      if (poll === 4) f.supervisor.requestStop();
+    });
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.runs()).toHaveLength(1);
+    expect(f.has('session-1.jsonl')).toBe(true);
+    expect(f.read('supervisor.log')).toContain('STOP removed; resuming');
+  });
+
+  it('starts no further run once STOP appears between runs', async () => {
+    const f = makeFixture({ stopAt: 2 });
+    onPoll(f, (poll) => {
+      if (poll === 2) f.supervisor.requestStop();
+    });
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.runs()).toHaveLength(2);
+    expect(f.has('session-3.jsonl')).toBe(false);
+    expect(f.read('status.json')).toContain('"stop_reason":"x"');
   });
 
   it('refuses a second supervisor and clears a stale lock', async () => {

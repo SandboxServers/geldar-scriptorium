@@ -26,6 +26,23 @@ export interface Behaviour {
   during?: () => void;
 }
 
+/**
+ * Calls `fn` with the poll number (1 for the first) at each fake sleep, before the sleep advances the
+ * clock: the way a test looks at an idle supervisor, and ends it with a stop request.
+ */
+export function onPoll(
+  f: { deps: Deps },
+  fn: (poll: number) => void,
+): void {
+  const real = f.deps.sleep;
+  let polls = 0;
+  f.deps.sleep = async (seconds, wake) => {
+    polls++;
+    fn(polls);
+    await real(seconds, wake);
+  };
+}
+
 /** A supervisor over temporary folders, a fake clock and a fake child process. */
 export function makeFixture(
   behaviour: Behaviour = {},
@@ -53,7 +70,8 @@ export function makeFixture(
     sleep: async (seconds) => {
       sleeps.push(seconds);
       clock += seconds;
-      if (sleeps.length > 60) writeFileSync(join(stateDir, 'STOP'), 'x\n');
+      // The guard for a loop that would never end: a stop request (an idle loop ends only on one).
+      if (sleeps.length > 60) supervisor.requestStop();
     },
     exec: async (spec) => {
       specs.push(spec);

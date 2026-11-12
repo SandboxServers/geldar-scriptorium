@@ -1,9 +1,19 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { chmodSync, closeSync, existsSync, mkdirSync, openSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  renameSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ExecSpec } from './deps.ts';
-import { makeFixture } from './fixture.ts';
+import { makeFixture, onPoll } from './fixture.ts';
 
 // The fixture's child environment, with the real PATH so that the real git can be found.
 const ENV = { PATH: process.env.PATH ?? '' };
