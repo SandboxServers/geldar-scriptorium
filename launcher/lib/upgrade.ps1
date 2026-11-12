@@ -56,7 +56,8 @@ function Split-Kit([string]$V) {
   return @{ Core = $core; Pre = $pre }
 }
 
-# -1, 0 or 1. Core numbers first (numeric), then a release beats its prerelease, then ordinal.
+# -1, 0 or 1. Core numbers first (numeric), then a release beats its prerelease, then the prerelease
+# identifiers (Compare-KitPre).
 function Compare-Kit([string]$A, [string]$B) {
   $pa = Split-Kit $A
   $pb = Split-Kit $B
@@ -67,7 +68,46 @@ function Compare-Kit([string]$A, [string]$B) {
   if ($pa.Pre -ceq $pb.Pre) { return 0 }
   if ($pa.Pre -eq '') { return 1 }
   if ($pb.Pre -eq '') { return -1 }
-  return [Math]::Sign([string]::CompareOrdinal($pa.Pre, $pb.Pre))
+  return Compare-KitPre $pa.Pre $pb.Pre
+}
+
+# -1, 0 or 1 for two identifiers: a trailing number splits off its name, so rc10 is after rc9 (the
+# template's tags are rc<N>); any other identifiers compare ordinally.
+function Compare-KitId([string]$A, [string]$B) {
+  $ma = [regex]::Match($A, '^(.*[^0-9])?([0-9]+)$')
+  $mb = [regex]::Match($B, '^(.*[^0-9])?([0-9]+)$')
+  if ($ma.Success -and $mb.Success -and $ma.Groups[1].Value -ceq $mb.Groups[1].Value) {
+    return [Math]::Sign(([bigint]$ma.Groups[2].Value).CompareTo([bigint]$mb.Groups[2].Value))
+  }
+  return [Math]::Sign([string]::CompareOrdinal($A, $B))
+}
+
+# -1, 0 or 1 for two prereleases: their dot-separated identifiers in turn, then the count (fewer is lower).
+function Compare-KitPre([string]$A, [string]$B) {
+  if ($A -ceq $B) { return 0 }
+  $x = @($A.Split('.'))
+  $y = @($B.Split('.'))
+  for ($i = 0; $i -lt [Math]::Min($x.Count, $y.Count); $i++) {
+    $c = Compare-KitId $x[$i] $y[$i]
+    if ($c -ne 0) { return $c }
+  }
+  return [Math]::Sign($x.Count - $y.Count)
+}
+
+# The newest of the given versions: the newest stable one, or the newest prerelease when none is stable.
+# Returns '' for an empty list.
+function Get-NewestKit([string[]]$Versions) {
+  $best = ''
+  $bestPre = ''
+  foreach ($v in $Versions) {
+    if ($v.Contains('-')) {
+      if ($bestPre -eq '' -or (Compare-Kit $v $bestPre) -gt 0) { $bestPre = $v }
+    } elseif ($best -eq '' -or (Compare-Kit $v $best) -gt 0) {
+      $best = $v
+    }
+  }
+  if ($best) { return $best }
+  return $bestPre
 }
 
 function Get-TemplateUrl {
@@ -305,17 +345,14 @@ function Verb-upgrade {
   if ("$($br -join '')" -cne $branch) { Die 1 upgrade_dirty }
   if ((Invoke-GitQuiet $clone @('pull', '--ff-only')) -ne 0) { Die 1 upgrade_dirty }
 
-  # The target: --to, or the highest release that is not a prerelease.
+  # The target: --to, or the newest stable release (the newest prerelease only when there is none).
   $url = Get-TemplateUrl
   $all = @(Get-ReleaseVersions $url)
   $version = ''
   if ($to) {
     if ($all -contains $to) { $version = $to }
   } else {
-    foreach ($v in $all) {
-      if ($v.Contains('-')) { continue }
-      if ($version -eq '' -or (Compare-Kit $v $version) -gt 0) { $version = $v }
-    }
+    $version = Get-NewestKit $all
   }
   if (-not $version) { Die 1 upgrade_no_release }
   $cur = Get-HeadKitVersion $clone

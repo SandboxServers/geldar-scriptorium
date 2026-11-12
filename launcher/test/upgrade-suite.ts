@@ -50,7 +50,7 @@ interface Setup {
   all(r: Result): string;
 }
 
-function setup(l: Launcher): Setup {
+function setup(l: Launcher, from = FROM): Setup {
   const w = makeWorld();
   const ghRoot = join(w.root, 'gh');
   writeFileSync(join(w.fakeDir, 'gh'), `#!/bin/sh\nexec sh "${fakeGh}" "$@"\n`);
@@ -61,11 +61,11 @@ function setup(l: Launcher): Setup {
     `[user]\n\tname = ${HOST.name}\n\temail = ${HOST.email}\n[init]\n\tdefaultBranch = main\n`,
   );
   const p = makePlayer(w, { id: ID });
-  // The player is at FROM: one more host commit that sets the version, pushed.
+  // The player is at from (FROM unless given): one more host commit that sets the version, pushed.
   const gitEnv = { GIT_CONFIG_GLOBAL: join(w.root, 'gitconfig') };
   const pj = join(p.clone, 'player.json');
   const cur = JSON.parse(readFileSync(pj, 'utf8'));
-  cur.kit_version = FROM;
+  cur.kit_version = from;
   writeFileSync(pj, `${JSON.stringify(cur, null, 2)}\n`);
   git(p.clone, ['commit', '-q', '-am', 'set kit version'], gitEnv);
   git(p.clone, ['push', '-q', 'origin', 'main'], gitEnv);
@@ -219,6 +219,22 @@ export function upgradeSuite(l: Launcher): void {
       const rc = s.upgrade(l, r, ['--to', '9.0.0-rc1']);
       expect(rc.status, s.all(rc)).toBe(0);
       expect(heads()).toContain('kit-upgrade/9.0.0-rc1');
+    });
+
+    it('2c. an rc player with only prereleases is offered the newest rc (rc10 after rc9), never a lower one', () => {
+      const s = setup(l, '0.1.0-rc7');
+      const r = makeTemplateRelease(s.w, { versions: ['0.1.0-rc5', '0.1.0-rc9', '0.1.0-rc10'] });
+      const heads = () =>
+        git(s.p.origin, ['for-each-ref', '--format=%(refname:short)', 'refs/heads']);
+      const first = s.upgrade(l, r);
+      expect(first.status, s.all(first)).toBe(0);
+      expect(heads()).toContain('kit-upgrade/0.1.0-rc10');
+      const low = makeTemplateRelease(s.w, { versions: ['0.1.0-rc5'] });
+      const before = snap(s);
+      const res = s.upgrade(l, low);
+      expect(res.status, s.all(res)).toBe(1);
+      expect(s.all(res)).toContain(message('upgrade_downgrade'));
+      expect(snap(s)).toEqual(before);
     });
 
     it('3. a dirty clone, a held session and a held lock are refused', () => {

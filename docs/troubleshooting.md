@@ -440,9 +440,19 @@ Why it is safe. The launcher removed its local folder and wrote no state, and it
 What to do. Look at the repository on GitHub. If it holds the player's files, clear it (delete the files and commit, or recreate the repository with its initial README), then run new again. If it holds only the README, run new again.
 
 ### template_unpinned
-What it means. The template repository has no released kit version (a tag kit-v followed by a version), so new --repo has nothing fixed to copy from.
+What it means. The template repository has no kit-v tag at all (a tag kit-v followed by a version), so new --repo has nothing fixed to copy from. When it has a stable kit-v tag, new and upgrade use the newest stable one; when it has only prereleases (for example 0.1.0-rc7), they use the newest prerelease.
 Why it is safe. The launcher stopped before it cloned or changed anything.
 What to do. Ask the owner to release the template, or try again later.
+
+### kit_version_bad
+What it means. The --kit-version value is not an exact version (MAJOR.MINOR.PATCH, with an optional -prerelease such as -rc7), it is given more than once, or it is given without --repo.
+Why it is safe. The launcher refused the option before it called GitHub, so nothing was created.
+What to do. Give --kit-version once, together with --repo, as a version such as 0.1.0 or 0.1.0-rc7. Leave it out to take the newest stable kit version.
+
+### kit_version_unknown
+What it means. The template repository has no kit-v tag with the version given to --kit-version. The message names the version.
+Why it is safe. The launcher checked the template's tags before it cloned or changed anything.
+What to do. Check the version against the template's tags (kit-v<version>), or leave --kit-version out to take the newest kit version.
 
 ### template_too_big
 What it means. The template holds more than 2000 files or more than 20 MB, so new --repo refused to copy it.

@@ -57,7 +57,7 @@ The proxy reaches the world on the URL's effective port only, and it always refu
 
 ## Filling an existing empty repository (owner only)
 
-`geldar-play new <id> --repo <owner/name> --public --persona-dir <dir> --token-file <file>` uses a repository that already exists, instead of creating `player-<id>`. The repository must have the visibility you pass (`--public` or `--private`) and hold nothing but README.md, LICENSE and .gitignore. The launcher clones it, copies the template into it, adds the persona and the player settings, and pushes one commit named `player: <id>`. It never force-pushes. The token file may hold the bare token or `GELDAR_MCP_TOKEN=<token>`. The refusals are `repo_bad`, `repo_missing`, `repo_visibility` and `repo_not_empty` in [troubleshooting](troubleshooting.md).
+`geldar-play new <id> --repo <owner/name> --public --persona-dir <dir> --token-file <file>` uses a repository that already exists, instead of creating `player-<id>`. The repository must have the visibility you pass (`--public` or `--private`) and hold nothing but README.md, LICENSE and .gitignore. The launcher clones it, copies the template into it, adds the persona and the player settings, and pushes one commit named `player: <id>`. It never force-pushes. The template copied is the newest stable kit version (the newest prerelease only when no kit version is stable); add `--kit-version <version>`, for example `0.1.0-rc7`, to copy that exact version instead. The token file may hold the bare token or `GELDAR_MCP_TOKEN=<token>`. The refusals are `repo_bad`, `repo_missing`, `repo_visibility` and `repo_not_empty` in [troubleshooting](troubleshooting.md).
 
 ## The dev world (developers only)
 
