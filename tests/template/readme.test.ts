@@ -105,6 +105,28 @@ describe('template/README.md', () => {
     expect(ips).toEqual([]);
   });
 
+  it('pins the section on letting a player live for hours', () => {
+    const start = text.indexOf('## Let a player live for hours');
+    expect(start).toBeGreaterThan(-1);
+    const next = text.indexOf('\n## ', start + 1);
+    const section = text.slice(start, next < 0 ? undefined : next);
+    const verbs = launcherVerbs();
+    for (const verb of ['run', 'run-status', 'run-stop']) {
+      expect(section).toContain(`geldar-play ${verb} `);
+      expect(verbs).toContain(verb);
+    }
+    const runSource = readFileSync(path.join(repoRoot, 'launcher/lib/run.sh'), 'utf8');
+    const names = section.match(/GELDAR_RUN_[A-Z_]+/g) ?? [];
+    expect(names.length).toBeGreaterThanOrEqual(4);
+    for (const name of names) expect(runSource).toContain(name);
+    expect(section).toContain('GELDAR_RUN_DAILY_CAP_USD');
+    // The cap is a number the launcher defaults to; no price in money is claimed.
+    expect(section).not.toMatch(
+      /\$\s*\d|\d\s*(?:dollars|USD)\b|\bat \d[\d.,]*\s*(?:per|a|an)\b|per hour/i,
+    );
+    expect(forbidden.filter((w) => section.includes(w))).toEqual([]);
+  });
+
   it('is at most 250 lines', () => {
     expect(text.replace(/\n$/, '').split('\n').length).toBeLessThanOrEqual(250);
   });
