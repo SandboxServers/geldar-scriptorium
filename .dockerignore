@@ -9,6 +9,8 @@
 !packages/verify
 !image/settings
 !image/geldar-entrypoint.sh
+!image/geldar-player-entrypoint.sh
+!image/geldar-keeper-entrypoint.sh
 **/node_modules
 **/*.test.ts
 **/test-client.ts
