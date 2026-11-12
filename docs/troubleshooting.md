@@ -672,3 +672,18 @@ What to do. Add the public key to the player's repository as a deploy key with w
 What it means. The hold on the persistent player could not be removed, so it is still set.
 Why it is safe. The hold stays in place, so no launch goes ahead.
 What to do. Check that Docker is running, then run release-hold again.
+
+### player_not_running
+What it means. The persistent player is not running: its keeper or its supervisor is stopped, so there is no one to take a sync request. Nothing was asked of it.
+Why it is safe. The launcher refused before it touched the player's volumes, so nothing changed.
+What to do. Start the player, wait until both containers run, then run sync again.
+
+### player_sync_requested
+What it means. The sync request was left for the keeper of the persistent player. The keeper fetches the upstream changes at its next wake-up, and the supervisor applies them between runs.
+Why it is safe. A sync never changes the workspace during a run. A change that cannot be applied is held with its reason, as any hold is.
+What to do. Wait for the next run to start, then run player-status to see the upstream result of the keeper and the supervisor.
+
+### player_sync_failed
+What it means. The sync request for the persistent player could not be written into the keeper's state, so the keeper was not asked to fetch.
+Why it is safe. Nothing changed: no fetch ran and the workspace is as it was.
+What to do. Check that Docker is running, then run sync again.

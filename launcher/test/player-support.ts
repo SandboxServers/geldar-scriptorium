@@ -80,6 +80,7 @@ export const DOCKER_STUB = [
   '    log_call "$@"',
   '    { echo "--call"; env; } >> "$FAKE_DOCKER_ROOT/compose-env.log"',
   '    case " $* " in *" logs "*) cat "$FAKE_DOCKER_ROOT/compose-logs.txt" 2> /dev/null ;; esac',
+  '    case " $* " in *" --status running "*) cat "$FAKE_DOCKER_ROOT/compose-ps.txt" 2> /dev/null ;; esac',
   '    exit 0',
   '    ;;',
   '  run)',

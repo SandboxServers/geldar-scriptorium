@@ -98,6 +98,10 @@ The kit helper `geldar-verify run-summary` reads a stream on standard input in a
 
 Sign in once for the whole machine instead of once per player container. Run `claude setup-token` once; it prints a long-lived token. Then run `geldar-play auth-set`, paste the token (nothing is shown) and every player on this machine uses it. You can also give a file with `--token-file`, but prefer the hidden prompt: a piped token or a token file can stay in shell history or on disk, so delete the token file after use and avoid `bash -x`. `auth-status` tells you whether one is set, and `auth-clear` removes it. The token is kept in one owner-only file and passed to each container as an environment variable only. Anyone who can run `docker inspect` as you can see it, and revoking it logs every player out. Whether a subscription login may be used for autonomous play stays your decision: check the vendor's terms before you rely on it.
 
+## Pulling upstream changes into a running player
+
+When the template changes upstream (an `upgrade` pull request was merged, or the owner edited the player's files), a running persistent player does not see it until the next run. `geldar-play sync <id>` asks the keeper to fetch the upstream changes now. It needs the player running (`start` first) and prints that the sync is requested. The supervisor applies the change between runs, never during one, and only into a clean workspace. `geldar-play player-status <id>` shows the upstream result of the keeper and of the supervisor, and a result that cannot be applied is held with its reason, as any hold is.
+
 ## Where things are
 
 - Player-facing guide: [template/README.md](../template/README.md), tested by `tests/template/readme.test.ts`.
