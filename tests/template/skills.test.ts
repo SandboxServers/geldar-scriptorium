@@ -135,7 +135,9 @@ describe('play skill', () => {
     ]) {
       expect(body).toContain(line);
     }
-    expect(body.indexOf('## Signs and books')).toBeLessThan(body.indexOf('## Reading your results'));
+    expect(body.indexOf('## Signs and books')).toBeLessThan(
+      body.indexOf('## Reading your results'),
+    );
   });
 
   it('never teaches the unavailable book writing, and never mentions a moot or a shrine', () => {
@@ -144,7 +146,9 @@ describe('play skill', () => {
 
   it('never mentions a recipe, a list of items or a smelting verb in the crafting section', () => {
     const start = body.indexOf('## Crafting');
-    const section = body.slice(start, body.indexOf('## Reading your results')).replace(/"[^"]*"/g, '');
+    const section = body
+      .slice(start, body.indexOf('## Reading your results'))
+      .replace(/"[^"]*"/g, '');
     expect(section).not.toMatch(/recipe book|smelt|ingredient|\bplanks?\b|\blogs?\b|\bcobble/i);
   });
 
@@ -165,7 +169,9 @@ describe('play skill', () => {
     ]) {
       expect(body).toContain(line);
     }
-    expect(body.indexOf('## Giving and following')).toBeLessThan(body.indexOf('## Reading your results'));
+    expect(body.indexOf('## Giving and following')).toBeLessThan(
+      body.indexOf('## Reading your results'),
+    );
   });
 
   it('teaches the world fixed lines for results, hurt, sounds, body and death', () => {
@@ -206,12 +212,31 @@ describe('play skill', () => {
     const end = body.indexOf('Budget:');
     expect(start).toBeGreaterThan(-1);
     expect(end).toBeGreaterThan(start);
-    const section = body.slice(start, end);
-    // The world's quoted fixed lines may carry digits; the prose may not.
-    expect(section.replace(/"[^"]*"/g, '')).not.toMatch(/\d/);
+    // The world's quoted fixed lines may carry digits and words such as "events"; the prose may not.
+    const section = body.slice(start, end).replace(/"[^"]*"/g, '');
+    expect(section).not.toMatch(/\d/);
     expect(section).not.toMatch(
       /\b(outcomes?|events?|reflexes?|lives?|life's|respawns?|games?|counters?|budgets?|kit|tools? call|API|MCP|server)\b/i,
     );
+  });
+
+  it('teaches the new result lines exactly, and what each one means', () => {
+    for (const line of [
+      '"Your <verb> failed: it changed nothing."',
+      'Look again and choose something else.',
+      '"Your goto failed: the body is stuck and every way out failed."',
+      'Look around, then decide your next move from where you actually stand.',
+      '"Reflex eat: your hunger was low, so you ate."',
+      'The food you have seen is listed in what your senses report, newest first, with its kind and where it is.',
+      '"<verb> <target> has failed <N> times in a row (<reason>); position unchanged for <M> minutes."',
+      'It means this attempt is not working where you stand, so change your approach and do not repeat it.',
+      '"Nothing has changed since you last slept: same place, same belongings, same health, no new events."',
+      'There is nothing new to act on yet, so go out and look for what is new.',
+      '"Your body is waking. Try again in a few seconds."',
+      'Wait a few seconds, then look again.',
+    ]) {
+      expect(body).toContain(line);
+    }
   });
 
   it('never mentions dimensions, reach, register or a sound wake', () => {
@@ -311,7 +336,9 @@ describe('play and trade never promise what is not yet in the world', () => {
 
   it('trade still says a deal is made by speech and given through act', () => {
     const body = parseSkill(readSkill('trade')).body;
-    expect(body).toContain('- When a deal is agreed, give through `act`. Speech alone moves nothing.');
+    expect(body).toContain(
+      '- When a deal is agreed, give through `act`. Speech alone moves nothing.',
+    );
   });
 });
 
