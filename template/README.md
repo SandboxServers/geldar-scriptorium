@@ -98,6 +98,8 @@ Each `play` is one day. In that day your player:
 
 If a session cannot be saved, it is held, and nothing is pushed for it. You decide what happens to a held session, as described below.
 
+After a death, the character's thoughts become public to everyone. The owner sees a living character's thoughts live. An owner can opt in to delayed public thoughts for a living character.
+
 ## Be a Patron, not a puppeteer
 
 A Patron supports the player. A puppeteer moves it. You are a Patron.
