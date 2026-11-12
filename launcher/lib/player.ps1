@@ -481,10 +481,11 @@ function Verb-release_hold {
   Say player_released $id
 }
 
-# Whether the keeper and the supervisor are both running (the persistent group).
+# Whether the keeper and the player are both running (the persistent group). The names are the
+# compose service names in image/compose/player.yml; `ps` prints one per line.
 function Test-PlayerRunning([string]$Id) {
   $up = @(Invoke-PlayerCompose $Id @('ps', '--status', 'running', '--format', '{{.Service}}'))
-  return ($up -contains 'keeper') -and ($up -contains 'supervisor')
+  return ($up -contains 'keeper') -and ($up -contains 'player')
 }
 
 # sync <id>: asks the keeper to fetch upstream now. It touches sync-request in the keeper's state; the

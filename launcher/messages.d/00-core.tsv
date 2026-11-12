@@ -1,4 +1,4 @@
-usage	Usage: geldar-play new|setup|play|resolve|archive|status <player_id>... (see the README)
+usage	Usage: geldar-play new|setup|play|run|run-status|run-stop|resolve|archive|status|upgrade|start|stop|restart|player-status|logs|deploy-key|release-hold|sync|auth-set|auth-status|auth-clear <player_id>... (see the README)
 not_yet	This command is not available in this build.
 bad_player_id	"%s" is not a player id. Use lowercase letters, digits and dashes, starting with a letter.
 no_such_player	No player named %s on this machine. Run: geldar-play new %s

@@ -5,11 +5,15 @@ import { launchers } from './harness.ts';
 import { canQuote, expectClean, ID, setup, T, vol } from './player-support.ts';
 
 // SC-167c: geldar-play sync <id> asks the keeper to fetch upstream now, and player-status shows the
-// upstream result of the keeper and the supervisor. Both launchers. The docker stand-in reports the
-// running services from compose-ps.txt (see player-support.ts).
+// upstream result of the keeper and the supervisor. Both launchers. The docker stand-in prints the
+// running services from compose-ps.txt (see player-support.ts). That file holds what the real
+// `docker compose ps --status running --format '{{.Service}}'` prints: one compose service name per
+// line, as image/compose/player.yml names them (the supervisor is a user inside the `player` service).
 
-const running = (w: { dockerRoot: string }) =>
-  writeFileSync(join(w.dockerRoot, 'compose-ps.txt'), 'keeper\nsupervisor\n');
+const REAL_RUNNING = ['keeper', 'player', 'proxy-keeper', 'proxy-player'];
+
+const running = (w: { dockerRoot: string }, names: string[] = REAL_RUNNING) =>
+  writeFileSync(join(w.dockerRoot, 'compose-ps.txt'), `${names.join('\n')}\n`);
 
 for (const l of launchers) {
   describe(`${l.name} sync`, () => {
@@ -22,6 +26,26 @@ for (const l of launchers) {
       expect(r.stderr).toContain(`${ID} is not running, so there is nothing to sync`);
       expect(s.w.calls().filter((c) => c.join(' ').includes('sync-request'))).toEqual([]);
       expect(existsSync(join(vol(s.w, `geldar-keep-${ID}`), 'sync-request'))).toBe(false);
+      expectClean(s.w, r);
+    });
+
+    it('sync refuses when the keeper is not running, though the player is', { timeout: T }, () => {
+      const s = setup(l);
+      running(s.w, ['player', 'proxy-player', 'proxy-keeper']);
+      const r = s.go('sync', ID);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain(`${ID} is not running, so there is nothing to sync`);
+      expect(s.w.calls().filter((c) => c.join(' ').includes('sync-request'))).toEqual([]);
+      expectClean(s.w, r);
+    });
+
+    it('sync refuses when the player is not running, though the keeper is', { timeout: T }, () => {
+      const s = setup(l);
+      running(s.w, ['keeper', 'proxy-keeper']);
+      const r = s.go('sync', ID);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain(`${ID} is not running, so there is nothing to sync`);
+      expect(s.w.calls().filter((c) => c.join(' ').includes('sync-request'))).toEqual([]);
       expectClean(s.w, r);
     });
 
