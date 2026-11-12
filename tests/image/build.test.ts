@@ -62,7 +62,7 @@ describe.skipIf(!ready)('kit image build', () => {
     const out = inKit('readlink -f /usr/local/bin/claude; ls /opt/geldar/packages').stdout;
     const [link, ...pkgs] = out.trim().split('\n');
     expect(link).toContain('claude-code');
-    expect(pkgs.join(' ')).toBe('git memory path-rule verify');
+    expect(pkgs.join(' ')).toBe('git keeper memory path-rule verify');
     expect(out).not.toContain('stub-cli');
   }, 120_000);
 

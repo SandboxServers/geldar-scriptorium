@@ -60,7 +60,7 @@ describe('the clean path', () => {
 });
 
 describe('refusals end in HELD and nothing is pushed', () => {
-  const cases: [string, (w: World) => boolean | undefined, RegExp][] = [
+  const cases: [string, (w: World) => unknown, RegExp][] = [
     [
       'a path outside memory',
       (w) => w.write('notes.txt', 'not memory\n'),
