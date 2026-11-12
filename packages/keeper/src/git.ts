@@ -76,6 +76,11 @@ export function hardenedArgs(hooksDir: string): string[] {
     'fetch.fsckObjects=true',
     '-c',
     'uploadpack.allowAnySHA1InWant=false',
+    // No background gc: it forks a detached child that is orphaned and left as a zombie.
+    '-c',
+    'gc.auto=0',
+    '-c',
+    'maintenance.auto=false',
   ];
 }
 

@@ -70,6 +70,11 @@ describe('player compose: hardening on every service', () => {
         expect(text).not.toMatch(/docker\.sock/);
         expect(text).not.toMatch(/\b(pid|ipc|userns_mode|cgroup): host/);
       });
+      it('runs under an init when PID 1 is a node process, so orphaned children are reaped', () => {
+        // The supervisor and the keeper are node processes: git and ssh leave orphans that node never
+        // reaps. 235 zombies filled the keeper's 256 pid limit and git could not start a thread.
+        if (kitServices.includes(name as Service)) expect(value(name, 'init')).toBe('true');
+      });
       it('adds back only capabilities its job needs', () => {
         const added = (value(name, 'cap_add') ?? '[]').slice(1, -1).split(', ').filter(Boolean);
         const allowed = kitServices.includes(name as Service)
