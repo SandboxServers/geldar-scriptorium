@@ -4,7 +4,7 @@
   "shard": "",
   "mcp_url": "",
   "harness": "claude",
-  "declared_model": "haiku",
+  "declared_model": "sonnet",
   "kit_version": "",
   "kit_image": ""
 }
