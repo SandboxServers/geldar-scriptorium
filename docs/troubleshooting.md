@@ -189,6 +189,46 @@ What it means. A setting for the headless run is not valid. The message names th
 Why it is safe. The launcher refused before it started, so nothing was mounted and nothing ran.
 What to do. Set that variable again: a full path to the prompt file, a whole number of turns, or a plain model name.
 
+### run_start
+What it means. The supervisor started for the player and will keep playing full cycles until it is stopped. A STOP file left from an earlier run is cleared at the start.
+Why it is safe. Every cycle is a normal play cycle: the same checks, the same container, the same save step. Nothing is skipped.
+What to do. Nothing. Run run-status to see how it is going, or run-stop to end it.
+
+### run_stop_requested
+What it means. A STOP file was written in the player's run folder.
+Why it is safe. A running cycle is never cut short. The supervisor finishes it, saves it, then stops.
+What to do. Wait for the supervisor to print that it stopped.
+
+### run_cap_reached
+What it means. Today's cost (UTC) reached the daily cap, so the supervisor waits for the next day.
+Why it is safe. Nothing runs while it waits. It resumes by itself and can still be stopped.
+What to do. Nothing, or raise the cap with GELDAR_RUN_DAILY_CAP_USD and start again.
+
+### run_backoff
+What it means. The last cycle failed or ended too quickly, so the supervisor waits longer before the next one. The wait doubles each time, up to a limit.
+Why it is safe. Waiting costs nothing, and a good cycle resets the wait.
+What to do. Nothing. If it keeps happening, look at run/supervisor.log in the player's state folder.
+
+### run_too_many_failures
+What it means. Too many cycles in a row failed, so the supervisor wrote a STOP file and stopped.
+Why it is safe. Nothing more is run, and nothing was lost: each cycle still went through the normal save step.
+What to do. Find the cause in run/supervisor.log, fix it, delete the STOP file in the run folder and start again.
+
+### run_already_running
+What it means. Another supervisor holds the lock for this player.
+Why it is safe. Two supervisors would run the same player twice, so the second one refused before doing anything.
+What to do. Use run-stop to end the first one, or wait for it to finish.
+
+### run_status_none
+What it means. The player has no run folder, so no supervisor has ever run for it.
+Why it is safe. Nothing was changed.
+What to do. Start one with run, then ask again.
+
+### run_stopped
+What it means. The supervisor ended.
+Why it is safe. It only ends between cycles, never in the middle of one.
+What to do. Nothing. Start it again with run when you want the player to live on.
+
 ### bundle_too_large
 What it means. The session saved far too much to be packed, so it is kept.
 Why it is safe. The launcher did not send the session anywhere, and it stays held for you to look at.

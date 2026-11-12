@@ -1,0 +1,8 @@
+run_start	Keeping %s living. Each cycle is a full play cycle. Stop it with run-stop.
+run_stop_requested	Stop requested for %s. It stops after the current cycle.
+run_cap_reached	The daily cost cap (%s USD) is reached. Waiting until the next day (UTC).
+run_backoff	Cycle %s failed or was short. Waiting %s seconds before the next one.
+run_too_many_failures	%s cycles in a row failed. Stopped; the player is not run again until run/STOP is removed.
+run_already_running	A supervisor is already running for %s.
+run_status_none	No run folder for %s yet. Nothing has been run.
+run_stopped	Stopped after run %s.
