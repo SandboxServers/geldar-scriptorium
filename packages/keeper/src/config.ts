@@ -7,6 +7,10 @@ export interface KeeperConfig {
   /** The deploy key file (a Docker secret). Only its path is ever used, never its content. */
   key: string;
   intervalSeconds: number;
+  /** The short wait, in seconds, after a cycle whose remote fetch failed. */
+  retrySeconds: number;
+  /** Consecutive failed remote fetches that write HELD `remote_fetch_failed`. */
+  fetchFailLimit: number;
   /** The player's repository checkout, mounted read-only. Untrusted. */
   workspace: string;
   /** The keeper's private bare clone. */
@@ -24,10 +28,27 @@ export interface KeeperConfig {
 }
 
 export const DEFAULT_INTERVAL_SECONDS = 600;
+export const DEFAULT_RETRY_SECONDS = 60;
+export const DEFAULT_FETCH_FAILS = 10;
 const BRANCH = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,100}$/;
 
 function absolute(name: string, value: string): string {
   if (!isAbsolute(value)) throw new Error(`${name} must be an absolute path`);
+  return value;
+}
+
+// An optional whole number from the environment within [min, max]; `fallback` when it is unset.
+function bounded(
+  name: string,
+  text: string | undefined,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const value = Number(text ?? String(fallback));
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new Error(`${name} must be a whole number from ${min} to ${max}`);
+  }
   return value;
 }
 
@@ -49,6 +70,20 @@ export function loadConfig(env: NodeJS.ProcessEnv, hooksDir: string): KeeperConf
     remote: need('GELDAR_KEEPER_REMOTE'),
     key: absolute('GELDAR_KEEPER_KEY', env.GELDAR_KEEPER_KEY ?? '/run/secrets/geldar-deploy-key'),
     intervalSeconds,
+    retrySeconds: bounded(
+      'GELDAR_KEEPER_RETRY_SECONDS',
+      env.GELDAR_KEEPER_RETRY_SECONDS,
+      DEFAULT_RETRY_SECONDS,
+      10,
+      3600,
+    ),
+    fetchFailLimit: bounded(
+      'GELDAR_KEEPER_FETCH_FAILS',
+      env.GELDAR_KEEPER_FETCH_FAILS,
+      DEFAULT_FETCH_FAILS,
+      1,
+      1000,
+    ),
     workspace: absolute('GELDAR_KEEPER_WORKSPACE', env.GELDAR_KEEPER_WORKSPACE ?? '/workspace'),
     clone: absolute('GELDAR_KEEPER_CLONE', env.GELDAR_KEEPER_CLONE ?? '/clone'),
     state: absolute('GELDAR_KEEPER_STATE', env.GELDAR_KEEPER_STATE ?? '/keeper-state'),

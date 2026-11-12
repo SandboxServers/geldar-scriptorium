@@ -15,15 +15,16 @@ export type Wake = 'interval' | 'checkpoint' | 'sync';
 
 // Waits for the interval, or for a checkpoint-request or sync-request that is new since the cycle
 // began. `since` and `syncSince` are the requests' mtimes when the cycle started (null for none);
-// a request counts when it exists and differs from it.
+// a request counts when it exists and differs from it. `intervalSeconds` is the wait for this cycle.
 export async function waitForWake(
   cfg: KeeperConfig,
   clock: Clock,
   since: number | null,
   stop: () => boolean,
   syncSince: number | null = null,
+  intervalSeconds: number = cfg.intervalSeconds,
 ): Promise<Wake> {
-  const deadline = clock.now() + cfg.intervalSeconds * 1000;
+  const deadline = clock.now() + intervalSeconds * 1000;
   for (;;) {
     const seen = checkpointRequestTime(cfg.supervisorState);
     if (seen !== null && seen !== since) return 'checkpoint';
@@ -36,6 +37,7 @@ export async function waitForWake(
 
 // Runs until stop() is true. The request times are read before each run, so a request that
 // arrives during a run wakes the next wait at once. A sync-request the run served is removed.
+// After a cycle whose remote fetch failed the wait is the short retry interval, not the normal one.
 export async function runLoop(
   cfg: KeeperConfig,
   deps: KeeperDeps,
@@ -45,9 +47,11 @@ export async function runLoop(
   while (!stop()) {
     const since = checkpointRequestTime(cfg.supervisorState);
     const syncSince = syncRequestTime(cfg.state);
-    await runOnce(cfg, deps);
+    const result = await runOnce(cfg, deps);
     serveSyncRequest(cfg.state, syncSince);
     if (stop()) return;
-    await waitForWake(cfg, clock, since, stop, syncSince);
+    const seconds =
+      result.outcome === 'remote_unreachable' ? cfg.retrySeconds : cfg.intervalSeconds;
+    await waitForWake(cfg, clock, since, stop, syncSince, seconds);
   }
 }

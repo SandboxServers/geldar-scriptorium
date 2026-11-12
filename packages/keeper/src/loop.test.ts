@@ -62,3 +62,14 @@ test('the loop runs again at once when a request arrives during the wait', async
   expect(clock.now()).toBe(5000);
   rmSync(request);
 });
+
+test('after a failed remote fetch the next wait is the short retry interval', async () => {
+  const w = makeWorld();
+  world = w;
+  rmSync(w.remote, { recursive: true, force: true });
+  const clock = fakeClock();
+  const runs = () => w.logs.filter((line) => line.startsWith('keeper:')).length;
+  await runLoop(w.cfg, w.deps, clock, () => runs() >= 2);
+  expect(runs()).toBe(2);
+  expect(clock.now()).toBe(60_000);
+});
