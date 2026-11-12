@@ -1,0 +1,2 @@
+# The only destination the keeper may reach (exact host, port 443 is fixed in squid-keeper.conf).
+ssh.github.com

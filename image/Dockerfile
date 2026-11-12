@@ -45,6 +45,22 @@ RUN printf 'geldar kit\n' > /etc/geldar-kit \
  && find /etc/geldar /etc/claude-code -type d -exec chmod 0555 {} + \
  && chmod 0444 /etc/geldar-kit \
  && mkdir -p /player /cli-home && chown player:player /player /cli-home
+
+# The persistent player group (decision 64, SC-162): the `supervisor` (1001) and `keeper` (1002) users beside
+# `player` (1000), the mount points of the state volumes, and the two service entrypoints. The compose services
+# start these entrypoints as root with a minimal capability set; each one fixes ownership, then drops to its user.
+# State directories: /state/supervisor is supervisor:keeper 2750 (the player user cannot read it), /keeper-state
+# is keeper:supervisor 2750, /clone is keeper-only. /workspace and /supervisor-state are read-only mounts in `keeper`.
+RUN groupadd -g 1001 supervisor && useradd -u 1001 -g 1001 -M -d /nonexistent -s /usr/sbin/nologin supervisor \
+ && groupadd -g 1002 keeper && useradd -u 1002 -g 1002 -M -d /nonexistent -s /usr/sbin/nologin keeper \
+ && mkdir -p /state/supervisor /keeper-state /supervisor-state /workspace /clone \
+ && chown 1001:1002 /state/supervisor && chmod 2750 /state/supervisor \
+ && chown 1002:1001 /keeper-state && chmod 2750 /keeper-state \
+ && chown 1002:1002 /clone && chmod 0700 /clone
+COPY image/geldar-player-entrypoint.sh /usr/local/bin/geldar-player-entrypoint
+COPY image/geldar-keeper-entrypoint.sh /usr/local/bin/geldar-keeper-entrypoint
+RUN chmod 0755 /usr/local/bin/geldar-player-entrypoint /usr/local/bin/geldar-keeper-entrypoint
+# End of the persistent player group block.
 LABEL org.opencontainers.image.source="https://github.com/SandboxServers/geldar-scriptorium"
 ENV CLAUDE_CONFIG_DIR=/cli-home DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 ENABLE_CLAUDEAI_MCP_SERVERS=false ENABLE_TOOL_SEARCH=false CLAUDE_CODE_DISABLE_1M_CONTEXT=1 CLAUDE_CODE_SUBAGENT_MODEL=haiku CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1
 # The kit entrypoint seeds the player's workspace trust, then runs the base image's
