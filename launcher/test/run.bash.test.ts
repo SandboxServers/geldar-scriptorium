@@ -1,7 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
-import { bashPath, launchers, makePlayer, makeWorld, run, runBash } from './harness.ts';
+import { bashPath, launchers, makePlayer, makeWorld, repoRoot, run, runBash } from './harness.ts';
 
 // SC-122: the supervisor loop, with no Docker: GELDAR_RUN_DRY=1 replaces the play cycle by a stub
 // that writes the summary line as the "stream", moves a fake clock and exits with a chosen code.
@@ -39,11 +39,13 @@ function setup(extra: Record<string, string> = {}) {
         '"${FAKE_RUN_COST:-1}" "${FAKE_RUN_ERR:-false}" "${FAKE_RUN_LAST:-}" "${FAKE_RUN_SEEN:-true}" > "$2"\n' +
         'c=$(cat "$FAKE_CLOCK"); echo $((c+${FAKE_RUN_SECS:-60})) > "$FAKE_CLOCK"\n' +
         '[ "$1" != "${FAKE_RUN_STOP_AT:-}" ] || echo x > "$FAKE_RUNDIR/STOP"\n' +
+        '[ -z "${FAKE_RUN_HELD:-}" ] || mkdir -p "$FAKE_HELDDIR"\n' +
         'exit "${FAKE_RUN_RC:-0}"',
     ),
     FAKE_CLOCK: bashPath(clock),
     FAKE_SLEEPLOG: bashPath(sleeps),
     FAKE_RUNDIR: bashPath(runDir),
+    FAKE_HELDDIR: bashPath(join(w.state, ID, 'held')),
     ...extra,
   };
   const go = (args: string[] = ['run', ID]) => run(bash as NonNullable<typeof bash>, args, { env });
@@ -181,5 +183,84 @@ if (bash) {
     expect(r.status, r.stderr).toBe(0);
     expect(r.stderr).toContain('A stop was requested');
     expect(existsSync(join(s.runDir, 'STOP'))).toBe(true);
+  });
+  it('counts a nonzero cycle exit as a failure even when the summary looks fine', () => {
+    const s = setup({ FAKE_RUN_RC: '1', GELDAR_RUN_MAX_FAILS: '1' });
+    const r = s.go();
+    expect(r.status, r.stderr).toBe(1);
+    expect(readFileSync(join(s.runDir, 'supervisor.log'), 'utf8')).toContain(
+      'exit=1 result=failed',
+    );
+  });
+
+  it('writes the auto STOP at once for a held player and says how to resolve it', () => {
+    const s = setup({ FAKE_RUN_RC: '3', FAKE_RUN_HELD: '1' });
+    const r = s.go();
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toContain('geldar-play resolve run-test-01');
+    expect(readFileSync(join(s.runDir, 'STOP'), 'utf8')).toMatch(/^auto: /);
+    expect(existsSync(join(s.runDir, 'session-2.jsonl'))).toBe(false);
+    expect(s.sleepList()).toEqual([]);
+  });
+
+  it('clears a manual STOP at the start but refuses to start over an auto STOP', () => {
+    const s = setup({ FAKE_RUN_STOP_AT: '1' });
+    mkdirSync(s.runDir, { recursive: true });
+    writeFileSync(join(s.runDir, 'STOP'), 'manual\n');
+    const ok = s.go();
+    expect(ok.status, ok.stderr).toBe(0);
+    expect(existsSync(join(s.runDir, 'session-1.jsonl'))).toBe(true);
+    writeFileSync(join(s.runDir, 'STOP'), 'auto: 5 failed cycles in a row\n');
+    const no = s.go();
+    expect(no.status, no.stderr).toBe(1);
+    expect(no.stderr).toContain('stopped itself: 5 failed cycles in a row');
+    expect(readFileSync(join(s.runDir, 'STOP'), 'utf8')).toMatch(/^auto: /);
+    expect(existsSync(join(s.runDir, 'session-2.jsonl'))).toBe(false);
+  });
+
+  it('treats an empty lock pid as someone starting and refuses', () => {
+    const s = setup({ FAKE_RUN_STOP_AT: '1' });
+    mkdirSync(join(s.runDir, 'lock'), { recursive: true });
+    writeFileSync(join(s.runDir, 'lock', 'pid'), '');
+    const r = s.go();
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toContain('already running');
+    expect(existsSync(join(s.runDir, 'session-1.jsonl'))).toBe(false);
+  });
+
+  it('refuses a daily cap of zero and a status for a player that does not exist', () => {
+    const s = setup({ GELDAR_RUN_DAILY_CAP_USD: '0' });
+    const cap = s.go();
+    expect(cap.status, cap.stderr).toBe(2);
+    expect(existsSync(join(s.runDir, 'session-1.jsonl'))).toBe(false);
+    const none = s.go(['run-status', 'nobody-here-01']);
+    expect(none.status, none.stderr).toBe(1);
+  });
+
+  it('runs a real cycle in order: lock, guard, prepare, start, finish, unlock', () => {
+    const w = makeWorld();
+    const log = bashPath(join(w.root, 'calls.log'));
+    const lib = (f: string) => bashPath(join(repoRoot, 'launcher', 'lib', f));
+    const script = (rc: number) =>
+      `. '${lib('common.sh')}'; . '${lib('run.sh')}'; ` +
+      `d='${bashPath(join(w.root, 'pl'))}'; RUN_DIR="$d/run"; mkdir -p "$RUN_DIR"; ` +
+      `player_dir() { echo "$d"; }; ` +
+      `lock_acquire() { echo lock >> '${log}'; trap 'echo unlock >> '"'${log}'" EXIT; }; ` +
+      `guard_not_held() { echo guard >> '${log}'; }; prepare_session() { echo prepare >> '${log}'; }; ` +
+      `start_session() { echo start >> '${log}'; }; finish_session() { echo finish >> '${log}'; exit ${rc}; }; ` +
+      `( run_cycle x 1 ); echo "rc=$?"`;
+    const env = { GELDAR_STATE_DIR: bashPath(w.state) };
+    const ok = runBash(script(0), { env });
+    expect(ok.stdout).toContain('rc=0');
+    expect(readFileSync(join(w.root, 'calls.log'), 'utf8').split('\n').filter(Boolean)).toEqual([
+      'lock',
+      'guard',
+      'prepare',
+      'start',
+      'finish',
+      'unlock',
+    ]);
+    const held = runBash(script(3), { env });
+    expect(held.stdout).toContain('rc=3');
   });
 }

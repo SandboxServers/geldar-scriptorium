@@ -122,8 +122,11 @@ run_last_words() {
     next unless /"last_text":"((?:[^"\\]|\\.)*)"/;
     my $t = $1;
     my %e = (n => " ", t => " ", r => " ", b => " ", f => " ");
-    $t =~ s/\\u([0-9a-fA-F]{4})/chr(hex($1))/ge;
-    $t =~ s/\\(.)/exists $e{$1} ? $e{$1} : $1/ge;
+    $t =~ s{\\u([dD][89abAB][0-9a-fA-F]{2})\\u([dD][c-fC-F][0-9a-fA-F]{2})|\\u([0-9a-fA-F]{4})|\\(.)}{
+      defined $1 ? chr(0x10000 + ((hex($1) - 0xD800) << 10) + (hex($2) - 0xDC00))
+      : defined $3 ? (hex($3) >= 0xD800 && hex($3) <= 0xDFFF ? "" : (hex($3) == 10 ? " " : chr(hex($3))))
+      : (exists $e{$4} ? $e{$4} : $4)
+    }gex;
     $t =~ s/[\x00-\x1f\x7f-\x9f]//g;
     $t =~ s/"/\x27/g;
     $t = substr($t, 0, 1500);
@@ -161,7 +164,7 @@ run_next_number() {
 # Cost summed over today's (UTC) lines of costs.csv.
 run_cost_today() {
   [ -f "$RUN_DIR/costs.csv" ] || { printf '0'; return 0; }
-  awk -F, -v d="$1" 'index($2, d) == 1 { s += $4 } END { printf "%.4f", s }' "$RUN_DIR/costs.csv"
+  LC_ALL=C awk -F, -v d="$1" 'index($2, d) == 1 { s += $4 } END { printf "%.4f", s }' "$RUN_DIR/costs.csv"
 }
 
 # run_status_write <run> <state> <last_result> <today's cost>
@@ -221,6 +224,7 @@ verb_run() {
   run_num GELDAR_RUN_MAX_TURNS 300 1 999999 turns
   cap=${GELDAR_RUN_DAILY_CAP_USD:-15}
   [[ $cap =~ ^[0-9]{1,6}(\.[0-9]{1,4})?$ ]] || die 2 run_setting_bad GELDAR_RUN_DAILY_CAP_USD
+  LC_ALL=C awk -v c="$cap" 'BEGIN { exit !(c + 0 > 0) }' || die 2 run_setting_bad GELDAR_RUN_DAILY_CAP_USD
   model=${GELDAR_RUN_MODEL-}
   [ -z "$model" ] || [[ $model =~ ^[A-Za-z0-9._:/-]+$ ]] || die 2 run_setting_bad GELDAR_RUN_MODEL
   [ "$max_delay" -ge "$delay_base" ] || die 2 run_setting_bad GELDAR_RUN_MAX_DELAY
@@ -238,7 +242,7 @@ verb_run() {
   if [ -f "$RUN_DIR/STOP" ]; then
     IFS= read -r seen < "$RUN_DIR/STOP"
     case $seen in
-      auto:*) die 1 run_stopped_auto "${seen#auto:}" "$RUN_DIR/STOP" ;;
+      auto:*) die 1 run_stopped_auto "${seen#auto: }" "$RUN_DIR/STOP" ;;
     esac
     rm -f "$RUN_DIR/STOP"
   fi
@@ -251,7 +255,7 @@ verb_run() {
     e=$(run_now)
     today=$(run_fmt "$e" date)
     sum=$(run_cost_today "$today")
-    if awk -v s="$sum" -v c="$cap" 'BEGIN { exit !(s + 0 >= c + 0) }'; then
+    if LC_ALL=C awk -v s="$sum" -v c="$cap" 'BEGIN { exit !(s + 0 >= c + 0) }'; then
       secs=$((86400 - e % 86400))
       say run_cap_reached "$cap"
       run_log "cap reached cost=$sum waiting=$secs"
@@ -319,6 +323,7 @@ verb_run() {
 verb_run_status() {
   [ $# -eq 1 ] || die 2 usage
   local id=$1 f latest="" b max=0 sum tools
+  [ -d "$(player_dir "$id")" ] || die 1 no_such_player "$id" "$id"
   RUN_DIR="$(player_dir "$id")/run"
   [ -d "$RUN_DIR" ] || die 0 run_status_none "$id"
   if [ -f "$RUN_DIR/status.json" ]; then cat "$RUN_DIR/status.json"; fi
@@ -334,7 +339,7 @@ verb_run_status() {
   read_player "$id"
   sum=$(run_summary "$latest")
   tools=$(printf '%s' "$sum" | sed -n 's/^.*"tools":\({[^}]*}\).*$/\1/p')
-  [ -n "$tools" ] || tools='{}'
+  [ -n "$tools" ] || if [ -n "$sum" ]; then tools='{}'; else tools=unavailable; fi
   printf 'tools: %s\n' "$tools"
 }
 
