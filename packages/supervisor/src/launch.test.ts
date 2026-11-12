@@ -19,7 +19,6 @@ describe('starting a child as the player', () => {
         '--reuid=1234',
         '--regid=4321',
         '--clear-groups',
-        '--bounding-set=-all',
         '--inh-caps=-all',
         '--ambient-caps=-all',
         '--no-new-privs',

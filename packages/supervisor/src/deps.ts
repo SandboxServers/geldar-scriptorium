@@ -66,7 +66,9 @@ function realSleep(seconds: number, wake: () => boolean): Promise<void> {
 /**
  * The command that starts a child as the player. spawn's uid/gid options would keep the
  * supervisor's ambient SETUID/SETGID across exec, so setpriv drops the user, groups and every
- * capability set instead (the child ends with an empty capability set and no new privileges).
+ * capability set instead (the child ends with an empty capability set and no new privileges). The
+ * bounding set is left alone: shrinking it needs SETPCAP, which the supervisor does not hold, and with
+ * inheritable and ambient emptied and no new privileges the exec leaves the child no permitted caps.
  */
 export function launchCommand(spec: ExecSpec): { file: string; args: string[] } {
   return {
@@ -75,7 +77,6 @@ export function launchCommand(spec: ExecSpec): { file: string; args: string[] } 
       `--reuid=${spec.uid}`,
       `--regid=${spec.gid}`,
       '--clear-groups',
-      '--bounding-set=-all',
       '--inh-caps=-all',
       '--ambient-caps=-all',
       '--no-new-privs',

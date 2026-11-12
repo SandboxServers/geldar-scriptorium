@@ -73,7 +73,7 @@ describe('player compose: hardening on every service', () => {
       it('adds back only capabilities its job needs', () => {
         const added = (value(name, 'cap_add') ?? '[]').slice(1, -1).split(', ').filter(Boolean);
         const allowed = kitServices.includes(name as Service)
-          ? ['CHOWN', 'FOWNER', 'SETUID', 'SETGID']
+          ? ['CHOWN', 'FOWNER', 'FSETID', 'SETUID', 'SETGID', 'SETPCAP']
           : ['SETUID', 'SETGID'];
         expect(added.sort()).toEqual(allowed.sort());
       });
