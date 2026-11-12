@@ -30,10 +30,7 @@ export interface Behaviour {
  * Calls `fn` with the poll number (1 for the first) at each fake sleep, before the sleep advances the
  * clock: the way a test looks at an idle supervisor, and ends it with a stop request.
  */
-export function onPoll(
-  f: { deps: Deps },
-  fn: (poll: number) => void,
-): void {
+export function onPoll(f: { deps: Deps }, fn: (poll: number) => void): void {
   const real = f.deps.sleep;
   let polls = 0;
   f.deps.sleep = async (seconds, wake) => {

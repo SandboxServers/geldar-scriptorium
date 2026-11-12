@@ -31,24 +31,32 @@ describe('failures and backoff', () => {
 
   it('counts a nonzero exit as a failure even when the stream looks fine', async () => {
     const f = makeFixture({ rc: 1 }, { GELDAR_RUN_MAX_FAILS: '1' });
-    expect(await f.supervisor.run()).toBe(1);
+    onPoll(f, () => f.supervisor.requestStop());
+    expect(await f.supervisor.run()).toBe(0);
     expect(f.read('supervisor.log')).toContain('exit=1 result=failed');
   });
 
   it('counts an error result and a missing result as failures', async () => {
     const a = makeFixture({ err: true }, { GELDAR_RUN_MAX_FAILS: '1' });
-    expect(await a.supervisor.run()).toBe(1);
+    onPoll(a, () => a.supervisor.requestStop());
+    expect(await a.supervisor.run()).toBe(0);
+    expect(a.read('STOP')).toBe('auto: 1 failed cycles in a row\n');
     const b = makeFixture({ seen: false }, { GELDAR_RUN_MAX_FAILS: '1' });
-    expect(await b.supervisor.run()).toBe(1);
+    onPoll(b, () => b.supervisor.requestStop());
+    expect(await b.supervisor.run()).toBe(0);
+    expect(b.read('STOP')).toBe('auto: 1 failed cycles in a row\n');
   });
 });
 
 describe('the daily cap', () => {
   it('sleeps to the next UTC day at the cap and then resumes', async () => {
     const f = makeFixture({ cost: 20, secs: 100, stopAt: 2 });
+    onPoll(f, (poll) => {
+      if (poll === 3) f.supervisor.requestStop();
+    });
     expect(await f.supervisor.run()).toBe(0);
     const now = START + 100 + 20;
-    expect(f.sleeps).toEqual([20, 86400 - (now % 86400)]);
+    expect(f.sleeps.slice(0, 2)).toEqual([20, 86400 - (now % 86400)]);
     expect(f.said.join('\n')).toContain('daily cost cap (15 USD)');
     const costs = f.read('costs.csv').split('\n').filter(Boolean);
     expect(costs).toHaveLength(2);
@@ -97,8 +105,11 @@ describe('STOP, the lock and the numbering', () => {
     expect(await f.supervisor.run()).toBe(0);
     expect(f.has('session-1.jsonl')).toBe(true);
     f.put('STOP', 'auto: 5 failed cycles in a row\n');
+    onPoll(f, (poll) => {
+      if (poll === 2) f.supervisor.requestStop();
+    });
     expect(await f.supervisor.run()).toBe(0);
-    expect(f.said.join('\n')).toContain('5 failed cycles in a row');
+    expect(f.read('status.json')).toContain('"stop_reason":"auto: 5 failed cycles in a row"');
     expect(f.read('STOP')).toMatch(/^auto: /);
     expect(f.has('session-2.jsonl')).toBe(false);
   });
