@@ -267,15 +267,18 @@ function Test-AdoptClone([string]$Clone) {
   return ($count -gt 0)
 }
 
-# Picks the template release the way upgrade does: the newest kit-v tag that is not a prerelease, from
-# GELDAR_TEMPLATE_URL (under GELDAR_INTERNAL=1) or the template repository. Returns @(url, tag); no
-# tag is template_unpinned.
-function Get-AdoptTemplateTag {
+# Picks the template release the way upgrade does: the newest stable kit-v tag, or the newest prerelease
+# when no tag is stable, from GELDAR_TEMPLATE_URL (under GELDAR_INTERNAL=1) or the template repository.
+# $Pin is the exact version from --kit-version ('' for none), which must be a listed tag, else
+# kit_version_unknown. Returns @(url, tag); no tag at all is template_unpinned.
+function Get-AdoptTemplateTag([string]$Pin = '') {
   $url = Get-TemplateUrl
-  $best = ''
-  foreach ($v in @(Get-ReleaseVersions $url)) {
-    if ($v.Contains('-')) { continue }
-    if ($best -eq '' -or (Compare-Kit $v $best) -gt 0) { $best = $v }
+  $all = @(Get-ReleaseVersions $url)
+  if ($Pin) {
+    if ($all -cnotcontains $Pin) { Die 1 kit_version_unknown $Pin }
+    $best = $Pin
+  } else {
+    $best = Get-NewestKit $all
   }
   if (-not $best) { Die 1 template_unpinned }
   return , @($url, "kit-v$best")
@@ -339,6 +342,9 @@ function Copy-TemplateInto([string]$Url, [string]$Tag, [string]$Clone) {
   $havePersona = $false
   $repo = ''
   $repoSeen = $false
+  $kit = ''
+  $kitSeen = $false
+  $kitRe = '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.]+)?\z'
   $i = 0
   while ($i -lt $more.Count) {
     $a = $more[$i]
@@ -364,10 +370,17 @@ function Copy-TemplateInto([string]$Url, [string]$Tag, [string]$Clone) {
         }
       }
       $i += 2
+    } elseif ($a -ceq '--kit-version') {
+      if ($i + 1 -ge $more.Count -or $kitSeen -or -not [regex]::IsMatch($more[$i + 1], $kitRe)) { Die 1 kit_version_bad }
+      $kit = $more[$i + 1]
+      $kitSeen = $true
+      $i += 2
     } else {
       Die 2 usage
     }
   }
+  # --kit-version only means something with --repo: it names the template release to copy.
+  if ($kit -and -not $repo) { Die 1 kit_version_bad }
   if (-not [regex]::IsMatch($shard, '^[a-z][a-z0-9-]{0,30}\z')) { Die 1 bad_shard }
   if ($mock) {
     if (-not (Test-BaseUrl $mock)) { Die 1 bad_url }
@@ -398,7 +411,7 @@ function Copy-TemplateInto([string]$Url, [string]$Tag, [string]$Clone) {
   $tplPin = $null
   if ($repo) {
     Test-AdoptRepo $gh $repo $newVis
-    $tplPin = Get-AdoptTemplateTag
+    $tplPin = Get-AdoptTemplateTag $kit
   }
   $script:NEW_PLAYERS_DIR = $players
   $script:NEW_PLAYERS_MADE = -not (Test-Path -LiteralPath $players)

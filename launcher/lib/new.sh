@@ -267,11 +267,12 @@ adopt_check_clone() {
   [ "$c" -gt 0 ]
 }
 
-# Picks the template release the way upgrade does: the newest kit-v tag that is not a prerelease, from
-# GELDAR_TEMPLATE_URL (under GELDAR_INTERNAL=1) or the template repository. Sets ADOPT_URL and
-# ADOPT_TAG; no tag is template_unpinned.
+# Picks the template release the way upgrade does: the newest stable kit-v tag, or the newest prerelease
+# when no tag is stable, from GELDAR_TEMPLATE_URL (under GELDAR_INTERNAL=1) or the template repository.
+# Arguments: an exact version from --kit-version (optional), which must be a listed tag, else
+# kit_version_unknown. Sets ADOPT_URL and ADOPT_TAG; no tag at all is template_unpinned.
 adopt_template_tag() {
-  local url out v best="" tags
+  local url out best tags
   url=$(gp_env GELDAR_TEMPLATE_URL)
   [ -n "$url" ] || url=$UP_TEMPLATE_URL
   out=$(mktemp "${TMPDIR:-/tmp}/gp-tags.XXXXXX") || die 1 template_unpinned
@@ -281,15 +282,12 @@ adopt_template_tag() {
   }
   tags=$(up_tag_versions "$out")
   rm -f "$out"
-  while IFS= read -r v; do
-    [ -n "$v" ] || continue
-    case $v in *-*) continue ;; esac
-    if [ -z "$best" ] || [ "$(up_cmp "$v" "$best")" = gt ]; then
-      best=$v
-    fi
-  done << EOT
-$tags
-EOT
+  if [ -n "${1-}" ]; then
+    grep -qxF -- "$1" <<< "$tags" || die 1 kit_version_unknown "$1"
+    best=$1
+  else
+    best=$(up_newest "$tags")
+  fi
   [ -n "$best" ] || die 1 template_unpinned
   ADOPT_URL=$url
   ADOPT_TAG="kit-v$best"
@@ -370,6 +368,7 @@ EOF
 verb_new() {
   local id=$1 vis="" mock="" tokfile="" shard=commons base i a clone name url d persona=""
   local have_persona="" repo="" repo_re='^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$' p
+  local kit="" kit_re='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.]+)?$'
   local shre='^[a-z][a-z0-9-]{0,30}$' gh players add=player.json
   shift
   while [ $# -gt 0 ]; do
@@ -402,9 +401,18 @@ verb_new() {
         case ${repo#*/} in . | ..) die 1 repo_bad ;; esac
         shift 2
         ;;
+      --kit-version)
+        [ $# -ge 2 ] || die 1 kit_version_bad
+        [ -z "$kit" ] || die 1 kit_version_bad
+        [[ $2 =~ $kit_re ]] || die 1 kit_version_bad
+        kit=$2
+        shift 2
+        ;;
       *) die 2 usage ;;
     esac
   done
+  # --kit-version only means something with --repo: it names the template release to copy.
+  if [ -n "$kit" ] && [ -z "$repo" ]; then die 1 kit_version_bad; fi
   [[ $shard =~ $shre ]] || die 1 bad_shard
   if [ -n "$mock" ]; then
     valid_base_url "$mock" || die 1 bad_url
@@ -432,7 +440,7 @@ verb_new() {
     NEW_ADOPT=1
     NEW_REPO=$repo
     adopt_verify "$gh" "$repo" "$NEW_VIS"
-    adopt_template_tag
+    adopt_template_tag "$kit"
   fi
   [ "$NEW_VIS" = "private" ] || say public_notice
   [ -z "$mock" ] || say mock_note

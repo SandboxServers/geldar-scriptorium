@@ -67,11 +67,75 @@ EOT
     echo gt
   elif [ -z "$pb" ]; then
     echo lt
-  elif [[ $pa < $pb ]]; then
+  else
+    up_pre_cmp "$pa" "$pb"
+  fi
+}
+
+# up_id_cmp a b: lt, eq or gt for two prerelease identifiers. A trailing number splits off its name, so
+# rc10 is after rc9 (the template's tags are rc<N>); any other identifiers compare as text.
+up_id_cmp() {
+  local an=$1 bn=$2 anum="" bnum=""
+  if [[ $1 =~ ^(.*[^0-9])?([0-9]+)$ ]]; then
+    an=${BASH_REMATCH[1]}
+    anum=${BASH_REMATCH[2]}
+  fi
+  if [[ $2 =~ ^(.*[^0-9])?([0-9]+)$ ]]; then
+    bn=${BASH_REMATCH[1]}
+    bnum=${BASH_REMATCH[2]}
+  fi
+  if [ -n "$anum" ] && [ -n "$bnum" ] && [ "$an" = "$bn" ]; then
+    up_num_cmp "$anum" "$bnum"
+  elif [ "$1" = "$2" ]; then
+    echo eq
+  elif [[ $1 < $2 ]]; then
     echo lt
   else
     echo gt
   fi
+}
+
+# up_pre_cmp a b: lt, eq or gt for two prereleases (dot-separated identifiers, compared in turn; the
+# one with fewer identifiers that matches so far is lower).
+up_pre_cmp() {
+  local -a x y
+  local i r
+  IFS=. read -r -a x <<< "$1"
+  IFS=. read -r -a y <<< "$2"
+  for ((i = 0; i < ${#x[@]} && i < ${#y[@]}; i++)); do
+    r=$(up_id_cmp "${x[i]}" "${y[i]}")
+    if [ "$r" != eq ]; then
+      echo "$r"
+      return 0
+    fi
+  done
+  if [ "${#x[@]}" -eq "${#y[@]}" ]; then
+    echo eq
+  elif [ "${#x[@]}" -lt "${#y[@]}" ]; then
+    echo lt
+  else
+    echo gt
+  fi
+}
+
+# up_newest versions: the newest of the given versions, one per line. A stable release wins over every
+# prerelease; with no stable one the newest prerelease is used. Prints nothing when the list is empty.
+up_newest() {
+  local v best="" best_pre=""
+  while IFS= read -r v; do
+    [ -n "$v" ] || continue
+    case $v in
+      *-*)
+        if [ -z "$best_pre" ] || [ "$(up_cmp "$v" "$best_pre")" = gt ]; then best_pre=$v; fi
+        ;;
+      *)
+        if [ -z "$best" ] || [ "$(up_cmp "$v" "$best")" = gt ]; then best=$v; fi
+        ;;
+    esac
+  done << EOT
+$1
+EOT
+  echo "${best:-$best_pre}"
 }
 
 # The versions of the template's well-formed kit-v tags, one per line, in listed order.
@@ -251,17 +315,7 @@ verb_upgrade() {
 $tags
 EOT
   else
-    best=""
-    while IFS= read -r v; do
-      [ -n "$v" ] || continue
-      case $v in *-*) continue ;; esac
-      if [ -z "$best" ] || [ "$(up_cmp "$v" "$best")" = gt ]; then
-        best=$v
-      fi
-    done << EOT
-$tags
-EOT
-    ver=$best
+    ver=$(up_newest "$tags")
   fi
   [ -n "$ver" ] || die 1 upgrade_no_release
   cmp=$(up_cmp "$ver" "$cur")

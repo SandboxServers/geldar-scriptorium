@@ -17,5 +17,7 @@ bad_url	The world address is not allowed. Use http or https and a host name only
 bad_token	The token file is not valid. It needs one line of 16 to 200 letters, digits or . _ ~ - (optionally after GELDAR_MCP_TOKEN=)
 adopt_failed	The repository %s may already hold the first commit for %s (%s). Check it on GitHub; if it holds the player's files, run new again after clearing it.
 template_unpinned	The template has no released kit version to copy from, so the repository was not filled. Nothing was changed.
+kit_version_bad	The --kit-version value is not allowed. Give it once, with --repo, as an exact version such as 0.1.0 or 0.1.0-rc7. Nothing was created.
+kit_version_unknown	The template has no kit version %s, so the repository was not filled. Nothing was changed.
 template_too_big	The template holds more than 2000 files or 20 MB, so the repository was not filled. Nothing was changed.
 setup_empty	Setup finished without writing who you are. Run: geldar-play setup %s
