@@ -221,6 +221,14 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-153 | 13 | S | Craft and smelt guidance in the play skill, no recipe knowledge (C5-05, C5-06) | Sonnet | Held (geldar 'landed') | none |
 | SC-154 | 13 | S | author, moot, offer and write_sign: skills that wait on the Body (C5-07 to C5-10) | Sonnet | Held (geldar 'landed' and owner decisions) | none |
 | SC-155 | 13 | S | Patron README items: Kino, skins, thought-visibility opt-in | Haiku | Held (owner decisions and deploy) | none |
+| SC-160 | 14 | S | `geldar-supervisor`: the run loop in the kit, as a child-process supervisor with the keeper's HELD state ([wave 14](work-packets-wave14.md)) | Sonnet | Planned | SC-120, SC-122 |
+| SC-161 | 14 | S | `geldar-keeper`: hardened fetch of the workspace, the gate, fast-forward push with the deploy key | Sonnet | Planned | none |
+| SC-162 | 14 | S | The player compose project: four services, volumes, secrets, two proxies, hardening | Sonnet | Planned | none |
+| SC-163 | 14 | S | Launcher verbs start, stop, restart, status, logs, deploy-key, release-hold, sync (both launchers) | Sonnet | Planned | SC-162 |
+| SC-164 | 14 | S | Hostile integration tests of the persistent group in CI | Sonnet | Planned | SC-160 to SC-163, SC-167 |
+| SC-165 | 14 | S | Docs, threat model and the director hook point | Sonnet | Planned | SC-160 to SC-164 |
+| SC-166 | 14 | S | Kimberly's first start (owner-run) | - | Planned | SC-165, a release candidate |
+| SC-167 | 14 | S | Pulling upstream changes into the player (keeper fetch, supervisor fast-forward between runs) | Sonnet | Planned | SC-160, SC-161 |
 
 **Cross-campaign dependency:** wave 3 needs `@geldar/contract` from geldar Phase 0 packet P0-01. Waves 0–2 and 4 don't need wave 3. Only SC-55c (not SC-55b) needs wave 3.
 
