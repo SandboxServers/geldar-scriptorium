@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -45,6 +45,20 @@ export function hardenedEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     USERPROFILE: home,
     ...extra,
   };
+}
+
+// A config file naming directories that git may read although another user owns them. Git refuses a
+// repository owned by someone else unless it is listed in safe.directory, and it does not pass a -c
+// setting on to the upload-pack process it starts for a local fetch; only a config file reached
+// through GIT_CONFIG_GLOBAL is inherited. The keeper reads the workspace this way: the workspace
+// belongs to the player user and the keeper runs as its own user. The file lives in the keeper's
+// private home (mode 0600) and is used only for the one call that reads the workspace.
+export function safeDirectoryConfig(dirs: readonly string[]): string {
+  const file = join(emptyHomeDir(), 'safe-directory.conf');
+  // A backslash is an escape in a git config value, so a Windows path is written with slashes.
+  const lines = dirs.map((dir) => `\tdirectory = ${dir.replaceAll('\\', '/')}`).join('\n');
+  writeFileSync(file, `[safe]\n${lines}\n`, { mode: 0o600 });
+  return file;
 }
 
 // The options before every git subcommand. hooksDir is an empty folder the keeper owns.
