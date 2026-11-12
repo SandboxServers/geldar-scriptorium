@@ -106,6 +106,7 @@ describe('play skill', () => {
     expect(body).not.toMatch(
       /dropped|death drop|item drop|drops are|dimension|\breach\b|register|sign-up|sound wake|wake interest/i,
     );
+    expect(body).not.toContain('you heard a sound');
   });
 
   it('keeps the recall and reach tools out of the new reading and waking sections', () => {
