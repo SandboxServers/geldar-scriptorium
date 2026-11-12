@@ -12,7 +12,7 @@ import {
   KEY,
   LOGIN,
   MCP,
-  PLAYER_YML,
+  playerYml,
   REMOTE,
   setup,
   T,
@@ -59,11 +59,15 @@ for (const l of launchers) {
       expect(r.stderr).toContain(`${ID} is started`);
       // pl_compose builds -p before -f: the order the launcher uses.
       expect(composeCalls(s.w, 'up')).toEqual([
-        ['compose', '-p', `geldar-player-${ID}`, '-f', PLAYER_YML, 'up', '-d'],
+        ['compose', '-p', `geldar-player-${ID}`, '-f', playerYml(l), 'up', '-d'],
       ]);
       const [env] = composeEnvs(s.w);
       expect(env?.GELDAR_KEEPER_REMOTE).toBe(REMOTE);
-      expect(env?.GELDAR_DEPLOY_KEY_FILE).toBe(bashPath(join(s.p.stateDir, 'deploy-key')));
+      // pwsh joins a native folder with "/deploy-key", so its separators differ: compare them as slashes.
+      const keyFile = join(s.p.stateDir, 'deploy-key');
+      expect(env?.GELDAR_DEPLOY_KEY_FILE?.replace(/\\/g, '/')).toBe(
+        l.name === 'bash' ? bashPath(keyFile) : keyFile.replace(/\\/g, '/'),
+      );
       expect(env?.GELDAR_MCP_TOKEN).toBe(MCP);
       expect(env?.CLAUDE_CODE_OAUTH_TOKEN).toBe(LOGIN);
       expectClean(s.w, r);
@@ -88,7 +92,7 @@ for (const l of launchers) {
       expect(stop.status, stop.stderr).toBe(0);
       expect(stop.stderr).toContain(`${ID} is stopped`);
       expect(composeCalls(s.w, 'stop')).toEqual([
-        ['compose', '-p', `geldar-player-${ID}`, '-f', PLAYER_YML, 'stop'],
+        ['compose', '-p', `geldar-player-${ID}`, '-f', playerYml(l), 'stop'],
       ]);
       const restart = s.go('restart', ID);
       expect(restart.status, restart.stderr).toBe(0);

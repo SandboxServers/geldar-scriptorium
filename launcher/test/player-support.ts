@@ -1,7 +1,18 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect } from 'vitest';
-import { bashExe, bashPath, git, type Launcher, makePlayer, makeWorld, repoRoot, run, type World } from './harness.ts';
+import {
+  bashExe,
+  bashPath,
+  git,
+  type Launcher,
+  makePlayer,
+  makeWorld,
+  repoRoot,
+  run,
+  type World,
+} from './harness.ts';
 
 // Shared support for the persistent player verbs tests (SC-163a/b, decision 64), both launchers.
 // No Docker and no ssh-keygen: a docker stand-in logs every compose call with its environment, and a
@@ -15,12 +26,18 @@ export const KEY = 'PRIVATE-KEY-SENTINEL-0123456789';
 export const REMOTE = 'ssh://git@ssh.github.com:443/acme/player-one.git';
 export const GITHUB = 'https://github.com/acme/player-one.git';
 export const PLAYER_YML = bashPath(join(repoRoot, 'image', 'compose', 'player.yml'));
+// bash passes the compose file in its own form; pwsh hands docker the Windows path with forward slashes.
+export const playerYml = (l: Launcher) =>
+  l.name === 'bash'
+    ? PLAYER_YML
+    : join(repoRoot, 'image', 'compose', 'player.yml').replace(/\\/g, '/');
 // Each launcher run is a bash process; the verbs make several docker stand-in calls per run.
 export const T = 120_000;
 const win = process.platform === 'win32';
 
 // Player roles run their script with /in, /player and /vol mapped to named volumes (a folder under the
 // fake root). Only the mount targets used by player.sh are mapped; the script is run by sh -c.
+// biome-ignore lint/suspicious/noTemplateCurlyInString: the stub is shell text, its ${...} is not ours
 export const DOCKER_STUB = [
   '#!/bin/sh',
   `FAKE=${bashPath(join(repoRoot, 'launcher', 'test', 'fake-docker.sh'))}`,
@@ -100,6 +117,16 @@ export interface Opts {
   origin?: string;
 }
 
+// Grants the current user full control of each path and removes the inherited grants.
+function restrictToOwner(paths: string[]) {
+  const who = spawnSync('whoami', ['/user', '/fo', 'csv', '/nh'], { encoding: 'utf8' });
+  const sid = `*${who.stdout.split('"')[3]}`;
+  for (const f of paths) {
+    const grant = statSync(f).isDirectory() ? `${sid}:(OI)(CI)F` : `${sid}:F`;
+    spawnSync('icacls.exe', [f, '/inheritance:r', '/grant:r', grant]);
+  }
+}
+
 // Writes a stub as a shell script; on win32 pwsh runs it through a .cmd shim that starts Git's bash.
 function stub(dir: string, name: string, body: string, l: Launcher): string {
   const file = join(dir, name);
@@ -122,6 +149,13 @@ export function setup(l: Launcher, opts: Opts = {}) {
     mkdirSync(join(w.state, 'auth'), { recursive: true });
     const login = opts.login ?? LOGIN;
     writeFileSync(join(w.state, 'auth', 'claude-oauth-token'), `${login}\n`, { mode: 0o600 });
+  }
+  // The pwsh launcher on Windows refuses a login or key that others can read: the fixtures restrict
+  // their folders and files to the owner, as the real launcher does (temp folders carry extra grants).
+  if (win && l.name === 'pwsh') {
+    const state = [p.stateDir, join(p.stateDir, 'deploy-key'), join(p.stateDir, 'token')];
+    const auth = [join(w.state, 'auth'), join(w.state, 'auth', 'claude-oauth-token')];
+    restrictToOwner([...state, ...auth].filter((f) => existsSync(f)));
   }
   const stubs = join(w.root, 'stubs');
   mkdirSync(stubs, { recursive: true });
