@@ -24,6 +24,8 @@ function Read-TokenFile([string]$Path) {
     if ($lines[$i].TrimEnd("`r") -ne '') { Die 1 bad_token }
   }
   $line = $lines[0].TrimEnd("`r").Trim()
+  # A Geldar token file reads GELDAR_MCP_TOKEN=<value>; the bare value is accepted too.
+  if ($line.StartsWith('GELDAR_MCP_TOKEN=', [StringComparison]::Ordinal)) { $line = $line.Substring(17) }
   if (-not [regex]::IsMatch($line, '^[A-Za-z0-9._~-]{16,200}\z')) { Die 1 bad_token }
   return $line
 }
@@ -193,10 +195,71 @@ function Die-AfterCreate {
   $rest = @($args | Select-Object -Skip 2)
   Remove-Item -LiteralPath $clone -Recurse -Force -ErrorAction SilentlyContinue
   Say @rest
-  Say repo_on_github $id
+  # An adopted repository was there before new ran, so there is nothing of ours to delete on GitHub.
+  if (-not $script:NEW_ADOPT) { Say repo_on_github $id }
   exit 1
 }
 
+# Checks the repository --repo names before anything is written: it exists, its visibility is the
+# requested one, and it holds nothing but README.md, LICENSE and .gitignore at the top level.
+function Test-AdoptRepo([string]$Gh, [string]$Repo, [string]$Want) {
+  $v = Invoke-BoundedOut 120 @($Gh, 'repo', 'view', $Repo, '--json', 'visibility,isEmpty,name')
+  if ($v.Code -ne 0) { Die 1 repo_missing $Repo }
+  $vis = ''
+  $m = [regex]::Match($v.Text, '"visibility"\s*:\s*"([A-Za-z]*)"')
+  if ($m.Success) { $vis = $m.Groups[1].Value.ToLowerInvariant() }
+  if ($vis -cne $Want) {
+    $shown = $vis
+    if (-not $shown) { $shown = 'unknown' }
+    Die 1 repo_visibility $Repo $shown $Want
+  }
+  $c = Invoke-BoundedOut 120 @($Gh, 'api', "repos/$Repo/contents", '--jq', 'map(.name)')
+  if ($c.Code -ne 0) { Die 1 repo_not_empty $Repo }
+  # The answer is a JSON array of names; the quoted strings are the names.
+  foreach ($m in [regex]::Matches($c.Text, '"([^"]*)"')) {
+    $n = $m.Groups[1].Value
+    if ($n -cne 'README.md' -and $n -cne 'LICENSE' -and $n -cne '.gitignore') { Die 1 repo_not_empty $Repo }
+  }
+}
+
+# Copies the template's files (a shallow clone of the pinned template repository) into the clone.
+# Nothing under .git crosses and a link in the template is refused. Returns the paths that git
+# records as executable, or $null on a refusal.
+function Copy-TemplateInto([string]$Gh, [string]$Clone) {
+  $tmp = Join-Path ([IO.Path]::GetTempPath()) ('gp-tpl.' + [guid]::NewGuid().ToString('N').Substring(0, 12))
+  New-Item -ItemType Directory -Path $tmp -Force | Out-Null
+  try {
+    if ((Invoke-InDir $tmp @($Gh, 'repo', 'clone', 'SandboxServers/geldar-player-template', 'tpl', '--', '--depth', '1')) -ne 0) {
+      return $null
+    }
+    $src = Join-Path $tmp 'tpl'
+    $ls = Invoke-GitOut $src 120 @('ls-files', '-s', '-z')
+    if ($ls.Code -ne 0) { return $null }
+    $paths = @()
+    $exec = @()
+    foreach ($rec in $ls.Text.Split([char]0)) {
+      if ($rec -eq '') { continue }
+      $tab = $rec.IndexOf("`t")
+      if ($tab -lt 0) { return $null }
+      $mode = $rec.Substring(0, $tab).Split(' ')[0]
+      $p = $rec.Substring($tab + 1)
+      if ($mode -ceq '100755') { $exec += $p } elseif ($mode -cne '100644') { return $null }
+      if ("/$p/" -match '/(\.\.|\.|\.git)/' -or $p.StartsWith('/') -or $p.Contains('\')) { return $null }
+      $item = Get-Item -LiteralPath (Join-Path $src $p) -Force -ErrorAction SilentlyContinue
+      if (-not $item -or $item.PSIsContainer -or $item.LinkType) { return $null }
+      $paths += $p
+    }
+    if ($paths.Count -eq 0) { return $null }
+    foreach ($p in $paths) {
+      $to = Join-Path $Clone $p
+      New-Item -ItemType Directory -Path (Split-Path -Parent $to) -Force | Out-Null
+      [IO.File]::Copy((Join-Path $src $p), $to, $true)
+    }
+    return , $exec
+  } finally {
+    Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+  }
+}
 function Verb-new {
   $id = [string]$args[0]
   $more = @($args | Select-Object -Skip 1 | ForEach-Object { [string]$_ })
@@ -206,18 +269,26 @@ function Verb-new {
   $shard = 'commons'
   $persona = ''
   $havePersona = $false
+  $repo = ''
+  $repoSeen = $false
   $i = 0
   while ($i -lt $more.Count) {
     $a = $more[$i]
     if ($a -ceq '--private' -or $a -ceq '--public') {
       $vis = $a.Substring(2)
       $i++
-    } elseif ($a -ceq '--mock' -or $a -ceq '--token-file' -or $a -ceq '--shard' -or $a -ceq '--persona-dir') {
+    } elseif ($a -ceq '--mock' -or $a -ceq '--token-file' -or $a -ceq '--shard' -or $a -ceq '--persona-dir' -or $a -ceq '--repo') {
       if ($i + 1 -ge $more.Count) { Die 2 usage }
       switch ($a) {
         '--mock' { $mock = $more[$i + 1] }
         '--token-file' { $tokfile = $more[$i + 1] }
         '--shard' { $shard = $more[$i + 1] }
+        '--repo' {
+          $repo = $more[$i + 1]
+          if ($repoSeen -or -not [regex]::IsMatch($repo, '^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}\z') -or
+            $repo.Split('/')[1] -ceq '.' -or $repo.Split('/')[1] -ceq '..') { Die 1 repo_bad }
+          $repoSeen = $true
+        }
         '--persona-dir' {
           if ($havePersona) { Die 1 persona_bad $id twice }
           $havePersona = $true
@@ -255,11 +326,13 @@ function Verb-new {
   New-Item -ItemType Directory -Path $players -Force | Out-Null
   $gh = $env:GELDAR_GH
   if (-not $gh) { $gh = 'gh' }
+  $script:NEW_ADOPT = [bool]$repo
+  if ($repo) { Test-AdoptRepo $gh $repo $newVis }
   if ($newVis -cne 'private') { Say public_notice }
   if ($mock) { Say mock_note }
 
   $tpl = 'SandboxServers/geldar-player-template'
-  if ((Invoke-InDir $players @($gh, 'repo', 'create', $name, '--template', $tpl, "--$newVis")) -ne 0) {
+  if (-not $repo -and (Invoke-InDir $players @($gh, 'repo', 'create', $name, '--template', $tpl, "--$newVis")) -ne 0) {
     Die 1 gh_failed $id 'create'
   }
   $clone = Join-Path $players $name
@@ -267,7 +340,7 @@ function Verb-new {
   while ($true) {
     $n++
     $oldMask = Set-Umask 0x12 # the human's clone keeps the user's normal modes
-    try { $ok = (Invoke-InDir $players @($gh, 'repo', 'clone', $name)) -eq 0 } finally { [void](Set-Umask $oldMask) }
+    try { $ok = (Invoke-InDir $players @($gh, 'repo', 'clone', $(if ($repo) { $repo } else { $name }), $name)) -eq 0 } finally { [void](Set-Umask $oldMask) }
     # A clone counts only if it has a commit: GitHub can fill the template after repo create returns.
     if ($ok) { $ok = Test-Path -LiteralPath (Join-Path $clone '.git') }
     if ($ok) {
@@ -280,17 +353,25 @@ function Verb-new {
     Invoke-GpSleep 3
   }
 
+  $adds = @('player.json')
+  if ($repo) {
+    $exec = Copy-TemplateInto $gh $clone
+    if ($null -eq $exec) { Die-AfterCreate $clone $id gh_failed $id 'template' }
+    $adds = @('-A')
+  }
   Write-PlayerJson (Join-Path $clone 'player.json') $id $shard $url
   $msg = "player: $id"
-  $adds = @('player.json')
   if ($havePersona) {
     # A seeded player is born at new: identity.md is no longer the stub, which is what the unborn check reads.
     [System.IO.File]::WriteAllBytes((Join-Path $clone 'memory/identity.md'), [byte[]]$files[0])
     [System.IO.File]::WriteAllBytes((Join-Path $clone 'memory/goals.md'), [byte[]]$files[1])
-    $adds += 'memory/identity.md', 'memory/goals.md'
+    if (-not $repo) { $adds += 'memory/identity.md', 'memory/goals.md' }
   }
   Invoke-Git -C $clone add @adds *> $null
   if ($LASTEXITCODE -ne 0) { Die-AfterCreate $clone $id gh_failed $id 'add' }
+  if ($repo) {
+    foreach ($p in @($exec)) { Invoke-Git -C $clone update-index --chmod=+x -- $p *> $null }
+  }
   $email = "player-$id@users.noreply.github.com"
   $saved = @{}
   foreach ($k in 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL') {

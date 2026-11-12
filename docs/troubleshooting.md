@@ -409,6 +409,26 @@ What it means. The repository player-<id> was made on GitHub, but a later step f
 Why it is safe. The launcher did not write the player's state, so no half-made player is left on this machine.
 What to do. Delete the repository player-<id> on GitHub, then run new for the same id again. While the repository is still there, the next new stops at the create step.
 
+### repo_bad
+What it means. The value given to --repo is not owner/name. The owner has letters, digits and dashes (up to 39); the name has letters, digits and . _ - (up to 100); the name is not . or .., and --repo is given once.
+Why it is safe. The launcher refused the option before it called GitHub, so nothing was created.
+What to do. Give the value as owner/name, for example SandboxServers/player-mmpr-pink.
+
+### repo_missing
+What it means. The repository given to --repo was not found, or gh cannot see it. The message names it.
+Why it is safe. The launcher stopped before it cloned or changed anything.
+What to do. Check the spelling and that gh is signed in with access to that repository, then run new again.
+
+### repo_visibility
+What it means. The repository given to --repo has a different visibility from the one asked for. The message names the repository, its visibility and the requested one.
+Why it is safe. The launcher stopped before it cloned or changed anything.
+What to do. Pass --public or --private to match the repository, or change the repository's visibility on GitHub first.
+
+### repo_not_empty
+What it means. The repository given to --repo holds files other than README.md, LICENSE and .gitignore at the top level, or gh could not list its files.
+Why it is safe. The launcher fills only a repository it has verified as empty. It stopped before it cloned or changed anything, and it never force-pushes.
+What to do. Use an empty repository (one initial README is fine), or remove the extra files on GitHub, then run new again.
+
 ### bad_shard
 What it means. The shard name is not allowed.
 Why it is safe. The launcher checked the name before it created anything.
@@ -420,7 +440,7 @@ Why it is safe. The launcher refused the address before it created anything.
 What to do. The owner corrects the address in `launcher/config/world.conf`. A port is allowed only when it is the `mcp_port`.
 
 ### bad_token
-What it means. The token file is not valid. It needs one line of 16 to 200 letters, digits, or . _ ~ -
+What it means. The token file is not valid. It needs one line of 16 to 200 letters, digits, or `. _ ~ -`. The line may start with `GELDAR_MCP_TOKEN=` (the form Geldar writes); any other prefix is refused.
 Why it is safe. The launcher refused the file before it created anything.
 What to do. Replace the file with a token in that form. Never paste a token into a chat or a commit.
 

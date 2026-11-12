@@ -34,6 +34,8 @@ read_token_file() {
   line=${line%$'\r'}
   line=${line#"${line%%[![:space:]]*}"}
   line=${line%"${line##*[![:space:]]}"}
+  # A Geldar token file reads GELDAR_MCP_TOKEN=<value>; the bare value is accepted too.
+  line=${line#GELDAR_MCP_TOKEN=}
   [[ $line =~ $re ]] || die 1 bad_token
   NEW_TOKEN=$line
 }
@@ -197,13 +199,89 @@ die_after_create() {
   shift 2
   rm -rf "$clone"
   say "$@"
-  say repo_on_github "$id"
+  # An adopted repository was there before new ran, so there is nothing of ours to delete on GitHub.
+  [ -n "${NEW_ADOPT-}" ] || say repo_on_github "$id"
   exit 1
+}
+
+# Checks the repository --repo names before anything is written: it exists, its visibility is the
+# requested one, and it holds nothing but README.md, LICENSE and .gitignore at the top level.
+# Arguments: gh, owner/name, wanted visibility.
+adopt_verify() {
+  local gh=$1 repo=$2 want=$3 out v n
+  out=$(run_bounded 120 "$gh" repo view "$repo" --json visibility,isEmpty,name 2> /dev/null) ||
+    die 1 repo_missing "$repo"
+  v=$(printf '%s' "$out" | tr -d ' \r\n' | sed -n 's/.*"visibility":"\([A-Za-z]*\)".*/\1/p' |
+    tr 'A-Z' 'a-z')
+  [ "$v" = "$want" ] || die 1 repo_visibility "$repo" "${v:-unknown}" "$want"
+  out=$(run_bounded 120 "$gh" api "repos/$repo/contents" --jq 'map(.name)' 2> /dev/null) ||
+    die 1 repo_not_empty "$repo"
+  # The answer is a JSON array of names; the quoted strings are the names.
+  while IFS= read -r n; do
+    case $n in
+      '"README.md"' | '"LICENSE"' | '".gitignore"') ;;
+      *) die 1 repo_not_empty "$repo" ;;
+    esac
+  done <<EOF
+$(printf '%s\n' "$out" | grep -o '"[^"]*"')
+EOF
+}
+
+# Copies the template's files (a shallow clone of the pinned template repository) into the clone.
+# Nothing under .git crosses and a link in the template is refused. Sets ADOPT_EXEC to the paths
+# that git records as executable. Arguments: gh, clone folder.
+adopt_fill() {
+  local gh=$1 clone=$2 tmp rec mode p list="" dir
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/gp-tpl.XXXXXX") || return 1
+  ADOPT_EXEC=""
+  if ! (cd "$tmp" && run_bounded 120 "$gh" repo clone SandboxServers/geldar-player-template tpl \
+    -- --depth 1) > /dev/null 2>&1; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  while IFS= read -r -d '' rec; do
+    mode=${rec%% *}
+    p=${rec#*$'\t'}
+    case $mode in
+      100644) ;;
+      100755) ADOPT_EXEC="$ADOPT_EXEC$p"$'\n' ;;
+      *)
+        rm -rf "$tmp"
+        return 1
+        ;;
+    esac
+    case /$p/ in
+      */../* | */./* | */.git/* | //*)
+        rm -rf "$tmp"
+        return 1
+        ;;
+    esac
+    if [ -L "$tmp/tpl/$p" ] || [ ! -f "$tmp/tpl/$p" ]; then
+      rm -rf "$tmp"
+      return 1
+    fi
+    list="$list$p"$'\n'
+  done < <(git_cmd -C "$tmp/tpl" ls-files -s -z 2> /dev/null)
+  [ -n "$list" ] || {
+    rm -rf "$tmp"
+    return 1
+  }
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    dir=$(dirname "$p")
+    mkdir -p "$clone/$dir" && cp "$tmp/tpl/$p" "$clone/$p" || {
+      rm -rf "$tmp"
+      return 1
+    }
+  done <<EOF
+$list
+EOF
+  rm -rf "$tmp"
 }
 
 verb_new() {
   local id=$1 vis="" mock="" tokfile="" shard=commons base i a clone name url d persona=""
-  local have_persona=""
+  local have_persona="" repo="" repo_re='^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$' p
   local shre='^[a-z][a-z0-9-]{0,30}$' gh players add=player.json
   shift
   while [ $# -gt 0 ]; do
@@ -226,6 +304,14 @@ verb_new() {
         [ -z "$have_persona" ] || die 1 persona_bad "$id" twice
         have_persona=1
         persona=$2
+        shift 2
+        ;;
+      --repo)
+        [ $# -ge 2 ] || die 2 usage
+        [ -z "$repo" ] || die 1 repo_bad
+        repo=$2
+        [[ $repo =~ $repo_re ]] || die 1 repo_bad
+        case ${repo#*/} in . | ..) die 1 repo_bad ;; esac
         shift 2
         ;;
       *) die 2 usage ;;
@@ -253,21 +339,28 @@ verb_new() {
     die 1 repo_exists "$id"
   fi
   gh=${GELDAR_GH:-gh}
+  NEW_ADOPT=""
+  if [ -n "$repo" ]; then
+    NEW_ADOPT=1
+    adopt_verify "$gh" "$repo" "$NEW_VIS"
+  fi
   [ "$NEW_VIS" = "private" ] || say public_notice
   [ -z "$mock" ] || say mock_note
 
   # The human's own clone and directory keep the user's normal modes.
   umask 022
   mkdir -p "$players"
-  (cd "$players" && run_bounded 120 "$gh" repo create "$name" \
-    --template SandboxServers/geldar-player-template "--$NEW_VIS") > /dev/null 2>&1 ||
-    die 1 gh_failed "$id" 'create'
   clone="$players/$name"
+  if [ -z "$repo" ]; then
+    (cd "$players" && run_bounded 120 "$gh" repo create "$name" \
+      --template SandboxServers/geldar-player-template "--$NEW_VIS") > /dev/null 2>&1 ||
+      die 1 gh_failed "$id" 'create'
+  fi
   i=0
   while :; do
     i=$((i + 1))
     # A clone counts only if it has a commit: GitHub can fill the template after repo create returns.
-    if (cd "$players" && run_bounded 120 "$gh" repo clone "$name") > /dev/null 2>&1 &&
+    if (cd "$players" && run_bounded 120 "$gh" repo clone "${repo:-$name}" "$name") > /dev/null 2>&1 &&
       [ -d "$clone/.git" ] && git_cmd -C "$clone" rev-parse --verify -q HEAD > /dev/null 2>&1; then
       break
     fi
@@ -276,16 +369,27 @@ verb_new() {
     gp_sleep 3
   done
 
+  if [ -n "$repo" ]; then
+    adopt_fill "$gh" "$clone" || die_after_create "$clone" "$id" gh_failed "$id" 'template'
+    add=-A
+  fi
   write_player_json "$clone/player.json" "$id" "$shard" "$url"
   if [ -n "$have_persona" ]; then
     mkdir -p "$clone/memory"
     printf '%s' "$PERSONA_IDENTITY" > "$clone/memory/identity.md"
     printf '%s' "$PERSONA_GOALS" > "$clone/memory/goals.md"
-    add="player.json memory/identity.md memory/goals.md"
+    [ -n "$repo" ] || add="player.json memory/identity.md memory/goals.md"
   fi
   # shellcheck disable=SC2086
   git_cmd -C "$clone" add $add > /dev/null 2>&1 ||
     die_after_create "$clone" "$id" gh_failed "$id" 'add'
+  if [ -n "$repo" ]; then
+    while IFS= read -r p; do
+      [ -z "$p" ] || git_cmd -C "$clone" update-index --chmod=+x -- "$p" > /dev/null 2>&1
+    done <<EOF
+$ADOPT_EXEC
+EOF
+  fi
   a="player-$id@users.noreply.github.com"
   GIT_AUTHOR_NAME=$name GIT_AUTHOR_EMAIL=$a GIT_COMMITTER_NAME=$name GIT_COMMITTER_EMAIL=$a \
     git_cmd -C "$clone" -c "user.name=$name" -c "user.email=$a" -c commit.gpgsign=false \

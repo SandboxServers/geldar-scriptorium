@@ -55,6 +55,10 @@ The proxy reaches the world on the URL's effective port only, and it always refu
 
 `geldar-play new <id> --persona-dir <dir>` creates a player from a persona: a folder holding `memory/identity.md` (at most 8192 bytes) and `memory/goals.md` (at most 4096 bytes). It is owner provisioning only. The Patron's guide does not mention it, and the Patron never needs it. The checks, the refusals and the seeded birth commit are described in [launcher/README.md](../launcher/README.md#owner-and-developer-options).
 
+## Filling an existing empty repository (owner only)
+
+`geldar-play new <id> --repo <owner/name> --public --persona-dir <dir> --token-file <file>` uses a repository that already exists, instead of creating `player-<id>`. The repository must have the visibility you pass (`--public` or `--private`) and hold nothing but README.md, LICENSE and .gitignore. The launcher clones it, copies the template into it, adds the persona and the player settings, and pushes one commit named `player: <id>`. It never force-pushes. The token file may hold the bare token or `GELDAR_MCP_TOKEN=<token>`. The refusals are `repo_bad`, `repo_missing`, `repo_visibility` and `repo_not_empty` in [troubleshooting](troubleshooting.md).
+
 ## The dev world (developers only)
 
 `GELDAR_DEV_MCP_URL` points one launch at a world on the developer's own machine. Set it in the shell that runs `geldar-play`, to exactly `http://host.docker.internal:PORT/p/ID`. The launcher reads it from the environment only, and it bypasses `mcp_base` and the port rule for that launch: it goes straight to the allowlist writer and is not given to the session container. Every launch prints `dev_world_active` with the URL, and while the variable is set, starting more than one player is refused.

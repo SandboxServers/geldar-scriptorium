@@ -314,6 +314,152 @@ describe.each(forGroup('new'))('new ($name)', (l) => {
     expect(s.ghCalls().find((c) => c[1] === 'create')).toContain('--public');
   });
 
+  // --repo: an existing repository, seeded as the bare Acme/NAME with the given top-level files.
+  const REPO = 'Acme/other-repo';
+  const bareOf = (s: Setup) => join(s.ghRoot, 'other-repo.git');
+  const adoptArgs = (extra: string[] = []) => [
+    ID,
+    '--mock',
+    MOCK,
+    '--public',
+    '--repo',
+    REPO,
+    ...extra,
+  ];
+  function seedRepo(s: Setup, vis: string, files: Record<string, string> = { 'README.md': 'x\n' }) {
+    const work = join(s.w.root, 'seed');
+    mkdirSync(work, { recursive: true });
+    git(s.w.root, ['init', '-q', '--bare', '-b', 'main', bareOf(s)]);
+    git(work, ['init', '-q', '-b', 'main']);
+    for (const [f, body] of Object.entries(files)) {
+      mkdirSync(join(work, f, '..'), { recursive: true });
+      writeFileSync(join(work, f), body);
+    }
+    const id = [
+      '-c',
+      'user.name=S',
+      '-c',
+      'user.email=s@example.test',
+      '-c',
+      'commit.gpgsign=false',
+    ];
+    git(work, ['add', '-A']);
+    git(work, [...id, 'commit', '-q', '-m', 'Initial commit']);
+    git(work, ['push', '-q', bareOf(s), 'main']);
+    writeFileSync(join(s.ghRoot, 'other-repo.vis'), vis);
+  }
+  const bareHead = (s: Setup) => git(bareOf(s), ['rev-parse', 'main']);
+
+  it('11. --repo fills an empty repository from the template, with the persona', () => {
+    const s = setupWorld();
+    seedRepo(s, 'public');
+    const pdir = join(s.w.root, 'persona');
+    mkdirSync(join(pdir, ID, 'memory'), { recursive: true });
+    writeFileSync(join(pdir, ID, 'memory', 'identity.md'), '# Identity\n\nA ranger.\n');
+    writeFileSync(join(pdir, ID, 'memory', 'goals.md'), '# Goals\n\nProtect.\n');
+    const pd = l.name === 'bash' ? bashPath(pdir) : pdir;
+    const r = newRun(l, s, adoptArgs(['--persona-dir', pd]));
+    expect(r.status, r.stderr).toBe(0);
+    const calls = s.ghCalls();
+    expect(calls.some((c) => c[1] === 'create')).toBe(false);
+    expect(calls.some((c) => c[1] === 'view' && c[2] === REPO)).toBe(true);
+    expect(calls.some((c) => c[0] === 'api' && c[1] === `repos/${REPO}/contents`)).toBe(true);
+    const tpl = join(repoRoot, 'template');
+    const have = filesUnder(clonePath(s));
+    for (const f of filesUnder(tpl)) expect(have, f).toContain(f);
+    expect(have).toContain('memory/identity.md');
+    expect(readFileSync(join(clonePath(s), 'README.md'), 'utf8')).toBe(
+      readFileSync(join(tpl, 'README.md'), 'utf8'),
+    );
+    expect(git(clonePath(s), ['log', '-n', '1', '--format=%s'])).toBe(`player: ${ID}`);
+    expect(git(clonePath(s), ['rev-list', '--count', 'HEAD'])).toBe('2');
+    expect(git(clonePath(s), ['status', '--porcelain'])).toBe('');
+    expect(bareHead(s)).toBe(git(clonePath(s), ['rev-parse', 'HEAD']));
+    expect(readFileSync(join(clonePath(s), 'memory', 'identity.md'), 'utf8')).toContain(
+      'A ranger.',
+    );
+  });
+
+  it('12. --repo refuses a visibility mismatch with nothing created', () => {
+    const s = setupWorld();
+    seedRepo(s, 'private');
+    const before = bareHead(s);
+    const r = newRun(l, s, adoptArgs());
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toContain(`${REPO} is private, but public was asked for`);
+    expect(s.ghCalls().some((c) => c[1] === 'clone' || c[1] === 'create')).toBe(false);
+    expect(existsSync(clonePath(s))).toBe(false);
+    expect(bareHead(s)).toBe(before);
+  });
+
+  it('13. --repo refuses a repository holding other files', () => {
+    const s = setupWorld();
+    seedRepo(s, 'public', { 'README.md': 'x\n', 'src/a.txt': 'a\n' });
+    const r = newRun(l, s, adoptArgs());
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toContain('already holds files other than');
+    expect(s.ghCalls().some((c) => c[1] === 'clone')).toBe(false);
+    expect(existsSync(clonePath(s))).toBe(false);
+  });
+
+  it('14. --repo refuses a repository that is not there, and a bad value', () => {
+    const s = setupWorld();
+    const r = newRun(l, s, adoptArgs());
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toContain('was not found');
+    const b = newRun(l, s, [ID, '--mock', MOCK, '--public', '--repo', 'no/such/thing']);
+    expect(b.status, b.stderr).toBe(1);
+    expect(b.stderr).toContain('--repo value is not allowed');
+    expect(existsSync(clonePath(s))).toBe(false);
+  });
+
+  it('15. --repo refuses a template that holds a symlink', () => {
+    const s = setupWorld();
+    seedRepo(s, 'public');
+    const before = bareHead(s);
+    const r = newRun(l, s, adoptArgs(), { FAKE_GH_TEMPLATE_LINK: '1' });
+    expect(r.status, r.stderr).toBe(1);
+    expect(r.stderr).toContain('(template)');
+    expect(r.stderr).not.toContain('already made on GitHub');
+    expect(existsSync(clonePath(s))).toBe(false);
+    expect(existsSync(join(s.w.state, ID))).toBe(false);
+    expect(bareHead(s)).toBe(before);
+  });
+
+  it('16. a token file may carry the GELDAR_MCP_TOKEN= prefix; other prefixes are refused', () => {
+    const t = token();
+    const s = setupWorld();
+    const a = newRun(l, s, [
+      ID,
+      '--mock',
+      MOCK,
+      '--token-file',
+      tokenFile(l, s.w, `GELDAR_MCP_TOKEN=${t}\n`),
+    ]);
+    expect(a.status, a.stderr).toBe(0);
+    expect(readFileSync(join(s.w.state, ID, 'token'), 'utf8').trim()).toBe(t);
+    for (const body of [
+      `OTHER_TOKEN=${t}\n`,
+      `GELDAR_MCP_TOKEN=GELDAR_MCP_TOKEN=${t}\n`,
+      'GELDAR_MCP_TOKEN=short\n',
+    ]) {
+      const s2 = setupWorld();
+      const b = newRun(l, s2, [ID, '--mock', MOCK, '--token-file', tokenFile(l, s2.w, body)]);
+      expect(b.status, b.stderr).toBe(1);
+      expect(b.stderr).toContain('token file is not valid');
+      expect(s2.ghCalls()).toEqual([]);
+    }
+  });
+
+  it('17. without --repo, new still calls gh repo create and never views a repository', () => {
+    const s = setupWorld();
+    const r = newRun(l, s, [ID, '--mock', MOCK]);
+    expect(r.status, r.stderr).toBe(0);
+    const calls = s.ghCalls();
+    expect(calls.some((c) => c[1] === 'create')).toBe(true);
+    expect(calls.some((c) => c[1] === 'view' || c[0] === 'api')).toBe(false);
+  });
+
   timingIt('10. a gh that hangs is bounded and leaves nothing local', () => {
     const s = setupWorld();
     const t0 = Date.now();
