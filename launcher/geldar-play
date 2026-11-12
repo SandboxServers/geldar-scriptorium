@@ -31,7 +31,7 @@ verb_needs() {
     resolve) printf '%s' 'docker git perl' ;;
     upgrade) printf '%s' 'git perl gh' ;;
     status | run_status) printf '%s' 'git' ;;
-    start | stop | restart | player_status | logs | deploy_key | release_hold) printf '%s' 'docker git perl' ;;
+    start | stop | restart | player_status | logs | deploy_key | release_hold | sync) printf '%s' 'docker git perl' ;;
   esac
 }
 
@@ -108,7 +108,7 @@ case $verb in
     [ "${GELDAR_INTERNAL:-}" = "1" ] || die 2 internal_only
     ;;
   new | setup | play | run | run-status | run-stop | resolve | archive | status | upgrade) ;;
-  start | stop | restart | player-status | logs | deploy-key | release-hold) ;;
+  start | stop | restart | player-status | logs | deploy-key | release-hold | sync) ;;
   auth-set | auth-status | auth-clear) ;;
   *) die 2 usage ;;
 esac

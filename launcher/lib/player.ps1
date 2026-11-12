@@ -394,7 +394,7 @@ function Verb-player_status {
   [Console]::Out.Write("supervisor status:`n")
   Write-PlayerStatusPart $id 'supervisor' "geldar-sup-$id" 1001 'cat /vol/status.json'
   [Console]::Out.Write("keeper status:`n")
-  Write-PlayerStatusPart $id 'keeper' "geldar-keep-$id" 1002 'grep -E "\"(last_pushed_head|last_run_utc)\"" /vol/status.json'
+  Write-PlayerStatusPart $id 'keeper' "geldar-keep-$id" 1002 'grep -E "\"(last_pushed_head|last_run_utc|upstream_head|upstream_result)\"" /vol/status.json'
   $held = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" 1002 'ro' 'cat /vol/HELD'
   if ($held.Code -eq 0) { Say player_held (Sanitize ($held.Text.TrimEnd("`r", "`n"))) }
 }
@@ -478,4 +478,22 @@ function Verb-release_hold {
   $rm = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" 1002 'rw' 'rm -f /vol/HELD'
   if ($rm.Code -ne 0) { Die 1 player_release_failed $id }
   Say player_released $id
+}
+
+# Whether the keeper and the supervisor are both running (the persistent group).
+function Test-PlayerRunning([string]$Id) {
+  $up = @(Invoke-PlayerCompose $Id @('ps', '--status', 'running', '--format', '{{.Service}}'))
+  return ($up -contains 'keeper') -and ($up -contains 'supervisor')
+}
+
+# sync <id>: asks the keeper to fetch upstream now. It touches sync-request in the keeper's state; the
+# keeper fetches and the supervisor applies the change between runs, never during one.
+function Verb-sync {
+  if ($args.Count -ne 1) { Die 2 usage }
+  $id = [string]$args[0]
+  Read-Player $id
+  if (-not (Test-PlayerRunning $id)) { Die 1 player_not_running $id }
+  $r = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" 1002 'rw' 'touch /vol/sync-request'
+  if ($r.Code -ne 0) { Die 1 player_sync_failed $id }
+  Say player_sync_requested $id
 }

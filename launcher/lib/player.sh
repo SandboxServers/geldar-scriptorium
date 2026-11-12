@@ -317,7 +317,7 @@ pl_status_part() {
 }
 
 # player-status <id>: container states, the supervisor's status.json, the keeper's push time
-# (last_pushed_head and last_run_utc from its status.json), HELD if set.
+# (last_pushed_head and last_run_utc from its status.json), the last upstream sync of both, HELD if set.
 # Reads only the files named here; no secret is printed.
 verb_player_status() {
   [ $# -eq 1 ] || die 2 usage
@@ -328,7 +328,7 @@ verb_player_status() {
   printf 'supervisor status:\n'
   pl_status_part "$id" supervisor "geldar-sup-$id" 1001 'cat /vol/status.json'
   printf 'keeper status:\n'
-  pl_status_part "$id" keeper "geldar-keep-$id" 1002 'grep -E "\"(last_pushed_head|last_run_utc)\"" /vol/status.json'
+  pl_status_part "$id" keeper "geldar-keep-$id" 1002 'grep -E "\"(last_pushed_head|last_run_utc|upstream_head|upstream_result)\"" /vol/status.json'
   if reason=$(pl_helper "$id" keeper "geldar-keep-$id" 1002 ro 'cat /vol/HELD' 2> /dev/null); then
     say player_held "$(printf '%s' "$reason" | sanitize)"
   fi
@@ -414,4 +414,22 @@ verb_release_hold() {
   pl_helper "$id" keeper "geldar-keep-$id" 1002 rw 'rm -f /vol/HELD' > /dev/null 2>&1 ||
     die 1 player_release_failed "$id"
   say player_released "$id"
+}
+
+# pl_running id: true when the keeper and the supervisor are both running (the persistent group).
+pl_running() {
+  local up
+  up=$(pl_compose "$1" ps --status running --format '{{.Service}}' 2> /dev/null) || return 1
+  printf '%s\n' "$up" | grep -qx keeper && printf '%s\n' "$up" | grep -qx supervisor
+}
+
+# sync <id>: asks the keeper to fetch upstream now. It touches sync-request in the keeper's state; the
+# keeper fetches and the supervisor applies the change between runs, never during one.
+verb_sync() {
+  [ $# -eq 1 ] || die 2 usage
+  read_player "$1"
+  pl_running "$1" || die 1 player_not_running "$1"
+  pl_helper "$1" keeper "geldar-keep-$1" 1002 rw 'touch /vol/sync-request' > /dev/null 2>&1 ||
+    die 1 player_sync_failed "$1"
+  say player_sync_requested "$1"
 }

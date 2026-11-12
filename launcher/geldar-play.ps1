@@ -28,7 +28,7 @@ function Get-VerbNeeds([string]$Verb) {
     'resolve' { return @('docker', 'git') }
     { $_ -in 'status', 'run_status' } { return @('git') }
     'upgrade' { return @('git', 'gh') }
-    { $_ -in 'start', 'stop', 'restart', 'player_status', 'logs', 'deploy_key', 'release_hold' } { return @('docker', 'git') }
+    { $_ -in 'start', 'stop', 'restart', 'player_status', 'logs', 'deploy_key', 'release_hold', 'sync' } { return @('docker', 'git') }
   }
   return @()
 }
@@ -73,7 +73,7 @@ switch -CaseSensitive ($verb) {
   }
   { $_ -in 'new', 'setup', 'play', 'run', 'run-status', 'run-stop', 'resolve', 'archive', 'status', 'upgrade' } { }
   { $_ -in 'auth-set', 'auth-status', 'auth-clear' } { }
-  { $_ -in 'start', 'stop', 'restart', 'player-status', 'logs', 'deploy-key', 'release-hold' } { }
+  { $_ -in 'start', 'stop', 'restart', 'player-status', 'logs', 'deploy-key', 'release-hold', 'sync' } { }
   default { Die 2 usage }
 }
 

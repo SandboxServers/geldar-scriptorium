@@ -191,7 +191,9 @@ for (const l of launchers) {
       expect(none.stderr).toContain(`${ID} is not held, so there is nothing to release`);
     });
 
-    it('no token, key text or login value reaches output, a docker call or a compose environment', (ctx) => {
+    it('no token, key text or login value reaches output, a docker call or a compose environment', {
+      timeout: T,
+    }, (ctx) => {
       if (!canQuote(l)) {
         console.info(`no-secret sweep (${l.name}): skipped, it runs player-status (double quote)`);
         ctx.skip();
