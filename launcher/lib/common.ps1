@@ -8,6 +8,7 @@ $script:GP_MSG = @{}
 $script:GP_LOCK_ID = ''
 $script:GP_DIE_THROWS = $false
 $script:GP_DIE_CODE = 1
+$script:GP_SHIELD = $false
 
 # Test-only variables are read only through this function (decision 9): the value when
 # GELDAR_INTERNAL=1, else the empty string.
@@ -230,10 +231,21 @@ function ConvertTo-CmdArgument([string]$Arg) {
 
 # The start info for an executable and its arguments. A .cmd or .bat goes through
 # cmd.exe /d /s /c "<shim> <args>" built on psi.Arguments (ArgumentList would re-escape the quotes).
+function Get-ShieldedWords([string]$Exe, [string[]]$ArgList) {
+  return @('-c', 'trap "" INT TERM HUP; exec "$@"', 'sh', $Exe) + @($ArgList)
+}
+
 function New-CmdShimStartInfo([string]$Exe, [string[]]$ArgList) {
   $psi = [System.Diagnostics.ProcessStartInfo]::new()
   $psi.UseShellExecute = $false
-  if ($Exe -match '\.(cmd|bat)\z') {
+  # The run supervisor's children must not see Ctrl-C (GP_SHIELD, set by lib/run.ps1). Windows:
+  # the console ignores it for a moment, and the child inherits that. POSIX: sh ignores the
+  # signals, then execs the command (an ignored disposition survives the exec).
+  if ($script:GP_SHIELD -and $IsWindows) { [GeldarRunStop]::ShieldFor(1500) }
+  if ($script:GP_SHIELD -and -not $IsWindows) {
+    $psi.FileName = '/bin/sh'
+    foreach ($a in (Get-ShieldedWords $Exe $ArgList)) { $psi.ArgumentList.Add([string]$a) }
+  } elseif ($Exe -match '\.(cmd|bat)\z') {
     $parts = @(ConvertTo-CmdArgument $Exe) + @($ArgList | ForEach-Object { ConvertTo-CmdArgument ([string]$_) })
     $psi.FileName = 'cmd.exe'
     $psi.Arguments = '/d /s /c "' + ($parts -join ' ') + '"'

@@ -313,4 +313,84 @@ if (pwsh) {
     expect(inside.status).toBe(4);
     expect(inside.stdout).not.toContain('alive');
   });
+
+  it('drops lone surrogates, keeps pairs and escaped backslashes, and cuts by code points', () => {
+    const r = lib(
+      [
+        'function W($j) { Get-RunLastWords (ConvertFrom-RunSummary $j) }',
+        '$e = [char]::ConvertFromUtf32(0x1F600)',
+        '"a=" + (W \'{"last_text":"a\\ud83db"}\')',
+        '"b=" + (W \'{"last_text":"a\\uDE00b"}\')',
+        '"c=" + ((W \'{"last_text":"a\\ud83d\\ude00b"}\') -ceq ("a" + $e + "b"))',
+        '"d=" + (W \'{"last_text":"a\\\\ud83d"}\')',
+        '$w = W (\'{"last_text":"\' + ($e * 1600) + \'"}\')',
+        '"e=" + $w.Length + "," + ($w -ceq ($e * 1500))',
+        '"f=" + (W \'{"last_text":"2026-01-10T23:00:00Z"}\')',
+        '"g=" + (W \'{"last_text":"a\\tb\\rc\\u0008d\\ne"}\')',
+      ].join('\n'),
+    );
+    expect(r.status, r.stderr).toBe(0);
+    const out = r.stdout.replace(/\r/g, '');
+    expect(out).toContain('a=ab\n');
+    expect(out).toContain('b=ab\n');
+    expect(out).toContain('c=True');
+    expect(out).toContain('d=a\\ud83d\n');
+    expect(out).toContain('e=3000,True');
+    expect(out).toContain('f=2026-01-10T23:00:00Z\n');
+    expect(out).toContain('g=abcd e\n');
+  });
+
+  it('reads the summary through the container path with a multibyte last_text', () => {
+    const w = makeWorld();
+    const stub = join(w.root, 'fake-docker.ps1');
+    writeFileSync(stub, '$null = @($input)\n\'{"last_text":"héllo ☃ 😀"}\'\n');
+    const stream = join(w.root, 's.jsonl');
+    writeFileSync(stream, '{"x":1}\n');
+    const r = lib(
+      `$script:PL_KIT_IMAGE = 'img'\n$s = Get-RunSummaryBox '${stream.replace(/'/g, "''")}'\n$o = ConvertFrom-RunSummary $s\n"last=" + (Get-RunLastWords $o)`,
+      { GELDAR_DOCKER: stub },
+    );
+    expect(r.stdout, r.stderr).toContain('last=héllo ☃ 😀');
+  });
+
+  it('retries a held log or cost write, then says so and goes on', () => {
+    const w = makeWorld();
+    const dir = join(w.root, 'rd');
+    mkdirSync(dir, { recursive: true });
+    const q = dir.replace(/'/g, "''");
+    const r = lib(
+      [
+        `$script:RUN_DIR = '${q}'`,
+        "$log = Join-Path $script:RUN_DIR 'supervisor.log'",
+        "$fs = [IO.File]::Open($log, 'OpenOrCreate', 'ReadWrite', 'None')",
+        "Write-RunLog 'held'",
+        "$ok = Invoke-RunWrite 'costs.csv' { $f2 = [IO.File]::Open($log, 'Open', 'Read', 'Read'); $f2.Dispose() }",
+        '$fs.Dispose()',
+        "Write-RunLog 'free'",
+        '"ok=$ok"',
+        '"alive"',
+      ].join('\n'),
+    );
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr).toContain('could not write supervisor.log');
+    expect(r.stderr).toContain('could not write costs.csv');
+    expect(r.stdout).toContain('ok=False');
+    const text = readFileSync(join(dir, 'supervisor.log'), 'utf8');
+    expect(text).toContain('free');
+    expect(text).not.toContain('held');
+  });
+
+  it('shields the run children from Ctrl-C with a sh trap on POSIX', () => {
+    const r = lib(
+      [
+        "(Get-ShieldedWords '/usr/bin/docker' @('run', 'x')) -join '|'",
+        '$script:GP_SHIELD = $true',
+        "if (-not $IsWindows) { $p = New-CmdShimStartInfo '/usr/bin/docker' @('run', 'x'); $p.FileName + ' ' + ($p.ArgumentList -join '|') }",
+      ].join('\n'),
+    );
+    expect(r.status, r.stderr).toBe(0);
+    const shield = '-c|trap "" INT TERM HUP; exec "$@"|sh|/usr/bin/docker|run|x';
+    expect(r.stdout).toContain(shield);
+    if (process.platform !== 'win32') expect(r.stdout).toContain(`/bin/sh ${shield}`);
+  });
 }

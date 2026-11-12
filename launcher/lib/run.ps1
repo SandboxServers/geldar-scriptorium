@@ -11,7 +11,12 @@ $script:RUN_UTF8 = [System.Text.UTF8Encoding]::new($false)
 # The stop flag is set from a signal handler thread, which has no PowerShell runspace: a plain
 # C# class holds the flag and hooks Ctrl-C (SIGINT), SIGTERM and SIGHUP. A signal says the
 # stopping line once (Line, set by the caller) and sets the flag; it never kills a cycle.
-if (-not ('GeldarRunStop' -as [type])) {
+# It is compiled on first use (Initialize-RunStop, from Verb-run only), so the other verbs pay
+# nothing and keep working where Add-Type is blocked. On Windows it also holds ShieldFor: the
+# console ignores Ctrl-C for a moment around the start of a child, which then inherits that
+# (the twin of bash's trap '' INT in the cycle subshell); the supervisor keeps its own handler.
+function Initialize-RunStop {
+  if ('GeldarRunStop' -as [type]) { return }
   Add-Type -TypeDefinition @'
 using System;
 using System.Threading;
@@ -21,8 +26,21 @@ public static class GeldarRunStop {
   public static string Line;
   static int said;
   static bool hooked;
+  static Timer unshield;
   static PosixSignalRegistration term;
   static PosixSignalRegistration hup;
+  [DllImport("kernel32.dll")]
+  static extern bool SetConsoleCtrlHandler(IntPtr handler, bool add);
+  static void Restore() {
+    try { SetConsoleCtrlHandler(IntPtr.Zero, false); } catch (Exception) { }
+  }
+  public static void ShieldFor(int ms) {
+    try { SetConsoleCtrlHandler(IntPtr.Zero, true); } catch (Exception) { return; }
+    lock (typeof(GeldarRunStop)) {
+      if (unshield == null) unshield = new Timer(_ => Restore(), null, ms, Timeout.Infinite);
+      else unshield.Change(ms, Timeout.Infinite);
+    }
+  }
   static void Stop() {
     if (Interlocked.Exchange(ref said, 1) == 0 && Line != null) Console.Error.Write(Line);
     Flag = true;
@@ -104,7 +122,12 @@ function Get-RunLock([string]$Id) {
     Remove-Item -LiteralPath $t -Recurse -Force -ErrorAction SilentlyContinue
     $owner = Read-RunPid $l
     if ($owner -cmatch '^[0-9]+\z') {
-      if ([bool](Get-Process -Id ([int]$owner) -ErrorAction SilentlyContinue)) { Die 1 run_already_running $Id $l $owner }
+      # A number too long to be a pid names no process: the lock is stale.
+      $alive = $false
+      if ($owner.Length -le 10 -and [long]$owner -le [int]::MaxValue) {
+        $alive = [bool](Get-Process -Id ([int][long]$owner) -ErrorAction SilentlyContinue)
+      }
+      if ($alive) { Die 1 run_already_running $Id $l $owner }
       Remove-Item -LiteralPath $l -Recurse -Force -ErrorAction SilentlyContinue
       continue
     }
@@ -196,8 +219,15 @@ function Get-RunSummaryBox([string]$Stream) {
 # ConvertFrom-Json of the summary line; $null when it does not parse to an object.
 function ConvertFrom-RunSummary([string]$Json) {
   if ($Json -eq '') { return $null }
+  # A lone surrogate escape would become U+FFFD; bash drops it. An escaped backslash is skipped
+  # (a literal \\ud83d stays), and a valid high-low pair stays.
+  $Json = [regex]::Replace($Json, '\\\\|\\u(d[89ab][0-9a-f]{2})\\u(d[c-f][0-9a-f]{2})|\\ud[89a-f][0-9a-f]{2}', {
+      param($m)
+      if ($m.Value -ceq '\\' -or $m.Groups[1].Success) { return $m.Value }
+      return ''
+    }, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
   try {
-    $o = $Json | ConvertFrom-Json -ErrorAction Stop
+    $o = $Json | ConvertFrom-Json -DateKind String -ErrorAction Stop
   } catch {
     return $null
   }
@@ -227,7 +257,7 @@ function Get-RunLastWords($Obj) {
   $t = [string]$p.Value
   # A lone surrogate is dropped; a valid pair stays.
   $t = [regex]::Replace($t, '[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]', '')
-  $t = [regex]::Replace($t, '[\n\t\r\b\f]', ' ')
+  $t = $t.Replace("`n", ' ')
   $t = [regex]::Replace($t, '[\x00-\x1f\x7f-\x9f]', '')
   $t = $t.Replace('"', "'")
   $sb = [System.Text.StringBuilder]::new()
@@ -295,13 +325,33 @@ function Write-RunStatus($N, [string]$State, [string]$LastResult, [string]$Cost)
   $now = Format-RunTime (Get-RunNow) 'stamp'
   $t = Join-Path $script:RUN_DIR 'status.json.new'
   $json = '{"run":' + $N + ',"state":"' + $State + '","started":"' + $script:RUN_STARTED + '","last_result":"' + $LastResult + '","cost_today":' + $Cost + ',"updated":"' + $now + '"}' + "`n"
-  Write-RunFile $t $json
-  Move-Item -LiteralPath $t -Destination (Join-Path $script:RUN_DIR 'status.json') -Force
+  Invoke-RunWrite 'status.json' {
+    Write-RunFile $t $json
+    Move-Item -LiteralPath $t -Destination (Join-Path $script:RUN_DIR 'status.json') -Force
+  } | Out-Null
+}
+
+# Invoke-RunWrite <name> <script block>: a log or status write is tried 5 times, 200 ms apart (a
+# Windows sharing violation passes); then it is reported on stderr and skipped. It never ends the
+# supervisor. The text is fixed: a new message key is not part of this packet.
+function Invoke-RunWrite([string]$Name, [scriptblock]$Body) {
+  for ($try = 1; $try -le 5; $try++) {
+    try {
+      $null = & $Body
+      return $true
+    } catch {
+      if ($try -lt 5) { Start-Sleep -Milliseconds 200 }
+    }
+  }
+  [Console]::Error.Write("geldar-play: could not write $Name; it was skipped`n")
+  return $false
 }
 
 function Write-RunLog([string]$Text) {
   $line = (Format-RunTime (Get-RunNow) 'stamp') + ' ' + $Text + "`n"
-  [System.IO.File]::AppendAllText((Join-Path $script:RUN_DIR 'supervisor.log'), $line, $script:RUN_UTF8)
+  Invoke-RunWrite 'supervisor.log' {
+    [System.IO.File]::AppendAllText((Join-Path $script:RUN_DIR 'supervisor.log'), $line, $script:RUN_UTF8)
+  } | Out-Null
 }
 
 # One full play cycle in run mode; a refusal inside it ends only the cycle. Returns its exit code.
@@ -400,6 +450,8 @@ function Verb-run {
   New-PrivateDir (Join-Path $d 'run')
   Get-RunLock $id
   $script:RUN_LOCKED = $true
+  Initialize-RunStop
+  $script:GP_SHIELD = $true
   [GeldarRunStop]::Reset()
   [GeldarRunStop]::Line = 'geldar-play: ' + (Format-Msg $script:GP_MSG['run_stopping'] @()) + "`n"
   [GeldarRunStop]::Hook()
@@ -411,7 +463,7 @@ function Verb-run {
       $seen = ''
       try { $seen = ([System.IO.File]::ReadAllText($stopFile, $script:RUN_UTF8) -split "`n")[0].TrimEnd("`r") } catch { $null = $_ }
       if ($seen.StartsWith('auto:', [StringComparison]::Ordinal)) {
-        Die 1 run_stopped_auto ($seen -replace '^auto: ?', '') $stopFile
+        Die 1 run_stopped_auto ($seen -replace '^auto: ', '') $stopFile
       }
       Remove-Item -LiteralPath $stopFile -Force -ErrorAction SilentlyContinue
     }
@@ -447,7 +499,10 @@ function Verb-run {
       $err = Get-RunField $o 'is_error' 'true'
       $seen = Get-RunField $o 'result_seen' 'false'
       $row = "$n,$(Format-RunTime $t1 'stamp'),$turnsDone,$costDone`n"
-      [System.IO.File]::AppendAllText((Join-Path $script:RUN_DIR 'costs.csv'), $row, $script:RUN_UTF8)
+      # The cap depends on this row: a failed write is said loudly, and the loop goes on.
+      if (-not (Invoke-RunWrite 'costs.csv' { [System.IO.File]::AppendAllText((Join-Path $script:RUN_DIR 'costs.csv'), $row, $script:RUN_UTF8) })) {
+        [Console]::Error.Write("geldar-play: WARNING: the cost of run $n is not in costs.csv; the daily cap may undercount`n")
+      }
       $ok = $true
       if ($rc -ne 0 -or $secs -lt $fast -or $err -ceq 'true' -or $seen -cne 'true') { $ok = $false }
       if ($ok) {
@@ -483,6 +538,7 @@ function Verb-run {
     Write-RunLog 'stopped'
     Say run_stopped $n
   } finally {
+    $script:GP_SHIELD = $false
     Invoke-RunCleanup
   }
   if ($stopFail) { exit 1 }
