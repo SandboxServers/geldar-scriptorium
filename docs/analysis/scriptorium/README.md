@@ -203,12 +203,12 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-108 | 10 | S | Pin Claude Code at the proven version | Sonnet | Not needed (the kit CLI is 2.1.310, above the 2.1.296 the per-subagent window key needs, and that key is not used) | SC-100 |
 | SC-109 | 10 | S | DROPPED (decision 57): the planner compacts; only workers are restarted by the planner | - | Dropped | - |
 | SC-110 | 10 | S | The kit carries the 200k window and subagent env, the launchers pass `--autocompact 100000` | Sonnet | Done | SC-100, SC-104 |
-| SC-120 | 11 | S | `geldar-verify run-summary`: cost, turns, errors and last words from a headless stream ([wave 11](work-packets-wave11.md)) | Sonnet | Planned | none |
-| SC-121 | 11 | S | Launcher support for one headless session (run mode, stream saved), both launchers | Sonnet | Planned | none |
-| SC-122 | 11 | S | `geldar-play run`, `run-status`, `run-stop`, bash (decision 60) | Sonnet | Planned | SC-120, SC-121 |
-| SC-123 | 11 | S | The PowerShell twin of SC-122 | Sonnet | Planned | SC-120, SC-121, SC-122 |
-| SC-124 | 11 | S | Docs for the supervisor: Patron README section, hardening item, threat model, troubleshooting | Sonnet | Planned | SC-122, SC-123 |
-| SC-125 | 11 | S | List the `unstick` verb in the play skill and guide | Haiku | Held (geldar PR #151) | none |
+| SC-120 | 11 | S | `geldar-verify run-summary`: cost, turns, errors and last words from a headless stream ([wave 11](work-packets-wave11.md)) | Sonnet | Done | none |
+| SC-121 | 11 | S | Launcher support for one headless session (run mode, stream saved), both launchers | Sonnet | Done | none |
+| SC-122 | 11 | S | `geldar-play run`, `run-status`, `run-stop`, bash (decision 60) | Sonnet | Done | SC-120, SC-121 |
+| SC-123 | 11 | S | The PowerShell twin of SC-122 | Sonnet | Done | SC-120, SC-121, SC-122 |
+| SC-124 | 11 | S | Docs for the supervisor: Patron README section, hardening item, threat model, troubleshooting | Sonnet | Done | SC-122, SC-123 |
+| SC-125 | 11 | S | List the `unstick` verb in the play skill and guide | Haiku | Done | none |
 | SC-130 | 12 | S | `geldar-verify director-record` and the failure reasons in `run-summary` ([wave 12](work-packets-wave12.md)) | Sonnet | Planned | SC-120 |
 | SC-131 | 12 | S | The director call: its prompt, settings and throwaway container, both launchers | Sonnet | Planned | SC-130, SC-121 |
 | SC-132 | 12 | S | `geldar-verify director-check`: schema, banned words, echo rule | Sonnet | Planned | SC-120 |
