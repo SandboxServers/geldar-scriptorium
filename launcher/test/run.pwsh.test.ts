@@ -300,7 +300,7 @@ if (pwsh) {
   it('ends only the cycle on a refusal inside it, and exits on one outside', () => {
     const inside = lib(
       [
-        "$d = Join-Path $env:TEMP 'x'",
+        "$d = Join-Path ([IO.Path]::GetTempPath()) ('geldar-run-' + [guid]::NewGuid().ToString('N'))",
         'function Get-PlayerDir($i) { $d }',
         'function Lock-Release { }\nfunction Lock-Acquire($i) { }\nfunction Assert-NotHeld($i) { Die 2 usage }',
         '$script:RUN_DIR = $d; New-Item -ItemType Directory -Force -Path $d | Out-Null',
