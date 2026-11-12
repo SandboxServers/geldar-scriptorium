@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { closeSync, openSync } from 'node:fs';
+import { closeSync, openSync, readFileSync } from 'node:fs';
 
 /** One child process the supervisor starts (a run, or the save step). */
 export interface ExecSpec {
@@ -34,6 +34,8 @@ export interface Deps {
   every(ms: number, fn: () => void): () => void;
   /** True when a process with this pid exists. */
   alive(pid: number): boolean;
+  /** The command line of a process (NUL bytes as spaces), or null when it cannot be read. */
+  cmdline?: (pid: number) => string | null;
   /** One line for the person who started the supervisor (stderr). */
   say(line: string): void;
   /** The pid of this process (written to the lock). */
@@ -147,6 +149,13 @@ export function realDeps(): Deps {
         return true;
       } catch (err) {
         return (err as NodeJS.ErrnoException).code === 'EPERM';
+      }
+    },
+    cmdline: (pid) => {
+      try {
+        return readFileSync(`/proc/${pid}/cmdline`, 'utf8').replace(/\0/g, ' ').trimEnd();
+      } catch {
+        return null;
       }
     },
     say: (line) => {

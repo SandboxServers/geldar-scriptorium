@@ -64,6 +64,8 @@ export function makeFixture(
   // How many heartbeat timers the supervisor has stopped (its cancel function was called).
   let cancelled = 0;
   const alive = new Set<number>();
+  // Command lines of the fake processes; a pid with none set reads as unreadable (null).
+  const cmdlines = new Map<number, string>();
   const deps: Deps = {
     now: () => clock,
     sleep: async (seconds) => {
@@ -101,6 +103,7 @@ export function makeFixture(
       };
     },
     alive: (pid) => alive.has(pid),
+    cmdline: (pid) => cmdlines.get(pid) ?? null,
     say: (line) => said.push(line),
     pid: 4242,
     beforeRun: async () => null,
@@ -126,6 +129,7 @@ export function makeFixture(
     /** Heartbeat timers started and how many were stopped again. */
     timers: () => ({ started: beats.length, stopped: cancelled }),
     alive,
+    cmdlines,
     read,
     has: (name: string) => existsSync(join(stateDir, name)),
     put: (name: string, text: string) => {

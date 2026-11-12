@@ -181,6 +181,47 @@ describe('STOP, the lock and the numbering', () => {
     expect(f.has('lock')).toBe(false);
   });
 
+  it('takes a lock whose pid is now docker-init in a recreated container', async () => {
+    const f = makeFixture({ stopAt: 1 });
+    mkdirSync(join(f.stateDir, 'lock'), { recursive: true });
+    writeFileSync(join(f.stateDir, 'lock', 'pid'), '1\n');
+    f.alive.add(1);
+    f.cmdlines.set(1, '/sbin/docker-init -- /usr/local/bin/entrypoint.sh');
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.said.join('\n')).not.toContain('already running');
+    expect(f.has('session-1.jsonl')).toBe(true);
+    expect(f.has('lock')).toBe(false);
+  });
+
+  it('refuses a lock whose pid runs another supervisor', async () => {
+    const f = makeFixture({ stopAt: 1 });
+    mkdirSync(join(f.stateDir, 'lock'), { recursive: true });
+    writeFileSync(join(f.stateDir, 'lock', 'pid'), '777\n');
+    f.alive.add(777);
+    f.cmdlines.set(777, 'node /opt/geldar/packages/supervisor/src/cli.ts');
+    expect(await f.supervisor.run()).toBe(1);
+    expect(f.said.join('\n')).toContain('already running');
+    expect(f.has('session-1.jsonl')).toBe(false);
+  });
+
+  it('takes a lock whose pid is our own', async () => {
+    const f = makeFixture({ stopAt: 1 });
+    mkdirSync(join(f.stateDir, 'lock'), { recursive: true });
+    writeFileSync(join(f.stateDir, 'lock', 'pid'), `${f.deps.pid}\n`);
+    f.alive.add(f.deps.pid);
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.has('session-1.jsonl')).toBe(true);
+  });
+
+  it('refuses a live pid whose command line cannot be read', async () => {
+    const f = makeFixture({ stopAt: 1 });
+    mkdirSync(join(f.stateDir, 'lock'), { recursive: true });
+    writeFileSync(join(f.stateDir, 'lock', 'pid'), '777\n');
+    f.alive.add(777);
+    expect(await f.supervisor.run()).toBe(1);
+    expect(f.said.join('\n')).toContain('already running');
+  });
+
   it('treats an empty lock pid as someone starting and refuses', async () => {
     const f = makeFixture({ stopAt: 1 });
     mkdirSync(join(f.stateDir, 'lock'), { recursive: true });
