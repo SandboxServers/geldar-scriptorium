@@ -6,6 +6,7 @@ import {
   readdirSync,
   readFileSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -304,6 +305,188 @@ stat -c %a "$GELDAR_WORLD_ALLOWLIST" > "${modeOut}"
     }
   });
 
+  it('6b. harness words: run is a fixed wrapper, play and setup are unchanged', () => {
+    const words = (mode: string, model: string) => {
+      const env = { ...w0.env, GELDAR_RUN_MODEL: model };
+      if (launcher.name === 'bash') {
+        const dot = (n: string) => `. "${bashPath(join(repoRoot, 'launcher', 'lib', `${n}.sh`))}"`;
+        const gp = bashPath(join(repoRoot, 'launcher'));
+        const r = runBash(
+          `GP_DIR="${gp}"; GP_GROUPS=; ${dot('common')}; harness_command claude ${mode}`,
+          {
+            env,
+          },
+        );
+        return r.stdout.split(/\r?\n/).filter((l) => l !== '');
+      }
+      const f = join(repoRoot, 'launcher', 'lib', 'session.ps1');
+      const r = spawnSync(
+        launcher.command,
+        ['-NoProfile', '-Command', `. '${f}'; Get-HarnessCommand claude ${mode}`],
+        { encoding: 'utf8', env: childEnv(env) },
+      );
+      return r.stdout.split(/\r?\n/).filter((l) => l !== '');
+    };
+    const w0 = makeWorld();
+    const base =
+      'exec claude --autocompact 100000 --settings /etc/geldar/settings/play.json' +
+      ' -p "$(cat /run-input/prompt.txt)" --max-turns "$GELDAR_RUN_MAX_TURNS"';
+    const tail = ' --output-format stream-json --verbose';
+    expect(words('run', '')).toEqual(['sh', '-c', base + tail]);
+    expect(words('run', 'haiku')).toEqual([
+      'sh',
+      '-c',
+      `${base} --model "$GELDAR_RUN_MODEL"${tail}`,
+    ]);
+    for (const mode of ['play', 'setup']) {
+      expect(words(mode, '')).toEqual([
+        'claude',
+        '--autocompact',
+        '100000',
+        '--settings',
+        `/etc/geldar/settings/${mode}.json`,
+        `/${mode}`,
+      ]);
+    }
+  });
+
+  // The Windows test shims (.cmd) refuse a double quote in an argument by design, so the
+  // end-to-end run for pwsh happens on a real shell only.
+  it('6c. run mode: prompt off the command line, stream saved privately', (ctx) => {
+    if (launcher.name === 'pwsh' && win) ctx.skip('the .cmd test shims refuse a double quote');
+    const w = makeWorld();
+    const p = player(w, 'sixc');
+    writeFileSync(join(p.stateDir, 'token'), `${TOKEN}\n`, { mode: 0o600 });
+    const promptFile = join(w.root, 'prompt.txt');
+    const PROMPT = 'You are waking up in the quiet hollow';
+    writeFileSync(promptFile, `${PROMPT}\n`);
+    const sf = join(w.root, 'stream.sh');
+    // The session also records what it could read from stdin (the run mode must give it none).
+    writeFileSync(sf, 'cat > "$STDIN_SEEN"\necho \'{"type":"result"}\'\n');
+    const stdinSeen = join(w.root, 'stdin-seen.txt');
+    const env = envOf(launcher, w, {
+      STDIN_SEEN: bashPath(stdinSeen),
+      FAKE_SESSION: bashPath(sf),
+      GELDAR_RUN_PROMPT_FILE: launcher.name === 'bash' ? bashPath(promptFile) : promptFile,
+      GELDAR_RUN_MODEL: 'haiku',
+    });
+    const a = run(launcher, ['__prepare', p.id, 'play'], { env, timeoutMs: 120_000 });
+    expect(a.status, a.stderr).toBe(0);
+    const r = run(launcher, ['__session', p.id, 'run', '7'], {
+      env,
+      input: 'LEAKED-STDIN',
+      timeoutMs: 120_000,
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(text(stdinSeen)).toBe('');
+    const c = runCalls(w).pop() as string[];
+    expect(c.slice(c.indexOf('session') + 1, c.indexOf('session') + 3)).toEqual(['sh', '-c']);
+    expect(c).toContain('-T');
+    expect(c.join(' ')).not.toContain(PROMPT);
+    expect(c.join(' ')).not.toContain(TOKEN);
+    const ov = text(join(sessionDir(p), 'override.yml'));
+    expect(ov).toContain('target: /run-input/prompt.txt');
+    expect(ov).toContain('GELDAR_RUN_MAX_TURNS: "300"');
+    expect(ov).toContain('GELDAR_RUN_MODEL: "haiku"');
+    expect(ov).not.toContain(TOKEN);
+    const stream = join(p.stateDir, 'run', 'session-7.jsonl');
+    expect(text(stream)).toBe('{"type":"result"}\n');
+    expect(text(stream)).not.toContain(TOKEN);
+    expect(stream).not.toContain(TOKEN);
+    if (!win) {
+      expect(statSync(stream).mode & 0o777).toBe(0o600);
+      expect(statSync(join(p.stateDir, 'run')).mode & 0o777).toBe(0o700);
+    }
+    // A missing run number or prompt file is a usage error.
+    expect(run(launcher, ['__session', p.id, 'run'], { env, timeoutMs: 120_000 }).status).toBe(2);
+    const e3 = { ...env, GELDAR_RUN_PROMPT_FILE: '' };
+    expect(
+      run(launcher, ['__session', p.id, 'run', '9'], { env: e3, timeoutMs: 120_000 }).status,
+    ).toBe(2);
+  });
+
+  // Bad run settings: exit 2, the variable is named, the value is not, and docker is not called.
+  it.each([
+    ['a relative prompt path', 'GELDAR_RUN_PROMPT_FILE', 'prompt.txt'],
+    ['a prompt path with a colon', 'GELDAR_RUN_PROMPT_FILE', '/tmp/a:b.txt'],
+    ['a prompt path with a comma', 'GELDAR_RUN_PROMPT_FILE', '/tmp/a,b.txt'],
+    ['a non-numeric turn limit', 'GELDAR_RUN_MAX_TURNS', 'many'],
+    ['a model name with a space', 'GELDAR_RUN_MODEL', 'two words'],
+    ['a model name with a quote', 'GELDAR_RUN_MODEL', 'bad"name'],
+  ])('6d. run setting: %s is refused before docker', (_label, name, value) => {
+    const w = makeWorld();
+    const p = player(w, 'sixd');
+    const promptFile = join(w.root, 'prompt.txt');
+    writeFileSync(promptFile, 'hello\n');
+    const env = envOf(launcher, w, {
+      GELDAR_RUN_PROMPT_FILE: launcher.name === 'bash' ? bashPath(promptFile) : promptFile,
+      [name]: value,
+    });
+    const a = run(launcher, ['__prepare', p.id, 'play'], { env, timeoutMs: 120_000 });
+    expect(a.status, a.stderr).toBe(0);
+    const before = w.calls().length;
+    const r = run(launcher, ['__session', p.id, 'run', '3'], { env, timeoutMs: 120_000 });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain(name);
+    expect(r.stderr).not.toContain(value);
+    // The launcher may probe docker, but it must not create, run or bring anything down.
+    const fresh = w
+      .calls()
+      .slice(before)
+      .map((c) => c.join(' '));
+    expect(fresh.filter((c) => /^(compose (?!version)|volume|run)/.test(c))).toEqual([]);
+    expect(existsSync(join(p.stateDir, 'run'))).toBe(false);
+  });
+
+  describe('6e. the stream path is never a symlink', () => {
+    // Prepares a player and a prompt; returns what a run needs.
+    const setup = (id: string) => {
+      const w = makeWorld();
+      const p = player(w, id);
+      const promptFile = join(w.root, 'prompt.txt');
+      writeFileSync(promptFile, 'hello\n');
+      const env = envOf(launcher, w, {
+        GELDAR_RUN_PROMPT_FILE: launcher.name === 'bash' ? bashPath(promptFile) : promptFile,
+      });
+      const a = run(launcher, ['__prepare', p.id, 'play'], { env, timeoutMs: 120_000 });
+      expect(a.status, a.stderr).toBe(0);
+      const target = join(w.root, 'victim');
+      writeFileSync(target, 'keep me\n', { mode: 0o644 });
+      return { w, p, env, target };
+    };
+    const link = (ctx: { skip: (why: string) => void }, to: string, at: string) => {
+      try {
+        symlinkSync(to, at);
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === 'EPERM')
+          ctx.skip('symlink creation refused (EPERM)');
+        throw e;
+      }
+    };
+
+    it('a symlink at the stream file is refused and its target is unchanged', (ctx) => {
+      const { w, p, env, target } = setup('sixe');
+      mkdirSync(join(p.stateDir, 'run'), { mode: 0o700 });
+      link(ctx, target, join(p.stateDir, 'run', 'session-4.jsonl'));
+      const r = run(launcher, ['__session', p.id, 'run', '4'], { env, timeoutMs: 120_000 });
+      expect(r.status).toBe(1);
+      expect(text(target)).toBe('keep me\n');
+      expect(statSync(target).mode & 0o777).toBe(0o644);
+      expect(runCalls(w)).toEqual([]);
+    });
+
+    it('a symlink as the run folder is refused', (ctx) => {
+      const { w, p, env, target } = setup('sixf');
+      const dir = join(w.root, 'elsewhere');
+      mkdirSync(dir);
+      link(ctx, dir, join(p.stateDir, 'run'));
+      const r = run(launcher, ['__session', p.id, 'run', '4'], { env, timeoutMs: 120_000 });
+      expect(r.status).toBe(1);
+      expect(readdirSync(dir)).toEqual([]);
+      expect(text(target)).toBe('keep me\n');
+      expect(runCalls(w)).toEqual([]);
+    });
+  });
   it('7. the token reaches the session by environment only', () => {
     const w = makeWorld();
     const p = player(w, 'seven');

@@ -87,9 +87,22 @@ resolve_kit_image() {
 
 # The one function that builds the harness command words (one per line); SC-71 changes it.
 harness_command() {
-  local cli=$1 mode=$2
+  local cli=$1 mode=$2 line
   case $cli in
     claude)
+      if [ "$mode" = run ]; then
+        # SC-121: one headless run. The prompt is read inside the container from the read-only
+        # mounted file, so it never shows on a host command line; the turn cap and the optional
+        # model come from the container's environment (the override sets them).
+        line='exec claude --autocompact 100000 --settings /etc/geldar/settings/play.json'
+        line="$line -p \"\$(cat /run-input/prompt.txt)\" --max-turns \"\$GELDAR_RUN_MAX_TURNS\""
+        if [ -n "${GELDAR_RUN_MODEL:-}" ]; then
+          line="$line --model \"\$GELDAR_RUN_MODEL\""
+        fi
+        line="$line --output-format stream-json --verbose"
+        printf '%s\n' sh -c "$line"
+        return 0
+      fi
       printf '%s\n' claude --autocompact 100000 --settings "/etc/geldar/settings/$mode.json" "/$mode"
       ;;
     *) return 1 ;;

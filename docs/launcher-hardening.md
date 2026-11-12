@@ -16,7 +16,7 @@ Each requirement is one line. Tests are written in SC-60.
   Residual risk (open): the helper container (`workspace-init`) mounts `<state>/<id>/session` (0700, `start.bundle` 0600) as uid 1000 with all capabilities dropped; on a Linux host whose uid is not 1000 it may not be able to read them. The card was followed; the owner decision is open (follow-up 11). Not verified locally; CI decides.
 ## During the session
 
-- H-06: The session container mounts the workspace, with the kit paths overlaid read-only from the export. No other host folders, no Docker socket, no git or cloud credentials. Test: `launcher/test/hostile/h06-mounts.test.ts`
+- H-06: The session container mounts the workspace, with the kit paths overlaid read-only from the export. No other host folders, except that the run mode (SC-121) mounts ONE host file read-only at `/run-input/prompt.txt` (the prompt), whose path is validated like the other mount paths; no Docker socket, no git or cloud credentials. Test: `launcher/test/hostile/h06-mounts.test.ts`
 - H-07: The CLI home is a volume per player and vendor, with auto memory off. Test: `launcher/test/hostile/h07-clivolume.test.ts`
 - H-08: The session container is on an internal network with no DNS. Egress goes only through the proxy allowlist, which is one host and exactly one port: the URL's effective port (the explicit port, else 80 for http and 443 for https). Test: `launcher/test/hostile/h08-allowlist.test.ts`
   Implemented in: image/compose/session.yml, image/proxy/squid.conf. Guarded by tests/image/proxy-config.test.ts and tests/image/egress.test.ts. Those run only where Docker is available.
@@ -62,7 +62,7 @@ Every `GELDAR_*` name the launchers read is classified in `launcher/test/hostile
 
 - Gate: `GELDAR_INTERNAL`. Without it, gated variables have no effect.
 - Gated (read through `gp_env` or `Get-GatedEnv`): `GELDAR_EXTRA_COMPOSE`, `GELDAR_HELPER_TIMEOUT_SEC`, `GELDAR_KEEP_PROXY_LOG`, `GELDAR_PRIVATE_SHARDS_TEST`, `GELDAR_SLEEP`, `GELDAR_STUB_*`, `GELDAR_TEMPLATE_URL`, `GELDAR_TEST_FORCE_FF_FAIL`, `GELDAR_TEST_HOOK_AFTER_CLEAN`, `GELDAR_TMUX`, `GELDAR_TOOL_PATH`, `GELDAR_UNSAFE_IMAGE`, `GELDAR_WT`.
-- Human-environment seams (ungated by design): `GELDAR_DOCKER`, `GELDAR_GH`, `GELDAR_GIT`, `GELDAR_KIT_IMAGE` (digest-pinned only), `GELDAR_PLAYERS_DIR`, `GELDAR_SHARE`, `GELDAR_STATE_DIR`. `GELDAR_SHARE` selects the compose files, so whoever controls the human's environment controls them; that is the human's own machine and is accepted (N8).
+- Human-environment seams (ungated by design): `GELDAR_DOCKER`, `GELDAR_GH`, `GELDAR_GIT`, `GELDAR_KIT_IMAGE` (digest-pinned only), `GELDAR_PLAYERS_DIR`, `GELDAR_RUN_MAX_TURNS`, `GELDAR_RUN_MODEL`, `GELDAR_RUN_PROMPT_FILE`, `GELDAR_SHARE`, `GELDAR_STATE_DIR`. `GELDAR_SHARE` selects the compose files, so whoever controls the human's environment controls them; that is the human's own machine and is accepted (N8).
 - Container variables (set by the launcher, not read from the host): `GELDAR_BRANCH`, `GELDAR_CLI_HOME`, `GELDAR_GID`, `GELDAR_MCP_TOKEN`, `GELDAR_MCP_URL`, `GELDAR_MODE`, `GELDAR_UID`, `GELDAR_WORKSPACE`, `GELDAR_WORLD_ALLOWLIST`, `GELDAR_WORLD_PORTS`.
 
 ## Notes by area
