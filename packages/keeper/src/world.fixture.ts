@@ -39,8 +39,15 @@ export interface World {
   remoteHead(): string;
   /** Pushes a commit to the remote from a second clone, as another writer would. */
   remoteMoves(): string;
+  /**
+   * Pushes an upstream change from a second clone. `change` edits that clone with the given git
+   * helper. With `rewrite`, the remote's branch is replaced by a root commit (not a fast-forward).
+   */
+  remoteChange(change: RemoteChange, rewrite?: boolean): string;
   cleanup(): void;
 }
+
+export type RemoteChange = (dir: string, git: (args: string[]) => string) => void;
 
 const NOREPLY = noreplyIdentity(PLAYER_ID);
 
@@ -152,6 +159,20 @@ export function makeWorld(): World {
       git(other, ['add', '-A']);
       git(other, ['commit', '-q', '-m', 'owner edit']);
       git(other, ['push', '-q', 'origin', 'main']);
+      const head = git(other, ['rev-parse', 'HEAD']);
+      rmSync(other, { recursive: true, force: true });
+      return head;
+    },
+    remoteChange(change, rewrite = false) {
+      const other = join(root, 'other');
+      git(root, ['clone', '-q', remote, other]);
+      if (rewrite) git(other, ['checkout', '-q', '--orphan', 'rewritten']);
+      change(other, (args) => git(other, args));
+      // --no-all: a path that only update-index staged (a symlink, a gitlink) has no file on disk,
+      // and a plain add -A would drop it from the index.
+      git(other, ['add', '--no-all', '.']);
+      git(other, ['commit', '-q', '--allow-empty', '-m', rewrite ? 'rewrite' : 'upstream']);
+      git(other, ['push', '-q', ...(rewrite ? ['-f'] : []), 'origin', 'HEAD:refs/heads/main']);
       const head = git(other, ['rev-parse', 'HEAD']);
       rmSync(other, { recursive: true, force: true });
       return head;

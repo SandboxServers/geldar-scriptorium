@@ -2,7 +2,6 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
-import { fetchUpstream } from './upstream.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const shipped = readdirSync(here).filter(
@@ -24,8 +23,4 @@ test('protocol.file.allow=user appears once, for the workspace fetch', () => {
     )
     .reduce((a, b) => a + b, 0);
   expect(count).toBe(1);
-});
-
-test('the upstream hook point does nothing yet (SC-167)', async () => {
-  expect(await fetchUpstream()).toBeNull();
 });
