@@ -263,8 +263,11 @@ if (pwsh) {
       "function Assert-NotHeld($i) { Add-Content -LiteralPath $log -Value 'guard' }\n" +
       "function Invoke-PrepareSession($i, $m) { Add-Content -LiteralPath $log -Value 'prepare' }\n" +
       "function Start-PlayerSession($i, $m, $n) { Add-Content -LiteralPath $log -Value 'start' }\n" +
-      `function Invoke-FinishSession($i, $m) { Add-Content -LiteralPath $log -Value 'finish'; if (${rc} -ne 0) { $script:GP_DIE_CODE = ${rc}; throw 'geldar-die' } }\n` +
-      '$rc = Invoke-RunCycle \'x\' 1; "rc=$rc"';
+      // The real Suspend-Finish: a held session must end the cycle with 3, not the process.
+      `. '${q(join(repoRoot, 'launcher', 'lib', 'finish.ps1'))}'\n` +
+      "$script:PL_BRANCH = 'main'\n" +
+      `function Invoke-FinishSession($i, $m) { Add-Content -LiteralPath $log -Value 'finish'; if (${rc} -ne 0) { Suspend-Finish $i 'test' } }\n` +
+      '$rc = Invoke-RunCycle \'x\' 1; "rc=$rc"; "alive"';
     const env = { ...w.envPwsh };
     const ok = runLib(pwsh as NonNullable<typeof pwsh>, { bash: '', pwsh: script(0) }, { env });
     expect(ok.stdout, ok.stderr).toContain('rc=0');
@@ -278,5 +281,36 @@ if (pwsh) {
     ]);
     const held = runLib(pwsh as NonNullable<typeof pwsh>, { bash: '', pwsh: script(3) }, { env });
     expect(held.stdout, held.stderr).toContain('rc=3');
+    expect(held.stdout).toContain('alive');
+    expect(readFileSync(join(w.root, 'pl', 'held', 'info'), 'utf8')).toContain('reason=test');
+  });
+
+  // Runs a script that has run.ps1 loaded, with no player and no Docker.
+  const lib = (body: string, env: Record<string, string> = {}) => {
+    const w = makeWorld();
+    const q = (p: string) => p.replace(/'/g, "''");
+    const script = `. '${q(join(repoRoot, 'launcher', 'lib', 'run.ps1'))}'\n${body}`;
+    return runLib(
+      pwsh as NonNullable<typeof pwsh>,
+      { bash: '', pwsh: script },
+      { env: { ...w.envPwsh, ...env } },
+    );
+  };
+
+  it('ends only the cycle on a refusal inside it, and exits on one outside', () => {
+    const inside = lib(
+      [
+        "$d = Join-Path $env:TEMP 'x'",
+        'function Get-PlayerDir($i) { $d }',
+        'function Lock-Release { }\nfunction Lock-Acquire($i) { }\nfunction Assert-NotHeld($i) { Die 2 usage }',
+        '$script:RUN_DIR = $d; New-Item -ItemType Directory -Force -Path $d | Out-Null',
+        '$rc = Invoke-RunCycle \'x\' 1; "rc=$rc"',
+        'Die 4 usage',
+        '"alive"',
+      ].join('\n'),
+    );
+    expect(inside.stdout, inside.stderr).toContain('rc=2');
+    expect(inside.status).toBe(4);
+    expect(inside.stdout).not.toContain('alive');
   });
 }
