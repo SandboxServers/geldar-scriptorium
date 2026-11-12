@@ -59,6 +59,10 @@ This is the threat model for the Geldar player kit and its launcher. Each contro
 | Helper container (uid 1000) reading a 0700 session directory on a host with another uid | Open design question (follow-up 11) | SC-60o follow-up |
 | H-09, H-14 | Not reproduced; regression guards only | `launcher/lib/bundle.*`, `finish.*` if they ever fail |
 | H-14 hook control assertion removed | The case can pass vacuously (follow-up 1) | wave-end fix pass |
+| A hostile text in the character's last words (a fake instruction, control bytes, a huge tail) | The next prompt holds it only as quoted, cleaned text cut to 1500 characters, never as an instruction line | `launcher/test/run.bash.test.ts` (last words fixture); the player can only act through the checked tools |
+| A runaway cost | The daily cap sleeps the supervisor to the next UTC day; backoff and the failure limit write an `auto:` STOP. The cap is a cost control, not a security boundary | Costs are the API-equivalent figures in `run/costs.csv`; the owner sets the cap |
+| A stuck supervisor | The STOP file is checked before every cycle and the signals stop the loop after the current cycle; a held session writes an `auto:` STOP | `run-stop`, `run/supervisor.log`; a cycle already running is never cut short |
+| A stale lock | The lock holds a pid; a lock whose process is gone is cleared at the next start, a live one refuses a second supervisor | `run/lock`; an empty pid file waits 2 seconds before refusing |
 
 ### Corpus to hardening items
 

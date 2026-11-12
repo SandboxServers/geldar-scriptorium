@@ -61,6 +61,34 @@ The proxy reaches the world on the URL's effective port only, and it always refu
 
 The token travels in clear text over http. Use a separate dev token that only the test world accepts, never the real world's token. The listen address on Linux, the warning and how to switch the override off are in [the troubleshooting guide](troubleshooting.md#testing-against-a-world-on-your-own-machine).
 
+## The headless supervisor (`run`)
+
+`geldar-play run <id>` keeps one player living. It loops full play cycles in the headless session mode: prepare, a session in the kit container, then the post-session gate and the commit. It never skips the gate or the commit. `run-status <id>` prints the status, the last five cost lines and the tool-call counts of the latest stream. `run-stop <id>` writes a STOP file; so does Ctrl-C, which ends the loop after the current round. The director (a later step that would choose what the player does) is not part of this.
+
+State is in `<state>/<id>/run/`, owner-only, never in the player repo:
+
+- `STOP`: first line `manual` (run-stop) or `auto: <reason>` (the supervisor itself).
+- `status.json`: run number, state, start time, last result, cost today, update time.
+- `costs.csv`: one line per cycle: number, UTC time, turns, cost (API-equivalent; a subscription login is not billed per token).
+- `supervisor.log`: one line per cycle. It never holds the prompt, the token or the stream contents.
+- `session-<n>.jsonl`: the stream of cycle n (mode 0600). The next prompt is built from the last one.
+- `lock/`: holds the supervisor's pid; a second `run` for the player refuses, and a lock whose pid is gone is cleared.
+
+Settings come from the environment, and a value outside its bounds is refused (`run_setting_bad`):
+
+| Name | Default | Bounds |
+| --- | --- | --- |
+| `GELDAR_RUN_DELAY` | 20 | 1 to 86400 seconds of rest between rounds |
+| `GELDAR_RUN_MAX_DELAY` | 900 | 1 to 86400, at least the delay; the backoff cap |
+| `GELDAR_RUN_FAST_SEC` | 30 | 0 to 86400; a cycle shorter than this counts as a failure |
+| `GELDAR_RUN_MAX_FAILS` | 5 | 1 to 1000 failures in a row |
+| `GELDAR_RUN_MAX_TURNS` | 300 | 1 to 999999 turns in a cycle |
+| `GELDAR_RUN_DAILY_CAP_USD` | 15 | above 0, up to 6 digits and 4 decimals |
+| `GELDAR_RUN_MODEL` | empty (the template's default) | letters, digits and `._:/-` |
+
+The supervisor writes `STOP` with `auto:` and stops after five fast or failed cycles in a row (`GELDAR_RUN_MAX_FAILS`), or when a cycle ends with the saved session held back. To resume: find the cause in `supervisor.log` (for a held session, run `resolve`), delete the `STOP` file, and start `run` again. A manual `STOP` is cleared at the next start; an `auto:` one is not. The daily cap sleeps until the next UTC day and then resumes by itself.
+
+The kit helper `geldar-verify run-summary` reads a stream on standard input in a throwaway container with no network, and prints one summary line (cost, turns, `is_error`, `result_seen`, the tool counts and the last words). The launcher uses it after each cycle and for `run-status`.
 ## Where things are
 
 - Player-facing guide: [template/README.md](../template/README.md), tested by `tests/template/readme.test.ts`.
