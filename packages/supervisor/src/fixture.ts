@@ -61,6 +61,8 @@ export function makeFixture(
   const specs: ExecSpec[] = [];
   const said: string[] = [];
   const beats: Array<() => void> = [];
+  // How many heartbeat timers the supervisor has stopped (its cancel function was called).
+  let cancelled = 0;
   const alive = new Set<number>();
   const deps: Deps = {
     now: () => clock,
@@ -94,7 +96,9 @@ export function makeFixture(
     },
     every: (_ms, fn) => {
       beats.push(fn);
-      return () => undefined;
+      return () => {
+        cancelled++;
+      };
     },
     alive: (pid) => alive.has(pid),
     say: (line) => said.push(line),
@@ -119,6 +123,8 @@ export function makeFixture(
     specs,
     said,
     beats,
+    /** Heartbeat timers started and how many were stopped again. */
+    timers: () => ({ started: beats.length, stopped: cancelled }),
     alive,
     read,
     has: (name: string) => existsSync(join(stateDir, name)),

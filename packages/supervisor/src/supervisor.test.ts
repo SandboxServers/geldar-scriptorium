@@ -132,6 +132,17 @@ describe('STOP, the lock and the numbering', () => {
     expect(f.read('supervisor.log').split('no run starts until STOP is removed')).toHaveLength(2);
   });
 
+  it('leaves no heartbeat timer running after an idle run ends', async () => {
+    const f = makeFixture({ stopAt: 1 });
+    f.put('STOP', 'auto: upstream sync: rebase\n');
+    onPoll(f, (poll) => {
+      if (poll === 2) f.supervisor.requestStop();
+    });
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.timers().started).toBe(1);
+    expect(f.timers().stopped).toBe(f.timers().started);
+  });
+
   it('resumes the runs when the owner removes STOP', async () => {
     const f = makeFixture({ stopAt: 1 });
     f.put('STOP', 'auto: 5 failed cycles in a row\n');

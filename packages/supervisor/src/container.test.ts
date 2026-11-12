@@ -22,6 +22,8 @@ describe('the keeper HELD marker', () => {
         expect(f.read('heartbeat')).toBe('2026-01-10T23:00:00Z\n');
       }
       if (waits.length === 3) rmSync(held);
+      // The run's own STOP idles the supervisor after the run: a stop request ends that loop.
+      if (waits.length === 5) f.supervisor.requestStop();
     };
     expect(await f.supervisor.run()).toBe(0);
     expect(waits.slice(0, 3)).toEqual([10, 10, 10]);
@@ -43,7 +45,12 @@ describe('the keeper HELD marker', () => {
     stopFile = join(f.stateDir, 'STOP');
     f.put('STOP', `auto: ${HELD_REASON}\n`);
     writeFileSync(join(f.keeperDir, 'HELD'), 'rejected\n');
-    f.deps.sleep = async () => rmSync(join(f.keeperDir, 'HELD'));
+    let waits = 0;
+    f.deps.sleep = async () => {
+      // The first wait clears HELD; the second (the idle loop after the run's own STOP) ends the test.
+      if (++waits === 1) rmSync(join(f.keeperDir, 'HELD'));
+      else f.supervisor.requestStop();
+    };
     expect(await f.supervisor.run()).toBe(0);
     expect(f.runs()).toHaveLength(1);
     expect(stopDuringRun).toBe(false);
@@ -63,8 +70,12 @@ describe('the keeper HELD marker', () => {
     let holdWaits = 0;
     f.deps.sleep = async (secs, wake) => {
       if (!existsSync(join(f.keeperDir, 'HELD'))) return inner(secs, wake);
-      // A safety net so a broken loop fails the assertions instead of running on.
-      if (++holdWaits === 3) writeFileSync(join(f.stateDir, 'STOP'), 'x\n');
+      // A safety net so a broken loop fails the assertions instead of running on. The stop request
+      // ends the hold loop; a fake sleep that never yields would otherwise spin and hang the test run.
+      if (++holdWaits === 3) {
+        writeFileSync(join(f.stateDir, 'STOP'), 'x\n');
+        f.supervisor.requestStop();
+      }
     };
     expect(await f.supervisor.run()).toBe(0);
     expect(f.runs()).toHaveLength(1);
@@ -73,17 +84,23 @@ describe('the keeper HELD marker', () => {
     expect(f.read('status.json')).toMatch(/"state":"stopped"/);
   });
 
-  it('leaves a STOP it did not write in place when HELD is removed, and stops', async () => {
+  it('leaves a STOP it did not write in place when HELD is removed, and idles on it', async () => {
     const f = makeFixture();
     const held = join(f.keeperDir, 'HELD');
     writeFileSync(held, 'rejected\n');
+    let waits = 0;
     f.deps.sleep = async () => {
-      writeFileSync(join(f.stateDir, 'STOP'), 'auto: 3 failed cycles in a row\n');
-      rmSync(held);
+      if (++waits === 1) {
+        writeFileSync(join(f.stateDir, 'STOP'), 'auto: 3 failed cycles in a row\n');
+        rmSync(held);
+      } else {
+        f.supervisor.requestStop();
+      }
     };
-    expect(await f.supervisor.run()).toBe(1);
+    expect(await f.supervisor.run()).toBe(0);
     expect(f.runs()).toHaveLength(0);
     expect(f.read('STOP')).toBe('auto: 3 failed cycles in a row\n');
+    expect(f.read('status.json')).toMatch(/"state":"stopped"/);
   });
 
   it('exits 0 on a stop request while held, leaving the hold STOP for the next start', async () => {
@@ -198,8 +215,10 @@ describe('the heartbeat', () => {
     await f.supervisor.run();
     expect(f.read('heartbeat')).toBe('2026-01-10T23:00:00Z\n');
     expect(f.beats).toHaveLength(1);
+    // The idle run after STOP advances the fake clock, so the tick is checked against the clock now.
+    const now = f.clock();
     writeFileSync(join(f.stateDir, 'heartbeat'), 'old\n');
     f.beats[0]?.();
-    expect(f.read('heartbeat')).toBe('2026-01-10T23:01:00Z\n');
+    expect(f.read('heartbeat')).toBe(`${new Date(now * 1000).toISOString().slice(0, 19)}Z\n`);
   });
 });
