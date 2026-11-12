@@ -32,10 +32,7 @@ for (const type of ['ssh-ed25519', 'ecdsa-sha2-nistp256']) {
   });
 }
 
-// The RSA key could not be verified offline, so it is a placeholder in the data file. This test
-// is expected to fail today (test.fails keeps the suite green); once the key is filled in it
-// passes, vitest reports it, and `fails` must be removed.
-test.fails("the pinned ssh-rsa key matches GitHub's published fingerprint (PLACEHOLDER)", () => {
+test("the pinned ssh-rsa key matches GitHub's published fingerprint", () => {
   const entry = entries.find((parts) => parts[1] === 'ssh-rsa');
   expect(fingerprint(entry?.[2] ?? '')).toBe(PUBLISHED['ssh-rsa']);
 });
