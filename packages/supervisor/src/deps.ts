@@ -63,33 +63,63 @@ function realSleep(seconds: number, wake: () => boolean): Promise<void> {
   });
 }
 
-function realExec(spec: ExecSpec): Promise<number> {
-  return new Promise((resolve) => {
-    const fds: number[] = [];
-    const finish = (code: number): void => {
-      for (const fd of fds) closeSync(fd);
-      fds.length = 0;
-      resolve(code);
-    };
-    try {
-      const out = spec.stdoutPath === undefined ? 'ignore' : openSync(spec.stdoutPath, 'w', 0o600);
-      if (typeof out === 'number') fds.push(out);
-      const prompt = spec.promptPath === undefined ? 'ignore' : openSync(spec.promptPath, 'r');
-      if (typeof prompt === 'number') fds.push(prompt);
-      const child = spawn(spec.file, spec.args, {
-        uid: spec.uid,
-        gid: spec.gid,
-        env: spec.env,
-        cwd: spec.cwd,
-        stdio: ['ignore', out, 'ignore', prompt],
-      });
-      child.once('error', () => finish(1));
-      child.once('close', (code) => finish(code ?? 1));
-    } catch {
-      finish(1);
-    }
-  });
+/**
+ * The command that starts a child as the player. spawn's uid/gid options would keep the
+ * supervisor's ambient SETUID/SETGID across exec, so setpriv drops the user, groups and every
+ * capability set instead (the child ends with an empty capability set and no new privileges).
+ */
+export function launchCommand(spec: ExecSpec): { file: string; args: string[] } {
+  return {
+    file: 'setpriv',
+    args: [
+      `--reuid=${spec.uid}`,
+      `--regid=${spec.gid}`,
+      '--clear-groups',
+      '--bounding-set=-all',
+      '--inh-caps=-all',
+      '--ambient-caps=-all',
+      '--no-new-privs',
+      '--',
+      spec.file,
+      ...spec.args,
+    ],
+  };
 }
+
+/** A process starter shaped like node's spawn (a seam for tests). */
+export type SpawnFn = typeof spawn;
+
+/** Builds the exec dependency over a spawn function. */
+export function createExec(spawnFn: SpawnFn): (spec: ExecSpec) => Promise<number> {
+  return (spec) =>
+    new Promise((resolve) => {
+      const fds: number[] = [];
+      const finish = (code: number): void => {
+        for (const fd of fds) closeSync(fd);
+        fds.length = 0;
+        resolve(code);
+      };
+      try {
+        const out =
+          spec.stdoutPath === undefined ? 'ignore' : openSync(spec.stdoutPath, 'w', 0o600);
+        if (typeof out === 'number') fds.push(out);
+        const prompt = spec.promptPath === undefined ? 'ignore' : openSync(spec.promptPath, 'r');
+        if (typeof prompt === 'number') fds.push(prompt);
+        const launch = launchCommand(spec);
+        const child = spawnFn(launch.file, launch.args, {
+          env: spec.env,
+          cwd: spec.cwd,
+          stdio: ['ignore', out, 'ignore', prompt],
+        });
+        child.once('error', () => finish(1));
+        child.once('close', (code) => finish(code ?? 1));
+      } catch {
+        finish(1);
+      }
+    });
+}
+
+const realExec = createExec(spawn);
 
 /** The real dependencies. */
 export function realDeps(): Deps {
