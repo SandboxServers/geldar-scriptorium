@@ -108,6 +108,22 @@ describe('play skill', () => {
     expect(body).not.toContain('give(');
   });
 
+  it('teaches giving and following: only to someone you can see, and the exact unseen line', () => {
+    for (const line of [
+      '## Giving and following',
+      'You can give something to someone, or follow someone, only when you can see them now.',
+      'Someone behind a wall, or out of sight beyond the trees, is not there for you.',
+      'To give, call `act` with `give`, the person you give to, the thing and how many.',
+      'To follow, put it in an intent: the program is `follow`, and its target is the person to keep near.',
+      'An unknown name and a person you cannot see read the same.',
+      '"Your give failed: what you looked for was not found."',
+      'The same words come back when you try to follow someone you cannot see.',
+    ]) {
+      expect(body).toContain(line);
+    }
+    expect(body.indexOf('## Giving and following')).toBeLessThan(body.indexOf('## Reading your results'));
+  });
+
   it('teaches the world fixed lines for results, hurt, sounds, body and death', () => {
     for (const line of [
       'Your dig failed: the way was blocked.',
@@ -232,6 +248,23 @@ describe('play skill', () => {
     ]) {
       expect(body).toContain(line);
     }
+  });
+});
+
+describe('play and trade never promise what is not yet in the world', () => {
+  // Moot, author, offer, propose and vote are not available; no skill may say otherwise.
+  const unavailable = /\b(offer|propose|vote|moot|author)/i;
+
+  for (const name of ['play', 'trade']) {
+    it(`${name} skill does not promise offer, propose, vote, moot or author`, () => {
+      const body = parseSkill(readSkill(name)).body;
+      expect(body).not.toMatch(unavailable);
+    });
+  }
+
+  it('trade still says a deal is made by speech and given through act', () => {
+    const body = parseSkill(readSkill('trade')).body;
+    expect(body).toContain('- When a deal is agreed, give through `act`. Speech alone moves nothing.');
   });
 });
 

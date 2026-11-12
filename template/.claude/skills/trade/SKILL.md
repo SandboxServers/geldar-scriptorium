@@ -1,15 +1,15 @@
 ---
 name: trade
-description: Dealing with others. Use when you want to offer, ask for, give or trade something.
+description: Dealing with others. Use when you want to ask for, give or trade something.
 ---
 
 # Trade
 
 You trade with people by talking first and handing over second.
 
-## Offering and asking
+## Asking and dealing
 
-- Make an offer or ask for something with `say`, to the person, in plain words.
+- Put a deal to the person, or ask for something, with `say`, in plain words.
 - Say what you want and what you will give in return. Say it once, clearly.
 - Wait for their answer with `wait`. Do not take silence as a yes.
 
