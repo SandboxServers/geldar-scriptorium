@@ -9,17 +9,32 @@ $script:RUN_LOCKED = $false
 $script:RUN_UTF8 = [System.Text.UTF8Encoding]::new($false)
 
 # The stop flag is set from a signal handler thread, which has no PowerShell runspace: a plain
-# C# class holds the flag and hooks Ctrl-C (SIGINT) and SIGTERM.
+# C# class holds the flag and hooks Ctrl-C (SIGINT), SIGTERM and SIGHUP. A signal says the
+# stopping line once (Line, set by the caller) and sets the flag; it never kills a cycle.
 if (-not ('GeldarRunStop' -as [type])) {
   Add-Type -TypeDefinition @'
 using System;
+using System.Threading;
 using System.Runtime.InteropServices;
 public static class GeldarRunStop {
   public static volatile bool Flag;
+  public static string Line;
+  static int said;
+  static bool hooked;
   static PosixSignalRegistration term;
+  static PosixSignalRegistration hup;
+  static void Stop() {
+    if (Interlocked.Exchange(ref said, 1) == 0 && Line != null) Console.Error.Write(Line);
+    Flag = true;
+  }
+  public static void Reset() { Flag = false; said = 0; }
   public static void Hook() {
-    Console.CancelKeyPress += (s, e) => { e.Cancel = true; Flag = true; };
-    try { term = PosixSignalRegistration.Create(PosixSignal.SIGTERM, c => { c.Cancel = true; Flag = true; }); }
+    if (hooked) return;
+    hooked = true;
+    Console.CancelKeyPress += (s, e) => { e.Cancel = true; Stop(); };
+    try { term = PosixSignalRegistration.Create(PosixSignal.SIGTERM, c => { c.Cancel = true; Stop(); }); }
+    catch (Exception) { }
+    try { hup = PosixSignalRegistration.Create(PosixSignal.SIGHUP, c => { c.Cancel = true; Stop(); }); }
     catch (Exception) { }
   }
 }
@@ -56,6 +71,46 @@ function Start-RunSleep([long]$Secs) {
   while ($left -gt 0 -and -not (Test-RunStop)) {
     Start-Sleep -Seconds 1
     $left--
+  }
+}
+
+function Read-RunPid([string]$Lock) {
+  try {
+    return ([System.IO.File]::ReadAllText((Join-Path $Lock 'pid'), $script:RUN_UTF8)).Trim()
+  } catch {
+    return ''
+  }
+}
+
+# Get-RunLock <id>: the lock folder appears whole (its pid file already in it) by one rename. An
+# empty or unreadable pid means someone is starting: wait up to 2 seconds. Stale only when a
+# pid is there and no such process exists.
+function Get-RunLock([string]$Id) {
+  $l = Join-Path $script:RUN_DIR 'lock'
+  $t = Join-Path $script:RUN_DIR "lock.$PID"
+  $waited = 0
+  while ($true) {
+    Remove-Item -LiteralPath $t -Recurse -Force -ErrorAction SilentlyContinue
+    try {
+      New-Item -ItemType Directory -Path $t -ErrorAction Stop | Out-Null
+      [System.IO.File]::WriteAllText((Join-Path $t 'pid'), "$PID`n", $script:RUN_UTF8)
+    } catch {
+      Die 1 bad_state_path
+    }
+    if (-not (Test-Path -LiteralPath $l)) {
+      try { [System.IO.Directory]::Move($t, $l) } catch { $null = $_ }
+      if ((Read-RunPid $l) -ceq [string]$PID) { return }
+    }
+    Remove-Item -LiteralPath $t -Recurse -Force -ErrorAction SilentlyContinue
+    $owner = Read-RunPid $l
+    if ($owner -cmatch '^[0-9]+\z') {
+      if ([bool](Get-Process -Id ([int]$owner) -ErrorAction SilentlyContinue)) { Die 1 run_already_running $Id $l $owner }
+      Remove-Item -LiteralPath $l -Recurse -Force -ErrorAction SilentlyContinue
+      continue
+    }
+    if ($waited -ge 4) { Die 1 run_already_running $Id $l 'unknown' }
+    $waited++
+    Start-Sleep -Milliseconds 500
   }
 }
 
@@ -101,14 +156,41 @@ function Get-RunSummary([string]$Stream) {
     if ($c) {
       $out = @(& $c $Stream 2> $null)
     } else {
-      $text = [System.IO.File]::ReadAllText($Stream, $script:RUN_UTF8)
-      $out = @($text | Invoke-Docker run --rm -i --network none --read-only --cap-drop ALL --security-opt no-new-privileges --entrypoint geldar-verify $script:PL_KIT_IMAGE run-summary 2> $null)
+      $out = @(Get-RunSummaryBox $Stream)
     }
   } catch {
     return ''
   }
   if ($out.Count -eq 0) { return '' }
   return [string]$out[0]
+}
+
+# The summary container, bounded to 120 seconds like the other helper containers (the twin of
+# run_bounded 120 --container). The stream goes in on its input; the first output line is kept.
+function Get-RunSummaryBox([string]$Stream) {
+  $name = "geldar-$PID-run-summary"
+  $exe = $env:GELDAR_DOCKER
+  if (-not $exe) { $exe = 'docker' }
+  $f = Join-Path ([IO.Path]::GetTempPath()) ('gp-out.' + [guid]::NewGuid().ToString('N').Substring(0, 12))
+  $words = @($exe, 'run', '--rm', '-i', '--label', 'geldar.role=run-summary', '--name', $name,
+    '--memory', '1g', '--pids-limit', '256', '--log-driver', 'none',
+    '--network', 'none', '--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
+    '--entrypoint', 'geldar-verify', $script:PL_KIT_IMAGE, 'run-summary')
+  $env:GP_RUN_CMD = ConvertTo-Json -InputObject @($words | ForEach-Object { [string]$_ }) -Compress
+  $env:GP_RUN_IN = $Stream
+  $env:GP_RUN_OUT = $f
+  $cmd = '$a = @($env:GP_RUN_CMD | ConvertFrom-Json -DateKind String); $e = $a[0]; $r = @($a | Select-Object -Skip 1); [System.IO.File]::ReadAllText($env:GP_RUN_IN) | & $e @r 2> $null > $env:GP_RUN_OUT; exit $LASTEXITCODE'
+  try {
+    [void](Invoke-Bounded 120 --container $name ([Environment]::ProcessPath) -NoProfile -NonInteractive -Command $cmd)
+    if (-not (Test-Path -LiteralPath $f -PathType Leaf)) { return '' }
+    $lines = [System.IO.File]::ReadAllText($f, $script:RUN_UTF8).Split("`n")
+    return $lines[0].TrimEnd("`r")
+  } finally {
+    $env:GP_RUN_CMD = $null
+    $env:GP_RUN_IN = $null
+    $env:GP_RUN_OUT = $null
+    Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
+  }
 }
 
 # ConvertFrom-Json of the summary line; $null when it does not parse to an object.
@@ -143,6 +225,8 @@ function Get-RunLastWords($Obj) {
   $p = $Obj.PSObject.Properties['last_text']
   if ($null -eq $p -or $p.Value -isnot [string]) { return '' }
   $t = [string]$p.Value
+  # A lone surrogate is dropped; a valid pair stays.
+  $t = [regex]::Replace($t, '[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]', '')
   $t = [regex]::Replace($t, '[\n\t\r\b\f]', ' ')
   $t = [regex]::Replace($t, '[\x00-\x1f\x7f-\x9f]', '')
   $t = $t.Replace('"', "'")
@@ -246,7 +330,7 @@ function Invoke-RunCycleBody([string]$Id, [long]$N) {
   $d = Get-PlayerDir $Id
   $out = Join-Path $script:RUN_DIR "session-$N.jsonl"
   $prompt = New-RunPrompt $N
-  if ([Environment]::GetEnvironmentVariable('GELDAR_RUN_DRY') -ceq '1') {
+  if ((Get-GatedEnv 'GELDAR_RUN_DRY') -ceq '1') {
     try {
       Write-RunFile $out "{`"dry`":true}`n"
     } catch {
@@ -302,6 +386,9 @@ function Verb-run {
   $cap = [Environment]::GetEnvironmentVariable('GELDAR_RUN_DAILY_CAP_USD')
   if ([string]::IsNullOrEmpty($cap)) { $cap = '15' }
   if ($cap -cnotmatch '^[0-9]{1,6}(\.[0-9]{1,4})?\z') { Die 2 run_setting_bad GELDAR_RUN_DAILY_CAP_USD }
+  $inv = [cultureinfo]::InvariantCulture
+  $capNum = [double]::Parse($cap, [Globalization.NumberStyles]::Float, $inv)
+  if (-not ($capNum -gt 0)) { Die 2 run_setting_bad GELDAR_RUN_DAILY_CAP_USD }
   $model = [string][Environment]::GetEnvironmentVariable('GELDAR_RUN_MODEL')
   if ($model -ne '' -and $model -cnotmatch '^[A-Za-z0-9._:/-]+\z') { Die 2 run_setting_bad GELDAR_RUN_MODEL }
   if ($maxDelay -lt $delayBase) { Die 2 run_setting_bad GELDAR_RUN_MAX_DELAY }
@@ -311,30 +398,23 @@ function Verb-run {
   $script:RUN_DIR = Join-Path $d 'run'
   if (Test-RunLink $script:RUN_DIR) { Die 1 bad_state_path }
   New-PrivateDir (Join-Path $d 'run')
-  $lock = Join-Path $script:RUN_DIR 'lock'
-  try {
-    New-Item -ItemType Directory -Path $lock -ErrorAction Stop | Out-Null
-  } catch {
-    $pf = Join-Path $lock 'pid'
-    $owner = ''
-    if (Test-Path -LiteralPath $pf) { $owner = (Get-Content -LiteralPath $pf -Raw).Trim() }
-    if ($owner -match '^[0-9]+\z' -and [bool](Get-Process -Id ([int]$owner) -ErrorAction SilentlyContinue)) {
-      Die 1 run_already_running $id
-    }
-    Remove-Item -LiteralPath $lock -Recurse -Force -ErrorAction SilentlyContinue
-    try {
-      New-Item -ItemType Directory -Path $lock -ErrorAction Stop | Out-Null
-    } catch {
-      Die 1 run_already_running $id
-    }
-  }
-  [System.IO.File]::WriteAllText((Join-Path $lock 'pid'), "$PID`n", $script:RUN_UTF8)
+  Get-RunLock $id
   $script:RUN_LOCKED = $true
-  [GeldarRunStop]::Flag = $false
+  [GeldarRunStop]::Reset()
+  [GeldarRunStop]::Line = 'geldar-play: ' + (Format-Msg $script:GP_MSG['run_stopping'] @()) + "`n"
   [GeldarRunStop]::Hook()
   $stopFail = $false
   try {
-    Remove-Item -LiteralPath (Join-Path $script:RUN_DIR 'STOP') -Force -ErrorAction SilentlyContinue
+    # A manual STOP is stale at the start and cleared; one the supervisor wrote itself is not.
+    $stopFile = Join-Path $script:RUN_DIR 'STOP'
+    if (Test-Path -LiteralPath $stopFile -PathType Leaf) {
+      $seen = ''
+      try { $seen = ([System.IO.File]::ReadAllText($stopFile, $script:RUN_UTF8) -split "`n")[0].TrimEnd("`r") } catch { $null = $_ }
+      if ($seen.StartsWith('auto:', [StringComparison]::Ordinal)) {
+        Die 1 run_stopped_auto ($seen -replace '^auto: ?', '') $stopFile
+      }
+      Remove-Item -LiteralPath $stopFile -Force -ErrorAction SilentlyContinue
+    }
     $script:RUN_STARTED = Format-RunTime (Get-RunNow) 'stamp'
     $delay = $delayBase
     $fails = 0
@@ -369,7 +449,7 @@ function Verb-run {
       $row = "$n,$(Format-RunTime $t1 'stamp'),$turnsDone,$costDone`n"
       [System.IO.File]::AppendAllText((Join-Path $script:RUN_DIR 'costs.csv'), $row, $script:RUN_UTF8)
       $ok = $true
-      if ($secs -lt $fast -or $err -ceq 'true' -or $seen -cne 'true') { $ok = $false }
+      if ($rc -ne 0 -or $secs -lt $fast -or $err -ceq 'true' -or $seen -cne 'true') { $ok = $false }
       if ($ok) {
         $fails = 0
         $delay = $delayBase
@@ -383,8 +463,14 @@ function Verb-run {
       $cost = Get-RunCostToday (Format-RunTime $t1 'date')
       Write-RunLog "run=$n turns=$turnsDone cost=$costDone secs=$secs exit=$rc result=$last delay=$delay fails=$fails"
       Write-RunStatus $n 'sleeping' $last $cost
+      if ($rc -eq 3 -or (Test-Path -LiteralPath (Join-Path $d 'held') -PathType Container)) {
+        Write-RunFile (Join-Path $script:RUN_DIR 'STOP') "auto: the saved session was held back`n"
+        Say run_held $id $id
+        $stopFail = $true
+        break
+      }
       if ($fails -ge $maxFails) {
-        Write-RunFile (Join-Path $script:RUN_DIR 'STOP') "stopped after $fails failed cycles in a row`n"
+        Write-RunFile (Join-Path $script:RUN_DIR 'STOP') "auto: $fails failed cycles in a row`n"
         Say run_too_many_failures $fails
         $stopFail = $true
         break
@@ -406,6 +492,7 @@ function Verb-run {
 function Verb-run_status {
   if ($args.Count -ne 1) { Die 2 usage }
   $id = [string]$args[0]
+  if (-not (Test-Path -LiteralPath (Get-PlayerDir $id) -PathType Container)) { Die 1 no_such_player $id $id }
   $script:RUN_DIR = Join-Path (Get-PlayerDir $id) 'run'
   if (-not (Test-Path -LiteralPath $script:RUN_DIR -PathType Container)) { Die 0 run_status_none $id }
   $sf = Join-Path $script:RUN_DIR 'status.json'
@@ -426,7 +513,8 @@ function Verb-run_status {
   if ($latest -eq '') { return }
   Read-Player $id
   $sum = Get-RunSummary $latest
-  $tools = '{}'
+  $tools = 'unavailable'
+  if ($sum -ne '') { $tools = '{}' }
   $m = [regex]::Match($sum, '^.*"tools":(\{[^}]*\})', [System.Text.RegularExpressions.RegexOptions]::Singleline)
   if ($m.Success) { $tools = $m.Groups[1].Value }
   [Console]::Out.Write("tools: $tools`n")
@@ -440,6 +528,6 @@ function Verb-run_stop {
   if (-not (Test-Path -LiteralPath $d -PathType Container)) { Die 1 no_such_player $id $id }
   if (Test-RunLink (Join-Path $d 'run')) { Die 1 bad_state_path }
   New-PrivateDir (Join-Path $d 'run')
-  Write-RunFile (Join-Path (Join-Path $d 'run') 'STOP') "stop requested`n"
+  Write-RunFile (Join-Path (Join-Path $d 'run') 'STOP') "manual`n"
   Say run_stop_requested $id
 }
