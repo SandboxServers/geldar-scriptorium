@@ -2,9 +2,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import { runOnce } from './keeper.ts';
+import { touchesMemory, unsafePath } from './upstream-gate.ts';
 import type { RemoteChange, World } from './world.fixture.ts';
 import { makeWorld, plantHook } from './world.fixture.ts';
-import { touchesMemory, unsafePath } from './upstream-gate.ts';
 
 let world: World | undefined;
 afterEach(() => {
@@ -53,7 +53,8 @@ describe('an upstream change on top of the pushed tip', () => {
       created_utc: '2026-01-02T03:04:05.000Z',
     });
     expect(status(w)).toMatchObject({ upstream_head: head, upstream_result: 'offered' });
-    w.git(w.ws, ['fetch', '-q', bundleFile(w)]);
+    // The bundle carries the branch ref only, so the refspec is named.
+    w.git(w.ws, ['fetch', '-q', bundleFile(w), 'refs/heads/main']);
     expect(w.git(w.ws, ['rev-parse', 'FETCH_HEAD'])).toBe(head);
   });
 

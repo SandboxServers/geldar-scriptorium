@@ -23,3 +23,19 @@ until a person removes it.
 
 `geldar-keeper-connect <host> <port>` is the ProxyCommand helper. `geldar-keeper --once` runs a
 single cycle.
+
+**Upstream offers (SC-167).** Each cycle also fetches the remote branch read only. When it is a
+fast-forward of the last pushed head, the commits pass the upstream checks (at most 200 commits,
+no symlink, no submodule, no unsafe path, nothing under `memory/`, no blob over 2 MiB) and are
+written to `upstream.bundle` with `upstream.json` beside it. Each refusal removes the offer and
+writes no bundle. A diverged remote is recorded, not held. Applying the bundle is the supervisor's
+job, between runs; this package only offers it.
+
+`upstream.json` keys: `head` (the offered commit), `base` (the last pushed head), `commits` (the
+count), `created_utc`.
+
+`status.json` keys added: `upstream_head` (the offered head, or null) and `upstream_result`
+(`offered`, `none`, `diverged` or `refused: <code>`).
+
+A `sync-request` file in the keeper state folder wakes the loop at once for an upstream check. It
+is deleted when the cycle that serves it finishes.

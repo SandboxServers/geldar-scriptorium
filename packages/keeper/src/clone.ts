@@ -1,7 +1,7 @@
 import type { KeeperConfig } from './config.ts';
-import type { KeeperDeps } from './keeper.ts';
 import type { GitResult } from './git.ts';
 import { hardenedArgs, hardenedEnv } from './git.ts';
+import type { KeeperDeps } from './keeper.ts';
 import type { Transport } from './transport.ts';
 
 const SHA = /^[0-9a-f]{40}$/;

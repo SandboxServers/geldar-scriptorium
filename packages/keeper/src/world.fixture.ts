@@ -168,7 +168,9 @@ export function makeWorld(): World {
       git(root, ['clone', '-q', remote, other]);
       if (rewrite) git(other, ['checkout', '-q', '--orphan', 'rewritten']);
       change(other, (args) => git(other, args));
-      git(other, ['add', '-A']);
+      // --no-all: a path that only update-index staged (a symlink, a gitlink) has no file on disk,
+      // and a plain add -A would drop it from the index.
+      git(other, ['add', '--no-all', '.']);
       git(other, ['commit', '-q', '--allow-empty', '-m', rewrite ? 'rewrite' : 'upstream']);
       git(other, ['push', '-q', ...(rewrite ? ['-f'] : []), 'origin', 'HEAD:refs/heads/main']);
       const head = git(other, ['rev-parse', 'HEAD']);

@@ -1,8 +1,8 @@
 import { MAX_BLOB_BYTES } from '@geldar/scriptorium-verify';
-import type { GitResult } from './git.ts';
-import type { KeeperConfig } from './config.ts';
-import type { KeeperDeps } from './keeper.ts';
 import { call, Refusal } from './clone.ts';
+import type { KeeperConfig } from './config.ts';
+import type { GitResult } from './git.ts';
+import type { KeeperDeps } from './keeper.ts';
 
 // The checks on upstream commits (SC-167). Not the workspace gate: upstream may add template
 // files outside memory/, but nothing it changes may reach memory/, a link, a submodule or a path
@@ -98,7 +98,12 @@ export function inspectUpstream(
 }
 
 /** The number of commits from base to head. */
-export function countUpstream(cfg: KeeperConfig, deps: KeeperDeps, base: string, head: string): number {
+export function countUpstream(
+  cfg: KeeperConfig,
+  deps: KeeperDeps,
+  base: string,
+  head: string,
+): number {
   const text = output(call(cfg, deps, ['rev-list', '--count', `${base}..${head}`])).trim();
   if (!/^\d+$/.test(text)) throw new Refusal('upstream_error');
   return Number(text);
