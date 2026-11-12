@@ -650,7 +650,7 @@ What to do. Start the player, then run player-status again. If it stays the same
 
 ### player_held
 What it means. The persistent player is held, and the reason is printed after it. A hold stops every launch until it is released.
-Why it is safe. A held player does not start, so nothing new was saved or pushed.
+Why it is safe. A held player runs no session, so nothing new was saved or pushed. Its supervisor waits and starts sessions again once the hold is released.
 What to do. Read the reason, fix what it names, then run release-hold to clear the hold.
 
 ### player_key_failed

@@ -1,39 +1,99 @@
-import { writeFileSync } from 'node:fs';
+import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { makeFixture } from './fixture.ts';
 import { HELD_REASON, wrapperLine } from './supervisor.ts';
 
 describe('the keeper HELD marker', () => {
-  it('refuses to start while HELD is present', async () => {
-    const f = makeFixture();
-    writeFileSync(join(f.keeperDir, 'HELD'), 'rejected\n');
-    expect(await f.supervisor.run()).toBe(1);
-    expect(f.runs()).toHaveLength(0);
-    expect(f.read('STOP')).toBe(`auto: ${HELD_REASON}\n`);
-    expect(f.has('lock')).toBe(false);
+  it('runs nothing while HELD is present at start, keeps beating and reports held', async () => {
+    const f = makeFixture({ stopAt: 1 });
+    const held = join(f.keeperDir, 'HELD');
+    writeFileSync(held, 'rejected\n');
+    const waits: number[] = [];
+    const runsDuringHold: number[] = [];
+    f.deps.sleep = async (secs) => {
+      waits.push(secs);
+      runsDuringHold.push(f.runs().length);
+      if (waits.length === 1) {
+        expect(f.read('status.json')).toMatch(/"state":"held"/);
+        expect(f.read('status.json')).toMatch(/"held_reason":"rejected"/);
+        writeFileSync(join(f.stateDir, 'heartbeat'), 'old\n');
+        f.beats[0]?.();
+        expect(f.read('heartbeat')).toBe('2026-01-10T23:00:00Z\n');
+      }
+      if (waits.length === 3) rmSync(held);
+    };
+    expect(await f.supervisor.run()).toBe(0);
+    expect(waits.slice(0, 3)).toEqual([10, 10, 10]);
+    expect(runsDuringHold.slice(0, 3)).toEqual([0, 0, 0]);
+    expect(f.runs()).toHaveLength(1);
+    expect(f.beats).toHaveLength(1);
+    expect(f.read('supervisor.log').match(/held by the keeper/g)).toHaveLength(1);
   });
 
-  it('stops between runs when HELD appears, and plays no more', async () => {
-    const f = makeFixture({ heldAt: 1 });
-    expect(await f.supervisor.run()).toBe(1);
+  it('clears its own hold STOP when HELD is removed, and runs resume', async () => {
+    let stopDuringRun: boolean | undefined;
+    let stopFile = '';
+    const f = makeFixture({
+      stopAt: 1,
+      during: () => {
+        stopDuringRun = existsSync(stopFile);
+      },
+    });
+    stopFile = join(f.stateDir, 'STOP');
+    f.put('STOP', `auto: ${HELD_REASON}\n`);
+    writeFileSync(join(f.keeperDir, 'HELD'), 'rejected\n');
+    f.deps.sleep = async () => rmSync(join(f.keeperDir, 'HELD'));
+    expect(await f.supervisor.run()).toBe(0);
     expect(f.runs()).toHaveLength(1);
-    expect(f.read('STOP')).toBe(`auto: ${HELD_REASON}\n`);
-    expect(f.sleeps).toEqual([]);
+    expect(stopDuringRun).toBe(false);
+    expect(f.read('supervisor.log')).toContain('hold released');
+  });
+
+  it('starts normally when only a leftover hold STOP is present', async () => {
+    const f = makeFixture({ stopAt: 1 });
+    f.put('STOP', `auto: ${HELD_REASON}\n`);
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.runs()).toHaveLength(1);
+  });
+
+  it('stops further runs when HELD appears between runs, and idles until a stop', async () => {
+    const f = makeFixture({ heldAt: 1 });
+    const inner = f.deps.sleep;
+    let holdWaits = 0;
+    f.deps.sleep = async (secs, wake) => {
+      if (!existsSync(join(f.keeperDir, 'HELD'))) return inner(secs, wake);
+      // A safety net so a broken loop fails the assertions instead of running on.
+      if (++holdWaits === 3) writeFileSync(join(f.stateDir, 'STOP'), 'x\n');
+    };
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.runs()).toHaveLength(1);
+    expect(holdWaits).toBe(3);
+    expect(f.read('STOP')).toBe('x\n');
     expect(f.read('status.json')).toMatch(/"state":"stopped"/);
   });
 
-  it('stops before the next run when HELD appears while waiting', async () => {
+  it('leaves a STOP it did not write in place when HELD is removed, and stops', async () => {
     const f = makeFixture();
-    let waits = 0;
+    const held = join(f.keeperDir, 'HELD');
+    writeFileSync(held, 'rejected\n');
     f.deps.sleep = async () => {
-      writeFileSync(join(f.keeperDir, 'HELD'), 'rejected\n');
-      // A safety net so a broken loop fails the assertions instead of running on.
-      if (++waits > 3) writeFileSync(join(f.stateDir, 'STOP'), 'x\n');
+      writeFileSync(join(f.stateDir, 'STOP'), 'auto: 3 failed cycles in a row\n');
+      rmSync(held);
     };
     expect(await f.supervisor.run()).toBe(1);
-    expect(f.runs()).toHaveLength(1);
-    expect(f.read('STOP')).toMatch(/^auto: the keeper held/);
+    expect(f.runs()).toHaveLength(0);
+    expect(f.read('STOP')).toBe('auto: 3 failed cycles in a row\n');
+  });
+
+  it('exits 0 on a stop request while held, leaving the hold STOP for the next start', async () => {
+    const f = makeFixture();
+    writeFileSync(join(f.keeperDir, 'HELD'), 'rejected\n');
+    f.deps.sleep = async () => f.supervisor.requestStop();
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.runs()).toHaveLength(0);
+    expect(f.read('STOP')).toBe(`auto: ${HELD_REASON}\n`);
+    expect(f.read('status.json')).toMatch(/"state":"stopped"/);
   });
 });
 

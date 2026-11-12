@@ -2,9 +2,11 @@
 # Names only, no IP addresses. Files mounted into a proxy must be 0644, directories 0755.
 #
 # Privilege design. `player` and `keeper` start as root so the entrypoint can fix the ownership of the
-# mounted state volumes; the capability set is cap_drop ALL plus the four that this needs and nothing
-# else: CHOWN and FOWNER (chown and chmod the state directories), SETUID and SETGID (drop to the service
-# user with setpriv). The entrypoint drops to `supervisor` (1001) or `keeper` (1002) at once with
+# mounted state volumes; the capability set is cap_drop ALL plus the six that this needs and nothing
+# else: CHOWN, FOWNER and FSETID (chown and chmod the state directories; without FSETID chmod drops the setgid
+# bit that gives new files the right group), SETUID and SETGID (drop to the service
+# user with setpriv), SETPCAP (setpriv needs it to empty the bounding set; it is dropped with the rest). The
+# entrypoint drops to `supervisor` (1001) or `keeper` (1002) at once with
 # no_new_privs. The supervisor alone keeps SETUID and SETGID as ambient capabilities, to start each run
 # as `player` (1000); the keeper keeps none. no-new-privileges stays on: setuid() does not need it off.
 # The proxies are Squid, which starts as root and needs SETUID and SETGID to drop to its own user.
@@ -92,7 +94,7 @@ services:
       - GELDAR_RUN_SLEEP
     networks: [inside]
     cap_drop: [ALL]
-    cap_add: [CHOWN, FOWNER, SETUID, SETGID]
+    cap_add: [CHOWN, FOWNER, FSETID, SETUID, SETGID, SETPCAP]
     security_opt: [no-new-privileges:true]
     read_only: true
     tmpfs:
@@ -126,6 +128,7 @@ services:
     environment:
       - HOME=/tmp
       - GELDAR_KEEPER_REMOTE=${GELDAR_KEEPER_REMOTE:?}
+      - GELDAR_KEEPER_PLAYER_ID=${GELDAR_ID:?}
       - GELDAR_KEEPER_KEY=/run/secrets/deploy_key
       - GELDAR_KEEPER_INTERVAL=${GELDAR_KEEPER_INTERVAL:-600}
       - GELDAR_KEEPER_WORKSPACE=/workspace
@@ -141,7 +144,7 @@ services:
         mode: 0400
     networks: [keeper-net]
     cap_drop: [ALL]
-    cap_add: [CHOWN, FOWNER, SETUID, SETGID]
+    cap_add: [CHOWN, FOWNER, FSETID, SETUID, SETGID, SETPCAP]
     security_opt: [no-new-privileges:true]
     read_only: true
     tmpfs:
