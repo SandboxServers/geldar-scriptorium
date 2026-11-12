@@ -107,6 +107,7 @@ case $verb in
     [ "${GELDAR_INTERNAL:-}" = "1" ] || die 2 internal_only
     ;;
   new | setup | play | run | run-status | run-stop | resolve | archive | status | upgrade) ;;
+  auth-set | auth-status | auth-clear) ;;
   *) die 2 usage ;;
 esac
 
@@ -122,10 +123,12 @@ case $verb in
   *) GP_ARGS=("$@") ;;
 esac
 
-if [ "$verb" != "status" ]; then
-  [ ${#GP_ARGS[@]} -ge 1 ] || die 2 usage
-fi
-if [ ${#GP_ARGS[@]} -ge 1 ]; then
+case $verb in
+  status | auth-*) ;;
+  *) [ ${#GP_ARGS[@]} -ge 1 ] || die 2 usage ;;
+esac
+# The auth verbs take no player id: their arguments are checked by the verb itself.
+if [ ${#GP_ARGS[@]} -ge 1 ] && [ "${verb#auth-}" = "$verb" ]; then
   valid_player_id "${GP_ARGS[0]}" || die 2 bad_player_id "${GP_ARGS[0]}"
 fi
 if [ "$verb" = "play" ] && [ ${#GP_ARGS[@]} -ge 2 ]; then
@@ -138,6 +141,9 @@ fi
 case $verb in
   run-status) verb=run_status ;;
   run-stop) verb=run_stop ;;
+  auth-set) verb=auth_set ;;
+  auth-status) verb=auth_status ;;
+  auth-clear) verb=auth_clear ;;
 esac
 
 # shellcheck disable=SC2046

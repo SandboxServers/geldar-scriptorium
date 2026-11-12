@@ -100,7 +100,6 @@ function dumpSession(w: World) {
   writeFileSync(f, 'env > "$FAKE_OUT"\n');
   return { FAKE_SESSION: bashPath(f) };
 }
-
 const sessionDir = (p: Player) => join(p.stateDir, 'session');
 const runCalls = (w: World) => w.calls().filter((c) => c[0] === 'compose' && c.includes('run'));
 // pwsh logs native paths; compare in the bash form both launchers share.

@@ -93,6 +93,11 @@ Settings come from the environment, and a value outside its bounds is refused (`
 The supervisor writes `STOP` with `auto:` and stops after five fast or failed cycles in a row (`GELDAR_RUN_MAX_FAILS`), or when a cycle ends with the saved session held back. To resume: find the cause in `supervisor.log` (for a held session, run `resolve`), delete the `STOP` file, and start `run` again. A manual `STOP` is cleared at the next start; an `auto:` one is not. The daily cap sleeps until the next UTC day and then resumes by itself.
 
 The kit helper `geldar-verify run-summary` reads a stream on standard input in a throwaway container with no network, and prints one summary line (cost, turns, `is_error`, `result_seen`, the tool counts and the last words). The launcher uses it after each cycle and for `run-status`.
+
+## One Claude login for every player (owner only)
+
+Sign in once for the whole machine instead of once per player container. Run `claude setup-token` once; it prints a long-lived token. Then run `geldar-play auth-set`, paste the token (nothing is shown) and every player on this machine uses it. You can also give a file with `--token-file`, but prefer the hidden prompt: a piped token or a token file can stay in shell history or on disk, so delete the token file after use and avoid `bash -x`. `auth-status` tells you whether one is set, and `auth-clear` removes it. The token is kept in one owner-only file and passed to each container as an environment variable only. Anyone who can run `docker inspect` as you can see it, and revoking it logs every player out. Whether a subscription login may be used for autonomous play stays your decision: check the vendor's terms before you rely on it.
+
 ## Where things are
 
 - Player-facing guide: [template/README.md](../template/README.md), tested by `tests/template/readme.test.ts`.

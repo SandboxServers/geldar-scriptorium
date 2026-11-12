@@ -59,6 +59,9 @@ This is the threat model for the Geldar player kit and its launcher. Each contro
 | Helper container (uid 1000) reading a 0700 session directory on a host with another uid | Open design question (follow-up 11) | SC-60o follow-up |
 | H-09, H-14 | Not reproduced; regression guards only | `launcher/lib/bundle.*`, `finish.*` if they ever fail |
 | H-14 hook control assertion removed | The case can pass vacuously (follow-up 1) | wave-end fix pass |
+| Stolen shared login token file | Accepted risk: one owner-only file (0600 in a 0700 folder) per machine; revoke with `claude setup-token` again, then `auth-clear` (H-21) | the human |
+| A fooled model leaks its environment | The character has no shell tool and the managed settings deny reading the CLI home, so it cannot read the token (H-20, H-21) | none |
+| One token shared by every player of the machine | Accepted risk: revoking it logs every player out at once (H-21) | the human |
 | A hostile text in the character's last words (a fake instruction, control bytes, a huge tail) | The next prompt holds it only as quoted, cleaned text cut to 1500 characters, never as an instruction line | `launcher/test/run.bash.test.ts` (last words fixture); the player can only act through the checked tools |
 | A runaway cost | The daily cap sleeps the supervisor to the next UTC day; backoff and the failure limit write an `auto:` STOP. The cap is a cost control, not a security boundary | Costs are the API-equivalent figures in `run/costs.csv`; the owner sets the cap |
 | A stuck supervisor | The STOP file is checked before every cycle and the signals stop the loop after the current cycle; a held session writes an `auto:` STOP | `run-stop`, `run/supervisor.log`; a cycle already running is never cut short |

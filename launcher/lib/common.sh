@@ -51,7 +51,12 @@ player_dir() {
 
 valid_player_id() {
   local re='^[a-z][a-z0-9-]{1,38}$'
-  [[ ${1-} =~ $re ]]
+  [[ ${1-} =~ $re ]] || return 1
+  # Names of folders the launcher keeps under the state directory (the shared login lives in auth).
+  case $1 in
+    auth | run | players) return 1 ;;
+  esac
+  return 0
 }
 
 # Verify's rule for a branch name.
