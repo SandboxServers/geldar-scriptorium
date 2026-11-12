@@ -158,6 +158,47 @@ describe('play skill', () => {
     expect(section).not.toMatch(/`see`|`reach`|`recall`|\bsee\(|\breach\(/);
     expect(section).not.toMatch(/sound wake|wake interest|register|sign-up/i);
   });
+
+  it('teaches looking with see: a picture with a caption, when to use it, and the refusals', () => {
+    for (const line of [
+      '## Looking with `see`',
+      'Call `see` to get a picture of what is in front of your eyes, drawn small, with a short caption under it:',
+      '"what you see, from your eyes (an approximation, not a photograph)."',
+      'Use it when something strange is in front of you, when a creature is near and you cannot make it out from words, or when you are about to enter a place you do not know.',
+      '"A picture is still being drawn. Try again in a moment."',
+      'Then wait a while and try again.',
+      'Pictures come only now and then.',
+      '"Pictures are limited to one every 5 seconds and 30 an hour. Look again shortly."',
+    ]) {
+      expect(body).toContain(line);
+    }
+  });
+
+  it('keeps the see section free of digits outside quotes and of the names it must not teach', () => {
+    const start = body.indexOf('## Looking with `see`');
+    expect(start).toBeGreaterThan(-1);
+    const section = body.slice(start);
+    expect(section.replace(/"[^"]*"/g, '')).not.toMatch(/\d/);
+    expect(section).not.toMatch(/\b(game|bot|model|tool|MCP|API|server|error)\b/i);
+    expect(section).not.toMatch(
+      /\breach\b|\brecall\b|dimension|register|sign-up|sound wake|wake interest/i,
+    );
+  });
+
+  it('teaches the world going still and the reflex give-up line', () => {
+    for (const line of [
+      '"The world will go still for about 30 seconds."',
+      '"The world will go still for a while."',
+      '"Your senses may flicker for a moment."',
+      'Finish what you are doing safely, start nothing risky, and wait.',
+      '"The world moves again."',
+      'Look around before you act, because the place may have changed while it was still.',
+      '"arrow sidestep paused: still under fire (15s)."',
+      'Then look and decide for yourself.',
+    ]) {
+      expect(body).toContain(line);
+    }
+  });
 });
 
 describe('setup skill', () => {
