@@ -86,7 +86,7 @@ write_override() {
   fi
   v=$(yaml_q "$mcp") || die 1 bad_state_path
   {
-    printf '    environment:\n      GELDAR_MCP_URL: %s\n      GELDAR_MCP_TOKEN:\n' "$v"
+    printf '    environment:\n      GELDAR_MCP_URL: %s\n      GELDAR_MCP_TOKEN:\n      CLAUDE_CODE_OAUTH_TOKEN:\n' "$v"
     if [ -n "$turns" ]; then
       printf '      GELDAR_RUN_MAX_TURNS: "%s"\n' "$turns"
     fi
@@ -184,10 +184,18 @@ start_session() {
   if [ "$mode" != run ] && [ -t 0 ]; then tty=""; fi
   args=(-p "geldar-$id" ${files[@]+"${files[@]}"})
 
+  auth_warn_unusable
   say session_start "$(printf '%s' "$PL_NAME" | sanitize)"
   (
     unset GH_TOKEN GITHUB_TOKEN ANTHROPIC_API_KEY
     unset GELDAR_MCP_TOKEN GELDAR_DEV_MCP_URL
+    # SC-140: an ambient login token is never passed on; only the stored, valid one is.
+    unset CLAUDE_CODE_OAUTH_TOKEN
+    if auth_usable && CLAUDE_CODE_OAUTH_TOKEN=$(auth_load); then
+      export CLAUDE_CODE_OAUTH_TOKEN
+    else
+      unset CLAUDE_CODE_OAUTH_TOKEN
+    fi
     if [ -f "$d/token" ]; then
       IFS= read -r GELDAR_MCP_TOKEN < "$d/token" || true
       export GELDAR_MCP_TOKEN
@@ -206,7 +214,7 @@ start_session() {
   rc=$?
   printf '%s\n' "$rc" > "$sd/exit"
   (
-    unset GELDAR_MCP_TOKEN GELDAR_DEV_MCP_URL
+    unset GELDAR_MCP_TOKEN GELDAR_DEV_MCP_URL CLAUDE_CODE_OAUTH_TOKEN
     export GELDAR_UID=1000 GELDAR_GID=1000 GELDAR_WORKSPACE="geldar-ws-$id"
     export GELDAR_CLI_HOME="geldar-cli-$id-claude" KIT_IMAGE="$PL_KIT_IMAGE"
     export GELDAR_WORLD_ALLOWLIST="$wl" GELDAR_WORLD_PORTS="$wp" GELDAR_MODE="$cmode"

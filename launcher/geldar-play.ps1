@@ -71,6 +71,7 @@ switch -CaseSensitive ($verb) {
     if ((Get-GatedEnv 'GELDAR_INTERNAL') -ne '1') { Die 2 internal_only }
   }
   { $_ -in 'new', 'setup', 'play', 'run', 'run-status', 'run-stop', 'resolve', 'archive', 'status', 'upgrade' } { }
+  { $_ -in 'auth-set', 'auth-status', 'auth-clear' } { }
   default { Die 2 usage }
 }
 
@@ -83,8 +84,10 @@ if ($verb -ceq '__bounded') {
 $gpArgs = $rest
 if ($verb -in 'new', 'setup', 'play', 'run') { $gpArgs = @((@(Read-CliOption $rest))[0]) }
 
-if ($verb -cne 'status' -and $gpArgs.Count -lt 1) { Die 2 usage }
-if ($gpArgs.Count -ge 1 -and -not (Test-PlayerId $gpArgs[0])) { Die 2 bad_player_id $gpArgs[0] }
+$isAuth = $verb.StartsWith('auth-', [StringComparison]::Ordinal)
+if ($verb -cne 'status' -and -not $isAuth -and $gpArgs.Count -lt 1) { Die 2 usage }
+# The auth verbs take no player id: their arguments are checked by the verb itself.
+if (-not $isAuth -and $gpArgs.Count -ge 1 -and -not (Test-PlayerId $gpArgs[0])) { Die 2 bad_player_id $gpArgs[0] }
 if ($verb -ceq 'play' -and $gpArgs.Count -ge 2) {
   foreach ($id in $gpArgs) {
     if (-not (Test-PlayerId $id)) { Die 2 bad_player_id $id }
@@ -94,6 +97,7 @@ if ($verb -ceq 'play' -and $gpArgs.Count -ge 2) {
 
 if ($verb -ceq 'run-status') { $verb = 'run_status' }
 if ($verb -ceq 'run-stop') { $verb = 'run_stop' }
+if ($isAuth) { $verb = $verb.Replace('-', '_') }
 
 $needs = @(Get-VerbNeeds $verb)
 Need @needs

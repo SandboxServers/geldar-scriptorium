@@ -7,6 +7,7 @@
 !packages/memory
 !packages/git
 !packages/verify
+!packages/supervisor
 !image/settings
 !image/geldar-entrypoint.sh
 !image/geldar-player-entrypoint.sh
