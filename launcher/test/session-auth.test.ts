@@ -137,7 +137,13 @@ describe.each(forGroup('session'))('session auth ($name)', (launcher) => {
     // and the compose down call do not.
     storeAuth(w, `${OAUTH}\n`);
     // The headless run is checked through the bash launcher only: under pwsh it exits non-zero here (open).
-    for (const mode of launcher.name === 'bash' ? ['play', 'setup', 'run'] : ['play', 'setup']) {
+    // The run words carry a double quote, which the .cmd test shims of the Windows pwsh lane refuse.
+    const modes = ['play', 'setup', 'run'].filter(
+      (m) => m !== 'run' || !(win && launcher.name === 'pwsh'),
+    );
+    if (modes.length < 3)
+      console.info('auth: run mode skipped, the .cmd test shims refuse a double quote');
+    for (const mode of modes) {
       const b = player(w, `nine-${mode}`);
       const rb = startMode(launcher, w, b, mode);
       expect(rb.status, rb.stderr).toBe(0);
