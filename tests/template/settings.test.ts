@@ -34,6 +34,7 @@ const layers: Record<string, Settings> = { managed, play, setup, project };
 
 const worldTools = [
   'look',
+  'view',
   'wait',
   'act',
   'say',
