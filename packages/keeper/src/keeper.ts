@@ -5,6 +5,7 @@ import { verify } from '@geldar/scriptorium-verify';
 import { call, fetchRemote, mustSucceed, Refusal } from './clone.ts';
 import type { KeeperConfig } from './config.ts';
 import type { GitRunner } from './git.ts';
+import { safeDirectoryConfig } from './git.ts';
 import {
   ensureState,
   isHeld,
@@ -50,7 +51,12 @@ function fetchWorkspace(cfg: KeeperConfig, deps: KeeperDeps): string {
         cfg.workspace,
         `refs/heads/${cfg.branch}`,
       ],
-      { config: [`safe.directory=${cfg.workspace}`, 'protocol.file.allow=user'] },
+      {
+        config: ['protocol.file.allow=user'],
+        // The workspace belongs to the player user: list it (and its .git) as a safe directory
+        // through a config file, which the upload-pack child inherits; a -c setting is not passed on.
+        env: { GIT_CONFIG_GLOBAL: safeDirectoryConfig([cfg.workspace, `${cfg.workspace}/.git`]) },
+      },
     ),
     'workspace_fetch_failed',
   );
