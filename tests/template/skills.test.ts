@@ -95,13 +95,37 @@ describe('play skill', () => {
     const end = body.indexOf('## Reading your results');
     expect(start).toBeGreaterThan(-1);
     expect(end).toBeGreaterThan(start);
-    const section = body.slice(start, end);
+    // The quoted world texts (such as the craft reason "within reach") are the world's own words.
+    const section = body.slice(start, end).replace(/"[^"]*"/g, '');
     expect(section).not.toMatch(/\d/);
     expect(section).not.toMatch(
       /\b(game|bot|model|AI|prompt|session|token|player|server|tool|MCP|API|error|outcomes?|events?)\b/i,
     );
     expect(section).not.toMatch(/\brecall\b|\breach\b|register|sign-up|sound wake|wake interest/i);
     expect(section).not.toMatch(/glass|viewer|watch|observer|audience/i);
+  });
+
+  it('teaches crafting: how to try it, the three reason lines, and the furnace that heat work uses', () => {
+    for (const line of [
+      '## Crafting',
+      'To make something, call `act` with `craft`, the thing you want and how many.',
+      'You need the materials in your pack.',
+      'Some things need a crafting table close to you.',
+      'Heat work is done with `craft` too, with no separate verb: if the thing needs only a heat-using recipe, craft uses a furnace near you, if there is one.',
+      'Your readings say whether a furnace near you is lit, and nothing more about what is inside it.',
+      '"Your craft failed: you lack the materials."',
+      '"Your craft failed: there is no crafting table within reach."',
+      '"Your craft failed: it took too long."',
+    ]) {
+      expect(body).toContain(line);
+    }
+    expect(body.indexOf('## Crafting')).toBeLessThan(body.indexOf('## Reading your results'));
+  });
+
+  it('never mentions a recipe, a list of items or a smelting verb in the crafting section', () => {
+    const start = body.indexOf('## Crafting');
+    const section = body.slice(start, body.indexOf('## Reading your results')).replace(/"[^"]*"/g, '');
+    expect(section).not.toMatch(/recipe book|smelt|ingredient|\bplanks?\b|\blogs?\b|\bcobble/i);
   });
 
   it('never gives through a separate give tool', () => {
@@ -171,7 +195,10 @@ describe('play skill', () => {
   });
 
   it('never mentions dimensions, reach, register or a sound wake', () => {
-    expect(body).not.toMatch(/dimension|\breach\b|register|sign-up|sound wake|wake interest/i);
+    // Only the quoted world texts may carry the word reach (the craft reason, quoted exactly).
+    expect(body.replace(/"[^"]*"/g, '')).not.toMatch(
+      /dimension|\breach\b|register|sign-up|sound wake|wake interest/i,
+    );
     expect(body).not.toContain('you heard a sound');
   });
 

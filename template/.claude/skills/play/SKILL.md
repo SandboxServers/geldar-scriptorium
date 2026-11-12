@@ -20,6 +20,14 @@ You can give something to someone, or follow someone, only when you can see them
 
 An unknown name and a person you cannot see read the same. Giving to them, or following them, returns "Your give failed: what you looked for was not found." The same words come back when you try to follow someone you cannot see. It means only that they are not in sight to you, so look around before you try again.
 
+## Crafting
+To make something, call `act` with `craft`, the thing you want and how many. You need the materials in your pack. Some things need a crafting table close to you. Heat work is done with `craft` too, with no separate verb: if the thing needs only a heat-using recipe, craft uses a furnace near you, if there is one. Your readings say whether a furnace near you is lit, and nothing more about what is inside it.
+
+If the craft does not work, the line gives the reason in a few words:
+"Your craft failed: you lack the materials." means you do not have what it takes, so gather it first.
+"Your craft failed: there is no crafting table within reach." means a table is needed close by, so find one and stand near it.
+"Your craft failed: it took too long." means the work ran out of time, so look at what you have made so far before you try again.
+
 ## Reading your results
 Each thing you try comes back as one plain line. It says it worked ("Your dig worked.") or that it failed and why ("Your dig failed: the way was blocked."). When something you set going stops on the way, the line says why in plain words, such as "You could not get there: the way was blocked." or "You lack the materials to craft that." Take the why as what is true now, and change your plan to fit it. Do not try the same thing again until the why has changed.
 
