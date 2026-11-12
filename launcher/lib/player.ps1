@@ -377,9 +377,8 @@ function Verb-stop {
 }
 
 # One part of player-status, masked. A part that cannot be read prints player_no_status for its role.
-function Write-PlayerStatusPart([string]$Id, [string]$Role, [int]$Uid, [string]$Script) {
-  $r = Invoke-PlayerVolHelper $Id $Role "geldar-sup-$Id" $Uid 'ro' $Script
-  if ($Role -eq 'keeper') { $r = Invoke-PlayerVolHelper $Id $Role "geldar-keep-$Id" $Uid 'ro' $Script }
+function Write-PlayerStatusPart([string]$Id, [string]$Role, [string]$Vol, [int]$Uid, [string]$Script) {
+  $r = Invoke-PlayerVolHelper $Id $Role $Vol $Uid 'ro' $Script
   if ($r.Code -ne 0) { Say player_no_status $Role; return }
   Write-PlayerText $r.Text
 }
@@ -393,9 +392,9 @@ function Verb-player_status {
   $ps = @(Invoke-PlayerCompose $id @('ps', '--all', '--format', '{{.Service}} {{.State}}'))
   Write-PlayerText ($ps -join "`n")
   [Console]::Out.Write("supervisor status:`n")
-  Write-PlayerStatusPart $id 'supervisor' 1001 'cat /vol/status.json'
+  Write-PlayerStatusPart $id 'supervisor' "geldar-sup-$id" 1001 'cat /vol/status.json'
   [Console]::Out.Write("keeper status:`n")
-  Write-PlayerStatusPart $id 'keeper' 1002 'grep -E "\"(last_pushed_head|last_run_utc)\"" /vol/status.json'
+  Write-PlayerStatusPart $id 'keeper' "geldar-keep-$id" 1002 'grep -E "\"(last_pushed_head|last_run_utc)\"" /vol/status.json'
   $held = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" 1002 'ro' 'cat /vol/HELD'
   if ($held.Code -eq 0) { Say player_held (Sanitize ($held.Text.TrimEnd("`r", "`n"))) }
 }
@@ -427,7 +426,7 @@ function Verb-logs {
 function New-PlayerKey([string]$Id, [string]$Dir) {
   $tmp = Join-Path $Dir 'keygen'
   Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
-  New-PrivateDir $tmp
+  New-PrivateDir (Join-Path $Dir 'keygen')
   $kg = Get-GatedEnv 'GELDAR_SSH_KEYGEN'
   if (-not $kg) { $kg = 'ssh-keygen' }
   $keyPath = Join-Path $tmp 'deploy-key'

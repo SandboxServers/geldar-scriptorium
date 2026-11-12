@@ -28,6 +28,7 @@ function Get-VerbNeeds([string]$Verb) {
     'resolve' { return @('docker', 'git') }
     { $_ -in 'status', 'run_status' } { return @('git') }
     'upgrade' { return @('git', 'gh') }
+    { $_ -in 'start', 'stop', 'restart', 'player_status', 'logs', 'deploy_key', 'release_hold' } { return @('docker', 'git') }
   }
   return @()
 }
@@ -72,6 +73,7 @@ switch -CaseSensitive ($verb) {
   }
   { $_ -in 'new', 'setup', 'play', 'run', 'run-status', 'run-stop', 'resolve', 'archive', 'status', 'upgrade' } { }
   { $_ -in 'auth-set', 'auth-status', 'auth-clear' } { }
+  { $_ -in 'start', 'stop', 'restart', 'player-status', 'logs', 'deploy-key', 'release-hold' } { }
   default { Die 2 usage }
 }
 
@@ -97,6 +99,9 @@ if ($verb -ceq 'play' -and $gpArgs.Count -ge 2) {
 
 if ($verb -ceq 'run-status') { $verb = 'run_status' }
 if ($verb -ceq 'run-stop') { $verb = 'run_stop' }
+if ($verb -ceq 'player-status') { $verb = 'player_status' }
+if ($verb -ceq 'deploy-key') { $verb = 'deploy_key' }
+if ($verb -ceq 'release-hold') { $verb = 'release_hold' }
 if ($isAuth) { $verb = $verb.Replace('-', '_') }
 
 $needs = @(Get-VerbNeeds $verb)

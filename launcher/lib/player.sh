@@ -362,7 +362,7 @@ pl_make_key() {
   [ -n "$kg" ] || kg=ssh-keygen
   tmp="$d/keygen"
   rm -rf "$tmp"
-  private_mkdir "$tmp"
+  private_mkdir "$d/keygen"
   if command -v "$kg" > /dev/null 2>&1; then
     "$kg" -q -t ed25519 -N '' -C "geldar-$id" -f "$tmp/deploy-key" < /dev/null > /dev/null 2>&1 ||
       die 1 player_key_failed "$id"
