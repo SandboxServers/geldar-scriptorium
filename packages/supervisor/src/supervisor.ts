@@ -1,4 +1,11 @@
-import { appendFileSync, createReadStream, existsSync, mkdirSync, rmSync } from 'node:fs';
+import {
+  appendFileSync,
+  createReadStream,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+} from 'node:fs';
 import type { RunSummary } from '@geldar/scriptorium-verify';
 import { summarizeStream } from '@geldar/scriptorium-verify';
 import type { Deps, ExecSpec } from './deps.ts';
@@ -15,6 +22,8 @@ import {
   writeAutoStop,
   writePrivate,
 } from './state.ts';
+import type { SyncResult } from './upstream.ts';
+import { GIT_ENV, hardenedArgs, syncUpstream } from './upstream.ts';
 
 /** The reason written to STOP when the keeper's HELD marker is present. */
 export const HELD_REASON = 'the keeper held the history';
@@ -83,6 +92,8 @@ async function summarizeFile(path: string): Promise<RunSummary | null> {
 export class Supervisor {
   private stopFlag = false;
   private started = '';
+  private upstreamHead = '';
+  private upstreamResult: SyncResult = 'none';
 
   private readonly settings: Settings;
   private readonly deps: Deps;
@@ -117,6 +128,8 @@ export class Supervisor {
       started: this.started,
       last_result: last,
       cost_today: cost,
+      upstream_head: this.upstreamHead,
+      upstream_result: this.upstreamResult,
       updated: fmt(this.deps.now(), 'stamp'),
     };
     writePrivate(this.path('status.json'), `${JSON.stringify(body)}\n`);
@@ -156,6 +169,41 @@ export class Supervisor {
     ];
     const code = await this.deps.exec(this.asPlayer({ file: 'geldar-git', args }));
     if (code !== 0) this.log(`save failed exit=${code}`);
+  }
+
+  /** One git call as the player, hardened (see hardenedArgs); its stdout comes back when `capture` is set. */
+  private async git(args: string[], capture: boolean): Promise<{ code: number; out: string }> {
+    const out = this.path('upstream.out');
+    if (capture) rmSync(out, { force: true });
+    const code = await this.deps.exec(
+      this.asPlayer({
+        file: 'git',
+        args: [...hardenedArgs(this.path('no-hooks')), ...args],
+        env: { ...childEnv(this.settings, this.env), ...GIT_ENV },
+        stdoutPath: capture ? out : undefined,
+      }),
+    );
+    return { code, out: capture && existsSync(out) ? readFileSync(out, 'utf8') : '' };
+  }
+
+  /**
+   * Between runs only: applies the keeper's upstream bundle as the player. A refusal writes the
+   * auto STOP and returns false, so the loop ends without a run.
+   */
+  private async upstream(): Promise<boolean> {
+    mkdirSync(this.path('no-hooks'), { recursive: true, mode: 0o700 });
+    const report = await syncUpstream(
+      this.settings,
+      (args, capture) => this.git(args, capture),
+      (text) => this.log(text),
+    );
+    if (report.head !== null) this.upstreamHead = report.head;
+    this.upstreamResult = report.result;
+    if (!report.result.startsWith('failed: ')) return true;
+    const code = report.result.slice('failed: '.length);
+    writeAutoStop(this.settings, `upstream sync: ${code}`);
+    this.deps.say(`The supervisor stopped itself: upstream sync: ${code}.`);
+    return false;
   }
 
   /** Runs the loop; resolves to the process exit code. */
@@ -222,6 +270,10 @@ export class Supervisor {
         this.status(n, 'sleeping', last, sum);
         await this.deps.sleep(secs, () => this.shouldStop());
         continue;
+      }
+      if (!(await this.upstream())) {
+        failed = true;
+        break;
       }
       n = nextRunNumber(s.stateDir);
       this.status(n, 'running', last, sum);
