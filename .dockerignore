@@ -6,6 +6,7 @@
 !packages/path-rule
 !packages/memory
 !packages/git
+!packages/keeper
 !packages/verify
 !packages/supervisor
 !image/settings
