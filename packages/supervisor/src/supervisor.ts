@@ -40,6 +40,7 @@ const SYSTEM_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bi
 const PASS_THROUGH = [
   'CLAUDE_CODE_OAUTH_TOKEN',
   'GELDAR_MCP_TOKEN',
+  'GELDAR_MCP_URL',
   'HTTPS_PROXY',
   'HTTP_PROXY',
   'NO_PROXY',

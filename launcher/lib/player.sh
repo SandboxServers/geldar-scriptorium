@@ -212,11 +212,11 @@ pl_compose() {
   esac
   pl_keeper_remote "$id"
   (
-    unset GH_TOKEN GITHUB_TOKEN ANTHROPIC_API_KEY GELDAR_DEV_MCP_URL GELDAR_MCP_TOKEN CLAUDE_CODE_OAUTH_TOKEN
+    unset GH_TOKEN GITHUB_TOKEN ANTHROPIC_API_KEY GELDAR_DEV_MCP_URL GELDAR_MCP_URL GELDAR_MCP_TOKEN CLAUDE_CODE_OAUTH_TOKEN
     pl_secrets "$id"
     if [ -n "$PL_SECRET_MCP" ]; then export GELDAR_MCP_TOKEN="$PL_SECRET_MCP"; fi
     if [ -n "$PL_SECRET_LOGIN" ]; then export CLAUDE_CODE_OAUTH_TOKEN="$PL_SECRET_LOGIN"; fi
-    export KIT_IMAGE="$PL_KIT_IMAGE" GELDAR_ID="$id" GELDAR_KEEPER_REMOTE="$PL_REMOTE"
+    export KIT_IMAGE="$PL_KIT_IMAGE" GELDAR_ID="$id" GELDAR_KEEPER_REMOTE="$PL_REMOTE" GELDAR_MCP_URL="$PL_MCP_URL"
     export GELDAR_DEPLOY_KEY_FILE="$d/deploy-key" GELDAR_WORLD_ALLOWLIST="$d/pub/allowlist-world.txt"
     export GELDAR_WORLD_PORTS="$d/pub/allowlist-world-ports.txt"
     docker_cmd compose -p "geldar-player-$id" -f "$share/compose/player.yml" "$@"

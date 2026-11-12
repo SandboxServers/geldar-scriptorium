@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { bashPath, launchers } from './harness.ts';
+import { bashPath, FIXTURE_MCP_URL, launchers } from './harness.ts';
 import {
   canQuote,
   composeCalls,
@@ -68,6 +68,8 @@ for (const l of launchers) {
       expect(env?.GELDAR_DEPLOY_KEY_FILE?.replace(/\\/g, '/')).toBe(
         l.name === 'bash' ? bashPath(keyFile) : keyFile.replace(/\\/g, '/'),
       );
+      // The world address the character's .mcp.json reads: from the player's own player.json.
+      expect(env?.GELDAR_MCP_URL).toBe(FIXTURE_MCP_URL);
       expect(env?.GELDAR_MCP_TOKEN).toBe(MCP);
       expect(env?.CLAUDE_CODE_OAUTH_TOKEN).toBe(LOGIN);
       expectClean(s.w, r);
