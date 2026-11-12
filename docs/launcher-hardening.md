@@ -56,6 +56,8 @@ Each requirement is one line. Tests are written in SC-60.
 
   The settings contain deny rules for the CLI home and `.credentials.json`; every other spelling of a credential path is covered only by `blockReadsOutsideWorkingDirectories` plus the live check in SC-62, which has not run yet.
   Symlink swap (the known gap above): closed in `packages/git` by SC-60j (`O_NOFOLLOW` open, `fstat` regular file, device and inode compared, 1 MiB cap); its Linux-only cases run in CI.
+- H-21: The shared Claude login token sits in one owner-only file (`<state>/auth/claude-oauth-token`, folder 0700, file 0600) and is never printed, logged or put on a command line. It reaches a session container only as an environment variable on the compose process; the override file holds the name and never the value, and an ambient value in the human's shell is always dropped first. The character has no shell tool and the managed settings deny reading the CLI home, so it has no way to read its own environment. A token in the container environment is visible to the host owner through `docker inspect`. Revoke it by running `claude setup-token` again or in the account's settings, then `auth-clear`. Test: `launcher/test/auth.bash.test.ts`, `launcher/test/auth.pwsh.test.ts` and `launcher/test/session.test.ts` (case 9).
+
 ## Test seams
 
 Every `GELDAR_*` name the launchers read is classified in `launcher/test/hostile/seams.json` (sorted, unique; `seams.test.ts` scans the sources and fails on an unclassified name).

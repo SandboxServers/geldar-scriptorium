@@ -509,6 +509,39 @@ stat -c %a "$GELDAR_WORLD_ALLOWLIST" > "${modeOut}"
     expect(text(join(w.root, 'env-seven-b.txt'))).not.toContain('STALE-OTHER');
   });
 
+  it('9. the shared login token reaches the session by environment only', () => {
+    const OAUTH = 'sk-ant-oat01-Zq8.Lm3~xY7-pR2tVb9KdW4nH6';
+    const w = makeWorld();
+    // No stored file: an ambient value is not passed on, and the override only names the variable.
+    const a = player(w, 'nine-a');
+    const ra = start(launcher, w, a, 'play', {
+      ...dumpSession(w),
+      CLAUDE_CODE_OAUTH_TOKEN: 'AMBIENT-LOGIN-VALUE',
+    });
+    expect(ra.status, ra.stderr).toBe(0);
+    expect(text(join(w.root, 'env-nine-a.txt'))).not.toContain('CLAUDE_CODE_OAUTH_TOKEN');
+    expect(text(join(sessionDir(a), 'override.yml'))).toContain(
+      '\n      CLAUDE_CODE_OAUTH_TOKEN:\n',
+    );
+    // A stored file: the compose process has it, the override and every argument do not.
+    mkdirSync(join(w.state, 'auth'), { recursive: true });
+    writeFileSync(join(w.state, 'auth', 'claude-oauth-token'), `${OAUTH}\n`, { mode: 0o600 });
+    const b = player(w, 'nine-b');
+    const rb = start(launcher, w, b, 'play', {
+      ...dumpSession(w),
+      CLAUDE_CODE_OAUTH_TOKEN: 'AMBIENT-LOGIN-VALUE',
+    });
+    expect(rb.status, rb.stderr).toBe(0);
+    const env = text(join(w.root, 'env-nine-b.txt'));
+    expect(env).toContain(`CLAUDE_CODE_OAUTH_TOKEN=${OAUTH}\n`);
+    expect(env).not.toContain('AMBIENT-LOGIN-VALUE');
+    const override = text(join(sessionDir(b), 'override.yml'));
+    expect(override).toContain('\n      CLAUDE_CODE_OAUTH_TOKEN:\n');
+    expect(override).not.toContain(OAUTH);
+    expect(text(join(w.dockerRoot, 'calls.log'))).not.toContain(OAUTH);
+    expect(rb.stdout + rb.stderr).not.toContain(OAUTH);
+  });
+
   it('8. down never removes volumes and the host clone is untouched', () => {
     const w = makeWorld();
     const p = player(w, 'eight');
