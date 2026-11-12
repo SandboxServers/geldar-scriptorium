@@ -60,6 +60,16 @@ describe('play skill', () => {
     expect(body).toContain('240');
   });
 
+  it('tells the character once to use act with unstick when stuck, with no digit or jargon', () => {
+    const lines = body.split('\n').filter((l) => l.includes('unstick'));
+    expect(lines).toHaveLength(1);
+    const line = lines[0] ?? '';
+    expect(line).toContain('`act`');
+    expect(line).toContain('`unstick`');
+    expect(line).not.toMatch(/\d/);
+    expect(line).not.toMatch(/reflex|cooldown|geldar|PR\b/i);
+  });
+
   it('never gives through a separate give tool', () => {
     expect(body).not.toContain('give(');
   });
