@@ -15,11 +15,11 @@ Per D-SC-09, on the machine that runs `geldar-play`:
 
 ## The three world values
 
-The real world's address and port are set in [launcher/config/world.conf](../launcher/config/world.conf), to `geldar.sandboxservers.games` on port 18443 over TLS. The private-only shard list is blank for now: every shard is watched, and the list is revisited later. The file is read as data (`key=value`), never sourced. If the owner blanks a value, the launcher refuses or narrows what it does:
+The real world's address and port are set in [launcher/config/world.conf](../launcher/config/world.conf), to `mcp.geldar.sandboxservers.games` over TLS on the default port 443 (`mcp_port` is blank). The private-only shard list is blank for now: every shard is watched, and the list is revisited later. The file is read as data (`key=value`), never sourced. If the owner blanks a value, the launcher refuses or narrows what it does:
 
 | Key | What it is | While blank |
 |---|---|---|
-| `mcp_base` | Scheme, host and port of the world, for example `https://geldar.sandboxservers.games:18443`. No path, no credentials. | `new` refuses with `no_world`: nothing is created. |
+| `mcp_base` | Scheme, host and port of the world, for example `https://mcp.geldar.sandboxservers.games`. No path, no credentials. | `new` refuses with `no_world`: nothing is created. |
 | `mcp_port` | The port of the world's MCP: digits only, no leading zero, 1024 to 65535. It must match the port in `mcp_base`. | Only ports 80 and 443 are accepted, and only on the `mcp_base` host. |
 | `private_only_shards` | Shard names separated by commas. Their player repositories must be private. | `new` cannot check the shard. It needs an explicit `--private` or `--public`. |
 
