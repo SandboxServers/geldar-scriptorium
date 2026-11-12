@@ -1,9 +1,18 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { chmodSync, closeSync, existsSync, mkdirSync, openSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ExecSpec } from './deps.ts';
-import { makeFixture } from './fixture.ts';
+import { makeFixture, onPoll } from './fixture.ts';
 
 // The fixture's child environment, with the real PATH so that the real git can be found.
 const ENV = { PATH: process.env.PATH ?? '' };
@@ -209,7 +218,7 @@ describe('applying upstream between runs', { timeout: 60_000 }, () => {
     commit(s.origin, 'template.md', 'new template\n', 'template change');
     publish(f.keeperDir, s);
     withRealGit(f);
-    expect(await f.supervisor.run()).toBe(1);
+    expect(await f.supervisor.run()).toBe(0);
     expect(git(s.ws, 'rev-parse', 'HEAD')).toBe(local);
     expect(f.read('STOP')).toBe('auto: upstream sync: identity\n');
     expect(f.said.join('\n')).toContain('stopped itself: upstream sync: identity');
@@ -223,7 +232,7 @@ describe('applying upstream between runs', { timeout: 60_000 }, () => {
     commit(s.origin, 'journal.md', 'their edit\n', 'upstream edit');
     publish(f.keeperDir, s);
     withRealGit(f);
-    expect(await f.supervisor.run()).toBe(1);
+    expect(await f.supervisor.run()).toBe(0);
     expect(git(s.ws, 'rev-parse', 'HEAD')).toBe(local);
     expect(git(s.ws, 'status', '--porcelain')).toBe('');
     expect(existsSync(join(s.ws, '.git', 'rebase-merge'))).toBe(false);
@@ -238,7 +247,7 @@ describe('applying upstream between runs', { timeout: 60_000 }, () => {
     scene(f.root);
     writeFileSync(join(f.keeperDir, 'upstream.json'), '{"head":"not-a-sha"}');
     withRealGit(f);
-    expect(await f.supervisor.run()).toBe(1);
+    expect(await f.supervisor.run()).toBe(0);
     expect(f.read('STOP')).toBe('auto: upstream sync: manifest\n');
     expect(f.has('session-1.jsonl')).toBe(false);
   });
@@ -286,5 +295,75 @@ describe('applying upstream between runs', { timeout: 60_000 }, () => {
     expect(git(s.ws, 'rev-parse', 'HEAD')).toBe(head);
     expect(f.read('status.json')).toContain('"upstream_result":"none"');
     expect(f.read('status.json')).toContain(`"upstream_head":"${head}"`);
+  });
+
+  it('idles on a refused manifest STOP instead of exiting, with the heartbeat going on', async () => {
+    const f = makeFixture({ stopAt: 1 }, {}, ENV);
+    scene(f.root);
+    writeFileSync(join(f.keeperDir, 'upstream.json'), '{"head":"not-a-sha"}');
+    let polls = 0;
+    onPoll(f, (poll) => {
+      polls = poll;
+      for (const beat of f.beats) beat();
+      if (poll === 3) f.supervisor.requestStop();
+    });
+    withRealGit(f);
+    expect(await f.supervisor.run()).toBe(0);
+    expect(polls).toBe(3);
+    expect(f.runs()).toHaveLength(0);
+    expect(f.read('status.json')).toMatch(/"state":"stopped"/);
+    expect(f.read('status.json')).toContain('"stop_reason":"auto: upstream sync: manifest"');
+  });
+
+  it('fetches from a copy under the temporary folder, never the keeper state, and removes the copy', async () => {
+    const f = makeFixture({ stopAt: 1 }, {}, ENV);
+    const s = scene(f.root);
+    commit(s.origin, 'template.md', 'new template\n', 'template change');
+    const head = publish(f.keeperDir, s);
+    withRealGit(f);
+    expect(await f.supervisor.run()).toBe(0);
+    const copy = sub(f.specs, 'fetch')[0]?.args.find((a) => a.endsWith('upstream.bundle'));
+    expect(copy).toBeDefined();
+    expect(copy?.startsWith(tmpdir())).toBe(true);
+    expect(copy?.startsWith(f.keeperDir)).toBe(false);
+    expect(existsSync(copy as string)).toBe(false);
+    expect(existsSync(dirname(copy as string))).toBe(false);
+    expect(git(s.ws, 'rev-parse', 'HEAD')).toBe(head);
+  });
+
+  it('removes the copy folder after a failed fetch too', async () => {
+    const f = makeFixture({ stopAt: 1 }, {}, ENV);
+    const s = scene(f.root);
+    commit(s.origin, 'template.md', 'new template\n', 'template change');
+    bundle(f.keeperDir, s);
+    writeManifest(f.keeperDir, '1'.repeat(40), s.base);
+    withRealGit(f);
+    expect(await f.supervisor.run()).toBe(0);
+    const copy = sub(f.specs, 'fetch')[0]?.args.find((a) => a.endsWith('upstream.bundle'));
+    expect(copy).toBeDefined();
+    expect(existsSync(copy as string)).toBe(false);
+    expect(existsSync(dirname(copy as string))).toBe(false);
+    expect(f.read('STOP')).toBe('auto: upstream sync: fetch\n');
+    expect(f.read('status.json')).toContain('"upstream_result":"failed: fetch"');
+  });
+
+  it('refuses a bundle that is a symlink, with the code bundle, and fetches nothing', async () => {
+    const f = makeFixture({ stopAt: 1 }, {}, ENV);
+    const s = scene(f.root);
+    commit(s.origin, 'template.md', 'new template\n', 'template change');
+    const head = bundle(f.root, s);
+    writeManifest(f.keeperDir, head, s.base);
+    try {
+      symlinkSync(join(f.root, 'upstream.bundle'), join(f.keeperDir, 'upstream.bundle'));
+    } catch {
+      console.info('symlinks are not available here: the symlink refusal is not tested');
+      return;
+    }
+    withRealGit(f);
+    expect(await f.supervisor.run()).toBe(0);
+    expect(sub(f.specs, 'fetch')).toHaveLength(0);
+    expect(git(s.ws, 'rev-parse', 'HEAD')).toBe(s.base);
+    expect(f.read('STOP')).toBe('auto: upstream sync: bundle\n');
+    expect(f.read('status.json')).toContain('"upstream_result":"failed: bundle"');
   });
 });

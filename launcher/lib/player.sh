@@ -401,18 +401,30 @@ verb_deploy_key() {
   fi
 }
 
-# release-hold <id>: prints the HELD reason, then removes HELD: the only way to clear it.
+# release-hold <id>: prints the HELD reason, then removes HELD: the only way to clear it. A STOP left by
+# a failed upstream sync (its first line starts with auto: upstream sync) is cleared the same way. The
+# supervisor's own uid owns that volume and its files, so no root helper is needed.
 verb_release_hold() {
   [ $# -eq 1 ] || die 2 usage
-  local id=$1 reason
+  local id=$1 reason stop cleared=0
   read_player "$id"
-  if ! reason=$(pl_helper "$id" keeper "geldar-keep-$id" 1002 ro 'cat /vol/HELD' 2> /dev/null); then
+  if reason=$(pl_helper "$id" keeper "geldar-keep-$id" 1002 ro 'cat /vol/HELD' 2> /dev/null); then
+    say player_held "$(printf '%s' "$reason" | sanitize)"
+    pl_helper "$id" keeper "geldar-keep-$id" 1002 rw 'rm -f /vol/HELD' > /dev/null 2>&1 ||
+      die 1 player_release_failed "$id"
+    cleared=1
+  fi
+  if stop=$(pl_helper "$id" supervisor "geldar-sup-$id" 1001 ro 'cat /vol/STOP' 2> /dev/null) &&
+    [ "${stop#auto: upstream sync}" != "$stop" ]; then
+    say player_stop_upstream "$(printf '%s' "$stop" | sanitize)"
+    pl_helper "$id" supervisor "geldar-sup-$id" 1001 rw 'rm -f /vol/STOP' > /dev/null 2>&1 ||
+      die 1 player_release_failed "$id"
+    cleared=1
+  fi
+  if [ "$cleared" -eq 0 ]; then
     say player_not_held "$id"
     return 0
   fi
-  say player_held "$(printf '%s' "$reason" | sanitize)"
-  pl_helper "$id" keeper "geldar-keep-$id" 1002 rw 'rm -f /vol/HELD' > /dev/null 2>&1 ||
-    die 1 player_release_failed "$id"
   say player_released "$id"
 }
 

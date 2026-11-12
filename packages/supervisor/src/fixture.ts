@@ -26,6 +26,20 @@ export interface Behaviour {
   during?: () => void;
 }
 
+/**
+ * Calls `fn` with the poll number (1 for the first) at each fake sleep, before the sleep advances the
+ * clock: the way a test looks at an idle supervisor, and ends it with a stop request.
+ */
+export function onPoll(f: { deps: Deps }, fn: (poll: number) => void): void {
+  const real = f.deps.sleep;
+  let polls = 0;
+  f.deps.sleep = async (seconds, wake) => {
+    polls++;
+    fn(polls);
+    await real(seconds, wake);
+  };
+}
+
 /** A supervisor over temporary folders, a fake clock and a fake child process. */
 export function makeFixture(
   behaviour: Behaviour = {},
@@ -47,13 +61,16 @@ export function makeFixture(
   const specs: ExecSpec[] = [];
   const said: string[] = [];
   const beats: Array<() => void> = [];
+  // How many heartbeat timers the supervisor has stopped (its cancel function was called).
+  let cancelled = 0;
   const alive = new Set<number>();
   const deps: Deps = {
     now: () => clock,
     sleep: async (seconds) => {
       sleeps.push(seconds);
       clock += seconds;
-      if (sleeps.length > 60) writeFileSync(join(stateDir, 'STOP'), 'x\n');
+      // The guard for a loop that would never end: a stop request (an idle loop ends only on one).
+      if (sleeps.length > 60) supervisor.requestStop();
     },
     exec: async (spec) => {
       specs.push(spec);
@@ -79,7 +96,9 @@ export function makeFixture(
     },
     every: (_ms, fn) => {
       beats.push(fn);
-      return () => undefined;
+      return () => {
+        cancelled++;
+      };
     },
     alive: (pid) => alive.has(pid),
     say: (line) => said.push(line),
@@ -104,6 +123,8 @@ export function makeFixture(
     specs,
     said,
     beats,
+    /** Heartbeat timers started and how many were stopped again. */
+    timers: () => ({ started: beats.length, stopped: cancelled }),
     alive,
     read,
     has: (name: string) => existsSync(join(stateDir, name)),

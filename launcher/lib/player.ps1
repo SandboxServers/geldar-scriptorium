@@ -468,16 +468,29 @@ function Verb-deploy_key {
   if ($rotate) { Say player_key_rotated $id } else { Say player_key_add $id }
 }
 
-# release-hold <id>: prints the HELD reason, then removes HELD: the only way to clear it.
+# release-hold <id>: prints the HELD reason, then removes HELD: the only way to clear it. A STOP left by
+# a failed upstream sync (its first line starts with auto: upstream sync) is cleared the same way. The
+# supervisor's own uid owns that volume and its files, so no root helper is needed.
 function Verb-release_hold {
   if ($args.Count -ne 1) { Die 2 usage }
   $id = [string]$args[0]
   Read-Player $id
+  $cleared = $false
   $held = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" 1002 'ro' 'cat /vol/HELD'
-  if ($held.Code -ne 0) { Say player_not_held $id; return }
-  Say player_held (Sanitize ($held.Text.TrimEnd("`r", "`n")))
-  $rm = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" 1002 'rw' 'rm -f /vol/HELD'
-  if ($rm.Code -ne 0) { Die 1 player_release_failed $id }
+  if ($held.Code -eq 0) {
+    Say player_held (Sanitize ($held.Text.TrimEnd("`r", "`n")))
+    $rm = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" 1002 'rw' 'rm -f /vol/HELD'
+    if ($rm.Code -ne 0) { Die 1 player_release_failed $id }
+    $cleared = $true
+  }
+  $stop = Invoke-PlayerVolHelper $id 'supervisor' "geldar-sup-$id" 1001 'ro' 'cat /vol/STOP'
+  if ($stop.Code -eq 0 -and $stop.Text -clike 'auto: upstream sync*') {
+    Say player_stop_upstream (Sanitize ($stop.Text.TrimEnd("`r", "`n")))
+    $rm = Invoke-PlayerVolHelper $id 'supervisor' "geldar-sup-$id" 1001 'rw' 'rm -f /vol/STOP'
+    if ($rm.Code -ne 0) { Die 1 player_release_failed $id }
+    $cleared = $true
+  }
+  if (-not $cleared) { Say player_not_held $id; return }
   Say player_released $id
 }
 

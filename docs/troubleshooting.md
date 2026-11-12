@@ -663,6 +663,11 @@ What it means. The persistent player is held, and the reason is printed after it
 Why it is safe. A held player runs no session, so nothing new was saved or pushed. Its supervisor waits and starts sessions again once the hold is released.
 What to do. Read the reason, fix what it names, then run release-hold to clear the hold.
 
+### player_stop_upstream
+What it means. The supervisor of the persistent player stopped after its upstream sync failed, and the reason is printed after it. It idles until the stop is cleared, and it starts again once the stop is removed.
+Why it is safe. The stopped supervisor runs no session, so nothing new was saved or pushed. The player's workspace and memory are kept.
+What to do. Read the reason, fix what it names, then run release-hold to clear the stop.
+
 ### player_key_failed
 What it means. The deploy key for the persistent player could not be made.
 Why it is safe. The new key was made in its own folder and was not moved into place, so an old key, if there is one, is kept.
