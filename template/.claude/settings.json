@@ -1,6 +1,6 @@
 {
   "agent": "planner",
-  "model": "sonnet",
+  "model": "haiku",
   "effortLevel": "low",
   "autoMemoryEnabled": false,
   "permissions": {

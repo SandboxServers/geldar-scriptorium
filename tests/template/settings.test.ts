@@ -91,9 +91,9 @@ describe('Claude Code settings layers', () => {
     }
   });
 
-  it('uses effortLevel low and model sonnet', () => {
+  it('uses effortLevel low and model haiku', () => {
     expect(project.effortLevel).toBe('low');
-    expect(project.model).toBe('sonnet');
+    expect(project.model).toBe('haiku');
   });
 
   it('starts as the planner agent, whose file exists', () => {

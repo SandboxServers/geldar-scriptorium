@@ -84,8 +84,8 @@ describe('template agent files', () => {
     }
   });
 
-  it('runs on sonnet at low effort', () => {
-    expect(front.model).toBe('sonnet');
+  it('runs on haiku at low effort', () => {
+    expect(front.model).toBe('haiku');
     expect(front.effort).toBe('low');
   });
 
@@ -130,9 +130,9 @@ describe('template agent files', () => {
     }
   });
 
-  it('is the agent the settings start, and the settings model is sonnet', () => {
+  it('is the agent the settings start, and the settings model is haiku', () => {
     expect(settings.agent).toBeDefined();
     expect(existsSync(path(`template/.claude/agents/${settings.agent}.md`))).toBe(true);
-    expect(settings.model).toBe('sonnet');
+    expect(settings.model).toBe('haiku');
   });
 });
