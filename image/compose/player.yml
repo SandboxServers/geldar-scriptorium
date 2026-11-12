@@ -63,6 +63,9 @@ services:
 
   player:
     image: ${KIT_IMAGE:?}
+    # PID 1 is the supervisor (node), which does not reap orphaned children: without an init the
+    # zombies pile up until the pid limit is hit.
+    init: true
     user: "0:0"
     entrypoint: ["/usr/local/bin/geldar-player-entrypoint"]
     working_dir: /player
@@ -119,6 +122,9 @@ services:
 
   keeper:
     image: ${KIT_IMAGE:?}
+    # PID 1 is the keeper (node). git and ssh leave orphaned children that node never reaps: 235
+    # zombies filled the 256 pid limit in about two hours and git could no longer start a thread.
+    init: true
     user: "0:0"
     entrypoint: ["/usr/local/bin/geldar-keeper-entrypoint"]
     working_dir: /clone
