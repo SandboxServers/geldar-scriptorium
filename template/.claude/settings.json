@@ -8,6 +8,7 @@
     "allow": [
       "mcp__geldar__look",
       "mcp__geldar__view",
+      "mcp__geldar__see",
       "mcp__geldar__wait",
       "mcp__geldar__act",
       "mcp__geldar__say",
