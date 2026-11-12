@@ -193,6 +193,42 @@ for (const l of launchers) {
       expect(none.stderr).toContain(`${ID} is not held, so there is nothing to release`);
     });
 
+    it('release-hold clears an upstream-sync STOP after its reason; other STOP text is left in place', {
+      timeout: T,
+    }, () => {
+      const s = setup(l);
+      const sup = vol(s.w, `geldar-sup-${ID}`);
+      const reason = 'auto: upstream sync: fetch failed: no route to host';
+      writeFileSync(join(sup, 'STOP'), `${reason}\n`);
+      const r = s.go('release-hold', ID);
+      expect(r.status, r.stderr).toBe(0);
+      const at = r.stderr.indexOf(reason);
+      expect(at).toBeGreaterThanOrEqual(0);
+      expect(at).toBeLessThan(r.stderr.indexOf(`${ID} is released`));
+      expect(existsSync(join(sup, 'STOP'))).toBe(false);
+      const manual = 'auto stop: the workspace was edited by hand\n';
+      writeFileSync(join(sup, 'STOP'), manual);
+      const kept = s.go('release-hold', ID);
+      expect(kept.status, kept.stderr).toBe(0);
+      expect(kept.stderr).toContain(`${ID} is not held, so there is nothing to release`);
+      expect(kept.stderr).not.toContain('upstream');
+      expect(readFileSync(join(sup, 'STOP'), 'utf8')).toBe(manual);
+    });
+
+    it('release-hold clears both a HELD and an upstream-sync STOP', { timeout: T }, () => {
+      const s = setup(l);
+      const keep = vol(s.w, `geldar-keep-${ID}`);
+      const sup = vol(s.w, `geldar-sup-${ID}`);
+      writeFileSync(join(keep, 'HELD'), 'the push was rejected: no write access\n');
+      writeFileSync(join(sup, 'STOP'), 'auto: upstream sync: merge refused\n');
+      const r = s.go('release-hold', ID);
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stderr).toContain('the push was rejected: no write access');
+      expect(r.stderr).toContain('auto: upstream sync: merge refused');
+      expect(existsSync(join(keep, 'HELD'))).toBe(false);
+      expect(existsSync(join(sup, 'STOP'))).toBe(false);
+    });
+
     it('no token, key text or login value reaches output, a docker call or a compose environment', {
       timeout: T,
     }, (ctx) => {

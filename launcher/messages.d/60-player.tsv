@@ -14,3 +14,4 @@ player_key_add	The public key above is the deploy key for the player. Add it to 
 player_not_held	%s is not held, so there is nothing to release.
 player_release_failed	The hold for %s could not be removed. It is still set.
 player_released	The hold for %s is released. The next launch may go ahead.
+player_stop_upstream	The supervisor stopped because its upstream sync failed. Reason: %s
