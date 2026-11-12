@@ -1,3 +1,4 @@
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -68,6 +69,8 @@ export function authSuite(l: Launcher): void {
       ['a blank second line', `${TOKEN}\n\n`],
       ['empty', ''],
       ['too long', `${'a'.repeat(401)}\n`],
+      ['a NUL byte', `${TOKEN.slice(0, 10)}\0${TOKEN.slice(10)}\n`],
+      ['a byte order mark', `﻿${TOKEN}\n`],
     ])('rejects %s', (_name, body) => {
       const s = setup();
       const a = s.go(['auth-set', '--token-file', s.tokFile(body)]);
@@ -104,6 +107,79 @@ export function authSuite(l: Launcher): void {
       expect(cleared.stderr).toContain(message('auth_cleared'));
       expect(existsSync(s.file)).toBe(false);
       expect(s.go(['auth-clear']).status).toBe(0);
+    });
+
+    it.each(['auth', 'run', 'players'])('refuses the reserved id %s and keeps the token', (id) => {
+      const s = setup();
+      s.go(['auth-set'], `${TOKEN}\n`);
+      for (const verb of ['new', 'archive']) {
+        const r = s.go([verb, id]);
+        expect(r.status, `${verb} ${id}`).toBe(2);
+      }
+      expect(readFileSync(s.file, 'utf8')).toBe(`${TOKEN}\n`);
+    });
+
+    it('still accepts a normal id', () => {
+      const s = setup();
+      const r = s.go(['new', 'good-id']);
+      expect(r.stderr).not.toContain('not a valid player id');
+      expect(r.status).not.toBe(2);
+    });
+
+    it.each([
+      ['two lines', `${TOKEN}\nsecond\n`],
+      ['a trailing space', `${TOKEN} \n`],
+      ['over 400 characters', `${'a'.repeat(401)}\n`],
+      ['a byte order mark', `\uFEFF${TOKEN}\n`],
+    ])('reports a stored file with %s as invalid, not as unset', (_name, body) => {
+      const s = setup();
+      s.go(['auth-set'], `${TOKEN}\n`);
+      writeFileSync(s.file, body);
+      const r = s.go(['auth-status']);
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stderr).toContain(message('auth_status_invalid'));
+      expect(r.stderr).not.toContain(message('auth_status_not_set'));
+      for (const part of slices(TOKEN)) expect(r.stdout + r.stderr).not.toContain(part);
+    });
+
+    it('reports a file that grants Everyone read as open (Windows)', () => {
+      if (!win || l.name !== 'pwsh') {
+        console.info('auth: the ACL check runs on Windows with the PowerShell launcher only');
+        return;
+      }
+      const s = setup();
+      s.go(['auth-set'], `${TOKEN}\n`);
+      expect(s.go(['auth-status']).stderr).toContain(message('auth_status_set'));
+      const g = spawnSync('icacls.exe', [s.file, '/grant', '*S-1-1-0:R'], { encoding: 'utf8' });
+      expect(g.status, g.stdout).toBe(0);
+      expect(s.go(['auth-status']).stderr).toContain(message('auth_status_open_mode'));
+    });
+
+    it('does not claim the login is cleared when the file is locked (Windows)', async () => {
+      if (!win) {
+        console.info('auth: a locked file is a Windows case, skipped here');
+        return;
+      }
+      const s = setup();
+      s.go(['auth-set'], `${TOKEN}\n`);
+      const holder = spawn(
+        'pwsh',
+        [
+          '-NoProfile',
+          '-Command',
+          `$h = [IO.File]::Open('${s.file}', 'Open', 'Read', 'None'); [Console]::Out.WriteLine('locked'); Start-Sleep 60`,
+        ],
+        { stdio: ['ignore', 'pipe', 'ignore'] },
+      );
+      try {
+        await new Promise<void>((ok) => holder.stdout.once('data', () => ok()));
+        const r = s.go(['auth-clear']);
+        expect(r.status).toBe(1);
+        expect(r.stderr).not.toContain(message('auth_cleared'));
+        expect(existsSync(s.file)).toBe(true);
+      } finally {
+        holder.kill();
+      }
     });
   });
 }

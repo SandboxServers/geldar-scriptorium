@@ -239,6 +239,7 @@ function Start-PlayerSession([string]$Id, [string]$Mode, [string]$N = '') {
   if ([Console]::IsInputRedirected -or $Mode -ceq 'run') { $tty = @('-T') }
   $cargs = @('compose', '-p', "geldar-$Id") + $files
 
+  Write-AuthUnusableWarning
   Say session_start (Sanitize $script:PL_NAME)
   $set = @{
     GELDAR_UID = '1000'; GELDAR_GID = '1000'; GELDAR_WORKSPACE = "geldar-ws-$Id"
@@ -250,7 +251,8 @@ function Start-PlayerSession([string]$Id, [string]$Mode, [string]$N = '') {
   if (Test-Path -LiteralPath $tf -PathType Leaf) { $runSet['GELDAR_MCP_TOKEN'] = Read-FirstLine $tf }
   # SC-140: an ambient login token is never passed on (it is in the unset list); only the stored,
   # valid one is set, on the compose process alone.
-  $authTok = Get-AuthToken
+  $authTok = $null
+  if (Test-AuthUsable) { $authTok = Get-AuthToken }
   if ($null -ne $authTok) { $runSet['CLAUDE_CODE_OAUTH_TOKEN'] = $authTok }
   $runArgs = $cargs + @('run', '--rm') + $tty + @('--label', 'geldar.role=session', 'session') + $words
   $rc = Invoke-DockerChild $runArgs $runSet @('GH_TOKEN', 'GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'GELDAR_MCP_TOKEN', 'GELDAR_DEV_MCP_URL', 'CLAUDE_CODE_OAUTH_TOKEN') $false $out

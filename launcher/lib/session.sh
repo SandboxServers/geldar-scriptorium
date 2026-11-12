@@ -184,13 +184,14 @@ start_session() {
   if [ "$mode" != run ] && [ -t 0 ]; then tty=""; fi
   args=(-p "geldar-$id" ${files[@]+"${files[@]}"})
 
+  auth_warn_unusable
   say session_start "$(printf '%s' "$PL_NAME" | sanitize)"
   (
     unset GH_TOKEN GITHUB_TOKEN ANTHROPIC_API_KEY
     unset GELDAR_MCP_TOKEN GELDAR_DEV_MCP_URL
     # SC-140: an ambient login token is never passed on; only the stored, valid one is.
     unset CLAUDE_CODE_OAUTH_TOKEN
-    if CLAUDE_CODE_OAUTH_TOKEN=$(auth_load); then
+    if auth_usable && CLAUDE_CODE_OAUTH_TOKEN=$(auth_load); then
       export CLAUDE_CODE_OAUTH_TOKEN
     else
       unset CLAUDE_CODE_OAUTH_TOKEN

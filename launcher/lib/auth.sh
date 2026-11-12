@@ -10,15 +10,26 @@ auth_file() {
   printf '%s/claude-oauth-token' "$(auth_dir)"
 }
 
-# auth_clean: the raw text on stdin, one trailing LF or CRLF dropped; prints the token when what is
-# left is one line of the allowed shape, else fails. Nothing is ever printed on failure.
+# auth_clean: the raw bytes on stdin, one trailing LF or CRLF dropped; prints the token when what is
+# left is one line of the allowed shape, else fails. A NUL byte or a leading UTF-8 BOM fails (the
+# twin refuses the same), so the stored token is never different from the pasted one. The bytes are
+# read as hex, which keeps a NUL from being dropped silently. Nothing is ever printed on failure.
 auth_clean() {
-  local raw re='^[A-Za-z0-9._~-]+$'
-  raw=$(
-    cat
-    printf x
-  )
-  raw=${raw%x}
+  local hex b c raw="" re='^[A-Za-z0-9._~-]+$'
+  hex=$(head -c 2001 | od -An -v -tx1 | tr -d '\n')
+  # shellcheck disable=SC2086
+  set -- $hex
+  [ $# -le 2000 ] || return 1
+  case " $hex " in
+    *' 00 '*) return 1 ;;
+  esac
+  case $hex in
+    ' ef bb bf'*) return 1 ;;
+  esac
+  for b in "$@"; do
+    printf -v c "\\x$b"
+    raw+=$c
+  done
   raw=${raw%$'\n'}
   raw=${raw%$'\r'}
   case $raw in
@@ -37,9 +48,17 @@ auth_load() {
   auth_clean < "$f"
 }
 
+# auth_present: something is at the token path (a file, a link or a folder), valid or not.
+auth_present() {
+  [ -e "$(auth_file)" ] || [ -L "$(auth_file)" ]
+}
 # auth_mode_private path: true when the group and other bits are all clear.
 auth_mode_private() {
   local m
+  # Git Bash on Windows reports 644 and 755 for every file: the modes mean nothing there.
+  case $(uname -s 2> /dev/null) in
+    MINGW* | MSYS* | CYGWIN*) return 0 ;;
+  esac
   m=$(stat -c %a "$1" 2> /dev/null || stat -f %Lp "$1" 2> /dev/null) || return 1
   [[ $m =~ ^[0-7]?[0-7]00$ ]]
 }
@@ -75,8 +94,12 @@ verb_auth_status() {
   local f
   [ $# -eq 0 ] || die 2 usage
   f=$(auth_file)
-  if ! auth_load > /dev/null; then
+  if ! auth_present; then
     say auth_status_not_set
+    return 0
+  fi
+  if ! auth_load > /dev/null; then
+    say auth_status_invalid
     return 0
   fi
   if auth_mode_private "$f" && auth_mode_private "$(auth_dir)"; then
@@ -84,6 +107,16 @@ verb_auth_status() {
   else
     say auth_status_open_mode
   fi
+}
+
+# auth_usable: the stored token is valid and its file and folder are owner only.
+auth_usable() {
+  auth_load > /dev/null && auth_mode_private "$(auth_file)" && auth_mode_private "$(auth_dir)"
+}
+
+# auth_warn_unusable: says auth_stored_invalid when a file is there that will not be passed on.
+auth_warn_unusable() {
+  if auth_present && ! auth_usable; then say auth_stored_invalid; fi
 }
 
 verb_auth_clear() {

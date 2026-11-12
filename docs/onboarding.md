@@ -92,7 +92,7 @@ The kit helper `geldar-verify run-summary` reads a stream on standard input in a
 
 ## One Claude login for every player (owner only)
 
-Sign in once for the whole machine instead of once per player container. Run `claude setup-token` once; it prints a long-lived token. Then run `geldar-play auth-set`, paste the token (nothing is shown) and every player on this machine uses it. You can also give a file with `--token-file`. `auth-status` tells you whether one is set, and `auth-clear` removes it. The token is kept in one owner-only file and passed to each container as an environment variable only. Anyone who can run `docker inspect` as you can see it, and revoking it logs every player out. Whether a subscription login may be used for autonomous play stays your decision: check the vendor's terms before you rely on it.
+Sign in once for the whole machine instead of once per player container. Run `claude setup-token` once; it prints a long-lived token. Then run `geldar-play auth-set`, paste the token (nothing is shown) and every player on this machine uses it. You can also give a file with `--token-file`, but prefer the hidden prompt: a piped token or a token file can stay in shell history or on disk, so delete the token file after use and avoid `bash -x`. `auth-status` tells you whether one is set, and `auth-clear` removes it. The token is kept in one owner-only file and passed to each container as an environment variable only. Anyone who can run `docker inspect` as you can see it, and revoking it logs every player out. Whether a subscription login may be used for autonomous play stays your decision: check the vendor's terms before you rely on it.
 
 ## Where things are
 

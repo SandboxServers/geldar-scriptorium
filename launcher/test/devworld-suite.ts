@@ -53,6 +53,7 @@ const storedOverride = (id: string, mcp: string) =>
     environment:
       GELDAR_MCP_URL: ${mcp}
       GELDAR_MCP_TOKEN:
+      CLAUDE_CODE_OAUTH_TOKEN:
 volumes:
   geldar_ws:
     external: true

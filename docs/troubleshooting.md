@@ -537,7 +537,7 @@ What to do. Run the command, which needs cosign installed. Merge the pull reques
 ### auth_set_prompt
 What it means. The launcher is asking you to paste the shared login token. Nothing you type is shown on screen.
 Why it is safe. The token is read without echo, is never written to the screen or to a log, and is stored in one file that only your account can read.
-What to do. If you have no token yet, run `claude setup-token` once, copy what it prints, and paste it here. You can also pipe it in or give a file with `--token-file`.
+What to do. If you have no token yet, run `claude setup-token` once, copy what it prints, and paste it here. You can also pipe it in or give a file with `--token-file`, but the hidden prompt is safer: a piped token or a token file can stay in shell history or on disk, so delete the token file after use and avoid `bash -x`.
 
 ### auth_set_done
 What it means. The shared login token is stored in one private file on this machine. Every player started from now on uses it, so no player needs to sign in again.
@@ -559,6 +559,15 @@ What it means. A shared login token is stored, but its file or folder can be rea
 Why it is safe. The command did not change anything and did not show the token.
 What to do. Run `auth-set` again with the token: it writes a fresh owner-only file. If other accounts could have read the old file, replace the token as well by running `claude setup-token` again.
 
+### auth_status_invalid
+What it means. A shared login file is present but it is not a valid token (two lines, a trailing space, a byte order mark, a NUL byte, or over 400 characters), so it is not used.
+Why it is safe. The command did not change anything and did not show the file's content.
+What to do. Run `claude setup-token`, then `geldar-play auth-set`. Or run `auth-clear` so each player signs in on their own.
+
+### auth_stored_invalid
+What it means. A session start found a shared login file that is not valid, or whose file or folder can be read by others. It was not passed to the player, which then asks for a login of its own.
+Why it is safe. Nothing is sent to the container from a file that is not valid or not private.
+What to do. Run `claude setup-token`, then `geldar-play auth-set`. If a session fails to sign in with a stored token, the token may be revoked or expired: run `claude setup-token` again, then `geldar-play auth-set`. Run `auth-clear` to fall back to a login for each player.
 ### auth_cleared
 What it means. The stored shared login token file was removed (or there was none).
 Why it is safe. Players that already signed in on their own keep their own login. A removed file does not revoke the token itself.
