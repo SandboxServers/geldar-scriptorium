@@ -69,6 +69,11 @@ function realSleep(seconds: number, wake: () => boolean): Promise<void> {
  * capability set instead (the child ends with an empty capability set and no new privileges). The
  * bounding set is left alone: shrinking it needs SETPCAP, which the supervisor does not hold, and with
  * inheritable and ambient emptied and no new privileges the exec leaves the child no permitted caps.
+ *
+ * The player entrypoint sets `umask 027` for the supervisor's whole tree, which would leave the
+ * player's git writes (refs, loose objects, directories) unreadable to the keeper. The child
+ * therefore runs under `umask 022`: the workspace holds only public memory, and credentials live
+ * elsewhere.
  */
 export function launchCommand(spec: ExecSpec): { file: string; args: string[] } {
   return {
@@ -81,6 +86,9 @@ export function launchCommand(spec: ExecSpec): { file: string; args: string[] } 
       '--ambient-caps=-all',
       '--no-new-privs',
       '--',
+      'sh',
+      '-c',
+      'umask 022 && exec "$0" "$@"',
       spec.file,
       ...spec.args,
     ],

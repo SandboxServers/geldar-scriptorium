@@ -19,10 +19,14 @@ export interface SyncReport {
   head: string | null;
 }
 
-/** One git call as the player: its exit code, and its stdout when `capture` is set. */
+/**
+ * One git call as the player: its exit code, and its stdout when `capture` is set. `env` adds
+ * variables to the call (the rebase's committer identity).
+ */
 export type UpstreamGit = (
   args: string[],
   capture: boolean,
+  env?: Record<string, string>,
 ) => Promise<{ code: number; out: string }>;
 
 const SHA = /^[0-9a-f]{40}$/;
@@ -77,6 +81,16 @@ async function tip(git: UpstreamGit): Promise<string | null> {
   return r.code === 0 && SHA.test(sha) ? sha : null;
 }
 
+/**
+ * The author of the workspace HEAD, when it is a player identity. The keeper's gate requires every
+ * new commit's author and committer to be the player, so a rebase keeps that identity.
+ */
+async function playerIdentity(git: UpstreamGit): Promise<{ name: string; email: string } | null> {
+  const r = await git(['log', '-1', '--format=%an%x00%ae'], true);
+  const [name = '', email = ''] = r.out.trim().split('\0');
+  return r.code === 0 && name.startsWith('player-') ? { name, email } : null;
+}
+
 async function isAncestor(git: UpstreamGit, ancestor: string, of: string): Promise<boolean> {
   return (await git(['merge-base', '--is-ancestor', ancestor, of], false)).code === 0;
 }
@@ -127,8 +141,24 @@ export async function syncUpstream(
   ) {
     return fail('base');
   }
-  const step = ahead ? ['rebase', '--onto', m.head, m.base] : ['merge', '--ff-only', 'FETCH_HEAD'];
-  if ((await git(step, false)).code !== 0) {
+  let step = ['merge', '--ff-only', 'FETCH_HEAD'];
+  let env: Record<string, string> | undefined;
+  if (ahead) {
+    const who = await playerIdentity(git);
+    if (who === null) return fail('identity');
+    step = [
+      '-c',
+      `user.name=${who.name}`,
+      '-c',
+      `user.email=${who.email}`,
+      'rebase',
+      '--onto',
+      m.head,
+      m.base,
+    ];
+    env = { GIT_COMMITTER_NAME: who.name, GIT_COMMITTER_EMAIL: who.email };
+  }
+  if ((await git(step, false, env)).code !== 0) {
     await undo(git, head);
     return fail(ahead ? 'rebase' : 'merge');
   }

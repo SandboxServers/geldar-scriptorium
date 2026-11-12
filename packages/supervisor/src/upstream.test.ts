@@ -8,6 +8,8 @@ import { makeFixture } from './fixture.ts';
 // The fixture's child environment, with the real PATH so that the real git can be found.
 const ENV = { PATH: process.env.PATH ?? '' };
 const IDENT = ['-c', 'user.name=Test', '-c', 'user.email=test@example.test'];
+/** The workspace player's name: the keeper's gate needs every new commit to carry it. */
+const PLAYER = 'player-x';
 
 interface Scene {
   origin: string;
@@ -18,6 +20,31 @@ interface Scene {
 /** Runs git in a test repository (set-up only; the apply itself runs through the seam below). */
 function git(cwd: string, ...args: string[]): string {
   return execFileSync('git', [...IDENT, ...args], { cwd, encoding: 'utf8' }).trim();
+}
+
+/** Writes a file and commits it as the player `who` (author and committer), as the player's runs do. */
+function playerCommit(
+  cwd: string,
+  file: string,
+  text: string,
+  message: string,
+  who: string,
+): string {
+  mkdirSync(dirname(join(cwd, file)), { recursive: true });
+  writeFileSync(join(cwd, file), text);
+  git(cwd, 'add', '-A');
+  const email = `${who}@users.noreply.github.com`;
+  execFileSync('git', ['commit', '-q', '-m', message], {
+    cwd,
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: who,
+      GIT_AUTHOR_EMAIL: email,
+      GIT_COMMITTER_NAME: who,
+      GIT_COMMITTER_EMAIL: email,
+    },
+  });
+  return git(cwd, 'rev-parse', 'HEAD');
 }
 
 /** Writes a file and commits it; returns the new HEAD. */
@@ -147,7 +174,7 @@ describe('applying upstream between runs', { timeout: 60_000 }, () => {
   it('rebases local unpushed commits on top of the upstream head', async () => {
     const f = makeFixture({ stopAt: 1 }, {}, ENV);
     const s = scene(f.root);
-    const memory = commit(s.ws, 'memory/2026-01-10.md', 'a note\n', 'memory: a note');
+    const memory = playerCommit(s.ws, 'memory/2026-01-10.md', 'a note\n', 'memory: a note', PLAYER);
     const head = commit(s.origin, 'template.md', 'new template\n', 'template change');
     publish(f.keeperDir, s);
     withRealGit(f);
@@ -159,10 +186,40 @@ describe('applying upstream between runs', { timeout: 60_000 }, () => {
     expect(f.read('status.json')).toContain('"upstream_result":"applied"');
   });
 
+  it('keeps the player as author and committer of a rebased commit, with no global git config', async () => {
+    const f = makeFixture({ stopAt: 1 }, {}, ENV);
+    const s = scene(f.root);
+    playerCommit(s.ws, 'memory/2026-01-10.md', 'a note\n', 'memory: a note', PLAYER);
+    commit(s.origin, 'template.md', 'new template\n', 'template change');
+    publish(f.keeperDir, s);
+    withRealGit(f);
+    expect(await f.supervisor.run()).toBe(0);
+    // The rebase's committer comes from the player too, not from the hardened apply's empty config.
+    const ident = git(s.ws, 'log', '-1', '--format=%an <%ae>|%cn <%ce>');
+    expect(ident).toBe(
+      `${PLAYER} <${PLAYER}@users.noreply.github.com>|${PLAYER} <${PLAYER}@users.noreply.github.com>`,
+    );
+    expect(f.read('status.json')).toContain('"upstream_result":"applied"');
+  });
+
+  it('refuses a rebase when the workspace HEAD is not a player identity', async () => {
+    const f = makeFixture({ stopAt: 1 }, {}, ENV);
+    const s = scene(f.root);
+    const local = commit(s.ws, 'memory/2026-01-10.md', 'a note\n', 'memory: a note');
+    commit(s.origin, 'template.md', 'new template\n', 'template change');
+    publish(f.keeperDir, s);
+    withRealGit(f);
+    expect(await f.supervisor.run()).toBe(1);
+    expect(git(s.ws, 'rev-parse', 'HEAD')).toBe(local);
+    expect(f.read('STOP')).toBe('auto: upstream sync: identity\n');
+    expect(f.said.join('\n')).toContain('stopped itself: upstream sync: identity');
+    expect(f.read('status.json')).toContain('"upstream_result":"failed: identity"');
+  });
+
   it('aborts a conflicting change, restores the old HEAD and writes the auto STOP', async () => {
     const f = makeFixture({ stopAt: 1 }, {}, ENV);
     const s = scene(f.root);
-    const local = commit(s.ws, 'journal.md', 'my edit\n', 'memory: local');
+    const local = playerCommit(s.ws, 'journal.md', 'my edit\n', 'memory: local', PLAYER);
     commit(s.origin, 'journal.md', 'their edit\n', 'upstream edit');
     publish(f.keeperDir, s);
     withRealGit(f);
