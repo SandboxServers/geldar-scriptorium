@@ -50,7 +50,7 @@ function commandLines(md: string): string[] {
 
 // The verbs are the words of the launcher's main case line, for example "new | setup | play ... | upgrade) ;;".
 function launcherVerbs(): string[] {
-  const m = /^\s+((?:[a-z]+ \| )+[a-z]+)\) ;;$/m.exec(launcherSource[0] ?? '');
+  const m = /^\s+((?:[a-z-]+ \| )+[a-z-]+)\) ;;$/m.exec(launcherSource[0] ?? '');
   if (!m?.[1]) throw new Error('the verb line of launcher/geldar-play was not found');
   return m[1].split(' | ');
 }
