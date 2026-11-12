@@ -1,0 +1,20 @@
+{
+  "name": "@geldar/scriptorium-supervisor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "geldar-supervisor: the run loop inside the player container",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cli": "./src/cli.ts"
+  },
+  "dependencies": {
+    "@geldar/scriptorium-verify": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "bin": {
+    "geldar-supervisor": "./src/cli.ts"
+  }
+}

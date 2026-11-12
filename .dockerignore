@@ -8,6 +8,7 @@
 !packages/git
 !packages/keeper
 !packages/verify
+!packages/supervisor
 !image/settings
 !image/geldar-entrypoint.sh
 **/node_modules

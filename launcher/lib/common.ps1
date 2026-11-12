@@ -86,7 +86,9 @@ function Get-PlayerDir([string]$Id) {
 }
 
 function Test-PlayerId([string]$Id) {
-  return [regex]::IsMatch($Id, '^[a-z][a-z0-9-]{1,38}\z')
+  if (-not [regex]::IsMatch($Id, '^[a-z][a-z0-9-]{1,38}\z')) { return $false }
+  # Names of folders the launcher keeps under the state directory (the shared login lives in auth).
+  return $Id -cnotin @('auth', 'run', 'players')
 }
 
 # Is the tool there? Its seam variable wins; under GELDAR_TOOL_PATH only those directories count.

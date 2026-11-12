@@ -12,7 +12,7 @@ RUN npm install -g pnpm@12.15.0
 WORKDIR /opt/geldar
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages ./packages
-RUN pnpm install --frozen-lockfile --prod --filter "./packages/{path-rule,memory,git,verify,keeper}"
+RUN pnpm install --frozen-lockfile --prod --filter "./packages/{path-rule,memory,git,verify,keeper,supervisor}"
 
 FROM node:22.23.4-trixie-slim@sha256:be1e2a3dc2c4fd68cdfadad2a696a280e0d2749098bee509230174d72fb768c6 AS kit
 ARG CLAUDE_CODE_VERSION=2.1.310
@@ -28,6 +28,9 @@ COPY --from=deps /opt/geldar /opt/geldar
 RUN for b in memory git verify; do \
       printf '#!/bin/sh\nexec node /opt/geldar/packages/%s/src/cli.ts "$@"\n' "$b" > /usr/local/bin/geldar-$b; \
       chmod 0755 /usr/local/bin/geldar-$b; done
+# geldar-supervisor (SC-160): the in-container run loop.
+RUN printf '#!/bin/sh\nexec node /opt/geldar/packages/supervisor/src/cli.ts "$@"\n' > /usr/local/bin/geldar-supervisor \
+ && chmod 0755 /usr/local/bin/geldar-supervisor
 # The keeper (SC-161): the gate-and-push binary, its CONNECT helper and the pinned GitHub host keys.
 RUN printf '#!/bin/sh\nexec node /opt/geldar/packages/keeper/src/cli.ts "$@"\n' > /usr/local/bin/geldar-keeper \
  && printf '#!/bin/sh\nexec node /opt/geldar/packages/keeper/src/connect-cli.ts "$@"\n' > /usr/local/bin/geldar-keeper-connect \

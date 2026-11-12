@@ -568,3 +568,47 @@ What to do. Commit or discard the changes, make sure the copy is up to date, the
 What it means. The launcher prints a cosign command that checks the signature of the kit image.
 Why it is safe. The launcher does not merge anything. The command lets you check the image first.
 What to do. Run the command, which needs cosign installed. Merge the pull request only if the check passes.
+
+### auth_set_prompt
+What it means. The launcher is asking you to paste the shared login token. Nothing you type is shown on screen.
+Why it is safe. The token is read without echo, is never written to the screen or to a log, and is stored in one file that only your account can read.
+What to do. If you have no token yet, run `claude setup-token` once, copy what it prints, and paste it here. You can also pipe it in or give a file with `--token-file`, but the hidden prompt is safer: a piped token or a token file can stay in shell history or on disk, so delete the token file after use and avoid `bash -x`.
+
+### auth_set_done
+What it means. The shared login token is stored in one private file on this machine. Every player started from now on uses it, so no player needs to sign in again.
+Why it is safe. The file is readable by your account only. The token reaches a player's container only as an environment variable of the compose process, never on a command line.
+What to do. Nothing. Run `auth-status` to check it, or `auth-clear` to remove it.
+
+### auth_status_set
+What it means. A shared login token is stored and its file and folder are owner only. Players use it instead of a login of their own.
+Why it is safe. The command never shows the token or any part of it.
+What to do. Nothing. Run `auth-clear` if you want players to sign in on their own again.
+
+### auth_status_not_set
+What it means. No shared login token is stored (or the stored file is not valid). Each player signs in on their own, as before.
+Why it is safe. Nothing is shared, so nothing is at risk.
+What to do. Run `claude setup-token` once, then `auth-set`, if you want one login for every player on this machine.
+
+### auth_status_open_mode
+What it means. A shared login token is stored, but its file or folder can be read by other accounts on this machine.
+Why it is safe. The command did not change anything and did not show the token.
+What to do. Run `auth-set` again with the token: it writes a fresh owner-only file. If other accounts could have read the old file, replace the token as well by running `claude setup-token` again.
+
+### auth_status_invalid
+What it means. A shared login file is present but it is not a valid token (two lines, a trailing space, a byte order mark, a NUL byte, or over 400 characters), so it is not used.
+Why it is safe. The command did not change anything and did not show the file's content.
+What to do. Run `claude setup-token`, then `geldar-play auth-set`. Or run `auth-clear` so each player signs in on their own.
+
+### auth_stored_invalid
+What it means. A session start found a shared login file that is not valid, or whose file or folder can be read by others. It was not passed to the player, which then asks for a login of its own.
+Why it is safe. Nothing is sent to the container from a file that is not valid or not private.
+What to do. Run `claude setup-token`, then `geldar-play auth-set`. If a session fails to sign in with a stored token, the token may be revoked or expired: run `claude setup-token` again, then `geldar-play auth-set`. Run `auth-clear` to fall back to a login for each player.
+### auth_cleared
+What it means. The stored shared login token file was removed (or there was none).
+Why it is safe. Players that already signed in on their own keep their own login. A removed file does not revoke the token itself.
+What to do. To revoke the token itself, run `claude setup-token` again or use the account's settings. Run `auth-set` to store a new one.
+
+### auth_bad_token
+What it means. What was given is not a usable token. It must be exactly one line of 20 to 400 letters, digits and the characters `.`, `_`, `~` and `-`. Spaces, an equals sign or a second line are refused.
+Why it is safe. Nothing was stored and the old token, if any, is unchanged. The refused text is not shown.
+What to do. Run `claude setup-token`, copy only the token it prints, and run `auth-set` again.

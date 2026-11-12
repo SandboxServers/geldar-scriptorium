@@ -237,6 +237,12 @@ importers:
         specifier: workspace:*
         version: link:../memory
 
+  packages/supervisor:
+    dependencies:
+      '@geldar/scriptorium-verify':
+        specifier: workspace:*
+        version: link:../verify
+
   packages/verify:
     dependencies:
       '@geldar/scriptorium-path-rule':

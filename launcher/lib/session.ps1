@@ -74,7 +74,7 @@ function Write-Override([string]$Id, [string]$Sd, [string]$Mcp, [bool]$Dev = $fa
   }
   $q = ConvertTo-YamlQuoted $Mcp
   if ($null -eq $q) { Die 1 bad_state_path }
-  [void]$sb.Append("    environment:`n      GELDAR_MCP_URL: $q`n      GELDAR_MCP_TOKEN:`n")
+  [void]$sb.Append("    environment:`n      GELDAR_MCP_URL: $q`n      GELDAR_MCP_TOKEN:`n      CLAUDE_CODE_OAUTH_TOKEN:`n")
   if ($Turns -ne '') { [void]$sb.Append("      GELDAR_RUN_MAX_TURNS: `"$Turns`"`n") }
   if ($Model -ne '') { [void]$sb.Append("      GELDAR_RUN_MODEL: $(ConvertTo-YamlQuoted $Model)`n") }
   if ([Environment]::GetEnvironmentVariable('GELDAR_INTERNAL') -eq '1') {
@@ -239,6 +239,7 @@ function Start-PlayerSession([string]$Id, [string]$Mode, [string]$N = '') {
   if ([Console]::IsInputRedirected -or $Mode -ceq 'run') { $tty = @('-T') }
   $cargs = @('compose', '-p', "geldar-$Id") + $files
 
+  Write-AuthUnusableWarning
   Say session_start (Sanitize $script:PL_NAME)
   $set = @{
     GELDAR_UID = '1000'; GELDAR_GID = '1000'; GELDAR_WORKSPACE = "geldar-ws-$Id"
@@ -248,10 +249,15 @@ function Start-PlayerSession([string]$Id, [string]$Mode, [string]$N = '') {
   $tf = Join-Path $d 'token'
   $runSet = $set.Clone()
   if (Test-Path -LiteralPath $tf -PathType Leaf) { $runSet['GELDAR_MCP_TOKEN'] = Read-FirstLine $tf }
+  # SC-140: an ambient login token is never passed on (it is in the unset list); only the stored,
+  # valid one is set, on the compose process alone.
+  $authTok = $null
+  if (Test-AuthUsable) { $authTok = Get-AuthToken }
+  if ($null -ne $authTok) { $runSet['CLAUDE_CODE_OAUTH_TOKEN'] = $authTok }
   $runArgs = $cargs + @('run', '--rm') + $tty + @('--label', 'geldar.role=session', 'session') + $words
-  $rc = Invoke-DockerChild $runArgs $runSet @('GH_TOKEN', 'GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'GELDAR_MCP_TOKEN', 'GELDAR_DEV_MCP_URL') $false $out
+  $rc = Invoke-DockerChild $runArgs $runSet @('GH_TOKEN', 'GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'GELDAR_MCP_TOKEN', 'GELDAR_DEV_MCP_URL', 'CLAUDE_CODE_OAUTH_TOKEN') $false $out
   [System.IO.File]::WriteAllText((Join-Path $sd 'exit'), "$rc`n", $script:SESSION_UTF8)
-  [void](Invoke-DockerChild ($cargs + @('down', '--remove-orphans')) $set @('GELDAR_MCP_TOKEN', 'GELDAR_DEV_MCP_URL') $true)
+  [void](Invoke-DockerChild ($cargs + @('down', '--remove-orphans')) $set @('GELDAR_MCP_TOKEN', 'GELDAR_DEV_MCP_URL', 'CLAUDE_CODE_OAUTH_TOKEN') $true)
   if ($rc -eq 125) { Die 1 compose_failed }
   Say session_end (Sanitize $script:PL_NAME)
 }
