@@ -85,6 +85,7 @@ describe('play skill', () => {
       'You hear thunder far off to the west.',
       'Health does not regenerate naturally while hunger is low. Hunger falls over time.',
       'You died. Something struck you down. You wake at the spawn with nothing.',
+      'You dropped N items where you died.',
     ]) {
       expect(body).toContain(line);
     }
@@ -102,10 +103,8 @@ describe('play skill', () => {
     );
   });
 
-  it('never mentions item drops, dimensions, reach, register or a sound wake', () => {
-    expect(body).not.toMatch(
-      /dropped|death drop|item drop|drops are|dimension|\breach\b|register|sign-up|sound wake|wake interest/i,
-    );
+  it('never mentions dimensions, reach, register or a sound wake', () => {
+    expect(body).not.toMatch(/dimension|\breach\b|register|sign-up|sound wake|wake interest/i);
     expect(body).not.toContain('you heard a sound');
   });
 
@@ -143,11 +142,9 @@ describe('reflect skill', () => {
 
   it('writes the lesson of a death in the character voice, with no meta words', () => {
     expect(body).toContain(
-      'If you died today, write first what killed you and what it taught you.',
+      'If you died today, write first what killed you, what you dropped and where, and what it taught you.',
     );
     expect(body).not.toMatch(/\b(lives?|respawns?|games?|counters?|outcomes?|events?)\b/i);
-    expect(body).not.toMatch(
-      /dropped|death drop|item drop|drops are|dimension|\breach\b|register|sign-up|sound wake/i,
-    );
+    expect(body).not.toMatch(/dimension|\breach\b|register|sign-up|sound wake/i);
   });
 });
