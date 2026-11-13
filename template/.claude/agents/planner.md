@@ -6,6 +6,7 @@ effort: low
 initialPrompt: "Wake and begin: recall your summary, then live by the play skill."
 tools:
   - Agent
+  - Skill
   - Read
   - Edit
   - mcp__geldar__*
