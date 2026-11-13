@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -51,7 +51,19 @@ const worldTools = [
   'status',
 ].map((tool) => `mcp__geldar__${tool}`);
 const companionTools = ['mcp__geldar_memory__recall', 'mcp__geldar_git__commit_memory'];
-const allowedPathRules = new Set(['Edit(/memory/**)', 'Edit(/skills/**)', 'Read(/**)']);
+// The player may open its own skills by name, and no other: the owner-side setup skill and the
+// harness skills stay out of reach.
+const skillRules = readdirSync(
+  fileURLToPath(new URL('../../template/.claude/skills', import.meta.url)),
+)
+  .filter((name) => name !== 'setup')
+  .map((name) => `Skill(${name})`);
+const allowedPathRules = new Set([
+  'Edit(/memory/**)',
+  'Edit(/skills/**)',
+  'Read(/**)',
+  ...skillRules,
+]);
 const kitPaths = [
   '/.claude/**',
   '/CLAUDE.md',
@@ -89,6 +101,11 @@ describe('Claude Code settings layers', () => {
     for (const tool of [...worldTools, ...companionTools]) {
       expect(project.permissions?.allow, `missing ${tool}`).toContain(tool);
     }
+  });
+
+  it('allows exactly the player skills by name', () => {
+    const rules = (project.permissions?.allow ?? []).filter((rule) => rule.startsWith('Skill('));
+    expect(rules.sort()).toEqual([...skillRules].sort());
   });
 
   it('uses effortLevel low and model haiku', () => {
