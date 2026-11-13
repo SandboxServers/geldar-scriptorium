@@ -1,9 +1,10 @@
+import { createHash } from 'node:crypto';
 import {
   appendFileSync,
+  chownSync,
   createReadStream,
   existsSync,
   mkdirSync,
-  chownSync,
   readdirSync,
   readFileSync,
   renameSync,
@@ -11,7 +12,6 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import type { RunSummary } from '@geldar/scriptorium-verify';
 import { summarizeStream } from '@geldar/scriptorium-verify';
