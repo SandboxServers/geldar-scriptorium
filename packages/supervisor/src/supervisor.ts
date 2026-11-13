@@ -5,11 +5,13 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
+  statSync,
 } from 'node:fs';
+import { join } from 'node:path';
 import type { RunSummary } from '@geldar/scriptorium-verify';
 import { summarizeStream } from '@geldar/scriptorium-verify';
 import type { Deps, ExecSpec } from './deps.ts';
-import { buildPrompt, cleanLastWords } from './prompt.ts';
+import { buildPrompt, buildTidyPrompt, cleanLastWords } from './prompt.ts';
 import type { Settings } from './settings.ts';
 import { heldPath, statePath } from './settings.ts';
 import {
@@ -62,13 +64,17 @@ const PASS_THROUGH = [
 type Env = Readonly<Record<string, string | undefined>>;
 
 /** The explicit environment of a child: nothing is inherited beyond the names listed here. */
-export function childEnv(settings: Settings, env: Env): Record<string, string> {
+export function childEnv(
+  settings: Settings,
+  env: Env,
+  maxTurns: number = settings.maxTurns,
+): Record<string, string> {
   const out: Record<string, string> = {
     HOME: settings.cliHome,
     CLAUDE_CONFIG_DIR: settings.cliHome,
     GELDAR_MODE: 'play',
     PATH: env.PATH ?? SYSTEM_PATH,
-    GELDAR_RUN_MAX_TURNS: String(settings.maxTurns),
+    GELDAR_RUN_MAX_TURNS: String(maxTurns),
   };
   if (settings.model !== '') out.GELDAR_RUN_MODEL = settings.model;
   for (const name of PASS_THROUGH) {
@@ -101,6 +107,11 @@ export class Supervisor {
   private started = '';
   private upstreamHead = '';
   private upstreamResult: SyncResult = 'none';
+  /** The run number of the latest tidy session, so its closing words never reach the next prompt. */
+  private tidyRun = 0;
+  /** After a failed tidy: the journal size it left, and the normal runs since. */
+  private tidyFailedAt: number | null = null;
+  private runsSinceTidyFail = 0;
 
   private readonly settings: Settings;
   private readonly deps: Deps;
@@ -304,7 +315,9 @@ export class Supervisor {
       n = nextRunNumber(s.stateDir);
       this.status(n, 'running', last, sum);
       const t0 = this.deps.now();
-      const code = await this.oneRun(n);
+      const size = this.journalSize();
+      const tidy = this.tidyDue(size);
+      const code = tidy ? await this.oneTidy(n) : await this.oneRun(n);
       const t1 = this.deps.now();
       const secs = t1 - t0;
       await this.save();
@@ -324,6 +337,16 @@ export class Supervisor {
       appendFileSync(this.path('costs.csv'), `${n},${fmt(t1, 'stamp')},${turns},${cost}\n`, {
         mode: 0o600,
       });
+      if (tidy) {
+        // The tidy counts as failed for its own backoff when the journal is still over the limit.
+        const after = this.journalSize();
+        const emptied = after !== null && after <= s.tidyBytes;
+        this.tidyFailedAt = ok && emptied ? null : (after ?? size ?? 0);
+        this.runsSinceTidyFail = 0;
+        this.log(`tidy run=${n} journal=${size}->${after ?? 'unreadable'} emptied=${emptied}`);
+      } else if (this.tidyFailedAt !== null) {
+        this.runsSinceTidyFail++;
+      }
       if (ok) {
         fails = 0;
         delay = s.delayBase;
@@ -404,11 +427,46 @@ export class Supervisor {
     this.log('hold released');
   }
 
+  /** The byte size of memory/journal/current.md, or null when it is missing or unreadable. */
+  private journalSize(): number | null {
+    try {
+      return statSync(join(this.settings.workspace, 'memory', 'journal', 'current.md')).size;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Whether the next run is a tidy: the journal is over the limit and no failed tidy holds it back. */
+  private tidyDue(size: number | null): boolean {
+    const limit = this.settings.tidyBytes;
+    if (limit === 0 || size === null || size <= limit) return false;
+    if (this.tidyFailedAt === null) return true;
+    return size >= this.tidyFailedAt + limit / 2 || this.runsSinceTidyFail >= 10;
+  }
+
+  /** One tidy session: same child launch and settings, the tidy text and its own turn limit. */
+  private async oneTidy(n: number): Promise<number> {
+    const s = this.settings;
+    this.tidyRun = n;
+    const promptPath = this.path('prompt.txt');
+    writePrivate(promptPath, buildTidyPrompt());
+    this.log(`tidy run=${n}`);
+    return this.deps.exec(
+      this.asPlayer({
+        file: 'sh',
+        args: ['-c', wrapperLine(s)],
+        env: childEnv(s, this.env, s.tidyMaxTurns),
+        stdoutPath: this.path(`session-${n}.jsonl`),
+        promptPath,
+      }),
+    );
+  }
+
   /** One headless run as a child of the player user: writes the prompt file, returns the exit code. */
   private async oneRun(n: number): Promise<number> {
     const s = this.settings;
     const prev = n > 1 ? await summarizeFile(this.path(`session-${n - 1}.jsonl`)) : null;
-    const words = prev === null ? '' : cleanLastWords(prev.last_text);
+    const words = prev === null || this.tidyRun === n - 1 ? '' : cleanLastWords(prev.last_text);
     const note = await this.deps.beforeRun({ run: n, lastWords: words });
     const promptPath = this.path('prompt.txt');
     writePrivate(promptPath, buildPrompt(n, words, note));

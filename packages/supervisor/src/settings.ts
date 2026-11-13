@@ -17,6 +17,10 @@ export interface Settings {
   fastSec: number;
   maxFails: number;
   maxTurns: number;
+  /** The journal size in bytes above which a tidy session runs first; 0 disables it. */
+  tidyBytes: number;
+  /** Turns allowed to a tidy session. */
+  tidyMaxTurns: number;
   /** Daily cost cap in USD (UTC day), greater than zero. */
   dailyCap: number;
   /** Empty when no model is set. */
@@ -53,6 +57,8 @@ export function readSettings(env: Env): Settings {
   const fastSec = num(env, 'GELDAR_RUN_FAST_SEC', 30, 0, 86400);
   const maxFails = num(env, 'GELDAR_RUN_MAX_FAILS', 5, 1, 1000);
   const maxTurns = num(env, 'GELDAR_RUN_MAX_TURNS', 300, 1, 999999);
+  const tidyBytes = num(env, 'GELDAR_TIDY_BYTES', 30000, 0, 999999999);
+  const tidyMaxTurns = num(env, 'GELDAR_TIDY_MAX_TURNS', 40, 1, 999999);
   const capText = env.GELDAR_RUN_DAILY_CAP_USD ?? '15';
   if (!/^[0-9]{1,6}(\.[0-9]{1,4})?$/.test(capText) || !(Number(capText) > 0)) {
     throw new SettingError('GELDAR_RUN_DAILY_CAP_USD');
@@ -67,6 +73,8 @@ export function readSettings(env: Env): Settings {
     fastSec,
     maxFails,
     maxTurns,
+    tidyBytes,
+    tidyMaxTurns,
     dailyCap: Number(capText),
     model,
     stateDir: env.GELDAR_SUPERVISOR_STATE ?? '/state/supervisor',

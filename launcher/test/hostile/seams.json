@@ -37,7 +37,9 @@
     "GELDAR_RUN_MODEL",
     "GELDAR_RUN_PROMPT_FILE",
     "GELDAR_SHARE",
-    "GELDAR_STATE_DIR"
+    "GELDAR_STATE_DIR",
+    "GELDAR_TIDY_BYTES",
+    "GELDAR_TIDY_MAX_TURNS"
   ],
   "container_vars": [
     "GELDAR_BRANCH",

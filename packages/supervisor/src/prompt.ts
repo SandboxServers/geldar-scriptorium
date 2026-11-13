@@ -24,3 +24,26 @@ export function buildPrompt(n: number, lastWords: string, note: string | null): 
   if (note !== null && note !== '') text += ` ${note}`;
   return `${text}\n`;
 }
+
+/**
+ * The memory tidy text, in the character's own voice. It lives here and not in the player's files on
+ * purpose: the workspace is writable by the player, and a prompt must not be read from there. The
+ * player-text scan in tests/template covers this constant.
+ */
+export const TIDY_PROMPT = [
+  'Your journal has grown long and your memory is not in order. Put it in order now. Do not act in the world while you do this: no act, no look, no wait. Work on your files only.',
+  'Read memory/journal/current.md first. Then, in this order:',
+  '1. Write memory/journal/day-NNN.md with one paragraph on what mattered. NNN is the latest Day number in current.md, as three digits; if there is none, the next free number among the files in memory/journal.',
+  '2. Write what you learned into memory/beliefs.md: the methods that worked, the things that did not, and why. Strike out what proved false.',
+  '3. For each person you dealt with, update memory/people/<name>.md: your impression, your trust from 0 to 100, and why.',
+  '4. Rewrite memory/goals.md: ranked, with your reasons.',
+  '5. Rewrite memory/summary.md so it fits one page, under 60 lines: where you are, what you hold, what you were doing, and the lessons that matter most.',
+  '6. Empty memory/journal/current.md back to its heading, "# Journal", and nothing else.',
+  '7. Call commit_memory with the message "tidy: " and six words.',
+  'Then stop.',
+].join('\n');
+
+/** The prompt of a tidy session (with a newline, as buildPrompt). */
+export function buildTidyPrompt(): string {
+  return `${TIDY_PROMPT}\n`;
+}
