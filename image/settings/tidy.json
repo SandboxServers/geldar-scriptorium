@@ -1,0 +1,7 @@
+{
+  "agent": "tidier",
+  "enabledMcpjsonServers": ["geldar_memory", "geldar_git"],
+  "permissions": {
+    "deny": ["mcp__geldar__*", "Agent", "Edit(/memory/identity.md)", "Edit(//player/memory/identity.md)"]
+  }
+}

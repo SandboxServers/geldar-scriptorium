@@ -32,14 +32,14 @@ export function buildPrompt(n: number, lastWords: string, note: string | null): 
  */
 export const TIDY_PROMPT = [
   'Your journal has grown long and your memory is not in order. Put it in order now. Do not act in the world while you do this: no act, no look, no wait. Work on your files only.',
-  'Read memory/journal/current.md first. Then, in this order:',
-  '1. Write memory/journal/day-NNN.md with one paragraph on what mattered. NNN is the latest Day number in current.md, as three digits; if there is none, the next free number among the files in memory/journal.',
+  'Your old journal is in memory/journal/pending.md. Read it first (memory/journal/current.md is a fresh page; leave it alone). Then, in this order:',
+  '1. Write memory/journal/day-NNN.md with one paragraph on what mattered. NNN is the latest Day number in pending.md, as three digits; if there is none, the next free number among the files in memory/journal.',
   '2. Write what you learned into memory/beliefs.md: the methods that worked, the things that did not, and why. Strike out what proved false.',
   '3. For each person you dealt with, update memory/people/<name>.md: your impression, your trust from 0 to 100, and why.',
   '4. Rewrite memory/goals.md: ranked, with your reasons.',
   '5. Rewrite memory/summary.md so it fits one page, under 60 lines: where you are, what you hold, what you were doing, and the lessons that matter most.',
-  '6. Empty memory/journal/current.md back to its heading, "# Journal", and nothing else.',
-  '7. Call commit_memory with the message "tidy: " and six words.',
+  '6. Call commit_memory with the message "tidy: " and six words.',
+  'You make a file that does not exist yet by calling Edit with an empty old_string and the whole text as new_string. You rewrite a file that exists by calling Edit on it until only the new text is left.',
   'Then stop.',
 ].join('\n');
 

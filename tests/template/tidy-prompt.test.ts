@@ -20,7 +20,8 @@ describe('the memory tidy prompt', () => {
       'people/',
       'goals.md',
       'summary.md',
-      '# Journal',
+      'memory/journal/pending.md',
+      'Edit with an empty old_string',
       'commit_memory',
       'tidy: ',
     ]) {

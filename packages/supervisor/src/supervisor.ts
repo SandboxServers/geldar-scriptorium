@@ -3,10 +3,15 @@ import {
   createReadStream,
   existsSync,
   mkdirSync,
+  chownSync,
+  readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import type { RunSummary } from '@geldar/scriptorium-verify';
 import { summarizeStream } from '@geldar/scriptorium-verify';
@@ -85,8 +90,8 @@ export function childEnv(
 }
 
 /** The sh wrapper words (as the launcher's run mode): the prompt is read from descriptor 3, never from an argument. */
-export function wrapperLine(settings: Settings): string {
-  let line = 'exec claude --autocompact 100000 --settings /etc/geldar/settings/play.json';
+export function wrapperLine(settings: Settings, tidy = false): string {
+  let line = `exec claude --autocompact 100000 --settings /etc/geldar/settings/${tidy ? 'tidy' : 'play'}.json`;
   line += ' -p "$(cat <&3)" --max-turns "$GELDAR_RUN_MAX_TURNS"';
   if (settings.model !== '') line += ' --model "$GELDAR_RUN_MODEL"';
   return `${line} --output-format stream-json --verbose`;
@@ -316,7 +321,8 @@ export class Supervisor {
       this.status(n, 'running', last, sum);
       const t0 = this.deps.now();
       const size = this.journalSize();
-      const tidy = this.tidyDue(size);
+      const tidy = this.tidyDue(size) && this.prepareTidy();
+      const before = tidy ? this.memoryDigest() : '';
       const code = tidy ? await this.oneTidy(n) : await this.oneRun(n);
       const t1 = this.deps.now();
       const secs = t1 - t0;
@@ -339,6 +345,10 @@ export class Supervisor {
       });
       if (tidy) {
         // The tidy counts as failed for its own backoff when the journal is still over the limit.
+        // A clean tidy (ok, and its day file or summary changed) lets go of pending.md.
+        if (ok && this.memoryDigest() !== before) {
+          rmSync(join(this.journalDir(), 'pending.md'), { force: true });
+        }
         const after = this.journalSize();
         const emptied = after !== null && after <= s.tidyBytes;
         this.tidyFailedAt = ok && emptied ? null : (after ?? size ?? 0);
@@ -427,12 +437,78 @@ export class Supervisor {
     this.log('hold released');
   }
 
-  /** The byte size of memory/journal/current.md, or null when it is missing or unreadable. */
+  private journalDir(): string {
+    return join(this.settings.workspace, 'memory', 'journal');
+  }
+
+  /** The bytes of memory/journal/current.md plus pending.md, or null when current.md is unreadable. */
   private journalSize(): number | null {
     try {
-      return statSync(join(this.settings.workspace, 'memory', 'journal', 'current.md')).size;
+      const current = statSync(join(this.journalDir(), 'current.md')).size;
+      let pending = 0;
+      try {
+        pending = statSync(join(this.journalDir(), 'pending.md')).size;
+      } catch {
+        // no pending page
+      }
+      return current + pending;
     } catch {
       return null;
+    }
+  }
+
+  /** A digest of summary.md and every day-NNN.md: a clean tidy changes it. */
+  private memoryDigest(): string {
+    const hash = createHash('sha256');
+    const read = (path: string) => {
+      try {
+        hash.update(readFileSync(path));
+      } catch {
+        hash.update('-');
+      }
+    };
+    read(join(this.settings.workspace, 'memory', 'summary.md'));
+    try {
+      for (const name of readdirSync(this.journalDir()).sort()) {
+        if (/^day-[0-9]+\.md$/.test(name)) {
+          hash.update(name);
+          read(join(this.journalDir(), name));
+        }
+      }
+    } catch {
+      // no journal folder
+    }
+    return hash.digest('hex');
+  }
+
+  /**
+   * Before a tidy: moves current.md to pending.md (appending to a pending.md a failed tidy left) and
+   * leaves a fresh current.md holding only its heading. Done here, as a plain file move, because the
+   * character cannot empty a long file. Returns false (no tidy) when it cannot.
+   */
+  private prepareTidy(): boolean {
+    const dir = this.journalDir();
+    const current = join(dir, 'current.md');
+    const pending = join(dir, 'pending.md');
+    try {
+      if (existsSync(pending)) {
+        appendFileSync(pending, `\n${readFileSync(current, 'utf8')}`);
+        rmSync(current, { force: true });
+      } else {
+        renameSync(current, pending);
+      }
+      writeFileSync(current, '# Journal\n', { mode: 0o644 });
+      try {
+        chownSync(current, this.settings.playerUid, this.settings.playerGid);
+      } catch {
+        // not root (tests): the file keeps its owner
+      }
+      return true;
+    } catch (error) {
+      this.log(
+        `tidy skipped: journal move failed (${(error as NodeJS.ErrnoException).code ?? 'error'})`,
+      );
+      return false;
     }
   }
 
@@ -454,7 +530,7 @@ export class Supervisor {
     return this.deps.exec(
       this.asPlayer({
         file: 'sh',
-        args: ['-c', wrapperLine(s)],
+        args: ['-c', wrapperLine(s, true)],
         env: childEnv(s, this.env, s.tidyMaxTurns),
         stdoutPath: this.path(`session-${n}.jsonl`),
         promptPath,

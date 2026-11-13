@@ -28,6 +28,7 @@ const rows: [string, Mode, boolean][] = [
   ['memory/people/.gitkeep', 'setup', true],
   ['memory/journal/current.md', 'play', true],
   ['memory/journal/day-007.md', 'play', true],
+  ['memory/journal/pending.md', 'play', true],
   ['memory/a.b.md', 'play', true],
   ['skills/farm.js', 'play', true],
   ['skills/farm.json', 'setup', true],
