@@ -209,13 +209,17 @@ describeBash('fleet/bootstrap/bootstrap-git.sh (F-01a)', () => {
   it.each([
     ['a short digest', { GIT_SHA256: SHA256.slice(0, 40) }],
     ['a non-hex digest', { GIT_SHA256: `${SHA256.slice(0, 63)}g` }],
-  ])('%s exits 5 before any step acts, nothing unpacked', (_name, edits) => {
-    const world = makeWorld({ edits });
-    const r = run(world);
-    expect(r.status).toBe(5);
-    expect(r.stderr).toContain('GIT_SHA256 is not a sha256 hex digest');
-    expect(calls(world)).toEqual([]);
-  }, 60_000);
+  ])(
+    '%s exits 5 before any step acts, nothing unpacked',
+    (_name, edits) => {
+      const world = makeWorld({ edits });
+      const r = run(world);
+      expect(r.status).toBe(5);
+      expect(r.stderr).toContain('GIT_SHA256 is not a sha256 hex digest');
+      expect(calls(world)).toEqual([]);
+    },
+    60_000,
+  );
 
   it('a missing versions.env exits 5 and nothing is unpacked', () => {
     const world = makeWorld({ noVersions: true });
