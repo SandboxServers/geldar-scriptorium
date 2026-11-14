@@ -90,3 +90,4 @@ Mask any token shown in pasted output. Read state through `geldar-play player-st
 - [ ] Date of sign-off is recorded.
   - Observed:
   - Date (UTC):
+After sign-off, the session amends `docs/chatgpt.md` (HC-16).
