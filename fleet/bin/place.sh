@@ -5,6 +5,7 @@
 set -euo pipefail
 
 here=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+# shellcheck source-path=SCRIPTDIR
 # shellcheck source=../lib/common.sh
 . "$here/lib/common.sh"
 

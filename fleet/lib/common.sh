@@ -8,10 +8,14 @@ umask 007
 if [ "${GELDAR_INTERNAL:-}" = "1" ]; then
   GF_ROOT=${GEL_ROOT:-}
   GF_RUN=${GEL_RUN:-sudo -n /usr/local/sbin/geldar-fleet-run}
+  # GF_DF is read by bin/place.sh after it sources this file, not in this file.
+  # shellcheck disable=SC2034
   GF_DF=${GEL_DF:-}
 else
   GF_ROOT=
   GF_RUN="sudo -n /usr/local/sbin/geldar-fleet-run"
+  # GF_DF is read by bin/place.sh after it sources this file, not in this file.
+  # shellcheck disable=SC2034
   GF_DF=
 fi
 # The wrapper command may carry arguments (sudo -n ...); split it once, without eval.
