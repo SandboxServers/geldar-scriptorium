@@ -97,6 +97,8 @@ services:
       - GELDAR_RUN_MAX_FAILS
       - GELDAR_RUN_MAX_TURNS
       - GELDAR_RUN_MODEL
+      - GELDAR_TIDY_BYTES
+      - GELDAR_TIDY_MAX_TURNS
       - GELDAR_RUN_SLEEP
     networks: [inside]
     cap_drop: [ALL]

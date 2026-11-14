@@ -1,15 +1,22 @@
+import { createHash } from 'node:crypto';
 import {
   appendFileSync,
+  chownSync,
   createReadStream,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
+  statSync,
+  writeFileSync,
 } from 'node:fs';
+import { join } from 'node:path';
 import type { RunSummary } from '@geldar/scriptorium-verify';
 import { summarizeStream } from '@geldar/scriptorium-verify';
 import type { Deps, ExecSpec } from './deps.ts';
-import { buildPrompt, cleanLastWords } from './prompt.ts';
+import { buildPrompt, buildTidyPrompt, cleanLastWords } from './prompt.ts';
 import type { Settings } from './settings.ts';
 import { heldPath, statePath } from './settings.ts';
 import {
@@ -62,13 +69,17 @@ const PASS_THROUGH = [
 type Env = Readonly<Record<string, string | undefined>>;
 
 /** The explicit environment of a child: nothing is inherited beyond the names listed here. */
-export function childEnv(settings: Settings, env: Env): Record<string, string> {
+export function childEnv(
+  settings: Settings,
+  env: Env,
+  maxTurns: number = settings.maxTurns,
+): Record<string, string> {
   const out: Record<string, string> = {
     HOME: settings.cliHome,
     CLAUDE_CONFIG_DIR: settings.cliHome,
     GELDAR_MODE: 'play',
     PATH: env.PATH ?? SYSTEM_PATH,
-    GELDAR_RUN_MAX_TURNS: String(settings.maxTurns),
+    GELDAR_RUN_MAX_TURNS: String(maxTurns),
   };
   if (settings.harness === 'chatgpt') out.NODE_USE_ENV_PROXY = '1';
   if (settings.model !== '') out.GELDAR_RUN_MODEL = settings.model;
@@ -81,9 +92,9 @@ export function childEnv(settings: Settings, env: Env): Record<string, string> {
 }
 
 /** The sh wrapper words (as the launcher's run mode): the prompt is read from descriptor 3, never from an argument. */
-export function wrapperLine(settings: Settings): string {
+export function wrapperLine(settings: Settings, tidy = false): string {
   if (settings.harness === 'chatgpt') return 'exec geldar-chatgpt run';
-  let line = 'exec claude --autocompact 100000 --settings /etc/geldar/settings/play.json';
+  let line = `exec claude --autocompact 100000 --settings /etc/geldar/settings/${tidy ? 'tidy' : 'play'}.json`;
   line += ' -p "$(cat <&3)" --max-turns "$GELDAR_RUN_MAX_TURNS"';
   if (settings.model !== '') line += ' --model "$GELDAR_RUN_MODEL"';
   return `${line} --output-format stream-json --verbose`;
@@ -98,12 +109,59 @@ async function summarizeFile(path: string): Promise<RunSummary | null> {
   }
 }
 
+/** A usage limit the stream reported: `resetsAt` is epoch seconds, or null when the line has none. */
+export interface UsageLimit {
+  kind: string;
+  resetsAt: number | null;
+}
+
+/** The longest wait for a reset time that is believed; a farther or missing one waits LIMIT_RETRY_SECS. */
+const LIMIT_MAX_SECS = 8 * 86400;
+const LIMIT_RETRY_SECS = 900;
+const LIMIT_SLACK_SECS = 60;
+
+/** Looks for a rate_limit_event line with status "rejected" in a session stream; keeps no stream text. */
+export function findUsageLimit(path: string): UsageLimit | null {
+  let text: string;
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch {
+    return null;
+  }
+  let found: UsageLimit | null = null;
+  for (const line of text.split('\n')) {
+    if (!line.includes('rate_limit_event')) continue;
+    try {
+      const entry = JSON.parse(line) as {
+        type?: unknown;
+        rate_limit_info?: { status?: unknown; resetsAt?: unknown; rateLimitType?: unknown };
+      };
+      const info = entry.rate_limit_info;
+      if (entry.type !== 'rate_limit_event' || info?.status !== 'rejected') continue;
+      const at = info.resetsAt;
+      const type = typeof info.rateLimitType === 'string' ? info.rateLimitType : '';
+      found = {
+        kind: type.startsWith('seven_day') ? 'weekly' : type === 'five_hour' ? '5-hour' : 'usage',
+        resetsAt: typeof at === 'number' && Number.isFinite(at) ? at : null,
+      };
+    } catch {
+      // not a json line
+    }
+  }
+  return found;
+}
+
 /** The loop: one supervisor keeps one player living. It never logs a token, a prompt or stream text. */
 export class Supervisor {
   private stopFlag = false;
   private started = '';
   private upstreamHead = '';
   private upstreamResult: SyncResult = 'none';
+  /** The run number of the latest tidy session, so its closing words never reach the next prompt. */
+  private tidyRun = 0;
+  /** After a failed tidy: the journal size it left, and the normal runs since. */
+  private tidyFailedAt: number | null = null;
+  private runsSinceTidyFail = 0;
 
   private readonly settings: Settings;
   private readonly deps: Deps;
@@ -138,6 +196,7 @@ export class Supervisor {
     cost: number,
     held?: string,
     stop?: string,
+    limitedUntil?: string,
   ): void {
     const body = {
       run,
@@ -150,6 +209,7 @@ export class Supervisor {
       updated: fmt(this.deps.now(), 'stamp'),
       ...(held === undefined ? {} : { held_reason: held }),
       ...(stop === undefined ? {} : { stop_reason: stop }),
+      ...(limitedUntil === undefined ? {} : { limited_until: limitedUntil }),
     };
     writePrivate(this.path('status.json'), `${JSON.stringify(body)}\n`);
   }
@@ -307,7 +367,10 @@ export class Supervisor {
       n = nextRunNumber(s.stateDir);
       this.status(n, 'running', last, sum);
       const t0 = this.deps.now();
-      const code = await this.oneRun(n);
+      const size = this.journalSize();
+      const tidy = this.settings.harness !== 'chatgpt' && this.tidyDue(size) && this.prepareTidy();
+      const before = tidy ? this.memoryDigest() : '';
+      const code = tidy ? await this.oneTidy(n) : await this.oneRun(n);
       const t1 = this.deps.now();
       const secs = t1 - t0;
       await this.save();
@@ -327,6 +390,28 @@ export class Supervisor {
       appendFileSync(this.path('costs.csv'), `${n},${fmt(t1, 'stamp')},${turns},${cost}\n`, {
         mode: 0o600,
       });
+      if (tidy) {
+        // The tidy counts as failed for its own backoff when the journal is still over the limit.
+        // A clean tidy (ok, and its day file or summary changed) lets go of pending.md.
+        if (ok && this.memoryDigest() !== before) {
+          rmSync(join(this.journalDir(), 'pending.md'), { force: true });
+        }
+        const after = this.journalSize();
+        const emptied = after !== null && after <= s.tidyBytes;
+        this.tidyFailedAt = ok && emptied ? null : (after ?? size ?? 0);
+        this.runsSinceTidyFail = 0;
+        this.log(`tidy run=${n} journal=${size}->${after ?? 'unreadable'} emptied=${emptied}`);
+      } else if (this.tidyFailedAt !== null) {
+        this.runsSinceTidyFail++;
+      }
+      // A usage limit is not a failed cycle: no failure count, no backoff, no auto STOP. The
+      // supervisor waits for the reset (the wait ends early on a STOP file or a stop request).
+      const limit = ok ? null : findUsageLimit(this.path(`session-${n}.jsonl`));
+      if (limit !== null) {
+        last = 'limited';
+        await this.waitLimit(n, limit, costToday(s.stateDir, fmt(t1, 'date')));
+        continue;
+      }
       if (ok) {
         fails = 0;
         delay = s.delayBase;
@@ -361,6 +446,23 @@ export class Supervisor {
     this.log('stopped');
     this.deps.say(`The supervisor stopped after run ${n}.`);
     return 0;
+  }
+
+  /** Waits out a usage limit: state `limited` with `limited_until` in status.json, a log line and a say. */
+  private async waitLimit(n: number, limit: UsageLimit, cost: number): Promise<void> {
+    const now = this.deps.now();
+    const at = limit.resetsAt;
+    const until =
+      at !== null && at - now <= LIMIT_MAX_SECS
+        ? Math.max(at, now) + LIMIT_SLACK_SECS
+        : now + LIMIT_RETRY_SECS;
+    const iso = new Date(until * 1000).toISOString();
+    const line = `limited: ${limit.kind} limit reached; waiting until ${iso}`;
+    this.status(n, 'limited', 'limited', cost, undefined, undefined, iso);
+    this.log(line);
+    this.deps.say(line);
+    await this.deps.sleep(until - now, () => this.shouldStop());
+    this.status(n, 'running', 'limited', cost);
   }
 
   /**
@@ -407,11 +509,112 @@ export class Supervisor {
     this.log('hold released');
   }
 
+  private journalDir(): string {
+    return join(this.settings.workspace, 'memory', 'journal');
+  }
+
+  /** The bytes of memory/journal/current.md plus pending.md, or null when current.md is unreadable. */
+  private journalSize(): number | null {
+    try {
+      const current = statSync(join(this.journalDir(), 'current.md')).size;
+      let pending = 0;
+      try {
+        pending = statSync(join(this.journalDir(), 'pending.md')).size;
+      } catch {
+        // no pending page
+      }
+      return current + pending;
+    } catch {
+      return null;
+    }
+  }
+
+  /** A digest of summary.md and every day-NNN.md: a clean tidy changes it. */
+  private memoryDigest(): string {
+    const hash = createHash('sha256');
+    const read = (path: string) => {
+      try {
+        hash.update(readFileSync(path));
+      } catch {
+        hash.update('-');
+      }
+    };
+    read(join(this.settings.workspace, 'memory', 'summary.md'));
+    try {
+      for (const name of readdirSync(this.journalDir()).sort()) {
+        if (/^day-[0-9]+\.md$/.test(name)) {
+          hash.update(name);
+          read(join(this.journalDir(), name));
+        }
+      }
+    } catch {
+      // no journal folder
+    }
+    return hash.digest('hex');
+  }
+
+  /**
+   * Before a tidy: moves current.md to pending.md (appending to a pending.md a failed tidy left) and
+   * leaves a fresh current.md holding only its heading. Done here, as a plain file move, because the
+   * character cannot empty a long file. Returns false (no tidy) when it cannot.
+   */
+  private prepareTidy(): boolean {
+    const dir = this.journalDir();
+    const current = join(dir, 'current.md');
+    const pending = join(dir, 'pending.md');
+    try {
+      if (existsSync(pending)) {
+        appendFileSync(pending, `\n${readFileSync(current, 'utf8')}`);
+        rmSync(current, { force: true });
+      } else {
+        renameSync(current, pending);
+      }
+      writeFileSync(current, '# Journal\n', { mode: 0o644 });
+      try {
+        chownSync(current, this.settings.playerUid, this.settings.playerGid);
+      } catch {
+        // not root (tests): the file keeps its owner
+      }
+      return true;
+    } catch (error) {
+      this.log(
+        `tidy skipped: journal move failed (${(error as NodeJS.ErrnoException).code ?? 'error'})`,
+      );
+      return false;
+    }
+  }
+
+  /** Whether the next run is a tidy: the journal is over the limit and no failed tidy holds it back. */
+  private tidyDue(size: number | null): boolean {
+    const limit = this.settings.tidyBytes;
+    if (limit === 0 || size === null || size <= limit) return false;
+    if (this.tidyFailedAt === null) return true;
+    return size >= this.tidyFailedAt + limit / 2 || this.runsSinceTidyFail >= 10;
+  }
+
+  /** One tidy session: same child launch and settings, the tidy text and its own turn limit. */
+  private async oneTidy(n: number): Promise<number> {
+    const s = this.settings;
+    this.tidyRun = n;
+    const promptPath = this.path('prompt.txt');
+    writePrivate(promptPath, buildTidyPrompt());
+    this.log(`tidy run=${n}`);
+    return this.deps.exec(
+      this.asPlayer({
+        file: 'sh',
+        args: ['-c', wrapperLine(s, true)],
+        env: childEnv(s, this.env, s.tidyMaxTurns),
+        stdoutPath: this.path(`session-${n}.jsonl`),
+        promptPath,
+      }),
+    );
+  }
+
   /** One headless run as a child of the player user: writes the prompt file, returns the exit code. */
   private async oneRun(n: number): Promise<number> {
     const s = this.settings;
     const prev = n > 1 ? await summarizeFile(this.path(`session-${n - 1}.jsonl`)) : null;
-    const words = prev === null ? '' : cleanLastWords(prev.last_text);
+    const words = prev === null || this.tidyRun === n - 1 ? '' : cleanLastWords(prev.last_text);
     const note = await this.deps.beforeRun({ run: n, lastWords: words });
     const promptPath = this.path('prompt.txt');
     writePrivate(promptPath, buildPrompt(n, words, note));

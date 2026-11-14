@@ -135,6 +135,7 @@ A player's hours cost money, at the usual rates for the account it uses. A subsc
 - `GELDAR_RUN_DAILY_CAP_USD`: the most a day may cost, 15 by default.
 - `GELDAR_RUN_DELAY`: seconds of rest between rounds.
 - `GELDAR_RUN_MAX_TURNS`: turns in one round.
+- `GELDAR_TIDY_BYTES`: the journal size in bytes above which the player first spends a round putting its memory in order, 30000 by default, 0 to turn it off. `GELDAR_TIDY_MAX_TURNS`: turns in that round, 40 by default.
 - `GELDAR_RUN_MODEL`: the model the player uses.
 
 A player can also live in a container of its own. The container saves the player's memory to its repository on a schedule, so the player keeps what it remembers without you, and it takes any template update between two rounds, never in the middle of one.

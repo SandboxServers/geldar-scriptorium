@@ -41,7 +41,7 @@ COPY packages/keeper/data/known_hosts /etc/geldar/keeper-known-hosts
 COPY image/geldar-entrypoint.sh /usr/local/bin/geldar-entrypoint.sh
 RUN chmod 0755 /usr/local/bin/geldar-entrypoint.sh
 COPY image/settings/managed.json /etc/claude-code/managed-settings.json
-COPY image/settings/play.json image/settings/setup.json /etc/geldar/settings/
+COPY image/settings/play.json image/settings/setup.json image/settings/tidy.json /etc/geldar/settings/
 RUN printf 'geldar kit\n' > /etc/geldar-kit \
  && find /etc/geldar /etc/claude-code -type f -exec chmod 0444 {} + \
  && find /etc/geldar /etc/claude-code -type d -exec chmod 0555 {} + \

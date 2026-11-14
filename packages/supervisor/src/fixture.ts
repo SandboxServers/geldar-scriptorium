@@ -26,6 +26,8 @@ export interface Behaviour {
   heldAt?: number;
   /** Called while the run is "running" (for the signal test). */
   during?: () => void;
+  /** A rejected usage-limit event first in the stream (resetsAt in epoch seconds, or absent). */
+  limit?: { resetsAt?: number };
 }
 
 /**
@@ -81,7 +83,20 @@ export function makeFixture(
       if (spec.file !== 'sh') return behaviour.saveRc ?? 0;
       behaviour.during?.();
       const n = Number(/session-(\d+)\.jsonl$/.exec(spec.stdoutPath ?? '')?.[1]);
-      const lines = [
+      const lines: object[] = [
+        ...(behaviour.limit === undefined
+          ? []
+          : [
+              {
+                type: 'rate_limit_event',
+                rate_limit_info: {
+                  status: 'rejected',
+                  rateLimitType: 'seven_day',
+                  overageStatus: 'rejected',
+                  ...behaviour.limit,
+                },
+              },
+            ]),
         {
           type: 'assistant',
           message: {

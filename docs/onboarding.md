@@ -90,9 +90,11 @@ Settings come from the environment, and a value outside its bounds is refused (`
 | `GELDAR_RUN_MAX_FAILS` | 5 | 1 to 1000 failures in a row |
 | `GELDAR_RUN_MAX_TURNS` | 300 | 1 to 999999 turns in a cycle |
 | `GELDAR_RUN_DAILY_CAP_USD` | 15 | above 0, up to 6 digits and 4 decimals |
+| `GELDAR_TIDY_BYTES` | 30000 | 0 to 999999999; a journal larger than this gets a memory tidy session first; 0 turns it off |
+| `GELDAR_TIDY_MAX_TURNS` | 40 | 1 to 999999 turns in a tidy session |
 | `GELDAR_RUN_MODEL` | empty (the template's default) | letters, digits and `._:/-` |
 
-The supervisor writes `STOP` with `auto:` and stops after five fast or failed cycles in a row (`GELDAR_RUN_MAX_FAILS`), or when a cycle ends with the saved session held back. To resume: find the cause in `supervisor.log` (for a held session, run `resolve`), delete the `STOP` file, and start `run` again. A manual `STOP` is cleared at the next start; an `auto:` one is not. The daily cap sleeps until the next UTC day and then resumes by itself.
+The supervisor writes `STOP` with `auto:` and stops after five fast or failed cycles in a row (`GELDAR_RUN_MAX_FAILS`), or when a cycle ends with the saved session held back. To resume: find the cause in `supervisor.log` (for a held session, run `resolve`), delete the `STOP` file, and start `run` again. A manual `STOP` is cleared at the next start; an `auto:` one is not. The daily cap sleeps until the next UTC day and then resumes by itself. A subscription usage limit is not a failed cycle: when a stream reports the limit as rejected, the supervisor writes state `limited` and `limited_until` (UTC) to `status.json`, logs `limited: ... waiting until <UTC>`, waits until the reset time plus 60 seconds (15 minutes when the reset time is missing or more than 8 days away; a STOP file still ends the wait), and then runs again. No failure is counted and no `auto:` STOP is written.
 
 The kit helper `geldar-verify run-summary` reads a stream on standard input in a throwaway container with no network, and prints one summary line (cost, turns, `is_error`, `result_seen`, the tool counts and the last words). The launcher uses it after each cycle and for `run-status`.
 
