@@ -81,8 +81,10 @@ export function childEnv(
     PATH: env.PATH ?? SYSTEM_PATH,
     GELDAR_RUN_MAX_TURNS: String(maxTurns),
   };
+  if (settings.harness === 'chatgpt') out.NODE_USE_ENV_PROXY = '1';
   if (settings.model !== '') out.GELDAR_RUN_MODEL = settings.model;
   for (const name of PASS_THROUGH) {
+    if (settings.harness === 'chatgpt' && name === 'CLAUDE_CODE_OAUTH_TOKEN') continue;
     const value = env[name];
     if (value !== undefined && value !== '') out[name] = value;
   }
@@ -91,6 +93,7 @@ export function childEnv(
 
 /** The sh wrapper words (as the launcher's run mode): the prompt is read from descriptor 3, never from an argument. */
 export function wrapperLine(settings: Settings, tidy = false): string {
+  if (settings.harness === 'chatgpt') return 'exec geldar-chatgpt run';
   let line = `exec claude --autocompact 100000 --settings /etc/geldar/settings/${tidy ? 'tidy' : 'play'}.json`;
   line += ' -p "$(cat <&3)" --max-turns "$GELDAR_RUN_MAX_TURNS"';
   if (settings.model !== '') line += ' --model "$GELDAR_RUN_MODEL"';
@@ -321,7 +324,7 @@ export class Supervisor {
       this.status(n, 'running', last, sum);
       const t0 = this.deps.now();
       const size = this.journalSize();
-      const tidy = this.tidyDue(size) && this.prepareTidy();
+      const tidy = this.settings.harness !== 'chatgpt' && this.tidyDue(size) && this.prepareTidy();
       const before = tidy ? this.memoryDigest() : '';
       const code = tidy ? await this.oneTidy(n) : await this.oneRun(n);
       const t1 = this.deps.now();

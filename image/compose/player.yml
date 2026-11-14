@@ -83,6 +83,7 @@ services:
       - https_proxy=http://proxy-player:3128
       - NO_PROXY=
       - GELDAR_MODE=play
+      - GELDAR_HARNESS=${GELDAR_HARNESS:-claude}
       - GELDAR_KEEPER_STATE=/keeper-state
       # Name only: the value is passed through from the launcher's environment, never written here.
       # The world address the .mcp.json reads (not a secret: its host is on the egress allowlist).
@@ -191,7 +192,7 @@ volumes:
   workspace:
     name: geldar-ws-${GELDAR_ID:?}
   cli-home:
-    name: geldar-cli-${GELDAR_ID:?}-claude
+    name: geldar-cli-${GELDAR_ID:?}-${GELDAR_HARNESS:-claude}
   supervisor-state:
     name: geldar-sup-${GELDAR_ID:?}
   keeper-state:

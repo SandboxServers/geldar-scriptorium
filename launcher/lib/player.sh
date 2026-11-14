@@ -154,6 +154,7 @@ TEXT
   valid_mcp_url "$PLV_mcp_url" || pj_fail "$id" 'mcp_url'
   case $PLV_harness in
     claude) ;;
+    chatgpt) ;;
     codex) die 1 harness_unsupported "$id" ;;
     *) pj_fail "$id" 'harness' ;;
   esac
@@ -165,6 +166,7 @@ TEXT
   PL_NAME=$PLV_name
   PL_SHARD=$PLV_shard
   PL_MODEL=$PLV_declared_model
+  PL_HARNESS=$PLV_harness
   PL_KIT_IMAGE=$GP_IMAGE
 }
 
@@ -195,7 +197,7 @@ pl_secrets() {
   if [ -f "$d/token" ] && [ ! -L "$d/token" ]; then
     IFS= read -r PL_SECRET_MCP < "$d/token" || true
   fi
-  if auth_usable; then
+  if [ "$PL_HARNESS" = claude ] && auth_usable; then
     PL_SECRET_LOGIN=$(auth_load) || PL_SECRET_LOGIN=""
   fi
 }
@@ -217,6 +219,8 @@ pl_compose() {
     if [ -n "$PL_SECRET_MCP" ]; then export GELDAR_MCP_TOKEN="$PL_SECRET_MCP"; fi
     if [ -n "$PL_SECRET_LOGIN" ]; then export CLAUDE_CODE_OAUTH_TOKEN="$PL_SECRET_LOGIN"; fi
     export KIT_IMAGE="$PL_KIT_IMAGE" GELDAR_ID="$id" GELDAR_KEEPER_REMOTE="$PL_REMOTE" GELDAR_MCP_URL="$PL_MCP_URL"
+    export GELDAR_HARNESS="$PL_HARNESS"
+    if [ "$PL_HARNESS" = chatgpt ] && [ -z "${GELDAR_RUN_MODEL:-}" ]; then export GELDAR_RUN_MODEL="$PL_MODEL"; fi
     export GELDAR_DEPLOY_KEY_FILE="$d/deploy-key" GELDAR_WORLD_ALLOWLIST="$d/pub/allowlist-world.txt"
     export GELDAR_WORLD_PORTS="$d/pub/allowlist-world-ports.txt"
     docker_cmd compose -p "geldar-player-$id" -f "$share/compose/player.yml" "$@"
@@ -270,7 +274,12 @@ pl_ready() {
   d=$(player_dir "$1")
   [ -f "$d/deploy-key" ] || die 1 player_no_key "$1"
   [ -f "$d/token" ] || die 1 player_no_token "$1"
-  auth_usable || die 1 player_no_login
+  if [ "$PL_HARNESS" = chatgpt ]; then
+    [[ ${GELDAR_RUN_MODEL:-$PL_MODEL} =~ ^[A-Za-z0-9._:/-]+$ ]] || die 1 chatgpt_no_model "$1"
+    chatgpt_ready "$1" || die 1 chatgpt_no_login "$1"
+  else
+    auth_usable || die 1 player_no_login
+  fi
 }
 
 # start <id>: the checks, the workspace once, then compose up -d (idempotent).

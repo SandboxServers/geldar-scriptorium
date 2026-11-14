@@ -13,7 +13,7 @@
 | `archive <id>` | Archives the player repo on GitHub after a typed confirmation and removes the local copy. It needs the clone's origin URL to end in `player-<id>`, so a player made with `--repo` under another name cannot be archived by the launcher. |
 | `status` | One line per player: id, state, branch, reason if held. |
 
-`--cli codex` is refused with a message; only the Claude Code CLI is supported (D-SC-08). Prerequisites per verb are in `verb_needs` in `geldar-play` (D-SC-09). The real world's address and port are set in [config/world.conf](config/world.conf); the private-only shard list is blank for now, and is revisited later.
+Claude Code is the default. `new --cli chatgpt --persona-dir <dir>` selects the direct subscription provider for persistent players; `chatgpt-login <id>` connects an account and `chatgpt-models <id>` lists its models. See [ChatGPT setup](../docs/chatgpt.md). `--cli codex` remains refused (D-SC-08). Prerequisites per verb are in `verb_needs` in `geldar-play` (D-SC-09). The real world's address and port are set in [config/world.conf](config/world.conf); the private-only shard list is blank for now, and is revisited later.
 
 ## Owner and developer options
 

@@ -191,7 +191,9 @@ verb_archive() {
   run_bounded 120 "${GELDAR_GH:-gh}" repo archive "$owner/player-$id" --yes > /dev/null 2>&1 ||
     die 1 gh_failed "$id" archive
   docker_cmd volume rm "geldar-ws-$id" > /dev/null 2>&1
+  # A player may have switched providers; archive removes both vendor homes.
   docker_cmd volume rm "geldar-cli-$id-claude" > /dev/null 2>&1
+  docker_cmd volume rm "geldar-cli-$id-chatgpt" > /dev/null 2>&1
   rm -rf "$d"
   say archived "$id"
 }

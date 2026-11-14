@@ -171,6 +171,8 @@ write_player_json() {
       '  "player_id": '*) line="  \"player_id\": \"$id\"," ;;
       '  "shard": '*) line="  \"shard\": \"$shard\"," ;;
       '  "mcp_url": '*) line="  \"mcp_url\": \"$url\"," ;;
+      '  "harness": '*) line="  \"harness\": \"${GP_CLI:-claude}\"," ;;
+      '  "declared_model": '*) if [ "${GP_CLI:-claude}" = chatgpt ]; then line='  "declared_model": "",'; fi ;;
     esac
     out="$out$line"$'\n'
   done < "$f"
@@ -412,6 +414,7 @@ verb_new() {
     esac
   done
   # --kit-version only means something with --repo: it names the template release to copy.
+  if [ "${GP_CLI:-claude}" = chatgpt ] && [ -z "$have_persona" ]; then die 1 chatgpt_persona; fi
   if [ -n "$kit" ] && [ -z "$repo" ]; then die 1 kit_version_bad; fi
   [[ $shard =~ $shre ]] || die 1 bad_shard
   if [ -n "$mock" ]; then
@@ -516,7 +519,9 @@ EOF
       printf '%s\n' "$NEW_TOKEN" > "$d/token"
     )
   fi
-  if [ -n "$have_persona" ]; then
+  if [ "${GP_CLI:-claude}" = chatgpt ]; then
+    say chatgpt_created "$id" "$id"
+  elif [ -n "$have_persona" ]; then
     say created_seeded "$id" "$id"
   else
     say created "$id" "$id"

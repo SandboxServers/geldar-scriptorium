@@ -12,6 +12,7 @@ export class SettingError extends Error {
 
 /** Everything the loop reads from the environment, validated once at start. */
 export interface Settings {
+  harness: 'claude' | 'chatgpt';
   delayBase: number;
   maxDelay: number;
   fastSec: number;
@@ -52,6 +53,8 @@ function id(env: Env, name: string): number {
 
 /** Reads and validates the GELDAR_RUN_* settings (same names, defaults and bounds as run.sh). */
 export function readSettings(env: Env): Settings {
+  const harness = env.GELDAR_HARNESS ?? 'claude';
+  if (harness !== 'claude' && harness !== 'chatgpt') throw new SettingError('GELDAR_HARNESS');
   const delayBase = num(env, 'GELDAR_RUN_DELAY', 20, 1, 86400);
   const maxDelay = num(env, 'GELDAR_RUN_MAX_DELAY', 900, 1, 86400);
   const fastSec = num(env, 'GELDAR_RUN_FAST_SEC', 30, 0, 86400);
@@ -68,6 +71,7 @@ export function readSettings(env: Env): Settings {
     throw new SettingError('GELDAR_RUN_MODEL');
   if (maxDelay < delayBase) throw new SettingError('GELDAR_RUN_MAX_DELAY');
   return {
+    harness,
     delayBase,
     maxDelay,
     fastSec,
