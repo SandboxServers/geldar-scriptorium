@@ -3,9 +3,19 @@ import { forbiddenMention, markedWords, readSkill, unquoted } from './tool-skill
 
 // Group B of the tool-only skills (SC-160b): food, the night, fighting or fleeing, and water.
 const names = ['eating-and-hunger', 'night-safety', 'fighting-or-fleeing', 'water-and-drowning'];
-// The food and night skills state game numbers on purpose (the hunger cap of 20, the 50 percent
-// sleep rule), so only the other two keep the no-digit rule.
-const numbered = ['eating-and-hunger', 'night-safety'];
+// The food and night skills state game numbers on purpose. Each such clause is listed here exactly,
+// and only these clauses are removed before the no-digit rule runs, so any other digit still fails.
+const numericClauses: Record<string, string[]> = {
+  'eating-and-hunger': [
+    'up to 20',
+    'above 20',
+    'at hunger 18 gives only 2',
+    '20 minus hunger',
+    'hunger is 6 or lower',
+    'At hunger 20',
+  ],
+  'night-safety': ['at least 50 percent', 'hunger is 4 or lower'],
+};
 
 describe.each(names)('tool skill %s', (name) => {
   const skill = readSkill(name);
@@ -24,8 +34,10 @@ describe.each(names)('tool skill %s', (name) => {
     expect(markedWords(skill.text)).toEqual([]);
   });
 
-  it.skipIf(numbered.includes(name))('has no digit outside a quoted world text', () => {
-    expect(unquoted(skill.text)).not.toMatch(/\d/);
+  it('has no digit outside a quoted world text or a listed game number', () => {
+    const allowed = numericClauses[name] ?? [];
+    const rest = allowed.reduce((text, clause) => text.split(clause).join(' '), unquoted(skill.text));
+    expect(rest).not.toMatch(/\d/);
   });
 
   it('never mentions an unbuilt tool, the harness, the budget or the sun', () => {

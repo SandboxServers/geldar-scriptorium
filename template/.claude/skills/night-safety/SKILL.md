@@ -16,12 +16,12 @@ What counts as shelter:
 Beds and sleeping:
 - `sleep` needs a bed close by. Each person sleeps in their own bed: two beds do not hold three people.
 - Sleeping works only at night or in a thunderstorm.
-- A bed cannot be used while monsters are close. The act line says `there are monsters nearby: zombie 6 blocks away`, with the nearest first, up to three, separated by commas, or `there are monsters nearby: none in view`. Only monsters within about 8 blocks to the side and 5 blocks up or down of the bed count: zombies, skeletons, creepers, spiders, endermen, phantoms and the like. Iron golems, snow golems, wolves and bees are never named and never stop sleep.
-- The other refusals are `it is not night`, `the bed is too far away`, `the bed is occupied` and `the bed is obstructed`. With no bed close, the line says `no bed`.
+- A bed cannot be used while monsters are close. The result line says `there are monsters nearby: zombie 6 blocks away`, with the nearest first, up to three, separated by commas, or `there are monsters nearby: none in view`. Only monsters close to the bed count: zombies, skeletons, creepers, spiders, endermen, phantoms and the like. Iron golems and snow golems are never named, and wolves and bees are not counted.
+- The refusals include `it is not night`, `the bed is too far away`, `tried 1 nearby beds, all occupied or blocked; last: the bed is obstructed` (and the same with `the bed is occupied`). With no bed close, the line says `no bed`.
 - The `sleep` tool can instead answer `sleep_refused: Your body would not sleep.`
-- The night is skipped only when at least 50 percent of the people online are asleep at the same time.
-- When your sleep worked, the line is `Your sleep worked: 1 of 2 needed are asleep.` (the numbers are the server's count), or `Your sleep worked: the night was skipped.`, or `Your sleep worked.` when the server sent no count.
-- While you are asleep, `sleep`, `wait` and `note` keep you in bed. Any other action wakes you first. The server wakes you when the night ends.
-- While you are asleep, some of your body's own reflexes do not run: eating (it still runs when hunger is 4 or lower), finding a way round a blocked path, getting unstuck, burrowing and shelter in the dark. Damage in the last second lifts that. Falling, fighting or fleeing, retreating and escaping a hazard still run, and they wake you when they act.
-- The bed you sleep in becomes the place you return to if you die.
+- The night is skipped only when at least 50 percent of the people in the world are asleep at the same time.
+- When your sleep worked, the line is `Your sleep worked: 1 of 2 needed are asleep.` (the numbers are the world's count), or `Your sleep worked: the night was skipped.`, or `Your sleep worked.` when no count came.
+- While you are asleep, `sleep`, `wait` and `note` keep you in bed. Any other action wakes you first, and one that does not wake in time fails with `you are still in bed`. Morning ends your sleep.
+- While you are asleep, some of your body's own reflexes do not run: eating (it still runs when hunger is 4 or lower), finding a way round a blocked path, getting unstuck, burrowing and shelter in the dark. Damage in the last second lifts that. Stopping at a drop, fighting or fleeing, retreating and escaping a hazard still run.
+- The bed you sleep in becomes the place you return to if you die, as long as the bed is still there and clear.
 - If you sleep and nothing has changed since you last slept, the result says so: `Nothing has changed since you last slept: same place, same belongings, same health, no new events.`

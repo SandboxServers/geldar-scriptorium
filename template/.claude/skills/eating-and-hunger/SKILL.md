@@ -17,8 +17,8 @@ Eating on purpose:
 - When you eat, the line reads `You ate cooked_beef: hunger 12 to 20.` (your hunger before and after).
 - Eating restores hunger up to 20 and no further. The part above 20 is lost, so a large food eaten at hunger 18 gives only 2.
 - Cooked meat restores much more than raw meat.
-- Your body eats the largest food you carry that fits the missing hunger (20 minus hunger). If none fits, it eats the one that wastes least.
-- It never eats rotten flesh (unless that is the only food and hunger is 6 or lower), spider eye, poisonous potato, pufferfish, suspicious stew, chorus fruit or buckets. It eats raw chicken only when nothing else is carried and hunger is 6 or lower, and golden apples and golden carrots only when nothing else is carried.
+- Your body eats from the first of these kinds it carries, in this order: ordinary food; raw chicken, when hunger is 6 or lower; golden apples (enchanted ones too) and golden carrots; rotten flesh, when hunger is 6 or lower. Within that kind it takes the largest food that fits the missing hunger (20 minus hunger), else the one that wastes least.
+- It never eats spider eye, poisonous potato, pufferfish, suspicious stew, chorus fruit or buckets.
 - At hunger 20 eating is refused as not hungry. Other refusals name what you carry, for example `only raw chicken is carried; it is eaten only when hunger is 6 or below`.
 
 Food you have seen:
