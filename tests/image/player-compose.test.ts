@@ -214,6 +214,7 @@ describe('player compose: environment contract', () => {
     expect(run).toEqual(
       [
         'DAILY_CAP_USD',
+        'DAILY_TOKEN_CAP',
         'DELAY',
         'FAST_SEC',
         'MAX_DELAY',

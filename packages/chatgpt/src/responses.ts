@@ -73,13 +73,32 @@ export interface Round {
   request?: Fetch;
 }
 
+/** Adds one completion's usage to the running total: input uncached (never below 0), cached and output. */
+function addUsage(total: { input: number; cached: number; output: number }, raw: unknown): void {
+  const usage: Item = record(raw) ? raw : {};
+  const count = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  const details: Item = record(usage.input_tokens_details) ? usage.input_tokens_details : {};
+  const input = count(usage.input_tokens);
+  const cached = count(details.cached_tokens);
+  total.input += Math.max(0, input - cached);
+  total.cached += cached;
+  total.output += count(usage.output_tokens);
+}
+
 /** No shell, arbitrary URLs, vendor tools or host file tools are exposed to this mind. */
 export async function runRound(round: Round): Promise<void> {
   const request = round.request ?? fetch;
   const input: Item[] = [{ role: 'user', content: round.prompt }];
   const byName = new Map(round.tools.map((t) => [t.name, t]));
+  const usage = { input: 0, cached: 0, output: 0 };
   let turns = 0;
   let text = '';
+  // The usage the owned loop's result line reports (input is uncached, see meter.ts).
+  const reported = () => ({
+    input_tokens: usage.input,
+    cached_input_tokens: usage.cached,
+    output_tokens: usage.output,
+  });
   try {
     for (; turns < round.maxTurns; ) {
       const access = await round.access();
@@ -113,6 +132,7 @@ export async function runRound(round: Round): Promise<void> {
         }),
       });
       const result = await completed(res);
+      addUsage(usage, result.usage);
       turns++;
       // Replaying output, including encrypted reasoning, is required with store:false.
       const output = (result.output as unknown[]).filter(record);
@@ -148,6 +168,7 @@ export async function runRound(round: Round): Promise<void> {
           total_cost_usd: 0,
           result: text,
           cost_source: 'unavailable_subscription',
+          usage: reported(),
         });
         return;
       }
@@ -178,6 +199,7 @@ export async function runRound(round: Round): Promise<void> {
       num_turns: turns,
       total_cost_usd: 0,
       cost_source: 'unavailable_subscription',
+      usage: reported(),
     });
     throw err;
   }

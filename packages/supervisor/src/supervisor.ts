@@ -17,6 +17,7 @@ import { join } from 'node:path';
 import type { RunSummary } from '@geldar/scriptorium-verify';
 import { summarizeStream } from '@geldar/scriptorium-verify';
 import type { Deps, ExecSpec } from './deps.ts';
+import { readTokenUsage, tokensToday } from './meter.ts';
 import { buildPrompt, buildTidyPrompt, cleanLastWords } from './prompt.ts';
 import type { Settings } from './settings.ts';
 import { heldPath, statePath } from './settings.ts';
@@ -163,6 +164,8 @@ export class Supervisor {
   /** After a failed tidy: the journal size it left, and the normal runs since. */
   private tidyFailedAt: number | null = null;
   private runsSinceTidyFail = 0;
+  /** The tokens (input plus output) spent today, as tokens.csv last summed them. */
+  private tokenSum = 0;
 
   private readonly settings: Settings;
   private readonly deps: Deps;
@@ -205,6 +208,7 @@ export class Supervisor {
       started: this.started,
       last_result: last,
       cost_today: cost,
+      tokens_today: this.tokenSum,
       upstream_head: this.upstreamHead,
       upstream_result: this.upstreamResult,
       updated: fmt(this.deps.now(), 'stamp'),
@@ -353,12 +357,22 @@ export class Supervisor {
       }
       const e = this.deps.now();
       const sum = costToday(s.stateDir, fmt(e, 'date'));
-      if (sum >= s.dailyCap) {
+      const tokens = tokensToday(s.stateDir, fmt(e, 'date'));
+      this.tokenSum = tokens;
+      const dollars = sum >= s.dailyCap;
+      const tokenCap = s.dailyTokenCap > 0 && tokens >= s.dailyTokenCap;
+      if (dollars || tokenCap) {
         const secs = 86400 - (e % 86400);
         this.deps.say(
-          `The daily cost cap (${s.dailyCap} USD) is reached; waiting for the next day.`,
+          dollars
+            ? `The daily cost cap (${s.dailyCap} USD) is reached; waiting for the next day.`
+            : `The daily token cap (${s.dailyTokenCap} tokens) is reached; waiting for the next day.`,
         );
-        this.log(`cap reached cost=${sum} waiting=${secs}`);
+        this.log(
+          dollars
+            ? `cap reached cost=${sum} waiting=${secs}`
+            : `token cap reached tokens=${tokens} waiting=${secs}`,
+        );
         this.status(n, 'sleeping', last, sum);
         await this.deps.sleep(secs, () => this.shouldStop());
         continue;
@@ -391,6 +405,13 @@ export class Supervisor {
       appendFileSync(this.path('costs.csv'), `${n},${fmt(t1, 'stamp')},${turns},${cost}\n`, {
         mode: 0o600,
       });
+      const u = readTokenUsage(this.path(`session-${n}.jsonl`), s.harness);
+      appendFileSync(
+        this.path('tokens.csv'),
+        `${n},${fmt(t1, 'stamp')},${u.input},${u.cached},${u.output}\n`,
+        { mode: 0o600 },
+      );
+      this.tokenSum = tokensToday(s.stateDir, fmt(t1, 'date'));
       if (tidy) {
         // The tidy counts as failed for its own backoff when the journal is still over the limit.
         // A clean tidy (ok, and its day file or summary changed) lets go of pending.md.

@@ -171,6 +171,45 @@ describe('ChatGPT mind tool loop', () => {
     expect(emitted.at(-1)?.is_error).toBe(true);
   });
 
+  it('reports the usage of every completion: uncached input, cached input and output', async () => {
+    const emitted: Item[] = [];
+    const call = vi.fn(async () => [{ type: 'input_text', text: 'a tree' }]);
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce(
+        sse([
+          response([{ type: 'function_call', name: 'look', call_id: 'c1', arguments: '{}' }], {
+            input_tokens: 100,
+            input_tokens_details: { cached_tokens: 40 },
+            output_tokens: 5,
+          }),
+        ]),
+      )
+      .mockResolvedValueOnce(
+        sse([
+          response([{ type: 'message', content: [{ type: 'output_text', text: 'done' }] }], {
+            input_tokens: 50,
+            input_tokens_details: { cached_tokens: 0 },
+            output_tokens: 3,
+          }),
+        ]),
+      ) as unknown as Fetch;
+    await runRound({
+      model: 'account-model',
+      instructions: '',
+      prompt: '',
+      maxTurns: 3,
+      tools: [{ name: 'look', description: '', parameters: {}, call }],
+      access: async () => 'secret',
+      emit: (item) => emitted.push(item),
+      request,
+    });
+    expect(emitted.at(-1)).toMatchObject({
+      type: 'result',
+      usage: { input_tokens: 110, cached_input_tokens: 40, output_tokens: 8 },
+    });
+  });
+
   it('keeps MCP error text as tool output and never fetches a tool-supplied resource URL', () => {
     expect(
       toolOutput({
