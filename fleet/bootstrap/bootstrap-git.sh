@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Installs the apt packages the launcher clone needs on the fleet VM (Debian 12) and a pinned
 # git. Run as root. Re-runnable: each step checks before it acts.
-# Exit codes: 0 done, 2 not root, 5 a pinned value is FILL_ME, empty or malformed, or the git
-# tarball does not match its checksum (nothing unpacked), 6 git is older than the pin after the
-# install.
+# Exit codes: 0 done, 2 not root, 5 a pinned value is FILL_ME, empty or malformed, versions.env
+# is missing, or the git tarball does not match its checksum (nothing unpacked), 6 git is older
+# than the pin after the install, 7 the download, unpack or build of git failed.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -37,12 +37,13 @@ die() {
 }
 
 # checked_pin KEY prints the value of KEY from versions.env, read as data and never sourced.
-# An empty value or FILL_ME exits 5.
+# An empty value exits 5; FILL_ME exits 5 with its own message.
 checked_pin() {
   local value
   value=$(sed -n "s/^$1=//p" "$here/versions.env" | tail -n 1)
   case "$value" in
-    "" | FILL_ME) die 5 "$1 is FILL_ME or empty in versions.env" ;;
+    "") die 5 "$1 is empty in versions.env" ;;
+    FILL_ME) die 5 "$1 is still FILL_ME in versions.env; the orchestrator fills it" ;;
   esac
   printf '%s' "$value"
 }
@@ -83,17 +84,19 @@ if [ "${#missing[@]}" -gt 0 ]; then
   apt-get install -y -qq "${missing[@]}"
 fi
 
-# Step 2: git. Built only when the installed git is not the pin. The tarball is checked
-# against its sha256 before it is unpacked.
-if [ "$(installed_git)" != "$git_version" ]; then
+# Step 2: git. Built only when the installed git is older than the pin (a newer git is kept).
+# The tarball is checked against its sha256 before it is unpacked.
+if ! version_ge "$(installed_git)" "$git_version"; then
   build_dir=$(mktemp -d)
   trap 'rm -rf "$build_dir"' EXIT
-  curl -fsSL --proto '=https' --tlsv1.2 -o "$build_dir/git.tar.xz" "$git_url"
+  curl -fsSL --proto '=https' --tlsv1.2 -o "$build_dir/git.tar.xz" "$git_url" ||
+    die 7 "download of git failed"
   printf '%s  git.tar.xz\n' "$git_sha256" > "$build_dir/git.sha256"
   (cd "$build_dir" && sha256sum -c git.sha256) ||
     die 5 "git tarball does not match GIT_SHA256; nothing unpacked"
-  tar -xJf "$build_dir/git.tar.xz" -C "$build_dir"
-  make -C "$build_dir/git-$git_version" prefix="$root/usr/local" all install
+  tar -xJf "$build_dir/git.tar.xz" -C "$build_dir" || die 7 "unpacking the git tarball failed"
+  make -C "$build_dir/git-$git_version" prefix="$root/usr/local" all install ||
+    die 7 "building git $git_version failed"
 fi
 
 # Step 3: the final check. The launcher clone needs git 2.47.1 or newer.

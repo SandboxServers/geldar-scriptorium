@@ -70,6 +70,7 @@ interface Setup {
   uid?: string; // what the fake id reports
   shaBad?: boolean; // the fake sha256sum rejects the tarball
   edits?: Record<string, string>; // versions.env keys to replace in the temp copy
+  noVersions?: boolean; // the temp copy has no versions.env at all
 }
 
 interface World {
@@ -109,7 +110,7 @@ function makeWorld(setup: Setup = {}): World {
   for (const [key, value] of Object.entries(setup.edits ?? {})) {
     versions = versions.replace(new RegExp(`^${key}=.*$`, 'm'), `${key}=${value}`);
   }
-  writeFileSync(join(bootstrap, 'versions.env'), versions);
+  if (!setup.noVersions) writeFileSync(join(bootstrap, 'versions.env'), versions);
   for (const [name, body] of Object.entries(FAKE_BODIES)) {
     writeExe(join(world.fakes, name), body);
   }
@@ -205,11 +206,32 @@ describeBash('fleet/bootstrap/bootstrap-git.sh (F-01a)', () => {
     expect(checked).toContain(`${SHA256}  git.tar.xz`);
   }, 60_000);
 
+  it.each([
+    ['a short digest', { GIT_SHA256: SHA256.slice(0, 40) }],
+    ['a non-hex digest', { GIT_SHA256: `${SHA256.slice(0, 63)}g` }],
+  ])('%s exits 5 before any step acts, nothing unpacked', (_name, edits) => {
+    const world = makeWorld({ edits });
+    const r = run(world);
+    expect(r.status).toBe(5);
+    expect(r.stderr).toContain('GIT_SHA256 is not a sha256 hex digest');
+    expect(calls(world)).toEqual([]);
+  }, 60_000);
+
+  it('a missing versions.env exits 5 and nothing is unpacked', () => {
+    const world = makeWorld({ noVersions: true });
+    const r = run(world);
+    expect(r.status).toBe(5);
+    expect(r.stderr).toContain('versions.env is missing');
+    expect(calls(world)).toEqual([]);
+  }, 60_000);
+
   it.each(['GIT_VERSION', 'GIT_URL', 'GIT_SHA256'])(
-    '%s set to FILL_ME exits 5 before any step acts',
+    '%s set to FILL_ME exits 5 with its own message before any step acts',
     (key) => {
       const world = makeWorld({ edits: { [key]: 'FILL_ME' } });
-      expect(run(world).status).toBe(5);
+      const r = run(world);
+      expect(r.status).toBe(5);
+      expect(r.stderr).toContain(`${key} is still FILL_ME`);
       expect(calls(world)).toEqual([]);
     },
     60_000,
@@ -223,6 +245,12 @@ describeBash('fleet/bootstrap/bootstrap-git.sh (F-01a)', () => {
 
   it('git 2.47.1 skips the build', () => {
     const world = makeWorld({ gitVersion: '2.47.1' });
+    expect(run(world).status).toBe(0);
+    expect(madeMake(world)).toBe(false);
+  }, 60_000);
+
+  it('a newer git 2.48.0 is kept: the build is skipped', () => {
+    const world = makeWorld({ gitVersion: '2.48.0' });
     expect(run(world).status).toBe(0);
     expect(madeMake(world)).toBe(false);
   }, 60_000);
@@ -245,6 +273,12 @@ describeBash('fleet/bootstrap/bootstrap-git.sh (F-01a)', () => {
     const world = makeWorld({ gitVersion: '2.47.1' });
     expect(run(world).status).toBe(0);
     expect(madeMake(world)).toBe(false);
+    // Without the seam the script reads the host's real /usr/local/bin/git, which this test
+    // cannot control: when that file exists the seam-off half is skipped, with the reason.
+    if (existsSync('/usr/local/bin/git')) {
+      console.warn('SKIPPED: seam-off half: this host has /usr/local/bin/git, a real git is read');
+      return;
+    }
     run(world, { seam: false });
     expect(madeMake(world)).toBe(true);
   }, 60_000);
