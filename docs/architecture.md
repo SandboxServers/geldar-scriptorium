@@ -45,7 +45,17 @@ sequenceDiagram
   L->>H: fast-forward from START and push
 ```
 
-## The five packages
+## Harnesses
+
+| Harness | Loop owner | How it starts | Tools it can use |
+|---|---|---|---|
+| Claude | The vendor CLI | `claude -p ...`, started by the supervisor | World, memory and git tools over MCP, plus the vendor's permitted file tools under the managed settings |
+| ChatGPT | The kit's loop, `geldar-chatgpt run` | `geldar-chatgpt run`, started by the supervisor | World, memory and git tools over MCP plus three bounded file tools; no shell |
+| Local (planned) | The kit's loop over a chat completions server | Not built | Not built |
+
+The Claude and ChatGPT harnesses read the same character files and keep the same memory, so a player can change harness and keep its memory.
+
+## The packages
 
 | Package | Binary | Role |
 |---|---|---|
@@ -54,6 +64,9 @@ sequenceDiagram
 | `git` | `geldar-git` | MCP `commit_memory`. The only writer of commits, through plumbing. |
 | `verify` | `geldar-verify` | The gate on the host: checks a bundle against the same path rule and the START commit. |
 | `stub-cli` | `claude` (stub) | Scripted stand-in for the vendor CLI. CI only, never shipped. |
+| `supervisor` | `geldar-supervisor` | The run loop inside the player container. |
+| `keeper` | `geldar-keeper` | The gate and push, run by the keeper service of the player group. |
+| `chatgpt` | `geldar-chatgpt` | Sign-in and the ChatGPT loop (`run`). |
 
 At a session end: `geldar-git` makes the commits in the workspace, the bundle container bundles the branch, and `geldar-verify --bundle --start --branch --mode --player-id` answers `{"ok":...,"reasons":[...]}` with stable reason ids. Only an accepted bundle is fetched. Packages: [path-rule](../packages/path-rule/README.md), [memory](../packages/memory/README.md), [git](../packages/git/README.md), [verify](../packages/verify/README.md), [stub-cli](../packages/stub-cli/README.md).
 

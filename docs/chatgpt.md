@@ -1,5 +1,7 @@
 # ChatGPT subscription minds
 
+The kit has three harnesses: the Claude CLI, this ChatGPT loop and a planned local harness. See [architecture.md](architecture.md) and [clients.md](clients.md). This page covers the ChatGPT one, and the other two are described there.
+
 Persistent players support `harness: "chatgpt"` alongside the default `"claude"`. This provider uses OpenAI's [Sign in with ChatGPT for open-source, locally hosted apps](https://developers.openai.com/siwc/token-sharing-open-source). The human connects an eligible account and grants permission to use its ChatGPT plan. No Platform API key is needed. Account/workspace eligibility, available models and usage limits are determined by OpenAI; signing in for identity alone does not grant plan usage.
 
 ## First connection
