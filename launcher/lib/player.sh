@@ -288,7 +288,10 @@ pl_ready() {
     chatgpt_ready "$1" || die 1 chatgpt_no_login "$1"
   elif [ "$PL_HARNESS" = local ]; then
     [[ ${GELDAR_RUN_MODEL:-$PL_MODEL} =~ ^[A-Za-z0-9._:/-]+$ ]] || die 1 local_no_model "$1"
-    [ -f "$d/local/base-url" ] || die 1 local_no_endpoint "$1" "$1"
+    # The base URL must be a regular, non-empty file, not a link.
+    { [ -f "$d/local/base-url" ] && [ ! -L "$d/local/base-url" ] && [ -s "$d/local/base-url" ]; } ||
+      die 1 local_no_endpoint "$1" "$1"
+    # Defensive: read_local_fields refuses a missing context_tokens first.
     [ -n "$PL_CTX" ] || die 1 local_no_context "$1"
   elif [ "$PL_HARNESS" = claude ]; then
     auth_usable || die 1 player_no_login

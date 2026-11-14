@@ -10,10 +10,15 @@ function Read-LocalFields([string]$Id, [string]$Text, $Json) {
     $pat = if ($k -ceq 'images') { '"images"\s*:' } else { '"context_tokens"\s*:' }
     if ([regex]::Matches($Text, $pat).Count -ne 1) { Fail-PlayerJson $Id $k }
   }
-  $ctx = $Json.PSObject.Properties['context_tokens'].Value
+  # A key that is only nested (not at the top level) has no property here: bad_player_json, not a throw.
+  $p = $Json.PSObject.Properties['context_tokens']
+  if (-not $p) { Fail-PlayerJson $Id 'context_tokens' }
+  $ctx = $p.Value
   if (($ctx -isnot [long]) -and ($ctx -isnot [int])) { Fail-PlayerJson $Id 'context_tokens' }
   if ($ctx -lt 1024 -or $ctx -gt 2000000) { Fail-PlayerJson $Id 'context_tokens' }
-  $img = $Json.PSObject.Properties['images'].Value
+  $q = $Json.PSObject.Properties['images']
+  if (-not $q) { Fail-PlayerJson $Id 'images' }
+  $img = $q.Value
   if ($img -isnot [bool]) { Fail-PlayerJson $Id 'images' }
   $script:PL_CTX = [string]$ctx
   $script:PL_IMAGES = if ($img) { 'true' } else { 'false' }

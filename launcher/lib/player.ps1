@@ -276,11 +276,15 @@ function Invoke-PlayerCompose([string]$Id, [string[]]$ComposeArgs) {
   $saved = @{}
   foreach ($n in @($unset + @($set.Keys))) { $saved[$n] = [Environment]::GetEnvironmentVariable($n) }
   try {
-    foreach ($n in $unset) { [Environment]::SetEnvironmentVariable($n, $null) }
+    # Remove-Item drops the variable; SetEnvironmentVariable($n, $null) leaves an empty one for a child process.
+    foreach ($n in $unset) { Remove-Item -LiteralPath "Env:$n" -ErrorAction SilentlyContinue }
     foreach ($k in $set.Keys) { [Environment]::SetEnvironmentVariable($k, [string]$set[$k]) }
     return @(Invoke-Docker compose -p "geldar-player-$Id" -f "$sd/compose/player.yml" @ComposeArgs 2> $null)
   } finally {
-    foreach ($n in $saved.Keys) { [Environment]::SetEnvironmentVariable($n, $saved[$n]) }
+    foreach ($n in $saved.Keys) {
+      if ($null -eq $saved[$n]) { Remove-Item -LiteralPath "Env:$n" -ErrorAction SilentlyContinue }
+      else { [Environment]::SetEnvironmentVariable($n, $saved[$n]) }
+    }
   }
 }
 
@@ -364,7 +368,10 @@ function Assert-PlayerReady([string]$Id) {
     $model = $env:GELDAR_RUN_MODEL
     if (-not $model) { $model = $script:PL_MODEL }
     if ($model -cnotmatch '^[A-Za-z0-9._:/-]+\z') { Die 1 local_no_model $Id }
-    if (-not (Test-Path -LiteralPath (Join-Path (Join-Path $d 'local') 'base-url') -PathType Leaf)) { Die 1 local_no_endpoint $Id $Id }
+    # The base URL must be a regular, non-empty file, not a link.
+    $u = Get-Item -LiteralPath (Join-Path (Join-Path $d 'local') 'base-url') -Force -ErrorAction SilentlyContinue
+    if (-not ($u -and -not $u.PSIsContainer -and -not $u.LinkType -and $u.Length -gt 0)) { Die 1 local_no_endpoint $Id $Id }
+    # Defensive: Read-LocalFields refuses a missing context_tokens first.
     if (-not $script:PL_CTX) { Die 1 local_no_context $Id }
   } elseif ($script:PL_HARNESS -ceq 'claude' -and -not (Test-AuthUsable)) { Die 1 player_no_login }
 }
