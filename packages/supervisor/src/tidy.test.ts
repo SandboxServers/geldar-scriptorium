@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -150,6 +150,26 @@ describe('the memory tidy', () => {
     expect(text).toContain('xxxx');
     expect(text).toContain('yyyy');
   });
+
+  // POSIX only: Windows refuses to rename over a read-only file.
+  it.skipIf(process.platform === 'win32')(
+    'appends to a pending.md it may not write by replacing the file',
+    async () => {
+      const f = makeFixture({ tools: 3 }, limit);
+      setJournal(f, 2000, 'n');
+      writeFileSync(pending(f), 'OLDPENDING\n');
+      chmodSync(pending(f), 0o444);
+      const seen = watch(f);
+      onPoll(f, () => f.supervisor.requestStop());
+      await f.supervisor.run();
+      const text = readFileSync(pending(f), 'utf8');
+      expect(text).toContain('OLDPENDING');
+      expect(text).toContain('nnnn');
+      expect(f.read('supervisor.log')).not.toContain('tidy skipped');
+      expect(seen[0]?.turns).toBe('40');
+      expect(readFileSync(ws(f, 'memory/journal/current.md'), 'utf8')).toBe('# Journal\n');
+    },
+  );
 
   it('removes pending.md only after a tidy that changed the summary or a day file', async () => {
     const f = makeFixture({ tools: 3 }, limit);

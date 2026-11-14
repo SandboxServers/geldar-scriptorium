@@ -565,7 +565,18 @@ export class Supervisor {
     const pending = join(dir, 'pending.md');
     try {
       if (existsSync(pending)) {
-        appendFileSync(pending, `\n${readFileSync(current, 'utf8')}`);
+        // pending.md may belong to the player and refuse the supervisor a write: never write into
+        // it. The combined text goes into a new file of the supervisor's, renamed over it (a rename
+        // needs only the directory).
+        const combined = `${readFileSync(pending, 'utf8')}\n${readFileSync(current, 'utf8')}`;
+        const temp = join(dir, `.pending.tmp-${process.pid}`);
+        try {
+          writeFileSync(temp, combined, { mode: 0o644 });
+          renameSync(temp, pending);
+        } catch (error) {
+          rmSync(temp, { force: true });
+          throw error;
+        }
         rmSync(current, { force: true });
       } else {
         renameSync(current, pending);
