@@ -27,6 +27,15 @@ esac
 [ "$#" -eq 0 ] || gf_die 2 "$usage"
 gf_validate_id "$id"
 
+# log_refusal RC: a refusal (exit 3, 4 or 5) leaves one result line in the fleet log. Other codes
+# are not logged. The trap only logs, so the exit code is the one the refusal chose.
+log_refusal() {
+  case $1 in
+    3 | 4 | 5) gf_log place "$id" "exit$1" "${GF_DIE_MSG:-}" ;;
+  esac
+}
+trap 'log_refusal $?' EXIT
+
 placement=$GF_ROOT/etc/geldar/placement/$id
 
 # read_placement: fills PL_VOL and PL_REPO from the placement file (key=value lines, as data).

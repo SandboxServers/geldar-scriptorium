@@ -1,4 +1,4 @@
-import { execFile, spawnSync } from 'node:child_process';
+import { execFile, spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
   existsSync,
@@ -160,6 +160,28 @@ function runAsync(w: World, args: string[]): Promise<Run> {
   });
 }
 
+// holdLock: runs flock on the lock file and resolves once it is held. release() ends the holder,
+// which drops the lock. Only the test process and the holder share this lock file.
+function holdLock(lock: string): Promise<{ release: () => Promise<void> }> {
+  return new Promise((ready, fail) => {
+    const child = spawn('flock', ['-x', lock, '-c', 'echo held; read _'], {
+      stdio: ['pipe', 'pipe', 'ignore'],
+    });
+    const exited = new Promise<void>((done) => child.on('exit', () => done()));
+    child.on('error', fail);
+    child.stdout.once('data', () => {
+      ready({
+        release: async () => {
+          child.stdin.end();
+          await exited;
+        },
+      });
+    });
+  });
+}
+
+const sleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+
 afterEach(() => {
   for (const r of roots.splice(0)) rmSync(r, { recursive: true, force: true });
 });
@@ -167,14 +189,35 @@ afterEach(() => {
 describe('geldar-fleet-place', () => {
   shellTest('invalid ids exit 2 before any filesystem or launcher action', () => {
     const w = makeWorld();
-    for (const id of ['AG-x', 'ag-', 'ag-a b', '../x', 'ag-a-', `ag-${'a'.repeat(37)}`]) {
-      const r = run(w, [id]);
+    for (const id of [
+      'AG-x',
+      'ag-',
+      'ag-a b',
+      '../x',
+      'ag-a-',
+      'ag-a--b',
+      `ag-${'a'.repeat(37)}`,
+    ]) {
+      const r = run(w, [id, '--reserve']);
       expect(r.status, id).toBe(2);
       expect(r.stdout, id).toBe('');
     }
-    expect(existsSync(w.runLog)).toBe(false);
     expect(existsSync(w.dfLog)).toBe(false);
+    expect(readdirSync(join(w.root, 'etc/geldar/placement'))).toEqual([]);
   });
+
+  shellTest(
+    'the shortest (ag-a) and longest (39 characters) valid ids reserve with a roster',
+    () => {
+      const w = makeWorld();
+      for (const id of ['ag-a', `ag-${'a'.repeat(36)}`]) {
+        roster(w, id);
+        const r = run(w, [id, '--reserve']);
+        expect(r.status, id).toBe(0);
+        expect(placement(w, id), id).toBe(`volume=nvme-d\nrepo=acme/player-${id}\n`);
+      }
+    },
+  );
 
   shellTest('a low volume is skipped, one at exactly min_free_pct is kept', () => {
     const w = makeWorld('5', '10');
@@ -227,16 +270,29 @@ describe('geldar-fleet-place', () => {
   });
 
   shellTest(
-    'two concurrent reserves: one wins, the other waits and then sees the cap',
+    'two reserves wait on a held _global.lock; released, one wins and the other sees the cap',
     async () => {
       const w = makeWorld('1');
       roster(w, 'ag-a-01');
       roster(w, 'ag-b-01');
-      const results = await Promise.all([
+      // The test holds _global.lock itself, so neither reserve may finish while it is held.
+      const holder = await holdLock(join(w.root, 'run/geldar-fleet/_global.lock'));
+      const results = Promise.all([
         runAsync(w, ['ag-a-01', '--reserve']),
         runAsync(w, ['ag-b-01', '--reserve']),
       ]);
-      expect(results.map((r) => r.status).sort()).toEqual([0, 5]);
+      let finished = false;
+      results.then(() => {
+        finished = true;
+      });
+      try {
+        await sleep(500);
+        expect(finished).toBe(false);
+      } finally {
+        await holder.release();
+      }
+      const outcomes = await results;
+      expect(outcomes.map((r) => r.status).sort()).toEqual([0, 5]);
       const written = readdirSync(join(w.root, 'etc/geldar/placement')).filter(
         (f) => !f.startsWith('.'),
       );
@@ -285,7 +341,58 @@ describe('geldar-fleet-place', () => {
     expect(call('start', true).status).toBe(0);
     expect(readFileSync(w.runLog, 'utf8')).toContain('start\tag-a-01');
     expect(call('start', true, { FAKE_RUN_EXIT: '3' }).status).toBe(7);
+    // A 6 from a launcher verb is not the built-ins' "missing": it is a launcher failure.
+    expect(call('start', true, { FAKE_RUN_EXIT: '6' }).status).toBe(7);
     expect(call('check-secrets', true, { FAKE_RUN_MISSING: '1' }).status).toBe(6);
+    expect(call('check-login', true, { FAKE_RUN_MISSING: '1' }).status).toBe(6);
+  });
+
+  shellTest('common.sh reads the seams only with GELDAR_INTERNAL=1', () => {
+    const w = makeWorld();
+    // Sourced with GEL_ROOT, GEL_RUN and GEL_DF set: without the flag they are ignored.
+    const read = (internal: boolean) =>
+      spawnSync(
+        'bash',
+        ['-c', '. "$1"; printf "%s|%s|%s\\n" "$GF_ROOT" "$GF_DF" "$GF_RUN"', 'x', commonSh],
+        { env: envFor(w, internal), encoding: 'utf8' },
+      ).stdout;
+    expect(read(false)).toBe('||sudo -n /usr/local/sbin/geldar-fleet-run\n');
+    expect(read(true)).toBe(`${w.root}|${w.fakeDf}|${fakeRun}\n`);
+  });
+
+  shellTest('a refusal with exit 3, 4 or 5 leaves one result line in the fleet log', () => {
+    const w = makeWorld('1');
+    const log = join(w.root, 'var/log/geldar-hosts.log');
+    for (const v of ['nvme-d', 'nvme-e', 'nvme-g']) setFree(w, v, 5);
+    expect(run(w, ['ag-a-01']).status).toBe(3);
+    // No roster entry and no placement: exit 4.
+    expect(run(w, ['ag-b-01', '--reserve']).status).toBe(4);
+    // One placement at a cap of 1, and a roster for the new id: exit 5.
+    setFree(w, 'nvme-d', 50);
+    roster(w, 'ag-c-01', 'acme/x\n');
+    writeFileSync(join(w.root, 'etc/geldar/placement/ag-c-01'), 'volume=nvme-d\nrepo=acme/x\n');
+    roster(w, 'ag-d-01');
+    expect(run(w, ['ag-d-01', '--reserve']).status).toBe(5);
+    const lines = readFileSync(log, 'utf8').trim().split('\n');
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toMatch(/ place ag-a-01 exit3 no data volume has at least 10% free$/);
+    expect(lines[1]).toMatch(/ place ag-b-01 exit4 no roster entry for this id$/);
+    expect(lines[2]).toMatch(/ place ag-d-01 exit5 max_hosts cap reached$/);
+  });
+
+  shellTest('an unwritable fleet log never changes the exit code of a refusal', () => {
+    const w = makeWorld('1');
+    // A directory where the log file goes makes every write fail.
+    mkdirSync(join(w.root, 'var/log/geldar-hosts.log'), { recursive: true });
+    for (const v of ['nvme-d', 'nvme-e', 'nvme-g']) setFree(w, v, 5);
+    expect(run(w, ['ag-a-01']).status).toBe(3);
+    // No roster entry for this id: exit 4.
+    expect(run(w, ['ag-b-01', '--reserve']).status).toBe(4);
+    setFree(w, 'nvme-d', 50);
+    roster(w, 'ag-c-01', 'acme/x\n');
+    writeFileSync(join(w.root, 'etc/geldar/placement/ag-c-01'), 'volume=nvme-d\nrepo=acme/x\n');
+    roster(w, 'ag-d-01');
+    expect(run(w, ['ag-d-01', '--reserve']).status).toBe(5);
   });
 
   shellTest('a reserved placement file is private to its owner', () => {

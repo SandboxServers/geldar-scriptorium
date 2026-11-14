@@ -21,8 +21,10 @@ fi
 # The wrapper command may carry arguments (sudo -n ...); split it once, without eval.
 read -r -a GF_RUN_ARGV <<<"$GF_RUN"
 
-# gf_die CODE MESSAGE: one line to stderr, then exit with CODE.
+# gf_die CODE MESSAGE: one line to stderr, then exit with CODE. The message is also kept in
+# GF_DIE_MSG for the result line that place.sh logs on a refusal.
 gf_die() {
+  GF_DIE_MSG=$2
   printf '%s\n' "$2" >&2
   exit "$1"
 }
@@ -96,13 +98,13 @@ gf_conf() {
 }
 
 # gf_log VERB ID RESULT DETAIL: one line to the fleet log, control characters removed. Never pass
-# a token, a key or a key path.
+# a token, a key or a key path. Best-effort: an unwritable log never changes the exit code.
 gf_log() {
   local ts clean
   ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   clean=$(printf '%s %s %s %s' "$1" "$2" "$3" "$4" | tr -d '[:cntrl:]')
-  mkdir -p "$GF_ROOT/var/log"
-  printf '%s %s\n' "$ts" "$clean" >>"$GF_ROOT/var/log/geldar-hosts.log"
+  mkdir -p "$GF_ROOT/var/log" 2>/dev/null || true
+  printf '%s %s\n' "$ts" "$clean" 2>/dev/null >>"$GF_ROOT/var/log/geldar-hosts.log" || true
 }
 
 # gf_lock ID: takes the per-id lock (fd 9) for the rest of the script. A holder is exit 8.
@@ -122,12 +124,19 @@ gf_lock_global() {
 }
 
 # gf_run VERB ID [FLAGS...]: the only way the fleet reaches the launcher, through the wrapper.
-# A built-in's 6 passes through; any other non-zero status is exit 7.
+# Only the built-ins check-secrets and check-login map a 6 to exit 6; any other non-zero status,
+# including a 6 from a launcher verb, is exit 7.
 gf_run() {
-  local rc=0
+  local verb=$1 rc=0
   "${GF_RUN_ARGV[@]}" "$@" || rc=$?
   [ "$rc" -eq 0 ] && return 0
-  [ "$rc" -eq 6 ] && gf_die 6 "secret or shared login is missing"
+  case $verb in
+    check-secrets | check-login)
+      if [ "$rc" -eq 6 ]; then
+        gf_die 6 "secret or shared login is missing"
+      fi
+      ;;
+  esac
   gf_die 7 "launcher verb failed"
 }
 

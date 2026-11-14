@@ -32,8 +32,8 @@ Read only when `GELDAR_INTERNAL=1`; otherwise ignored.
 | 3 | no data volume with enough free space |
 | 4 | repo not in the roster or different from the roster or placement; restart of an unknown host |
 | 5 | `max_hosts` cap reached, or `fleet.conf` missing or invalid; the global lock wait ran out |
-| 6 | secret or shared login missing, empty or unreadable by `geldar` |
-| 7 | launcher verb failure (including the wrapper's sudo refusal) |
+| 6 | secret or shared login missing, empty or unreadable by `geldar` (only from the `check-secrets` and `check-login` built-ins) |
+| 7 | launcher verb failure, including a 6 from any other verb and the wrapper's sudo refusal |
 | 8 | another operation holds this id's lock |
 
 ### Placement
@@ -43,3 +43,12 @@ Read only when `GELDAR_INTERNAL=1`; otherwise ignored.
 percentage is below `min_free_pct`; the one with the most free bytes wins. An existing placement
 file wins. `--reserve` takes `_global.lock`, applies the `max_hosts` cap and writes
 `/etc/geldar/placement/<id>`.
+
+`place.sh` has no mountpoint guard: whether `/srv/geldar/nvme-<x>` is really mounted is checked by
+F-01b, not here.
+
+`_global.lock` is not re-entrant. F-02b must call `place.sh --reserve` itself and must not hold
+`_global.lock` around it, or the call deadlocks until the 60-second wait runs out (exit 5).
+
+A refusal (exit 3, 4 or 5) from `place.sh` leaves one result line in `/var/log/geldar-hosts.log`.
+Logging is best-effort: an unwritable log never changes the exit code.
