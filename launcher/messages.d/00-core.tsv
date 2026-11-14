@@ -7,6 +7,6 @@ locked_stale	The launch of %s that held this lock is gone. If you are sure nothi
 missing_tool	%s is needed and was not found. %s
 git_too_old	git %s is too old. Install git 2.40 or newer.
 internal_only	That is not a command.
-cli_unsupported	Codex is not available yet. Only Claude Code works in this version.
+cli_unsupported	Codex is not available yet. Use Claude Code, or chatgpt for persistent players.
 image_unsafe	UNSAFE: using an image that is not pinned by digest. This is for testing only.
 image_refused	That image is not pinned by digest, so it was not used.
