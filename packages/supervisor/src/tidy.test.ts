@@ -89,23 +89,20 @@ describe('the memory tidy', () => {
     expect(seen[1]?.prompt).not.toContain('tidy done');
   });
 
-  it('gives the fresh journal and pending.md mode 0666 under a restrictive umask', async () => {
+  it('gives the fresh journal mode 0666 under a restrictive umask', async () => {
     const old = process.umask(0o027);
     try {
       const f = makeFixture({ tools: 3 }, limit);
       setJournal(f, 2000);
       const modes: number[] = [];
       watch(f, () => {
-        modes.push(
-          statSync(ws(f, 'memory/journal/current.md')).mode & 0o777,
-          statSync(pending(f)).mode & 0o777,
-        );
+        modes.push(statSync(ws(f, 'memory/journal/current.md')).mode & 0o777);
       });
       onPoll(f, () => f.supervisor.requestStop());
       await f.supervisor.run();
       // POSIX only: Windows does not keep these bits.
-      if (process.platform !== 'win32') expect(modes).toEqual([0o666, 0o666]);
-      else expect(modes).toHaveLength(2);
+      if (process.platform !== 'win32') expect(modes).toEqual([0o666]);
+      else expect(modes).toHaveLength(1);
     } finally {
       process.umask(old);
     }

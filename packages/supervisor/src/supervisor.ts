@@ -570,23 +570,31 @@ export class Supervisor {
       } else {
         renameSync(current, pending);
       }
+    } catch (error) {
+      // Nothing was moved: no tidy now, and the backoff keeps it from retrying every cycle.
+      this.log(
+        `tidy skipped: journal move failed (${(error as NodeJS.ErrnoException).code ?? 'error'})`,
+      );
+      this.tidyFailedAt = this.journalSize() ?? 0;
+      this.runsSinceTidyFail = 0;
+      return false;
+    }
+    // The journal is in pending.md now (which the player owns, and keeps its mode). Nothing below
+    // may abort the tidy: a failure is logged and the tidy goes on.
+    try {
       writeFileSync(current, '# Journal\n', { mode: 0o666 });
       try {
         chownSync(current, this.settings.playerUid, this.settings.playerGid);
       } catch {
         // the supervisor is not root (tests, the container): the file keeps its owner
       }
-      // The player runs as another user and must read and append to both files. The supervisor's
-      // umask (027) strips the mode given above, so it is set explicitly.
+      // The player runs as another user and must read and append to the fresh page. The
+      // supervisor's umask (027) strips the mode given above, so it is set explicitly.
       chmodSync(current, 0o666);
-      chmodSync(pending, 0o666);
-      return true;
     } catch (error) {
-      this.log(
-        `tidy skipped: journal move failed (${(error as NodeJS.ErrnoException).code ?? 'error'})`,
-      );
-      return false;
+      this.log(`journal page not fresh (${(error as NodeJS.ErrnoException).code ?? 'error'})`);
     }
+    return true;
   }
 
   /** Whether the next run is a tidy: the journal is over the limit and no failed tidy holds it back. */
