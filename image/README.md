@@ -2,6 +2,8 @@
 
 The container a player's session runs in: the three companion servers (`geldar-memory`, `geldar-git`, `geldar-verify`), the pinned Claude Code CLI, the kit marker and the managed settings. It is published to GHCR and pinned by digest in each `player.json` (H-19). Nothing here lets a human act inside the world.
 
+Persistent players can also use `geldar-chatgpt`, the direct Sign in with ChatGPT adapter from `packages/chatgpt`. It uses the same companions and world proxy, with a separate per-player credential volume. See [ChatGPT setup](../docs/chatgpt.md).
+
 ## Files
 
 | Path | What |

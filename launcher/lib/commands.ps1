@@ -202,7 +202,9 @@ function Verb-archive {
   $code = Invoke-BoundedQuiet 120 @w
   if ($code -ne 0) { Die 1 gh_failed $id archive }
   Invoke-Docker volume rm "geldar-ws-$id" *> $null
+  # A player may have switched providers; archive removes both vendor homes.
   Invoke-Docker volume rm "geldar-cli-$id-claude" *> $null
+  Invoke-Docker volume rm "geldar-cli-$id-chatgpt" *> $null
   Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue
   Say archived $id
 }

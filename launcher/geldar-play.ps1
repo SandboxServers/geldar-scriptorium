@@ -19,6 +19,7 @@ Import-Messages
 if (-not $IsWindows) { [void](Set-Umask 0x3F) }
 
 $GP_VERSION = '0.1.0'
+$script:GP_CLI = 'claude'
 
 # The tools each verb needs on the human's machine (decision 10).
 function Get-VerbNeeds([string]$Verb) {
@@ -28,6 +29,7 @@ function Get-VerbNeeds([string]$Verb) {
     'resolve' { return @('docker', 'git') }
     { $_ -in 'status', 'run_status' } { return @('git') }
     'upgrade' { return @('git', 'gh') }
+    { $_ -in 'chatgpt_login', 'chatgpt_models' } { return @('docker', 'git') }
     { $_ -in 'start', 'stop', 'restart', 'player_status', 'logs', 'deploy_key', 'release_hold', 'sync' } { return @('docker', 'git') }
   }
   return @()
@@ -48,9 +50,11 @@ function Read-CliOption([string[]]$Rest) {
   }
   switch ($cli) {
     'claude' { }
+    'chatgpt' { if ($verb -cne 'new') { Die 1 chatgpt_persistent } }
     'codex' { Die 1 cli_unsupported }
     default { Die 2 usage }
   }
+  $script:GP_CLI = $cli
   return , $out
 }
 
@@ -73,6 +77,7 @@ switch -CaseSensitive ($verb) {
   }
   { $_ -in 'new', 'setup', 'play', 'run', 'run-status', 'run-stop', 'resolve', 'archive', 'status', 'upgrade' } { }
   { $_ -in 'auth-set', 'auth-status', 'auth-clear' } { }
+  { $_ -in 'chatgpt-login', 'chatgpt-models' } { }
   { $_ -in 'start', 'stop', 'restart', 'player-status', 'logs', 'deploy-key', 'release-hold', 'sync' } { }
   default { Die 2 usage }
 }
@@ -103,6 +108,7 @@ if ($verb -ceq 'player-status') { $verb = 'player_status' }
 if ($verb -ceq 'deploy-key') { $verb = 'deploy_key' }
 if ($verb -ceq 'release-hold') { $verb = 'release_hold' }
 if ($isAuth) { $verb = $verb.Replace('-', '_') }
+if ($verb -in 'chatgpt-login', 'chatgpt-models') { $verb = $verb.Replace('-', '_') }
 
 $needs = @(Get-VerbNeeds $verb)
 Need @needs

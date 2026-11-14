@@ -32,6 +32,7 @@ verb_needs() {
     upgrade) printf '%s' 'git perl gh' ;;
     status | run_status) printf '%s' 'git' ;;
     start | stop | restart | player_status | logs | deploy_key | release_hold | sync) printf '%s' 'docker git perl' ;;
+    chatgpt_login | chatgpt_models) printf '%s' 'docker git' ;;
   esac
 }
 
@@ -54,6 +55,7 @@ parse_cli() {
   done
   case $GP_CLI in
     claude) ;;
+    chatgpt) [ "$verb" = new ] || die 1 chatgpt_persistent ;;
     codex) die 1 cli_unsupported ;;
     *) die 2 usage ;;
   esac
@@ -110,6 +112,7 @@ case $verb in
   new | setup | play | run | run-status | run-stop | resolve | archive | status | upgrade) ;;
   start | stop | restart | player-status | logs | deploy-key | release-hold | sync) ;;
   auth-set | auth-status | auth-clear) ;;
+  chatgpt-login | chatgpt-models) ;;
   *) die 2 usage ;;
 esac
 
@@ -149,6 +152,8 @@ case $verb in
   auth-set) verb=auth_set ;;
   auth-status) verb=auth_status ;;
   auth-clear) verb=auth_clear ;;
+  chatgpt-login) verb=chatgpt_login ;;
+  chatgpt-models) verb=chatgpt_models ;;
 esac
 
 # shellcheck disable=SC2046

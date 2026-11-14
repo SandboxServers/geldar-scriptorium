@@ -170,25 +170,47 @@ describe.each(forGroup('commands'))('resolve, archive, status ($name)', (l) => {
 
   describe('5. archive', () => {
     const url = `https://github.com/owner/player-${ID}.git`;
-    it('refuses without the typed line, archives with it, removes state', () => {
-      const w = makeWorld();
-      const { p, go, ghArchives } = prep(l, w);
-      githubOrigin(w, p.origin, p.clone, url);
-      for (const input of ['', 'yes\n', 'archive other\n']) {
-        const r = go(['archive', ID], input);
-        expect(r.status, r.stderr).toBe(1);
-        expect(r.stderr).toContain('Type exactly: archive abc');
-      }
-      expect(ghArchives()).toEqual([]);
-      expect(existsSync(p.stateDir)).toBe(true);
-      const ok = go(['archive', ID], `archive ${ID}\n`);
-      expect(ok.status, ok.stderr).toBe(0);
-      expect(ghArchives()).toHaveLength(1);
-      expect(ghArchives()[0]).toBe('repo\tarchive\towner/player-abc\t--yes');
-      expect(existsSync(p.stateDir)).toBe(false);
-      const vols = w.calls().filter((c) => c[0] === 'volume' && c[1] === 'rm');
-      expect(vols.map((c) => c[2])).toContain(`geldar-cli-${ID}-claude`);
-    });
+    it.each(['claude', 'chatgpt'])(
+      'refuses without the typed line, archives %s with it, removes state and both vendor homes',
+      (harness) => {
+        const w = makeWorld();
+        const { p, go, ghArchives } = prep(l, w);
+        if (harness === 'chatgpt') {
+          const file = join(p.clone, 'player.json');
+          const player = JSON.parse(readFileSync(file, 'utf8'));
+          player.harness = harness;
+          writeFileSync(file, `${JSON.stringify(player, null, 2)}\n`);
+          git(p.clone, [
+            '-c',
+            'commit.gpgsign=false',
+            '-c',
+            'user.name=Fixture',
+            '-c',
+            'user.email=fixture@example.test',
+            'commit',
+            '-am',
+            'select ChatGPT',
+          ]);
+          git(p.clone, ['push', 'origin', 'main']);
+        }
+        githubOrigin(w, p.origin, p.clone, url);
+        for (const input of ['', 'yes\n', 'archive other\n']) {
+          const r = go(['archive', ID], input);
+          expect(r.status, r.stderr).toBe(1);
+          expect(r.stderr).toContain('Type exactly: archive abc');
+        }
+        expect(ghArchives()).toEqual([]);
+        expect(existsSync(p.stateDir)).toBe(true);
+        const ok = go(['archive', ID], `archive ${ID}\n`);
+        expect(ok.status, ok.stderr).toBe(0);
+        expect(ghArchives()).toHaveLength(1);
+        expect(ghArchives()[0]).toBe('repo\tarchive\towner/player-abc\t--yes');
+        expect(existsSync(p.stateDir)).toBe(false);
+        const vols = w.calls().filter((c) => c[0] === 'volume' && c[1] === 'rm');
+        expect(vols.map((c) => c[2])).toContain(`geldar-cli-${ID}-claude`);
+        expect(vols.map((c) => c[2])).toContain(`geldar-cli-${ID}-chatgpt`);
+      },
+    );
 
     it('an unpushed commit: not_pushed and no gh call', () => {
       const w = makeWorld();

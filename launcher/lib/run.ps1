@@ -445,6 +445,7 @@ function Verb-run {
   $env:GELDAR_RUN_MAX_TURNS = [string]$turns
   $d = Get-PlayerDir $id
   Read-Player $id
+  if ($script:PL_HARNESS -cne 'claude') { Die 1 chatgpt_persistent }
   $script:RUN_DIR = Join-Path $d 'run'
   if (Test-RunLink $script:RUN_DIR) { Die 1 bad_state_path }
   New-PrivateDir (Join-Path $d 'run')
