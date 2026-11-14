@@ -4,12 +4,12 @@
 # once the VM user geldar exists (the ssh account; this script never creates it). Re-runnable:
 # each step checks before it acts. The pins and the geldar account are checked first, then
 # bootstrap-git.sh installs the pinned git.
-# Exit codes: 0 done, 1 the self-check failed, 2 not root, 5 a pinned value is FILL_ME, empty or
-# malformed (or versions.env is missing), or the launcher's deploy key or known_hosts is absent
-# when a clone is needed, 6 the VM user geldar is missing or the launcher clone is not at the
-# commit LAUNCHER_COMMIT names, 7 a step failed (any failing command that no check maps). The codes
-# 2, 5, 6 and 7 from bootstrap-git.sh pass through.
-# shellcheck disable=SC2154 # pin sets git_version, launcher_url and launcher_commit by printf -v
+# Exit codes: 0 done, 1 the self-check failed, 2 not root, 5 a pinned value is FILL_ME, empty,
+# malformed (starts with - or has whitespace) or missing from versions.env, or the launcher's deploy
+# key or known_hosts is absent when a clone is needed, 6 the VM user geldar is missing, or the
+# launcher clone has no commit for LAUNCHER_COMMIT or is not at it, 7 a step failed (any failing
+# command that no check maps). The codes 2, 5, 6 and 7 from bootstrap-git.sh pass through; any other
+# failure of bootstrap-git.sh is 7.
 set -Eeuo pipefail
 umask 022
 
@@ -37,16 +37,33 @@ die() {
 trap 'die 7 "step failed at line $LINENO"' ERR
 
 # pin KEY VAR sets VAR to the value of KEY in versions.env, read as data and never sourced. An
-# empty value exits 5; FILL_ME exits 5 with its own message. The value is set here rather than
-# returned through a command substitution, so the exit code is not lost in a subshell.
+# empty value exits 5; FILL_ME exits 5 with its own message; a value that starts with - or has
+# whitespace exits 5 too. The value is set here rather than returned through a command
+# substitution, so the exit code is not lost in a subshell.
 pin() {
   local value
   value=$(sed -n "s/^$1=//p" "$here/versions.env" | tail -n 1)
   case "$value" in
     "") die 5 "$1 is empty in versions.env" ;;
     FILL_ME) die 5 "$1 is still FILL_ME in versions.env; the orchestrator fills it" ;;
+    -* | *[[:space:]]*) die 5 "$1 starts with - or has whitespace in versions.env" ;;
   esac
   printf -v "$2" '%s' "$value"
+}
+
+# launcher_keys_present exits 5 when the launcher's deploy key or its known_hosts file is absent.
+launcher_keys_present() {
+  [ -f "$launcher_key" ] ||
+    die 5 "no launcher deploy key at /etc/geldar/keys/launcher-read; the operator places it (README)"
+  [ -f "$launcher_known_hosts" ] ||
+    die 5 "no known_hosts for the launcher at /etc/geldar/launcher_known_hosts; the operator places it"
+}
+
+# launcher_commit_id prints the commit that LAUNCHER_COMMIT names in the launcher clone. It fails
+# when the clone has no such commit.
+launcher_commit_id() {
+  runuser -u geldar -- env HOME="$home" GIT_TERMINAL_PROMPT=0 \
+    git -C "$clone" rev-parse "$launcher_commit^{commit}" 2>/dev/null
 }
 
 # version_ge A B succeeds when version A is B or newer.
@@ -109,16 +126,28 @@ check() {
 [ "$(id -u)" -eq 0 ] || die 2 "must run as root"
 [ -r "$here/versions.env" ] || die 5 "versions.env is missing"
 
-# All pins and the VM user are checked before any step acts.
+# All pins and the VM user are checked before any step acts. The launcher clone's paths are set
+# here too, so its deploy key and known_hosts are checked before bootstrap-git.sh runs.
+git_version="" launcher_url="" launcher_commit=""
 pin GIT_VERSION git_version
 pin LAUNCHER_URL launcher_url
 pin LAUNCHER_COMMIT launcher_commit
 account_exists geldar ||
   die 6 "the VM user geldar does not exist; it is the ssh account and is never created here"
 home=$(getent passwd geldar | cut -d: -f6)
+etc="$root/etc/geldar"
+clone="$root$home/scriptorium"
+launcher_key="$etc/keys/launcher-read"
+launcher_known_hosts="$etc/launcher_known_hosts"
+git_ssh="ssh -i $launcher_key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$launcher_known_hosts -F /dev/null"
+if [ -d "$clone/.git" ]; then clone_existed=1; else clone_existed=0; fi
+if [ -d "$fleet/bin" ] && [ "$clone_existed" -eq 0 ]; then
+  launcher_keys_present
+fi
 
-# Step 0: the pinned git, which bootstrap-git.sh installs and checks.
-bash "$here/bootstrap-git.sh" || exit $?
+# Step 0: the pinned git, which bootstrap-git.sh installs and checks. Its codes 2, 5, 6 and 7 pass
+# through; any other failure of it is a failed step.
+bash "$here/bootstrap-git.sh" || { rc=$?; case $rc in 2|5|6|7) exit "$rc" ;; *) die 7 "bootstrap-git.sh failed with $rc" ;; esac; }
 
 # Step 1: the data volumes. Each label gets one fstab line (only when none exists for it), a
 # mount point, and players/ owned by geldar.
@@ -150,7 +179,6 @@ own_mode geldar-runner 0755 "$root/opt/geldar-runner"
 
 # Step 3: /etc/geldar (the secret, placement and roster trees), the allow-list, fleet.conf, the
 # host log and the tmpfiles line for the lock directory.
-etc="$root/etc/geldar"
 mkdir -p "$etc/tokens" "$etc/keys" "$etc/placement" "$etc/roster"
 own_mode root:root 0755 "$etc"
 own_mode root:geldar 0750 "$etc/tokens"
@@ -188,27 +216,26 @@ if [ -d "$fleet/bin" ]; then
     ln -sfn "/usr/local/lib/geldar-fleet/bin/$verb.sh" "$root/usr/local/bin/geldar-fleet-$verb" ||
       die 7 "link of geldar-fleet-$verb failed"
   done
-  clone="$root$home/scriptorium"
-  launcher_key="$etc/keys/launcher-read"
-  launcher_known_hosts="$etc/launcher_known_hosts"
-  if [ ! -d "$clone/.git" ]; then
-    [ -f "$launcher_key" ] ||
-      die 5 "no launcher deploy key at /etc/geldar/keys/launcher-read; the operator places it (README)"
-    [ -f "$launcher_known_hosts" ] ||
-      die 5 "no known_hosts for the launcher at /etc/geldar/launcher_known_hosts; the operator places it"
-    runuser -u geldar -- env HOME="$home" GIT_TERMINAL_PROMPT=0 \
-      GIT_SSH_COMMAND="ssh -i $launcher_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$launcher_known_hosts" \
-      git clone --quiet "$launcher_url" "$clone" || die 7 "clone of the launcher failed"
+  if [ "$clone_existed" -eq 0 ]; then
+    runuser -u geldar -- env HOME="$home" GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="$git_ssh" \
+      git clone --quiet -- "$launcher_url" "$clone" || die 7 "clone of the launcher failed"
   fi
+  # The commit that LAUNCHER_COMMIT names must resolve in the clone before the checkout. When the
+  # clone already existed and the commit is not there, its tags are fetched once and the lookup is
+  # retried; a commit still missing exits 6.
+  want=$(launcher_commit_id) || {
+    [ "$clone_existed" -eq 1 ] || die 6 "the launcher clone has no commit for $launcher_commit"
+    launcher_keys_present
+    runuser -u geldar -- env HOME="$home" GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="$git_ssh" \
+      git -C "$clone" fetch --tags --quiet
+    want=$(launcher_commit_id) || die 6 "the launcher clone has no commit for $launcher_commit"
+  }
   runuser -u geldar -- env HOME="$home" GIT_TERMINAL_PROMPT=0 \
     git -C "$clone" checkout --quiet --detach "$launcher_commit" ||
     die 7 "checkout of $launcher_commit failed"
   ln -sfn "$clone/launcher/geldar-play" "$root/usr/local/bin/geldar-play" ||
     die 7 "link of geldar-play failed"
-  # The commit that LAUNCHER_COMMIT names in this clone, and the commit the clone is at.
-  want=$(runuser -u geldar -- env HOME="$home" GIT_TERMINAL_PROMPT=0 \
-    git -C "$clone" rev-parse "$launcher_commit^{commit}") ||
-    die 6 "the launcher clone has no commit for $launcher_commit"
+  # The commit the clone is at, which must be the commit that LAUNCHER_COMMIT names.
   head=$(runuser -u geldar -- env HOME="$home" GIT_TERMINAL_PROMPT=0 \
     git -C "$clone" rev-parse HEAD) || die 7 "rev-parse of the launcher clone failed"
   [ "$head" = "$want" ] || die 6 "the launcher clone is at $head, not $want ($launcher_commit)"

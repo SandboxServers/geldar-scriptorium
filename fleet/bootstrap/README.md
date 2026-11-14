@@ -34,16 +34,19 @@ run:
 
 - `/etc/geldar/keys/launcher-read`: the deploy key, `root:geldar` 0640.
 - `/etc/geldar/launcher_known_hosts`: a known_hosts entry for the git host, provided by the operator
-  and checked by ssh (`StrictHostKeyChecking=yes`).
+  and checked by ssh (`StrictHostKeyChecking=yes`). `root:geldar` 0640, so geldar can read it: the
+  clone runs as geldar and ssh must read the file as geldar.
 
 The clone runs as `geldar` with `GIT_SSH_COMMAND="ssh -i /etc/geldar/keys/launcher-read
--o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/etc/geldar/launcher_known_hosts"`.
-When `~geldar/scriptorium` already exists, the clone and the key are skipped and only the checkout
-runs. When a clone is needed and either file is missing, `bootstrap.sh` exits 5 and names it.
+-o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes
+-o UserKnownHostsFile=/etc/geldar/launcher_known_hosts -F /dev/null"`. When `~geldar/scriptorium`
+already exists, the clone is skipped. When a clone is needed and either file is missing,
+`bootstrap.sh` exits 5 and names it, before `bootstrap-git.sh` runs.
 
-After the checkout, `bootstrap.sh` compares the clone's HEAD with the commit that `LAUNCHER_COMMIT`
-resolves to in that clone. A different commit exits 6. A `LAUNCHER_COMMIT` that does not resolve
-also exits 6.
+Before the checkout, `bootstrap.sh` resolves `LAUNCHER_COMMIT` in the clone. When it does not
+resolve in a clone that already existed, the clone's tags are fetched once (over the same ssh, so
+the same two files are needed) and the lookup is retried. A `LAUNCHER_COMMIT` that still does not
+resolve exits 6. After the checkout, the clone's HEAD must be that commit, or the script exits 6.
 
 ## Confirm git
 
@@ -59,11 +62,13 @@ commands. It prints `bootstrap: ok` when they pass, and otherwise the name of ea
 ## Exit codes
 
 `bootstrap.sh` exits 0 when done, 1 when the self-check fails, 2 when not run as root, 5 for a
-pinned value that is `FILL_ME`, empty or malformed, or for a launcher clone that is needed while the
-deploy key or the known_hosts file is missing, 6 when `geldar` is missing or the launcher clone is
-not at the commit `LAUNCHER_COMMIT` names, and 7 when a step fails. A step that fails without a
-mapped code (for example a directory that cannot be created) exits 7 and names its line. The codes
-2, 5, 6 and 7 from `bootstrap-git.sh` pass through unchanged.
+pinned value that is `FILL_ME`, empty, malformed (starts with `-` or has whitespace) or missing, or
+for a launcher clone that is needed while the deploy key or the known_hosts file is missing, 6 when
+`geldar` is missing, or the launcher clone has no commit for `LAUNCHER_COMMIT` (even after the
+fetch) or is not at it, and 7 when a step fails. A step that fails without a mapped code (for
+example a directory that cannot be created, or a failed fetch) exits 7 and names its line. The
+codes 2, 5, 6 and 7 from `bootstrap-git.sh` pass through unchanged; any other failure of it,
+such as a failed apt-get, exits 7 and names it.
 
 ## Secrets
 

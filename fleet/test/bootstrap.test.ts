@@ -50,7 +50,9 @@ const ROOT_GIT = [
 
 // The git on PATH, which geldar and geldar-runner run through runuser. runuser sets FAKE_RUN_AS to
 // the account, so each account reports its own version. Every other call is logged by name and
-// argv; the clone is faked as a directory, and rev-parse answers from the state files.
+// argv; the clone is faked as a directory, and rev-parse answers from the state files. The state
+// files unknown-ref (no launcher commit resolves, so rev-parse and checkout fail) and tag-missing
+// (the commit resolves only after a fetch) change those answers.
 const FAKE_GIT = [
   'case "$1" in',
   '  --version) echo "git version $(cat "$FAKE_STATE/git-version-$FAKE_RUN_AS")" ;;',
@@ -60,7 +62,13 @@ const FAKE_GIT = [
   '      clone) for a in "$@"; do last=$a; done; mkdir -p "$last/.git" ;;',
   '      -C)',
   '        if [ "$3" = rev-parse ] && [ "$4" = HEAD ]; then cat "$FAKE_STATE/clone-commit"; fi',
-  '        if [ "$3" = rev-parse ] && [ "$4" != HEAD ]; then cat "$FAKE_STATE/pinned-commit"; fi ;;',
+  '        if [ "$3" = rev-parse ] && [ "$4" != HEAD ]; then',
+  '          if [ -e "$FAKE_STATE/unknown-ref" ]; then exit 128; fi',
+  '          if [ -e "$FAKE_STATE/tag-missing" ] && [ ! -e "$FAKE_STATE/fetched" ]; then exit 128; fi',
+  '          cat "$FAKE_STATE/pinned-commit"',
+  '        fi',
+  '        if [ "$3" = fetch ]; then touch "$FAKE_STATE/fetched"; fi',
+  '        if [ "$3" = checkout ] && [ -e "$FAKE_STATE/unknown-ref" ]; then exit 128; fi ;;',
   '    esac ;;',
   'esac',
 ].join('\n');
@@ -74,7 +82,12 @@ const groupEdit = (name: string): string =>
 // account and group databases are fixtures in $FAKE_STATE.
 const FAKE_BODIES: Record<string, string> = {
   id: 'cat "$FAKE_STATE/uid"',
-  'dpkg-query': 'echo "install ok installed"',
+  // Every package is installed, unless the fixture packages-missing exists: then apt-get runs.
+  'dpkg-query': [
+    'if [ -e "$FAKE_STATE/packages-missing" ]; then echo "deinstalled"; else echo "install ok installed"; fi',
+  ].join('\n'),
+  // Fails, so a step that installs packages exits through its failure.
+  'apt-get': 'echo "apt-get $*" >> "$FAKE_STATE/calls.log"\nexit 100',
   // Never a network call: bootstrap-git.sh would only fetch git when the VM has none.
   curl: 'exit 1',
   getent: [
@@ -129,7 +142,11 @@ interface Setup {
   mountFails?: boolean; // every mount fails
   fileWhereDir?: string; // a regular file at this path under GEL_ROOT, where a directory is needed
   noLauncherKey?: boolean; // no launcher deploy key and no known_hosts in the temp tree
+  noKnownHosts?: boolean; // the deploy key is placed but launcher_known_hosts is not
   existingClone?: boolean; // a launcher clone already in the geldar home of the temp tree
+  unknownRef?: boolean; // no launcher commit resolves: the clone's rev-parse and checkout fail
+  tagMissing?: boolean; // the launcher commit resolves only after the clone is fetched
+  packagesMissing?: boolean; // dpkg-query reports the git packages missing, so apt-get runs
 }
 
 interface World {
@@ -227,16 +244,22 @@ function makeWorld(setup: Setup = {}): World {
   if (!setup.noLauncherKey) {
     mkdirSync(join(world.root, 'etc', 'geldar', 'keys'), { recursive: true });
     writeFileSync(join(world.root, 'etc', 'geldar', 'keys', 'launcher-read'), 'placeholder\n');
-    writeFileSync(join(world.root, 'etc', 'geldar', 'launcher_known_hosts'), 'placeholder\n');
+    if (!setup.noKnownHosts) {
+      writeFileSync(join(world.root, 'etc', 'geldar', 'launcher_known_hosts'), 'placeholder\n');
+    }
   }
   if (setup.existingClone) {
     mkdirSync(join(world.root, HOME.slice(1), 'scriptorium', '.git'), { recursive: true });
   }
+  if (setup.unknownRef) writeFileSync(join(world.state, 'unknown-ref'), '');
+  if (setup.tagMissing) writeFileSync(join(world.state, 'tag-missing'), '');
+  if (setup.packagesMissing) writeFileSync(join(world.state, 'packages-missing'), '');
   return world;
 }
 
-// Runs the copied script. GELDAR_INTERNAL=1 turns the GEL_ROOT seam on unless seam is false.
-function run(world: World, opts: { seam?: boolean } = {}) {
+// Runs the copied script. GELDAR_INTERNAL=1 turns the GEL_ROOT seam on unless seam is false. umask
+// runs the script from a shell whose umask is that value, so a test can check the script sets its own.
+function run(world: World, opts: { seam?: boolean; umask?: string } = {}) {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (v === undefined || k.toUpperCase() === 'PATH' || k.startsWith('GEL')) continue;
@@ -246,11 +269,10 @@ function run(world: World, opts: { seam?: boolean } = {}) {
   env.FAKE_STATE = bashPath(world.state);
   env.GEL_ROOT = bashPath(world.root);
   if (opts.seam !== false) env.GELDAR_INTERNAL = '1';
-  const r = spawnSync(
-    bashExe as string,
-    [bashPath(join(world.fleet, 'bootstrap', 'bootstrap.sh'))],
-    { env, encoding: 'utf8', timeout: 120_000 },
-  );
+  const script = bashPath(join(world.fleet, 'bootstrap', 'bootstrap.sh'));
+  const args =
+    opts.umask === undefined ? [script] : ['-c', `umask ${opts.umask}; exec bash "$0"`, script];
+  const r = spawnSync(bashExe as string, args, { env, encoding: 'utf8', timeout: 120_000 });
   return { status: r.status, stderr: r.stderr ?? '' };
 }
 
@@ -432,6 +454,24 @@ describeBash('fleet/bootstrap/bootstrap.sh (F-01b)', () => {
     120_000,
   );
 
+  linuxIt(
+    'the script sets umask 022, so a caller with umask 077 still gets the Contract modes (Linux only)',
+    () => {
+      const world = makeWorld();
+      expect(run(world, { umask: '077' }).status).toBe(0);
+      const modes: Record<string, number> = {
+        'etc/fstab': 0o644,
+        'etc/tmpfiles.d/geldar-fleet.conf': 0o644,
+        'srv/geldar/nvme-d': 0o755,
+        'usr/local/lib/geldar-fleet': 0o755,
+      };
+      for (const [path, mode] of Object.entries(modes)) {
+        expect(statSync(join(world.root, path)).mode & 0o777, path).toBe(mode);
+      }
+    },
+    120_000,
+  );
+
   it('the chown lines follow the Contract owners', () => {
     const world = makeWorld();
     expect(run(world).status).toBe(0);
@@ -475,6 +515,7 @@ describeBash('fleet/bootstrap/bootstrap.sh (F-01b)', () => {
     expect(r.stderr).toContain('the VM user geldar does not exist');
     expect(calls(world)).toEqual([]);
     expect(existsSync(join(world.root, 'etc'))).toBe(false);
+    expect(existsSync(join(world.state, 'root-git-calls'))).toBe(false);
   }, 120_000);
 
   it.each(['LAUNCHER_URL', 'LAUNCHER_COMMIT'])(
@@ -486,19 +527,40 @@ describeBash('fleet/bootstrap/bootstrap.sh (F-01b)', () => {
       expect(r.stderr).toContain(`${key} is still FILL_ME`);
       expect(calls(world)).toEqual([]);
       expect(existsSync(join(world.root, 'etc'))).toBe(false);
+      expect(existsSync(join(world.state, 'root-git-calls'))).toBe(false);
     },
     120_000,
   );
 
-  it('the launcher clone uses ssh with the deploy key and the known_hosts file', () => {
+  it.each([
+    ['LAUNCHER_COMMIT', 'kit-v0.1.0 rc21'],
+    ['LAUNCHER_COMMIT', '--detach'],
+    ['LAUNCHER_URL', '-oProxyCommand=evil'],
+  ])(
+    '%s=%s (whitespace or a leading dash) exits 5 before any step acts',
+    (key, value) => {
+      const world = makeWorld({ edits: { [key]: value }, noLauncherKey: true });
+      const r = run(world);
+      expect(r.status).toBe(5);
+      expect(r.stderr).toContain(`${key} starts with - or has whitespace`);
+      expect(calls(world)).toEqual([]);
+      expect(existsSync(join(world.root, 'etc'))).toBe(false);
+      expect(existsSync(join(world.state, 'root-git-calls'))).toBe(false);
+    },
+    120_000,
+  );
+
+  it('the launcher clone uses ssh with the deploy key, the known_hosts file and no config', () => {
     const world = makeWorld();
     expect(run(world).status).toBe(0);
     const clone = calls(world).find(isClone);
     expect(clone).toBeDefined();
-    expect(clone).toContain('git@github.com:SandboxServers/geldar-scriptorium.git');
+    expect(clone).toContain(
+      ' git clone --quiet -- git@github.com:SandboxServers/geldar-scriptorium.git ',
+    );
     expect(clone).toContain('GIT_TERMINAL_PROMPT=0');
     expect(clone).toContain(
-      `GIT_SSH_COMMAND=ssh -i ${join(world.root, 'etc', 'geldar', 'keys', 'launcher-read')} -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${join(world.root, 'etc', 'geldar', 'launcher_known_hosts')}`,
+      `GIT_SSH_COMMAND=ssh -i ${join(world.root, 'etc', 'geldar', 'keys', 'launcher-read')} -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${join(world.root, 'etc', 'geldar', 'launcher_known_hosts')} -F /dev/null`,
     );
   }, 120_000);
 
@@ -508,6 +570,16 @@ describeBash('fleet/bootstrap/bootstrap.sh (F-01b)', () => {
     expect(r.status).toBe(5);
     expect(r.stderr).toContain('launcher-read');
     expect(calls(world).some(isClone)).toBe(false);
+    expect(existsSync(join(world.state, 'root-git-calls'))).toBe(false);
+  }, 120_000);
+
+  it('a clone needed with the deploy key but no known_hosts exits 5 before bootstrap-git.sh', () => {
+    const world = makeWorld({ noKnownHosts: true });
+    const r = run(world);
+    expect(r.status).toBe(5);
+    expect(r.stderr).toContain('launcher_known_hosts');
+    expect(calls(world)).toEqual([]);
+    expect(existsSync(join(world.state, 'root-git-calls'))).toBe(false);
   }, 120_000);
 
   it('an existing clone skips the clone and the key', () => {
@@ -520,11 +592,56 @@ describeBash('fleet/bootstrap/bootstrap.sh (F-01b)', () => {
     );
   }, 120_000);
 
+  it('an existing clone that lacks the tag is fetched, then the checkout runs', () => {
+    const world = makeWorld({ existingClone: true, tagMissing: true });
+    const r = run(world);
+    expect(r.status).toBe(0);
+    const fetchAt = calls(world).findIndex((c) => c.includes(' fetch --tags --quiet'));
+    const checkoutAt = calls(world).findIndex((c) => c.includes(' checkout --quiet --detach'));
+    expect(fetchAt).toBeGreaterThan(-1);
+    expect(checkoutAt).toBeGreaterThan(fetchAt);
+    expect(calls(world)[fetchAt]).toContain('GIT_SSH_COMMAND=ssh -i');
+  }, 120_000);
+
+  it('an existing clone that lacks the tag and has no deploy key exits 5 without a fetch', () => {
+    const world = makeWorld({ existingClone: true, tagMissing: true, noLauncherKey: true });
+    const r = run(world);
+    expect(r.status).toBe(5);
+    expect(r.stderr).toContain('launcher-read');
+    expect(calls(world).some((c) => c.includes(' fetch '))).toBe(false);
+  }, 120_000);
+
+  it('a fresh clone that lacks the commit exits 6 with no fetch and no checkout', () => {
+    const world = makeWorld({ unknownRef: true });
+    const r = run(world);
+    expect(r.status).toBe(6);
+    expect(r.stderr).toContain('has no commit for kit-v0.1.0-rc21');
+    expect(calls(world).some((c) => c.includes(' fetch '))).toBe(false);
+    expect(calls(world).some((c) => c.includes(' checkout '))).toBe(false);
+  }, 120_000);
+
+  it('an existing clone that still lacks the commit after the fetch exits 6', () => {
+    const world = makeWorld({ existingClone: true, unknownRef: true });
+    const r = run(world);
+    expect(r.status).toBe(6);
+    expect(r.stderr).toContain('has no commit for kit-v0.1.0-rc21');
+    expect(calls(world).some((c) => c.includes(' fetch --tags --quiet'))).toBe(true);
+    expect(calls(world).some((c) => c.includes(' checkout '))).toBe(false);
+  }, 120_000);
+
   it('a clone at the wrong commit exits 6', () => {
     const world = makeWorld({ cloneCommit: OTHER_COMMIT });
     const r = run(world);
     expect(r.status).toBe(6);
     expect(r.stderr).toContain(`not ${PINNED_COMMIT}`);
+  }, 120_000);
+
+  it('a bootstrap-git.sh failure that no code maps exits 7 (apt-get fails)', () => {
+    const world = makeWorld({ packagesMissing: true });
+    const r = run(world);
+    expect(r.status).toBe(7);
+    expect(r.stderr).toContain('bootstrap-git.sh failed with 100');
+    expect(calls(world)).toContain('apt-get update -qq');
   }, 120_000);
 
   it('the VM git older than 2.47.1 at the self-check fails it with exit 1', () => {
@@ -565,6 +682,7 @@ describeBash('fleet/bootstrap/bootstrap.sh (F-01b)', () => {
     expect(run(world).status).toBe(2);
     expect(calls(world)).toEqual([]);
     expect(existsSync(join(world.root, 'etc'))).toBe(false);
+    expect(existsSync(join(world.state, 'root-git-calls'))).toBe(false);
   }, 120_000);
 
   it('ignores GEL_ROOT without GELDAR_INTERNAL=1', () => {
