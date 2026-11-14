@@ -108,7 +108,7 @@ describe('the daily cap', () => {
     expect(f.said.join('\n')).toContain('daily cost cap (15 USD)');
     const costs = f.read('costs.csv').split('\n').filter(Boolean);
     expect(costs).toHaveLength(2);
-    expect(costs[0]).toMatch(/^1,2026-01-10T\d\d:\d\d:\d\dZ,5,20$/);
+    expect(costs[0]).toMatch(/^1,2026-01-10T\d\d:\d\d:\d\dZ,5,20,claude,$/);
     expect(costs[1]).toMatch(/^2,2026-01-11T/);
   });
 

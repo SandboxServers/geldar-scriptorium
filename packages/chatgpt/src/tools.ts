@@ -30,6 +30,21 @@ export function toolOutput(answer: unknown): unknown {
   return blocks.length ? blocks : textOutput('No result.');
 }
 
+/**
+ * The headers of the world connection: the bearer token, and the harness and model stamp when each
+ * value is well formed (an absent or bad value sends no header).
+ */
+export function worldHeaders(env: NodeJS.ProcessEnv): Record<string, string> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${env.GELDAR_MCP_TOKEN ?? ''}`,
+  };
+  const harness = env.GELDAR_HARNESS ?? '';
+  if (/^(claude|chatgpt|local)$/.test(harness)) headers['X-Geldar-Harness'] = harness;
+  const model = env.GELDAR_RUN_MODEL ?? '';
+  if (/^[A-Za-z0-9._:/-]{1,64}$/.test(model)) headers['X-Geldar-Model'] = model;
+  return headers;
+}
+
 export async function connectTools(
   root: string,
   env: NodeJS.ProcessEnv,
@@ -72,7 +87,7 @@ export async function connectTools(
     await world.connect(
       new StreamableHTTPClientTransport(url, {
         requestInit: {
-          headers: { Authorization: `Bearer ${env.GELDAR_MCP_TOKEN ?? ''}` },
+          headers: worldHeaders(env),
           redirect: 'error',
         },
       }),

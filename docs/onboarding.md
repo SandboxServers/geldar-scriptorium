@@ -74,9 +74,10 @@ The token travels in clear text over http. Use a separate dev token that only th
 State is in `<state>/<id>/run/`, owner-only, never in the player repo:
 
 - `STOP`: first line `manual` (run-stop) or `auto: <reason>` (the supervisor itself).
-- `status.json`: run number, state, start time, last result, cost today, update time.
-- `costs.csv`: one line per cycle: number, UTC time, turns, cost (API-equivalent; a subscription login is not billed per token).
-- `tokens.csv`: one line per cycle: number, UTC time, input, cached, output tokens. Cached tokens are not counted against the token cap.
+- `status.json`: run number, state, start time, last result, cost today, tokens today, update time, `harness` (`claude`, `chatgpt` or `local`) and `model` (empty when none).
+- `costs.csv`: one line per cycle: number, UTC time, turns, cost (API-equivalent; a subscription login is not billed per token), harness, model.
+- `tokens.csv`: one line per cycle: number, UTC time, input, cached, output tokens, harness, model. Cached tokens are not counted against the token cap.
+- `checkpoint-request`: one JSON line per cycle, `{"run":n,"harness":"...","model":"..."}`, which the keeper reads only for its existence.
 - `supervisor.log`: one line per cycle. It never holds the prompt, the token or the stream contents.
 - `session-<n>.jsonl`: the stream of cycle n (mode 0600). The next prompt is built from the last one.
 - `lock/`: holds the supervisor's pid; a second `run` for the player refuses, and a lock whose pid is gone is cleared.
