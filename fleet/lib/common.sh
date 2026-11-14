@@ -24,6 +24,8 @@ read -r -a GF_RUN_ARGV <<<"$GF_RUN"
 # gf_die CODE MESSAGE: one line to stderr, then exit with CODE. The message is also kept in
 # GF_DIE_MSG for the result line that place.sh logs on a refusal.
 gf_die() {
+  # GF_DIE_MSG is read by bin/place.sh's exit trap after it sources this file, not in this file.
+  # shellcheck disable=SC2034
   GF_DIE_MSG=$2
   printf '%s\n' "$2" >&2
   exit "$1"
