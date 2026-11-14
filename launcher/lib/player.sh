@@ -155,9 +155,13 @@ TEXT
   case $PLV_harness in
     claude) ;;
     chatgpt) ;;
+    local) ;;
     codex) die 1 harness_unsupported "$id" ;;
     *) pj_fail "$id" 'harness' ;;
   esac
+  PL_CTX=""
+  PL_IMAGES=""
+  if [ "$PLV_harness" = local ]; then read_local_fields "$id" "$text"; fi
   if [ -z "${GELDAR_KIT_IMAGE:-}" ]; then
     valid_kit_image "$PLV_kit_image" || pj_fail "$id" 'kit_image'
   fi
@@ -194,12 +198,14 @@ pl_secrets() {
   d=$(player_dir "$1")
   PL_SECRET_MCP=""
   PL_SECRET_LOGIN=""
+  PL_SECRET_KEY=""
   if [ -f "$d/token" ] && [ ! -L "$d/token" ]; then
     IFS= read -r PL_SECRET_MCP < "$d/token" || true
   fi
   if [ "$PL_HARNESS" = claude ] && auth_usable; then
     PL_SECRET_LOGIN=$(auth_load) || PL_SECRET_LOGIN=""
   fi
+  if [ "$PL_HARNESS" = local ]; then local_key_read "$1"; fi
 }
 
 # pl_compose id args...: docker compose for the player's project. The values are passed in the
@@ -215,12 +221,14 @@ pl_compose() {
   pl_keeper_remote "$id"
   (
     unset GH_TOKEN GITHUB_TOKEN ANTHROPIC_API_KEY GELDAR_DEV_MCP_URL GELDAR_MCP_URL GELDAR_MCP_TOKEN CLAUDE_CODE_OAUTH_TOKEN
+    unset GELDAR_LOCAL_BASE_URL GELDAR_LOCAL_API_KEY GELDAR_LOCAL_CONTEXT_TOKENS GELDAR_LOCAL_IMAGES
     pl_secrets "$id"
     if [ -n "$PL_SECRET_MCP" ]; then export GELDAR_MCP_TOKEN="$PL_SECRET_MCP"; fi
     if [ -n "$PL_SECRET_LOGIN" ]; then export CLAUDE_CODE_OAUTH_TOKEN="$PL_SECRET_LOGIN"; fi
     export KIT_IMAGE="$PL_KIT_IMAGE" GELDAR_ID="$id" GELDAR_KEEPER_REMOTE="$PL_REMOTE" GELDAR_MCP_URL="$PL_MCP_URL"
     export GELDAR_HARNESS="$PL_HARNESS"
     if [ "$PL_HARNESS" = chatgpt ] && [ -z "${GELDAR_RUN_MODEL:-}" ]; then export GELDAR_RUN_MODEL="$PL_MODEL"; fi
+    if [ "$PL_HARNESS" = local ]; then local_export "$id"; fi
     export GELDAR_DEPLOY_KEY_FILE="$d/deploy-key" GELDAR_WORLD_ALLOWLIST="$d/pub/allowlist-world.txt"
     export GELDAR_WORLD_PORTS="$d/pub/allowlist-world-ports.txt"
     docker_cmd compose -p "geldar-player-$id" -f "$share/compose/player.yml" "$@"
@@ -229,10 +237,11 @@ pl_compose() {
 
 # pl_mask: stdin to stdout with the stored secrets and token-like text replaced by [masked].
 pl_mask() {
-  PL_MASK_A=${PL_SECRET_MCP:-} PL_MASK_B=${PL_SECRET_LOGIN:-} perl -pe '
-    BEGIN { $a = $ENV{PL_MASK_A}; $b = $ENV{PL_MASK_B} }
+  PL_MASK_A=${PL_SECRET_MCP:-} PL_MASK_B=${PL_SECRET_LOGIN:-} PL_MASK_C=${PL_SECRET_KEY:-} perl -pe '
+    BEGIN { $a = $ENV{PL_MASK_A}; $b = $ENV{PL_MASK_B}; $c = $ENV{PL_MASK_C} }
     s/\Q$a\E/[masked]/g if length $a;
     s/\Q$b\E/[masked]/g if length $b;
+    s/\Q$c\E/[masked]/g if length $c;
     s/GELDAR_MCP_TOKEN=\S*/GELDAR_MCP_TOKEN=[masked]/g;
     s/sk-ant-[A-Za-z0-9_-]*/[masked]/g;
     s/(CLAUDE_CODE_OAUTH_TOKEN|oauth[_-]?token)[ :=]+\S+/$1 [masked]/gi;
@@ -277,7 +286,11 @@ pl_ready() {
   if [ "$PL_HARNESS" = chatgpt ]; then
     [[ ${GELDAR_RUN_MODEL:-$PL_MODEL} =~ ^[A-Za-z0-9._:/-]+$ ]] || die 1 chatgpt_no_model "$1"
     chatgpt_ready "$1" || die 1 chatgpt_no_login "$1"
-  else
+  elif [ "$PL_HARNESS" = local ]; then
+    [[ ${GELDAR_RUN_MODEL:-$PL_MODEL} =~ ^[A-Za-z0-9._:/-]+$ ]] || die 1 local_no_model "$1"
+    [ -f "$d/local/base-url" ] || die 1 local_no_endpoint "$1" "$1"
+    [ -n "$PL_CTX" ] || die 1 local_no_context "$1"
+  elif [ "$PL_HARNESS" = claude ]; then
     auth_usable || die 1 player_no_login
   fi
 }

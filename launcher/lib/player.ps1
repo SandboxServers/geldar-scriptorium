@@ -174,9 +174,13 @@ function Read-Player([string]$Id, [string]$Rev = 'HEAD') {
   switch -CaseSensitive ($v['harness']) {
     'claude' { }
     'chatgpt' { }
+    'local' { }
     'codex' { Die 1 harness_unsupported $Id }
     default { Fail-PlayerJson $Id 'harness' }
   }
+  $script:PL_CTX = ''
+  $script:PL_IMAGES = ''
+  if ($v['harness'] -ceq 'local') { Read-LocalFields $Id $text $j }
   if (-not $env:GELDAR_KIT_IMAGE -and -not (Test-KitImage $v['kit_image'])) { Fail-PlayerJson $Id 'kit_image' }
   $script:PL_KIT_IMAGE = Resolve-KitImage $v['kit_image']
   $script:PL_MCP_URL = $v['mcp_url']
@@ -214,10 +218,12 @@ function Set-PlayerRemote([string]$Id) {
 function Set-PlayerSecrets([string]$Id) {
   $script:PL_SECRET_MCP = ''
   $script:PL_SECRET_LOGIN = ''
+  $script:PL_SECRET_KEY = ''
   $f = Join-Path (Get-PlayerDir $Id) 'token'
   $i = Get-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
   if ($i -and -not $i.PSIsContainer -and -not $i.LinkType) { $script:PL_SECRET_MCP = Read-FirstLine $f }
   if ($script:PL_HARNESS -ceq 'claude' -and (Test-AuthUsable)) { $script:PL_SECRET_LOGIN = [string](Get-AuthToken) }
+  if ($script:PL_HARNESS -ceq 'local') { Set-LocalSecretKey $Id }
 }
 
 # pl_mask: the stored secrets and token-like text replaced by [masked]; the same rules as the perl filter.
@@ -225,6 +231,7 @@ function Hide-PlayerText([string]$Text) {
   $t = $Text
   if ($script:PL_SECRET_MCP) { $t = $t.Replace($script:PL_SECRET_MCP, '[masked]') }
   if ($script:PL_SECRET_LOGIN) { $t = $t.Replace($script:PL_SECRET_LOGIN, '[masked]') }
+  if ($script:PL_SECRET_KEY) { $t = $t.Replace($script:PL_SECRET_KEY, '[masked]') }
   $t = [regex]::Replace($t, 'GELDAR_MCP_TOKEN=\S*', 'GELDAR_MCP_TOKEN=[masked]')
   $t = [regex]::Replace($t, 'sk-ant-[A-Za-z0-9_-]*', '[masked]')
   return [regex]::Replace($t, '(CLAUDE_CODE_OAUTH_TOKEN|oauth[_-]?token)[ :=]+\S+', '$1 [masked]', 'IgnoreCase')
@@ -245,6 +252,7 @@ function Invoke-PlayerCompose([string]$Id, [string[]]$ComposeArgs) {
   Set-PlayerSecrets $Id
   $sd = Get-ShareDir
   $unset = 'GH_TOKEN', 'GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'GELDAR_DEV_MCP_URL', 'GELDAR_MCP_URL', 'GELDAR_MCP_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'
+  $unset += 'GELDAR_LOCAL_BASE_URL', 'GELDAR_LOCAL_API_KEY', 'GELDAR_LOCAL_CONTEXT_TOKENS', 'GELDAR_LOCAL_IMAGES'
   $set = @{
     KIT_IMAGE = $script:PL_KIT_IMAGE
     GELDAR_ID = $Id
@@ -258,6 +266,13 @@ function Invoke-PlayerCompose([string]$Id, [string[]]$ComposeArgs) {
   if ($script:PL_SECRET_MCP) { $set['GELDAR_MCP_TOKEN'] = $script:PL_SECRET_MCP }
   if ($script:PL_HARNESS -ceq 'chatgpt' -and -not $env:GELDAR_RUN_MODEL) { $set['GELDAR_RUN_MODEL'] = $script:PL_MODEL }
   if ($script:PL_SECRET_LOGIN) { $set['CLAUDE_CODE_OAUTH_TOKEN'] = $script:PL_SECRET_LOGIN }
+  if ($script:PL_HARNESS -ceq 'local') {
+    $set['GELDAR_LOCAL_BASE_URL'] = Get-LocalBaseUrl $Id
+    $set['GELDAR_LOCAL_CONTEXT_TOKENS'] = $script:PL_CTX
+    $set['GELDAR_LOCAL_IMAGES'] = $script:PL_IMAGES
+    if ($script:PL_SECRET_KEY) { $set['GELDAR_LOCAL_API_KEY'] = $script:PL_SECRET_KEY }
+    if (-not $env:GELDAR_RUN_MODEL) { $set['GELDAR_RUN_MODEL'] = $script:PL_MODEL }
+  }
   $saved = @{}
   foreach ($n in @($unset + @($set.Keys))) { $saved[$n] = [Environment]::GetEnvironmentVariable($n) }
   try {
@@ -345,7 +360,13 @@ function Assert-PlayerReady([string]$Id) {
     if (-not $model) { $model = $script:PL_MODEL }
     if ($model -cnotmatch '^[A-Za-z0-9._:/-]+\z') { Die 1 chatgpt_no_model $Id }
     if (-not (Test-ChatGPTReady $Id)) { Die 1 chatgpt_no_login $Id }
-  } elseif (-not (Test-AuthUsable)) { Die 1 player_no_login }
+  } elseif ($script:PL_HARNESS -ceq 'local') {
+    $model = $env:GELDAR_RUN_MODEL
+    if (-not $model) { $model = $script:PL_MODEL }
+    if ($model -cnotmatch '^[A-Za-z0-9._:/-]+\z') { Die 1 local_no_model $Id }
+    if (-not (Test-Path -LiteralPath (Join-Path (Join-Path $d 'local') 'base-url') -PathType Leaf)) { Die 1 local_no_endpoint $Id $Id }
+    if (-not $script:PL_CTX) { Die 1 local_no_context $Id }
+  } elseif ($script:PL_HARNESS -ceq 'claude' -and -not (Test-AuthUsable)) { Die 1 player_no_login }
 }
 
 # start <id>: the checks, the workspace once, then compose up -d (idempotent).
