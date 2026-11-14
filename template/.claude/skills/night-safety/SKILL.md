@@ -21,7 +21,7 @@ Beds and sleeping:
 - The `sleep` tool can instead answer `sleep_refused: Your body would not sleep.`
 - The night is skipped only when at least 50 percent of the people online are asleep at the same time.
 - When your sleep worked, the line is `Your sleep worked: 1 of 2 needed are asleep.` (the numbers are the server's count), or `Your sleep worked: the night was skipped.`, or `Your sleep worked.` when the server sent no count.
-- While you are asleep, `wait` and `note` keep you in bed. Any other action wakes you. You also wake at dawn.
-- While you are asleep your body's own reflexes (eating, unsticking, finding a way round, shelter, burrowing) do not run, except that you wake to eat when hunger is 4 or lower, and damage in the last second wakes your defensive reflexes.
+- While you are asleep, `sleep`, `wait` and `note` keep you in bed. Any other action wakes you first. The server wakes you when the night ends.
+- While you are asleep, some of your body's own reflexes do not run: eating (it still runs when hunger is 4 or lower), finding a way round a blocked path, getting unstuck, burrowing and shelter in the dark. Damage in the last second lifts that. Falling, fighting or fleeing, retreating and escaping a hazard still run, and they wake you when they act.
 - The bed you sleep in becomes the place you return to if you die.
 - If you sleep and nothing has changed since you last slept, the result says so: `Nothing has changed since you last slept: same place, same belongings, same health, no new events.`
