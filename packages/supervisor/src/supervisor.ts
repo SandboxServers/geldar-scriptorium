@@ -109,6 +109,48 @@ async function summarizeFile(path: string): Promise<RunSummary | null> {
   }
 }
 
+/** A usage limit the stream reported: `resetsAt` is epoch seconds, or null when the line has none. */
+export interface UsageLimit {
+  kind: string;
+  resetsAt: number | null;
+}
+
+/** The longest wait for a reset time that is believed; a farther or missing one waits LIMIT_RETRY_SECS. */
+const LIMIT_MAX_SECS = 8 * 86400;
+const LIMIT_RETRY_SECS = 900;
+const LIMIT_SLACK_SECS = 60;
+
+/** Looks for a rate_limit_event line with status "rejected" in a session stream; keeps no stream text. */
+export function findUsageLimit(path: string): UsageLimit | null {
+  let text: string;
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch {
+    return null;
+  }
+  let found: UsageLimit | null = null;
+  for (const line of text.split('\n')) {
+    if (!line.includes('rate_limit_event')) continue;
+    try {
+      const entry = JSON.parse(line) as {
+        type?: unknown;
+        rate_limit_info?: { status?: unknown; resetsAt?: unknown; rateLimitType?: unknown };
+      };
+      const info = entry.rate_limit_info;
+      if (entry.type !== 'rate_limit_event' || info?.status !== 'rejected') continue;
+      const at = info.resetsAt;
+      const type = typeof info.rateLimitType === 'string' ? info.rateLimitType : '';
+      found = {
+        kind: type.startsWith('seven_day') ? 'weekly' : type === 'five_hour' ? '5-hour' : 'usage',
+        resetsAt: typeof at === 'number' && Number.isFinite(at) ? at : null,
+      };
+    } catch {
+      // not a json line
+    }
+  }
+  return found;
+}
+
 /** The loop: one supervisor keeps one player living. It never logs a token, a prompt or stream text. */
 export class Supervisor {
   private stopFlag = false;
@@ -154,6 +196,7 @@ export class Supervisor {
     cost: number,
     held?: string,
     stop?: string,
+    limitedUntil?: string,
   ): void {
     const body = {
       run,
@@ -166,6 +209,7 @@ export class Supervisor {
       updated: fmt(this.deps.now(), 'stamp'),
       ...(held === undefined ? {} : { held_reason: held }),
       ...(stop === undefined ? {} : { stop_reason: stop }),
+      ...(limitedUntil === undefined ? {} : { limited_until: limitedUntil }),
     };
     writePrivate(this.path('status.json'), `${JSON.stringify(body)}\n`);
   }
@@ -360,6 +404,14 @@ export class Supervisor {
       } else if (this.tidyFailedAt !== null) {
         this.runsSinceTidyFail++;
       }
+      // A usage limit is not a failed cycle: no failure count, no backoff, no auto STOP. The
+      // supervisor waits for the reset (the wait ends early on a STOP file or a stop request).
+      const limit = ok ? null : findUsageLimit(this.path(`session-${n}.jsonl`));
+      if (limit !== null) {
+        last = 'limited';
+        await this.waitLimit(n, limit, costToday(s.stateDir, fmt(t1, 'date')));
+        continue;
+      }
       if (ok) {
         fails = 0;
         delay = s.delayBase;
@@ -394,6 +446,23 @@ export class Supervisor {
     this.log('stopped');
     this.deps.say(`The supervisor stopped after run ${n}.`);
     return 0;
+  }
+
+  /** Waits out a usage limit: state `limited` with `limited_until` in status.json, a log line and a say. */
+  private async waitLimit(n: number, limit: UsageLimit, cost: number): Promise<void> {
+    const now = this.deps.now();
+    const at = limit.resetsAt;
+    const until =
+      at !== null && at - now <= LIMIT_MAX_SECS
+        ? Math.max(at, now) + LIMIT_SLACK_SECS
+        : now + LIMIT_RETRY_SECS;
+    const iso = new Date(until * 1000).toISOString();
+    const line = `limited: ${limit.kind} limit reached; waiting until ${iso}`;
+    this.status(n, 'limited', 'limited', cost, undefined, undefined, iso);
+    this.log(line);
+    this.deps.say(line);
+    await this.deps.sleep(until - now, () => this.shouldStop());
+    this.status(n, 'running', 'limited', cost);
   }
 
   /**
