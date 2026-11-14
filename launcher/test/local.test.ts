@@ -199,7 +199,15 @@ describe.each(forGroup('new'))('local model launch ($name)', (l) => {
       p.nested = { images: false };
     });
     storeEndpoint(s.p.stateDir);
-    const r = startLocal(l, s);
+    // The entry script runs under StrictMode, where a missing property would throw: run the libs the same way.
+    const r = runLib(
+      l,
+      {
+        bash: `${bashLibs}verb_start "$TEST_PLAYER_ID"`,
+        pwsh: `Set-StrictMode -Version 3.0; ${pwshLibs}Verb-start $env:TEST_PLAYER_ID`,
+      },
+      { env: { ...s.env, TEST_PLAYER_ID: ID } },
+    );
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('is not valid (images)');
     expect(composeCalls(s.w, 'up')).toHaveLength(0);
