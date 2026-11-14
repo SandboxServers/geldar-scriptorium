@@ -12,3 +12,8 @@ One line per geldar record that shapes this kit (0007 to 0016). The records live
 - [0014](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0014-template-source-in-geldar-scriptorium.md): The template is player-facing only; it is developed in `geldar-scriptorium` and published from there (Changes, Accepted)
 - [0015](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0015-player-birth-and-setup-session.md): Until the Allocator exists, a player is born through the launcher and a one-time setup session (Changes, Accepted)
 - [0016](https://github.com/SandboxServers/geldar/blob/main/docs/decisions/0016-claude-code-settings-errata.md): Appendix J's Claude Code settings, corrected against Claude Code 2.1 (`effortLevel`, per-server MCP timeout, read blocking, settings layers).
+
+Records of this repo (0001, 0002):
+
+- [0001](decisions/0001-chatgpt-subscription-provider.md): Direct ChatGPT subscription provider (Changes, Accepted)
+- [0002](decisions/0002-one-mind-three-harnesses.md): One Mind in the player kit, with a harness per model family; the local-model contract (Changes, D-HC-01 and D-HC-11 accepted, the rest proposed)
