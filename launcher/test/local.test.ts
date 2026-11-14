@@ -14,8 +14,9 @@ import {
 } from './player-support.ts';
 
 const bashLibs = `GP_DIR='${bashPath(join(repoRoot, 'launcher'))}'; for f in "$GP_DIR"/lib/*.sh; do . "$f"; done; `;
+// Skips common.ps1: re-sourcing it would reset the message table that runLib's prelude loaded.
 const pwshLibs =
-  "foreach ($f in (Get-ChildItem (Join-Path $GP_DIR 'lib') -Filter '*.ps1' | Sort-Object Name)) { . $f.FullName }; ";
+  "foreach ($f in (Get-ChildItem (Join-Path $GP_DIR 'lib') -Filter '*.ps1' | Where-Object { $_.Name -ne 'common.ps1' } | Sort-Object Name)) { . $f.FullName }; ";
 
 // Commits a change to the player's player.json in the clone (the launcher reads the committed text).
 function commitPlayer(clone: string, change: (p: Record<string, unknown>) => void) {
@@ -88,7 +89,7 @@ describe.each(forGroup('new'))('local model launch ($name)', (l) => {
     const s = setup(l);
     const r = s.go('play', ID, '--cli', 'local');
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain('local');
+    expect(r.stderr).toContain('Local models use persistent players');
     expect(composeCalls(s.w, 'up')).toHaveLength(0);
   });
 
