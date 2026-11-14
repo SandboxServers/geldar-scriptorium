@@ -24,6 +24,8 @@ export interface Settings {
   tidyMaxTurns: number;
   /** Daily cost cap in USD (UTC day), greater than zero. */
   dailyCap: number;
+  /** Daily token cap (input plus output, UTC day); 0 disables it. */
+  dailyTokenCap: number;
   /** Empty when no model is set. */
   model: string;
   stateDir: string;
@@ -66,6 +68,7 @@ export function readSettings(env: Env): Settings {
   if (!/^[0-9]{1,6}(\.[0-9]{1,4})?$/.test(capText) || !(Number(capText) > 0)) {
     throw new SettingError('GELDAR_RUN_DAILY_CAP_USD');
   }
+  const dailyTokenCap = num(env, 'GELDAR_RUN_DAILY_TOKEN_CAP', 0, 0, 999999999);
   const model = env.GELDAR_RUN_MODEL ?? '';
   if (model !== '' && !/^[A-Za-z0-9._:/-]+$/.test(model))
     throw new SettingError('GELDAR_RUN_MODEL');
@@ -80,6 +83,7 @@ export function readSettings(env: Env): Settings {
     tidyBytes,
     tidyMaxTurns,
     dailyCap: Number(capText),
+    dailyTokenCap,
     model,
     stateDir: env.GELDAR_SUPERVISOR_STATE ?? '/state/supervisor',
     keeperDir: env.GELDAR_KEEPER_STATE ?? '/keeper-state',

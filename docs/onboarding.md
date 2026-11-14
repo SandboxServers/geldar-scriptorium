@@ -76,6 +76,7 @@ State is in `<state>/<id>/run/`, owner-only, never in the player repo:
 - `STOP`: first line `manual` (run-stop) or `auto: <reason>` (the supervisor itself).
 - `status.json`: run number, state, start time, last result, cost today, update time.
 - `costs.csv`: one line per cycle: number, UTC time, turns, cost (API-equivalent; a subscription login is not billed per token).
+- `tokens.csv`: one line per cycle: number, UTC time, input, cached, output tokens. Cached tokens are not counted against the token cap.
 - `supervisor.log`: one line per cycle. It never holds the prompt, the token or the stream contents.
 - `session-<n>.jsonl`: the stream of cycle n (mode 0600). The next prompt is built from the last one.
 - `lock/`: holds the supervisor's pid; a second `run` for the player refuses, and a lock whose pid is gone is cleared.
@@ -90,6 +91,7 @@ Settings come from the environment, and a value outside its bounds is refused (`
 | `GELDAR_RUN_MAX_FAILS` | 5 | 1 to 1000 failures in a row |
 | `GELDAR_RUN_MAX_TURNS` | 300 | 1 to 999999 turns in a cycle |
 | `GELDAR_RUN_DAILY_CAP_USD` | 15 | above 0, up to 6 digits and 4 decimals |
+| `GELDAR_RUN_DAILY_TOKEN_CAP` | 0 | 0 turns it off; otherwise up to 9 digits. Counts input plus output tokens per UTC day and sleeps to the next UTC day like the dollar cap. Claude's `input_tokens` excludes cache reads, so a Claude token cap is a loose bound |
 | `GELDAR_TIDY_BYTES` | 30000 | 0 to 999999999; a journal larger than this gets a memory tidy session first; 0 turns it off |
 | `GELDAR_TIDY_MAX_TURNS` | 40 | 1 to 999999 turns in a tidy session |
 | `GELDAR_RUN_MODEL` | empty (the template's default) | letters, digits and `._:/-` |
