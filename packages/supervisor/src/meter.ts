@@ -15,10 +15,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** A count from a stream or a csv cell: a finite number, capped at CAP; anything else is 0. */
+/** A count from a stream or a csv cell: a finite number, clamped to 0..CAP; anything else is 0. */
 function count(value: unknown): number {
   const n = typeof value === 'string' ? Number(value) : value;
-  return typeof n === 'number' && Number.isFinite(n) ? Math.min(n, CAP) : 0;
+  return typeof n === 'number' && Number.isFinite(n) ? Math.max(0, Math.min(n, CAP)) : 0;
 }
 
 /**

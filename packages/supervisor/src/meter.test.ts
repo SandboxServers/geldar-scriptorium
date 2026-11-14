@@ -44,6 +44,12 @@ describe('readTokenUsage', () => {
   it('counts a non-finite or huge value as 0 or the cap of 1e12', () => {
     const path = session({ input_tokens: 'x', output_tokens: 1e30 });
     expect(readTokenUsage(path, 'chatgpt')).toEqual({ input: 0, cached: 0, output: 1e12 });
+    // A negative count is clamped to 0, so it cannot shrink the day's sum.
+    expect(readTokenUsage(session({ input_tokens: -5 }), 'chatgpt')).toEqual({
+      input: 0,
+      cached: 0,
+      output: 0,
+    });
   });
 });
 
@@ -58,10 +64,12 @@ describe('tokensToday', () => {
         '3,2026-01-09T23:59:59Z,1000,0,1000',
         'garbage',
         '4,2026-01-10T01:00:00Z,x,0,7',
+        '5,2026-01-10T12:00:00Z,-5,0,0',
         '',
       ].join('\n'),
     );
-    // 15 + 50 today; row 3 is yesterday; the garbage line has no date; row 4 counts its x as 0.
+    // 15 + 50 today; row 3 is yesterday; the garbage line has no date; row 4 counts its x as 0;
+    // row 5 counts its -5 as 0 (a negative would shrink the sum).
     expect(tokensToday(dir, '2026-01-10')).toBe(72);
   });
 
