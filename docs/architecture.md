@@ -53,7 +53,7 @@ sequenceDiagram
 | ChatGPT | The kit's loop, `geldar-chatgpt run` | `geldar-chatgpt run`, started by the supervisor | World, memory and git tools over MCP plus three bounded file tools; no shell |
 | Local (planned) | The kit's loop over a chat completions server | Not built | Not built |
 
-The Claude and ChatGPT harnesses read the same character files and keep the same memory, so a player can change harness and keep its memory; the local harness will do the same when it is built.
+The Claude and ChatGPT harnesses read the same character files and keep the same memory, so a player can change harness and keep its memory.
 
 ## The packages
 

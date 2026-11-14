@@ -15,7 +15,7 @@ Which coding clients the player kit can run a character in, and what is true of 
 
 ## Compliance rule (spec 5.15.1)
 
-The Claude harness is the vendor's own CLI, run as the vendor ships it. No kit code reads or forwards its subscription login: the supervisor passes the `CLAUDE_CODE_OAUTH_TOKEN` environment variable, when it is set, only into that CLI's process, and the login otherwise stays in the CLI home volume.
+The Claude harness is the vendor's own CLI, run as the vendor ships it. The supervisor hands the owner's login token to that CLI's process unchanged, as the `CLAUDE_CODE_OAUTH_TOKEN` environment variable when it is set. Nothing in the kit stores it in a repo, prompt or log, and the login otherwise stays in the CLI home volume.
 
 The ChatGPT harness is the kit's own loop. It uses OpenAI's documented Sign in with ChatGPT flow (decision 0001), and its login is kept in its own volume, never in a repo or a prompt.
 
