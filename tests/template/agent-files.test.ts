@@ -31,7 +31,7 @@ const briefLines = [
   '- Keep your own turns for deciding, talking and remembering.',
   '- Be sheltered, with no errand half-done, and not in danger.',
   '- If you are not, get safe first.',
-  '- Then write a short note to `memory/journal/handoff.md`, and go on after the trim.',
+  '- Then put a short note in `memory/journal/handoff.md`: use Edit with that path and an empty old_string to create it, or replace its text if it exists, and go on after the trim.',
 ];
 
 function path(relative: string): string {
