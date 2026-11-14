@@ -469,7 +469,7 @@ describeBash('fleet/bootstrap/bootstrap.sh (F-01b)', () => {
   }, 120_000);
 
   it('a missing geldar exits 6 before any step acts', () => {
-    const world = makeWorld({ noGeldar: true });
+    const world = makeWorld({ noGeldar: true, noLauncherKey: true });
     const r = run(world);
     expect(r.status).toBe(6);
     expect(r.stderr).toContain('the VM user geldar does not exist');
@@ -480,7 +480,7 @@ describeBash('fleet/bootstrap/bootstrap.sh (F-01b)', () => {
   it.each(['LAUNCHER_URL', 'LAUNCHER_COMMIT'])(
     '%s set to FILL_ME exits 5 before any step acts',
     (key) => {
-      const world = makeWorld({ edits: { [key]: 'FILL_ME' } });
+      const world = makeWorld({ edits: { [key]: 'FILL_ME' }, noLauncherKey: true });
       const r = run(world);
       expect(r.status).toBe(5);
       expect(r.stderr).toContain(`${key} is still FILL_ME`);
@@ -561,7 +561,7 @@ describeBash('fleet/bootstrap/bootstrap.sh (F-01b)', () => {
   }, 120_000);
 
   it('refuses to run as non-root', () => {
-    const world = makeWorld({ uid: '1000' });
+    const world = makeWorld({ uid: '1000', noLauncherKey: true });
     expect(run(world).status).toBe(2);
     expect(calls(world)).toEqual([]);
     expect(existsSync(join(world.root, 'etc'))).toBe(false);
@@ -575,7 +575,7 @@ describeBash('fleet/bootstrap/bootstrap.sh (F-01b)', () => {
       console.warn('SKIPPED: seam-off half writes the real paths; it does not run as root');
       return;
     }
-    const world = makeWorld();
+    const world = makeWorld({ noLauncherKey: true });
     const r = run(world, { seam: false });
     expect(existsSync(join(world.root, 'etc'))).toBe(false);
     expect(r.status).not.toBe(0);

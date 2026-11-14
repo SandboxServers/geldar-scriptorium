@@ -9,6 +9,7 @@
 # when a clone is needed, 6 the VM user geldar is missing or the launcher clone is not at the
 # commit LAUNCHER_COMMIT names, 7 a step failed (any failing command that no check maps). The codes
 # 2, 5, 6 and 7 from bootstrap-git.sh pass through.
+# shellcheck disable=SC2154 # pin sets git_version, launcher_url and launcher_commit by printf -v
 set -Eeuo pipefail
 umask 022
 
@@ -49,6 +50,7 @@ pin() {
 }
 
 # version_ge A B succeeds when version A is B or newer.
+# shellcheck disable=SC2317,SC2329 # called only through check, which shellcheck cannot follow
 version_ge() {
   [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n 1)" = "$2" ]
 }
@@ -66,6 +68,7 @@ own_mode() {
 
 # git_ok COMMAND... succeeds when the git that COMMAND runs (`--version` is appended) is the
 # pinned git or newer. An unreadable version is a failure, not an error.
+# shellcheck disable=SC2317,SC2329 # called only through check, which shellcheck cannot follow
 git_ok() {
   local ver
   ver=$("$@" --version 2>/dev/null | awk '{ print $3 }') || true
@@ -73,6 +76,7 @@ git_ok() {
 }
 
 # volumes_ready succeeds when every data volume has its players/ directory.
+# shellcheck disable=SC2317,SC2329 # called only through check, which shellcheck cannot follow
 volumes_ready() {
   local label x
   for label in "${volume_labels[@]}"; do
@@ -82,6 +86,7 @@ volumes_ready() {
 }
 
 # runner_not_privileged succeeds when geldar-runner is in none of docker, sudo and wheel.
+# shellcheck disable=SC2317,SC2329 # called only through check, which shellcheck cannot follow
 runner_not_privileged() {
   local hits
   hits=$(getent group docker sudo wheel 2>/dev/null |
@@ -126,7 +131,7 @@ fi
 for label in "${volume_labels[@]}"; do
   x=${label##*-nvme-}
   mnt="/srv/geldar/nvme-$x"
-  grep -q "^LABEL=$label[[:space:]]" "$root/etc/fstab" ||
+  grep -q "^LABEL=${label}[[:space:]]" "$root/etc/fstab" ||
     echo "LABEL=$label $mnt auto defaults,nofail 0 2" >> "$root/etc/fstab"
   mkdir -p "$root$mnt"
   mountpoint -q "$root$mnt" || mount "$root$mnt" || die 7 "mount of $mnt failed"
