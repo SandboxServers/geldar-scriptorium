@@ -14,6 +14,12 @@ Eating on purpose:
 - `eat` eats food you carry.
 - With no food on you, the result reads `Your eat failed: you lack the materials.`
 - When you are not hungry, the result reads `Your eat failed: that was not possible right now.`
+- When you eat, the line reads `You ate cooked_beef: hunger 12 to 20.` (your hunger before and after).
+- Eating restores hunger up to 20 and no further. The part above 20 is lost, so a large food eaten at hunger 18 gives only 2.
+- Cooked meat restores much more than raw meat.
+- Your body eats the largest food you carry that fits the missing hunger (20 minus hunger). If none fits, it eats the one that wastes least.
+- It never eats rotten flesh (unless that is the only food and hunger is 6 or lower), spider eye, poisonous potato, pufferfish, suspicious stew, chorus fruit or buckets. It eats raw chicken only when nothing else is carried and hunger is 6 or lower, and golden apples and golden carrots only when nothing else is carried.
+- At hunger 20 eating is refused as not hungry. Other refusals name what you carry, for example `only raw chicken is carried; it is eaten only when hunger is 6 or below`.
 
 Food you have seen:
 - `food_known` in your view lists the food your body has seen: animals, crops, berries and food on the ground. It is ordered newest first, and each entry gives its kind and where it is.

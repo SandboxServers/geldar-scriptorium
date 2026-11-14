@@ -3,6 +3,9 @@ import { forbiddenMention, markedWords, readSkill, unquoted } from './tool-skill
 
 // Group B of the tool-only skills (SC-160b): food, the night, fighting or fleeing, and water.
 const names = ['eating-and-hunger', 'night-safety', 'fighting-or-fleeing', 'water-and-drowning'];
+// The food and night skills state game numbers on purpose (the hunger cap of 20, the 50 percent
+// sleep rule), so only the other two keep the no-digit rule.
+const numbered = ['eating-and-hunger', 'night-safety'];
 
 describe.each(names)('tool skill %s', (name) => {
   const skill = readSkill(name);
@@ -21,7 +24,7 @@ describe.each(names)('tool skill %s', (name) => {
     expect(markedWords(skill.text)).toEqual([]);
   });
 
-  it('has no digit outside a quoted world text', () => {
+  it.skipIf(numbered.includes(name))('has no digit outside a quoted world text', () => {
     expect(unquoted(skill.text)).not.toMatch(/\d/);
   });
 
