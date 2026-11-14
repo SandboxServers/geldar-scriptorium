@@ -14,7 +14,7 @@ describe('the token meter', () => {
     });
     onPoll(f, () => f.supervisor.requestStop());
     await f.supervisor.run();
-    expect(f.read('tokens.csv')).toMatch(/^1,\S+,10,4,6\n$/);
+    expect(f.read('tokens.csv')).toMatch(/^1,\S+,10,4,6,claude,\n$/);
   });
 
   it('reads the owned-loop usage shape for the chatgpt harness', async () => {
@@ -24,7 +24,7 @@ describe('the token meter', () => {
     );
     onPoll(f, () => f.supervisor.requestStop());
     await f.supervisor.run();
-    expect(f.read('tokens.csv')).toMatch(/^1,\S+,50,40,3\n$/);
+    expect(f.read('tokens.csv')).toMatch(/^1,\S+,50,40,3,chatgpt,\n$/);
   });
 
   it('sleeps to the next UTC day when the daily token cap is reached, and starts no second run', async () => {

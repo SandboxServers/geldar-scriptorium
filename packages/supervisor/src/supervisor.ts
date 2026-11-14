@@ -82,6 +82,7 @@ export function childEnv(
     GELDAR_MODE: 'play',
     PATH: env.PATH ?? SYSTEM_PATH,
     GELDAR_RUN_MAX_TURNS: String(maxTurns),
+    GELDAR_HARNESS: settings.harness,
   };
   if (settings.harness === 'chatgpt') out.NODE_USE_ENV_PROXY = '1';
   if (settings.model !== '') out.GELDAR_RUN_MODEL = settings.model;
@@ -209,6 +210,8 @@ export class Supervisor {
       last_result: last,
       cost_today: cost,
       tokens_today: this.tokenSum,
+      harness: this.settings.harness,
+      model: this.settings.model,
       upstream_head: this.upstreamHead,
       upstream_result: this.upstreamResult,
       updated: fmt(this.deps.now(), 'stamp'),
@@ -389,7 +392,11 @@ export class Supervisor {
       const t1 = this.deps.now();
       const secs = t1 - t0;
       await this.save();
-      writePrivate(this.path('checkpoint-request'), `${n}\n`, 0o644);
+      writePrivate(
+        this.path('checkpoint-request'),
+        `${JSON.stringify({ run: n, harness: s.harness, model: s.model })}\n`,
+        0o644,
+      );
       const done = await summarizeFile(this.path(`session-${n}.jsonl`));
       const turns = done?.turns ?? 0;
       const cost = done?.cost ?? 0;
@@ -402,13 +409,15 @@ export class Supervisor {
         !done.is_error &&
         done.result_seen &&
         (secs >= s.fastSec || !noCalls);
-      appendFileSync(this.path('costs.csv'), `${n},${fmt(t1, 'stamp')},${turns},${cost}\n`, {
-        mode: 0o600,
-      });
+      appendFileSync(
+        this.path('costs.csv'),
+        `${n},${fmt(t1, 'stamp')},${turns},${cost},${s.harness},${s.model}\n`,
+        { mode: 0o600 },
+      );
       const u = readTokenUsage(this.path(`session-${n}.jsonl`), s.harness);
       appendFileSync(
         this.path('tokens.csv'),
-        `${n},${fmt(t1, 'stamp')},${u.input},${u.cached},${u.output}\n`,
+        `${n},${fmt(t1, 'stamp')},${u.input},${u.cached},${u.output},${s.harness},${s.model}\n`,
         { mode: 0o600 },
       );
       this.tokenSum = tokensToday(s.stateDir, fmt(t1, 'date'));
