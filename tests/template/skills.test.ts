@@ -122,6 +122,26 @@ describe('play skill', () => {
     expect(body.indexOf('## Crafting')).toBeLessThan(body.indexOf('## Reading your results'));
   });
 
+  it('teaches tilling: how to try it, what can be tilled, and the five reasons', () => {
+    for (const line of [
+      '## Tilling',
+      'To turn ground into farmland, call `act` with `till` and the place, as x, y and z.',
+      'You need a hoe of any kind in your pack; it is taken into your hand for the work.',
+      'Dirt, grass and a dirt path become farmland.',
+      'Coarse dirt and rooted dirt become plain dirt, and plain dirt can then be tilled.',
+      'Nothing else can be tilled.',
+      'The block above the place must be clear air, and the place must be close to you.',
+      '"no hoe in the inventory"',
+      '"that block cannot be tilled"',
+      '"the block above is not clear"',
+      '"that block is someone else\'s work"',
+      '"the block did not change"',
+    ]) {
+      expect(body).toContain(line);
+    }
+    expect(body.indexOf('## Tilling')).toBeLessThan(body.indexOf('## Signs and books'));
+  });
+
   it('teaches signs and books: write_sign with the words, read_book when you hold a book, and their exact lines', () => {
     for (const line of [
       '## Signs and books',
