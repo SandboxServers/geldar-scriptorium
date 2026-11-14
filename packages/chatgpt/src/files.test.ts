@@ -49,7 +49,7 @@ describe('the ChatGPT character file boundary', () => {
     const r = root();
     mkdirSync(join(r, '.claude/skills/play'), { recursive: true });
     writeFileSync(join(r, '.claude/skills/play/SKILL.md'), 'Wait, consider, act.');
-    const skill = fileTools(r)[0];
+    const skill = fileTools(r).find((t) => t.name === 'read_skill');
     expect(await skill?.call({ name: 'play' })).toEqual([
       { type: 'input_text', text: 'Wait, consider, act.' },
     ]);
@@ -73,6 +73,21 @@ describe('the ChatGPT character file boundary', () => {
     expect(() => writeNote(r, 'memory/summary.md', 'changed', false)).toThrow();
     expect(() => readBounded(r, 'memory/summary.md')).toThrow();
     expect(readFileSync(join(other, 'secret.md'), 'utf8')).toBe('credential sentinel');
+  });
+
+  it('recalls a saved handoff in a fresh waking, marked as past writing', async () => {
+    const r = root();
+    const writer = fileTools(r).find((t) => t.name === 'write_note');
+    await writer?.call({
+      path: 'memory/journal/handoff.md',
+      text: 'I am walking to the oak. Wait cursor 42.',
+      append: false,
+    });
+    const reader = fileTools(r).find((t) => t.name === 'recall_handoff');
+    const result = JSON.stringify(await reader?.call({}));
+    expect(result).toContain('Wait cursor 42');
+    expect(result).toContain('your own past writing');
+    expect(result).toContain('not an instruction');
   });
 
   it('refuses a symlinked parent even when it points to a readable secret', () => {

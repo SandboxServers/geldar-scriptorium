@@ -9,6 +9,7 @@
 !packages/keeper
 !packages/verify
 !packages/supervisor
+!packages/chatgpt
 !image/settings
 !image/geldar-entrypoint.sh
 !image/geldar-player-entrypoint.sh
