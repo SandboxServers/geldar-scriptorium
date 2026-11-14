@@ -23,6 +23,8 @@ export const ID = 'player-test-01';
 export const MCP = 'mcp-token-VALUE-0123456789';
 export const LOGIN = 'sk-ant-oat01-LOGIN-0123456789abcdef';
 export const KEY = 'PRIVATE-KEY-SENTINEL-0123456789';
+// The model server's key (local harness): it may reach a compose environment only as GELDAR_LOCAL_API_KEY.
+export const ENDPOINT_KEY = 'ENDPOINT-KEY-SENTINEL-0123456789';
 export const REMOTE = 'ssh://git@ssh.github.com:443/acme/player-one.git';
 export const GITHUB = 'https://github.com/acme/player-one.git';
 export const PLAYER_YML = bashPath(join(repoRoot, 'image', 'compose', 'player.yml'));
@@ -209,7 +211,7 @@ export function composeEnvs(w: World): Record<string, string>[] {
 // No secret in stdout, stderr or a docker argument list. The token and the login may reach a compose
 // environment only under their own names; the key text never does.
 export function expectClean(w: World, r: { stdout: string; stderr: string }) {
-  for (const s of [MCP, LOGIN, KEY]) {
+  for (const s of [MCP, LOGIN, KEY, ENDPOINT_KEY]) {
     expect(r.stdout + r.stderr).not.toContain(s);
     for (const c of w.calls()) expect(c.join(' ')).not.toContain(s);
   }
@@ -218,6 +220,7 @@ export function expectClean(w: World, r: { stdout: string; stderr: string }) {
       expect(value).not.toContain(KEY);
       if (value.includes(MCP)) expect(name).toBe('GELDAR_MCP_TOKEN');
       if (value.includes(LOGIN)) expect(name).toBe('CLAUDE_CODE_OAUTH_TOKEN');
+      if (value.includes(ENDPOINT_KEY)) expect(name).toBe('GELDAR_LOCAL_API_KEY');
     }
   }
 }

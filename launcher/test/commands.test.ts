@@ -209,6 +209,7 @@ describe.each(forGroup('commands'))('resolve, archive, status ($name)', (l) => {
         const vols = w.calls().filter((c) => c[0] === 'volume' && c[1] === 'rm');
         expect(vols.map((c) => c[2])).toContain(`geldar-cli-${ID}-claude`);
         expect(vols.map((c) => c[2])).toContain(`geldar-cli-${ID}-chatgpt`);
+        expect(vols.map((c) => c[2])).toContain(`geldar-cli-${ID}-local`);
       },
     );
 

@@ -46,6 +46,9 @@ function Write-PlayerJson([string]$Path, [string]$Id, [string]$Shard, [string]$U
     elseif ($l.StartsWith('  "mcp_url": ', [StringComparison]::Ordinal)) { $l = "  `"mcp_url`": `"$Url`"," }
     elseif ($l.StartsWith('  "harness": ', [StringComparison]::Ordinal)) { $l = "  `"harness`": `"$script:GP_CLI`"," }
     elseif ($l.StartsWith('  "declared_model": ', [StringComparison]::Ordinal) -and $script:GP_CLI -ceq 'chatgpt') { $l = '  "declared_model": "",' }
+    elseif ($l.StartsWith('  "declared_model": ', [StringComparison]::Ordinal) -and $script:GP_CLI -ceq 'local') {
+      $l = "  `"declared_model`": `"`",`n  `"context_tokens`": 8192,`n  `"images`": false,"
+    }
     $lines[$i] = $l
   }
   [System.IO.File]::WriteAllText("$Path.new", ($lines -join "`n"), $utf8)
@@ -383,6 +386,7 @@ function Copy-TemplateInto([string]$Url, [string]$Tag, [string]$Clone) {
   }
   # --kit-version only means something with --repo: it names the template release to copy.
   if ($script:GP_CLI -ceq 'chatgpt' -and -not $havePersona) { Die 1 chatgpt_persona }
+  if ($script:GP_CLI -ceq 'local' -and -not $havePersona) { Die 1 local_persona }
   if ($kit -and -not $repo) { Die 1 kit_version_bad }
   if (-not [regex]::IsMatch($shard, '^[a-z][a-z0-9-]{0,30}\z')) { Die 1 bad_shard }
   if ($mock) {
@@ -496,5 +500,6 @@ function Copy-TemplateInto([string]$Url, [string]$Tag, [string]$Clone) {
   [System.IO.File]::WriteAllText((Join-Path $d 'branch'), "$brText`n", $utf8)
   if ($token) { Write-TokenFile (Join-Path $d 'token') $token }
   if ($script:GP_CLI -ceq 'chatgpt') { Say chatgpt_created $id $id }
+  elseif ($script:GP_CLI -ceq 'local') { Say local_created $id $id }
   elseif ($havePersona) { Say created_seeded $id $id } else { Say created $id $id }
 }
