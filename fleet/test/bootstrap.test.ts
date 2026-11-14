@@ -11,6 +11,7 @@ import {
   fstabLines,
   GROUPS,
   HOME,
+  isClone,
   linuxIt,
   makeWorld,
   run,
