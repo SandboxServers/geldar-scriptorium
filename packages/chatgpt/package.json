@@ -1,0 +1,15 @@
+{
+  "name": "@geldar/scriptorium-chatgpt",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Subscription-backed Geldar minds through Sign in with ChatGPT",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "dependencies": {
+    "@geldar/scriptorium-path-rule": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "jose": "6.2.15"
+  }
+}

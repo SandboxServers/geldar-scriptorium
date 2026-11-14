@@ -231,6 +231,7 @@ verb_run() {
   export GELDAR_RUN_MAX_TURNS=$turns
   d=$(player_dir "$id")
   read_player "$id"
+  [ "$PL_HARNESS" = claude ] || die 1 chatgpt_persistent
   RUN_DIR="$d/run"
   if [ -L "$RUN_DIR" ]; then die 1 bad_state_path; fi
   private_mkdir "$d/run"

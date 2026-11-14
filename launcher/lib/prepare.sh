@@ -118,6 +118,7 @@ prepare_session() {
   fi
   # The validated values belong to the exported commit (N4).
   read_player "$id" "$start"
+  [ "$PL_HARNESS" = claude ] || die 1 chatgpt_persistent
   say start_recorded "${start:0:12}"
 
   case $sd in

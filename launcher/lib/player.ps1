@@ -173,6 +173,7 @@ function Read-Player([string]$Id, [string]$Rev = 'HEAD') {
   if (-not (Test-McpUrl $v['mcp_url'])) { Fail-PlayerJson $Id 'mcp_url' }
   switch -CaseSensitive ($v['harness']) {
     'claude' { }
+    'chatgpt' { }
     'codex' { Die 1 harness_unsupported $Id }
     default { Fail-PlayerJson $Id 'harness' }
   }
@@ -182,6 +183,7 @@ function Read-Player([string]$Id, [string]$Rev = 'HEAD') {
   $script:PL_NAME = $v['name']
   $script:PL_SHARD = $v['shard']
   $script:PL_MODEL = $v['declared_model']
+  $script:PL_HARNESS = $v['harness']
 }
 
 # SC-163b: the persistent player (decision 64), the twin of lib/player.sh. One compose project per
@@ -215,7 +217,7 @@ function Set-PlayerSecrets([string]$Id) {
   $f = Join-Path (Get-PlayerDir $Id) 'token'
   $i = Get-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
   if ($i -and -not $i.PSIsContainer -and -not $i.LinkType) { $script:PL_SECRET_MCP = Read-FirstLine $f }
-  if (Test-AuthUsable) { $script:PL_SECRET_LOGIN = [string](Get-AuthToken) }
+  if ($script:PL_HARNESS -ceq 'claude' -and (Test-AuthUsable)) { $script:PL_SECRET_LOGIN = [string](Get-AuthToken) }
 }
 
 # pl_mask: the stored secrets and token-like text replaced by [masked]; the same rules as the perl filter.
@@ -248,11 +250,13 @@ function Invoke-PlayerCompose([string]$Id, [string[]]$ComposeArgs) {
     GELDAR_ID = $Id
     GELDAR_KEEPER_REMOTE = $script:PL_REMOTE
     GELDAR_MCP_URL = $script:PL_MCP_URL
+    GELDAR_HARNESS = $script:PL_HARNESS
     GELDAR_DEPLOY_KEY_FILE = "$d/deploy-key"
     GELDAR_WORLD_ALLOWLIST = "$d/pub/allowlist-world.txt"
     GELDAR_WORLD_PORTS = "$d/pub/allowlist-world-ports.txt"
   }
   if ($script:PL_SECRET_MCP) { $set['GELDAR_MCP_TOKEN'] = $script:PL_SECRET_MCP }
+  if ($script:PL_HARNESS -ceq 'chatgpt' -and -not $env:GELDAR_RUN_MODEL) { $set['GELDAR_RUN_MODEL'] = $script:PL_MODEL }
   if ($script:PL_SECRET_LOGIN) { $set['CLAUDE_CODE_OAUTH_TOKEN'] = $script:PL_SECRET_LOGIN }
   $saved = @{}
   foreach ($n in @($unset + @($set.Keys))) { $saved[$n] = [Environment]::GetEnvironmentVariable($n) }
@@ -336,7 +340,12 @@ function Assert-PlayerReady([string]$Id) {
   $d = Get-PlayerDir $Id
   if (-not (Test-Path -LiteralPath "$d/deploy-key" -PathType Leaf)) { Die 1 player_no_key $Id }
   if (-not (Test-Path -LiteralPath "$d/token" -PathType Leaf)) { Die 1 player_no_token $Id }
-  if (-not (Test-AuthUsable)) { Die 1 player_no_login }
+  if ($script:PL_HARNESS -ceq 'chatgpt') {
+    $model = $env:GELDAR_RUN_MODEL
+    if (-not $model) { $model = $script:PL_MODEL }
+    if ($model -cnotmatch '^[A-Za-z0-9._:/-]+\z') { Die 1 chatgpt_no_model $Id }
+    if (-not (Test-ChatGPTReady $Id)) { Die 1 chatgpt_no_login $Id }
+  } elseif (-not (Test-AuthUsable)) { Die 1 player_no_login }
 }
 
 # start <id>: the checks, the workspace once, then compose up -d (idempotent).

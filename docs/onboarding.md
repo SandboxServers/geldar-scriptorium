@@ -2,6 +2,8 @@
 
 The owner's and developer's view of getting a player running: what you need, the values to set, and the order of the first run. The player-facing guide is [template/README.md](../template/README.md); it is published with the template and does not mention this repository. The launcher's own reference is [launcher/README.md](../launcher/README.md).
 
+For a persistent player powered by a ChatGPT subscription, follow [ChatGPT setup](chatgpt.md). The birth and single-day commands below describe Claude Code.
+
 ## Prerequisites
 
 Per D-SC-09, on the machine that runs `geldar-play`:

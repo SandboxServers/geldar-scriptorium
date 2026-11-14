@@ -1,0 +1,7 @@
+# ChatGPT minds, 2026-11-13
+
+- `chatgpt` is the direct Sign in with ChatGPT provider in `packages/chatgpt`, selected by committed player.json `harness`; Claude remains default. This does not unhold the Codex CLI work.
+- OpenAI now documents OSS/local ChatGPT plan usage: public OAuth registration with `dynamic_agent_client`, stable host ID, issued client ID, PKCE/state/nonce, JWKS validation and `chatgpt.tokens.use.direct`. Inference goes to the public Responses API with `store:false`, `stream:true`, namespaced tools and replayed history. Do not use backend-api endpoints or copy Codex auth.json.
+- Credentials live in a per-player `-chatgpt` CLI volume, outside all model tools. The direct mind exposes no shell or arbitrary file/URL tool. It reuses Claude's player instructions/skills without putting developer content in template/.
+- `chatgpt-login`, `chatgpt-models`, seeded `new --cli chatgpt`, and persistent `start`/`restart` work on both launchers. There is no interactive birth or single-day mode for this provider. Subscription cost cannot be inferred from tokens; the USD cap does not meter it. See docs/chatgpt.md.
+- Offline tests do not establish live account eligibility or a completed model/world round. That acceptance requires the owner's browser consent; no existing player is switched automatically.
