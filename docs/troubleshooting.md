@@ -92,8 +92,8 @@ What to do. Use the verbs the README lists.
 
 ### cli_unsupported
 What it means. You asked for the Codex CLI, which is not available yet.
-Why it is safe. The launcher refuses the option before it starts anything. Only Claude Code runs in this version.
-What to do. Run with Claude Code.
+Why it is safe. The launcher refuses the unsupported CLI option before it starts anything.
+What to do. Use Claude Code, or select `chatgpt` for a persistent player as described in [ChatGPT setup](chatgpt.md).
 
 ### image_unsafe
 What it means. The test switch GELDAR_UNSAFE_IMAGE is set, so the launcher is using a kit image that is not pinned by digest.
@@ -167,8 +167,8 @@ What to do. Correct the file to the format the README describes, or create the p
 
 ### harness_unsupported
 What it means. The player asks for a program this version cannot run.
-Why it is safe. The launcher refuses before it starts a container. Only Claude Code runs in this version.
-What to do. Set the player to use Claude Code.
+Why it is safe. The launcher refuses before it starts a container for the unsupported program.
+What to do. Select `claude`, or `chatgpt` for the persistent-player flow, in the player's committed configuration.
 
 ### host_path_in_workspace
 What it means. The workspace was not isolated from the host, because a host path appeared in it.
