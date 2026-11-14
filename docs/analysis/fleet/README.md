@@ -10,7 +10,7 @@ Owner request of 2026-11-14: run every persistent player's container group on on
 ## Design rules
 
 1. **Roles.** Provisioning (create the repo, add the deploy key, mint the world token) is an operator step on a trusted machine. The VM only runs, restarts and removes player hosts. The runner never holds a GitHub account token, the owner's login or any token other than the one for the player being deployed.
-2. **Trigger.** One workflow, `deploy-player`, runs only on `workflow_dispatch`, never on `pull_request` or `pull_request_target`, with inputs `player_id`, `action` (`add`, `remove`, `restart`) and `kit_version`. No secret is an input. The repository setting that requires approval for outside contributors' workflows is on, and a change to the workflow needs the owner's PR approval.
+2. **Trigger.** One workflow, `deploy-player`, runs only on `workflow_dispatch`, never on `pull_request` or `pull_request_target`, with inputs `id`, `repo` and `action` (`add`, `remove`) only (owner's spec; see the decision note in [work-packets.md](work-packets.md)). No secret is an input. The repository setting that requires approval for outside contributors' workflows is on, and a change to the workflow needs the owner's PR approval.
 3. **Runner.** A self-hosted runner on the VM under its own unprivileged account (`geldar-runner`), in the `docker` group only if no narrower path exists (to confirm), with no access to anyone's home folder, no sudo, and no route to the owner's desktop. It is labelled `geldar-hosts`.
 4. **Secrets on the VM.** For each player: the world token at `/etc/geldar/tokens/<id>.token` (root-owned, group readable by the runner, 0640) and the deploy key at `/etc/geldar/keys/<id>` (same). Both arrive from the operator by scp, never through a workflow input, a log or a message. The launcher masks both in its output.
 5. **Placement.** On `add`, the player's state (clone, memory, supervisor volume) goes on the data volume with the most free space; the choice is recorded in `/etc/geldar/placement/<id>` and reused for `restart` and `remove`. A volume below 10% free is skipped; all below it fails the job with a clear message.
@@ -22,16 +22,19 @@ Owner request of 2026-11-14: run every persistent player's container group on on
 
 Each card is for a Haiku coder at about 40k tokens. All edit only the files named; none touches a live player until F-08.
 
-| Card | Title | Depends on |
-|---|---|---|
-| F-01 | VM bootstrap script and docs (reproducible from a clean Debian image: Docker, data volumes by label, `geldar-runner`, `/etc/geldar`) | none |
-| F-02 | `fleet/` scripts on the VM: `place.sh` (pick the volume), `add.sh`, `remove.sh`, `restart.sh`, each idempotent, with tests run against a fake docker and temp dirs | F-01 |
-| F-03 | Launcher verbs `host-add`, `host-remove` that call the scripts over ssh (operator side, both launchers) | F-02 |
-| F-04 | The `deploy-player` workflow, `workflow_dispatch` only, with a repo test that fails if any other trigger or any secret input appears | F-02 |
-| F-05 | Runner install and hardening doc and script (separate account, no sudo, labels) and a check that the account cannot read other homes | F-01 |
-| F-06 | Registration contract doc: the exact `workflow_dispatch` call, its inputs, expected results and the failure table, for geldar-registration | F-04 |
-| F-07 | Migration runbook and script: move a running ranger or Picard from the desktop (volumes, deploy key, token, kit version) one at a time with recreate times | F-02 |
-| F-08 | Migration run (operator, not a coder): Picard and the six first, one at a time, in a window geldar-93 confirms; the seven new players are created on the VM | F-07, window |
+Full packets: [work-packets.md](work-packets.md). Waves: 1 = F-01, F-02; 2 = F-09, F-03, F-04, F-05; 3 = F-06, F-07; 4 = F-08.
+
+| Card | Title | Depends on | Status |
+|---|---|---|---|
+| F-01 | VM bootstrap script and docs (reproducible from a clean Debian image: Docker, git >= 2.40 pinned and checksummed, data volumes by label, `geldar-runner`, `/etc/geldar`) | none | Ready (needs D-FL-07 checksum) |
+| F-02 | `fleet/` scripts on the VM: `place.sh` (pick the volume), `add.sh`, `remove.sh`, `restart.sh`, each idempotent, with tests run against a fake docker and temp dirs | F-01 | Ready |
+| F-03 | Launcher verbs `host-add`, `host-remove` that call the scripts over ssh (operator side, both launchers) | F-02 | BlockedDependency (F-02; launcher hook waits for the other session) |
+| F-04 | The `deploy-player` workflow, `workflow_dispatch` only, with a repo test that fails if any other trigger or any secret input appears | F-02 | BlockedDependency (F-02) |
+| F-05 | Runner install and hardening doc and script (separate account, no sudo, labels) and a check that the account cannot read other homes | F-01 | BlockedDependency (F-01; needs D-FL-05, D-FL-07) |
+| F-06 | Registration contract doc: the exact `workflow_dispatch` call, its inputs, expected results and the failure table, for geldar-registration | F-04 | BlockedDependency (F-04) |
+| F-07 | Migration runbook and script: move a running ranger or Picard from the desktop (volumes, deploy key, token, kit version) one at a time with recreate times | F-02 | BlockedDependency (F-02) |
+| F-08 | Migration run (operator, not a coder): Picard and the six first, one at a time, in a window geldar-93 confirms; the seven new players are created on the VM | F-07, window | BlockedDependency (F-07, window) |
+| F-09 | Native-Linux deploy key readability: add.sh stages a keeper-owned (uid 1002, 0400) copy of the key because compose `secrets: uid/mode` is ignored outside Swarm | F-02 | BlockedDependency (F-02) |
 
 ## Decisions assumed (orchestrator, under the owner's delegation)
 
@@ -39,3 +42,10 @@ Each card is for a Haiku coder at about 40k tokens. All edit only the files name
 - D-FL-02: provisioning stays off the VM; the VM never holds a repo-admin credential.
 - D-FL-03: placement is by free space at `add` time and then fixed for that player.
 - D-FL-04: remove deletes data on the VM only; the player repo on GitHub is untouched.
+- D-FL-05 (docker group for the runner), D-FL-06 (global cap value), D-FL-07 (pinned git and runner versions and checksums): open, owner or orchestrator to settle before F-01 and F-05 dispatch.
+
+## Manual infra (not cards)
+
+- UniFi policy "Geldar hosts VM to Colo MCP (443)" exists; backup and undo in work-packets.md (M-1). New rules come from geldar-93.
+- The VM address is a DHCP reservation, chosen by the owner (M-2).
+- Repo settings: fork-approval and owner-approved workflow changes (M-3).
