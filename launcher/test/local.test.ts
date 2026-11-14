@@ -213,6 +213,33 @@ describe.each(forGroup('new'))('local model launch ($name)', (l) => {
     expect(composeCalls(s.w, 'up')).toHaveLength(0);
   });
 
+  it('a leading zero in context_tokens is bad_player_json in both launchers', {
+    timeout: T,
+  }, () => {
+    // commitPlayer re-serialises with JSON.stringify, which would drop the zero: edit the raw text instead.
+    const s = setup(l, { login: false });
+    commitPlayer(s.p.clone, localPlayer);
+    const file = join(s.p.clone, 'player.json');
+    const raw = readFileSync(file, 'utf8');
+    writeFileSync(file, raw.replace('"context_tokens": 8192,', '"context_tokens": 0008192,'));
+    git(s.p.clone, ['add', 'player.json']);
+    git(s.p.clone, [
+      '-c',
+      'user.name=Fixture',
+      '-c',
+      'user.email=fixture@example.test',
+      'commit',
+      '-qm',
+      'leading zero',
+    ]);
+    storeEndpoint(s.p.stateDir);
+    const r = startLocal(l, s);
+    expect(r.status).toBe(1);
+    // bash names the key; PowerShell fails the parse first ("player.json is not JSON").
+    expect(r.stderr).toMatch(/context_tokens|not JSON/);
+    expect(composeCalls(s.w, 'up')).toHaveLength(0);
+  });
+
   it('a player.json without context_tokens is bad_player_json', { timeout: T }, () => {
     // local_no_context in pl_ready is a defensive branch: read_local_fields refuses first.
     const s = setup(l, { login: false });

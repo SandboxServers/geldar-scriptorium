@@ -9,7 +9,7 @@ read_local_fields() {
     n=0
     v=""
     case $k in
-      context_tokens) re='^  "context_tokens": ([0-9]{4,7}),?$' ;;
+      context_tokens) re='^  "context_tokens": ([1-9][0-9]{3,6}),?$' ;;
       *) re='^  "images": (true|false),?$' ;;
     esac
     while IFS= read -r line || [ -n "$line" ]; do
@@ -26,9 +26,9 @@ TEXT
       *) img=$v ;;
     esac
   done
-  # 10# reads the digits as decimal, so a leading zero is not octal.
-  [ "$((10#$ctx))" -ge 1024 ] && [ "$((10#$ctx))" -le 2000000 ] || pj_fail "$id" 'context_tokens'
-  PL_CTX=$((10#$ctx))
+  # The pattern has no leading zero (PowerShell's ConvertFrom-Json refuses one), so the digits are decimal.
+  [ "$ctx" -ge 1024 ] && [ "$ctx" -le 2000000 ] || pj_fail "$id" 'context_tokens'
+  PL_CTX=$ctx
   PL_IMAGES=$img
 }
 
