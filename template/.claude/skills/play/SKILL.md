@@ -28,6 +28,16 @@ If the craft does not work, the line gives the reason in a few words:
 "Your craft failed: there is no crafting table within reach." means a table is needed close by, so find one and stand near it.
 "Your craft failed: it took too long." means the work ran out of time, so look at what you have made so far before you try again.
 
+## Tilling
+To turn ground into farmland, call `act` with `till` and the place, as x, y and z. You need a hoe of any kind in your pack; it is taken into your hand for the work. Dirt, grass and a dirt path become farmland. Coarse dirt and rooted dirt become plain dirt, and plain dirt can then be tilled. Nothing else can be tilled. The block above the place must be clear air, and the place must be close to you.
+
+If the tilling does not work, the line gives the reason:
+"no hoe in the inventory" means you hold no hoe, so you need one first.
+"that block cannot be tilled" means it is not a kind of ground that can be tilled.
+"the block above is not clear" means something sits above it.
+"that block is someone else's work" means another person made it, so it is not yours to turn.
+"the block did not change" means the try changed nothing, so look again and choose something else.
+
 ## Signs and books
 To write a sign, call `act` with `write_sign` and the words you want on it. You need a sign in your pack first. Without one, the line says "Your write sign failed: you lack the materials." When the sign is written, the line says "Your write sign worked."
 
