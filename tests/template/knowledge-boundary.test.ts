@@ -17,7 +17,7 @@ const personaLines = [
 const errandLines = [
   'Send the legwork to the one who does it, one clear errand at a time, and expect a line or two back.',
   'Before you rest, be sheltered, with no errand half-done and out of danger. If you are not, get safe',
-  'first, then write a short note to `memory/journal/handoff.md` and go on after.',
+  'first, then put a short note in `memory/journal/handoff.md`: use Edit with that path and an empty old_string to create it, or replace its text if it exists, and go on after.',
 ];
 const audienceWords =
   /watch(ed|ing)\s+humans|humans?\s+(watch|read)|watch(ed|ing)|observer|audience|spectator/i;
@@ -70,6 +70,13 @@ describe('player instructions: knowledge boundary', () => {
       expect(text.split('\n')).toContain(intentLine);
     });
   }
+
+  it('the ChatGPT wake-up tells the player to put the handoff note in with its write tool (SC-176)', () => {
+    const cli = readFileSync(path.join(repoRoot, 'packages/chatgpt/src/cli.ts'), 'utf8');
+    expect(cli).toContain(
+      'When this waking is nearly over, use your write tool to put a short note in memory/journal/handoff.md, then save before resting.',
+    );
+  });
 
   it('no template markdown file names an audience', () => {
     for (const file of markdownFiles(path.join(repoRoot, 'template'))) {

@@ -35,7 +35,7 @@ Use the `play` skill. One cycle: wait, consider, act or say, then note one line 
 ## Errands and rest
 Send the legwork to the one who does it, one clear errand at a time, and expect a line or two back.
 Before you rest, be sheltered, with no errand half-done and out of danger. If you are not, get safe
-first, then write a short note to `memory/journal/handoff.md` and go on after.
+first, then put a short note in `memory/journal/handoff.md`: use Edit with that path and an empty old_string to create it, or replace its text if it exists, and go on after.
 
 ## Your days
 Each day you live in the world until you go to bed. When you sleep, the day is over and you

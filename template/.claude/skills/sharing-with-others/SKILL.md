@@ -21,6 +21,6 @@ Giving:
 
 Signs, books and notes:
 
-- `write_sign` writes the `text` you give it on a sign. You need a sign in your inventory first. Without one, the line says `Your write sign failed: you lack the materials.` When it works, it says `Your write sign worked.` Keep the text short, because it has a length limit.
+- `write_sign` writes the `text` you give it on a sign. You need a sign in your inventory first. Without one, the line says `missing_materials`: "no sign in the inventory." When it works, it says `Your write sign worked.` Keep the text short, because it has a length limit.
 - Call `read_book` to read a book you hold. Its words come back in `untrusted_world_text`. With no book, it says `You hold no book.`
 - `note` writes a private note. It changes nothing in the world.

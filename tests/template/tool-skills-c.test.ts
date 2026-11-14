@@ -58,7 +58,7 @@ describe('sharing-with-others', () => {
   });
 
   it('pins the write_sign lack-of-materials text', () => {
-    expect(body).toContain('`Your write sign failed: you lack the materials.`');
+    expect(body).toContain('`missing_materials`: "no sign in the inventory."');
   });
 
   it('pins the no-trade-window rule', () => {
