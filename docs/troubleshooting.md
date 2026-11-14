@@ -9,6 +9,7 @@ Every message geldar-play prints has a section below, named by its key in `launc
 | `usage` | The command line was not in a form the launcher accepts. It prints the usage line and exits, and nothing ran. |
 | `created` | The player's repository was made. The message names the next command, `setup`. |
 | `created_seeded` | The player was made from the persona you gave. It is already born, so `setup` is not needed; the next command is `play`. |
+| `chatgpt_created` | The seeded ChatGPT player was made. Connect it with `chatgpt-login`, list its models with `chatgpt-models`, then select a model before `start`. |
 | `public_notice` | The player's repository is public, memory included. This is information, not a failure. |
 | `mock_note` | The player was made with --mock. A mock player plays only through the dev-world setting (GELDAR_DEV_MCP_URL) or a world.conf whose `mcp_base` is the mock's address. This is information, not a failure. |
 | `many_players` | More than three players were started together. Each one uses your plan's limits, so start with one and watch. |
@@ -702,3 +703,33 @@ What to do. Wait for the next run to start, then run player-status to see the up
 What it means. The sync request for the persistent player could not be written into the keeper's state, so the keeper was not asked to fetch.
 Why it is safe. Nothing changed: no fetch ran and the workspace is as it was.
 What to do. Check that Docker is running, then run sync again.
+
+### chatgpt_no_login
+What it means. This player's ChatGPT login is missing or unusable.
+Why it is safe. The launcher refused before starting the persistent player, and no credentials were printed.
+What to do. Run `geldar-play chatgpt-login <id>` on the Docker host and approve plan usage in the browser, then retry `start`.
+
+### chatgpt_wrong_harness
+What it means. A ChatGPT account command was used for a player whose committed harness is not `chatgpt`.
+Why it is safe. No login container started and no stored account was changed.
+What to do. Use the player's existing provider, or commit `"harness": "chatgpt"` and select an account model before starting it. See [ChatGPT setup](chatgpt.md).
+
+### chatgpt_failed
+What it means. ChatGPT sign-in or model listing failed, for example because access was declined or the connection failed.
+Why it is safe. An unverified account cannot replace valid credentials, and a failed model listing starts no world session.
+What to do. Check Docker, the network and ChatGPT account eligibility. Retry the account command; stop the player before reconnecting its account.
+
+### chatgpt_persistent
+What it means. The ChatGPT provider was requested through a birth, single-day or host run command it does not support.
+Why it is safe. No ChatGPT mind is launched through the Claude-only session path.
+What to do. Seed the persona first, connect its account, select a model and use `start`, `stop` and `restart`.
+
+### chatgpt_persona
+What it means. A new ChatGPT player was requested without a seeded persona.
+Why it is safe. No remote player repository was created for this incomplete request.
+What to do. Supply `--persona-dir` with the player's identity and goals. ChatGPT players use the persistent-player flow rather than interactive `setup`.
+
+### chatgpt_no_model
+What it means. No usable ChatGPT model has been selected for this player.
+Why it is safe. The persistent player was not started, and no Claude model or API billing fallback was substituted.
+What to do. Run `chatgpt-models <id>`, then commit a returned slug as `declared_model` in `player.json`, or set `GELDAR_RUN_MODEL` before starting it.
