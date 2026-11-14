@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import {
   appendFileSync,
+  chmodSync,
   chownSync,
   createReadStream,
   existsSync,
@@ -569,12 +570,16 @@ export class Supervisor {
       } else {
         renameSync(current, pending);
       }
-      writeFileSync(current, '# Journal\n', { mode: 0o644 });
+      writeFileSync(current, '# Journal\n', { mode: 0o666 });
       try {
         chownSync(current, this.settings.playerUid, this.settings.playerGid);
       } catch {
-        // not root (tests): the file keeps its owner
+        // the supervisor is not root (tests, the container): the file keeps its owner
       }
+      // The player runs as another user and must read and append to both files. The supervisor's
+      // umask (027) strips the mode given above, so it is set explicitly.
+      chmodSync(current, 0o666);
+      chmodSync(pending, 0o666);
       return true;
     } catch (error) {
       this.log(

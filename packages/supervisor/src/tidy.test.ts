@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -87,6 +87,28 @@ describe('the memory tidy', () => {
     expect(seen[1]?.turns).toBe('300');
     expect(seen[1]?.prompt).toContain(head);
     expect(seen[1]?.prompt).not.toContain('tidy done');
+  });
+
+  it('gives the fresh journal and pending.md mode 0666 under a restrictive umask', async () => {
+    const old = process.umask(0o027);
+    try {
+      const f = makeFixture({ tools: 3 }, limit);
+      setJournal(f, 2000);
+      const modes: number[] = [];
+      watch(f, () => {
+        modes.push(
+          statSync(ws(f, 'memory/journal/current.md')).mode & 0o777,
+          statSync(pending(f)).mode & 0o777,
+        );
+      });
+      onPoll(f, () => f.supervisor.requestStop());
+      await f.supervisor.run();
+      // POSIX only: Windows does not keep these bits.
+      if (process.platform !== 'win32') expect(modes).toEqual([0o666, 0o666]);
+      else expect(modes).toHaveLength(2);
+    } finally {
+      process.umask(old);
+    }
   });
 
   it('does not tidy under the limit, with the limit at 0, or without a journal', async () => {
