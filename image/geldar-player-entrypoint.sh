@@ -26,9 +26,6 @@ if [ ! -L /player/memory ] && [ -d /player/memory/journal ] && [ ! -L /player/me
   chmod 0777 /player/memory/journal ||
     echo "geldar-player-entrypoint: journal directory mode not set; continuing" >&2
 fi
-# The supervisor moves current.md to pending.md during a tidy, and it runs as another user, so it
-# needs write permission on the journal directory. Only that directory is changed: no file inside
-# it, no symlink followed, and a missing directory is left alone.
 
 as_user() {
   uid=$1
