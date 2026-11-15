@@ -1,0 +1,23 @@
+[Unit]
+Description=GitHub Actions runner for the geldar fleet (label geldar-hosts)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=geldar-runner
+WorkingDirectory=/opt/geldar-runner
+ExecStart=/opt/geldar-runner/run.sh
+Restart=always
+KillMode=process
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ProtectHome=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=-/etc/geldar/placement
+ReadWritePaths=-/var/log/geldar-hosts.log
+ReadWritePaths=-/run/geldar-fleet
+ReadWritePaths=-/opt/geldar-runner
+ReadWritePaths=-/run/sudo
+
+[Install]
+WantedBy=multi-user.target
