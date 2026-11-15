@@ -43,15 +43,23 @@
       "Skill(water-and-drowning)",
       "Read(/**)",
       "Edit(/memory/**)",
-      "Edit(/skills/**)"
+      "Write(/memory/**)",
+      "Edit(/skills/**)",
+      "Write(/skills/**)"
     ],
     "deny": [
       "Edit(/.claude/**)",
+      "Write(/.claude/**)",
       "Edit(/CLAUDE.md)",
+      "Write(/CLAUDE.md)",
       "Edit(/AGENTS.md)",
+      "Write(/AGENTS.md)",
       "Edit(/.mcp.json)",
+      "Write(/.mcp.json)",
       "Edit(/player.json)",
-      "Edit(/.gitattributes)"
+      "Write(/player.json)",
+      "Edit(/.gitattributes)",
+      "Write(/.gitattributes)"
     ]
   },
   "hooks": {

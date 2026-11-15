@@ -49,9 +49,28 @@ describe('image managed and play settings', () => {
     }
   }, 120_000);
 
-  it('managed and play carry no Write rule', () => {
+  it('managed and play deny Write wherever they deny Edit, with the same path', () => {
     for (const rule of [...managedDeny, ...playDeny]) {
-      expect(rule === 'Write' || rule.startsWith('Write('), rule).toBe(false);
+      if (!rule.startsWith('Edit(')) continue;
+      expect(managedDeny.concat(playDeny), `${rule} has no Write twin`).toContain(
+        `Write(${rule.slice('Edit('.length)}`,
+      );
+    }
+  }, 120_000);
+
+  it('managed denies Write of the credentials file and the CLI home, as Edit does', () => {
+    for (const rule of [
+      'Write(**/.credentials.json)',
+      'Write(//cli-home/**)',
+      'Write(//cli-home)',
+    ]) {
+      expect(managedDeny).toContain(rule);
+    }
+  }, 120_000);
+
+  it('play denies Write of identity.md, relative and absolute', () => {
+    for (const rule of ['Write(/memory/identity.md)', 'Write(//player/memory/identity.md)']) {
+      expect(playDeny).toContain(rule);
     }
   }, 120_000);
 

@@ -6,7 +6,9 @@
       "mcp__geldar__*",
       "Agent",
       "Edit(/memory/identity.md)",
-      "Edit(//player/memory/identity.md)"
+      "Edit(//player/memory/identity.md)",
+      "Write(/memory/identity.md)",
+      "Write(//player/memory/identity.md)"
     ]
   }
 }
