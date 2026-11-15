@@ -24,7 +24,7 @@ if [ "${GELDAR_INTERNAL:-}" = "1" ]; then
 fi
 
 # The data volumes by filesystem label. Each mounts at /srv/geldar/nvme-<x>, x the last letter.
-volume_labels=(geldar-nvme-d geldar-nvme-e geldar-nvme-g)
+volume_labels=(nvme-d nvme-e nvme-g)
 
 die() {
   local code=$1
@@ -97,7 +97,7 @@ git_ok() {
 volumes_ready() {
   local label x
   for label in "${volume_labels[@]}"; do
-    x=${label##*-nvme-}
+    x=${label#nvme-}
     [ -d "$root/srv/geldar/nvme-$x/players" ] || return 1
   done
 }
@@ -158,7 +158,7 @@ if [ -s "$root/etc/fstab" ] && [ -n "$(tail -c 1 "$root/etc/fstab")" ]; then
   printf '\n' >> "$root/etc/fstab"
 fi
 for label in "${volume_labels[@]}"; do
-  x=${label##*-nvme-}
+  x=${label#nvme-}
   mnt="/srv/geldar/nvme-$x"
   grep -q "^LABEL=${label}[[:space:]]" "$root/etc/fstab" ||
     echo "LABEL=$label $mnt auto defaults,nofail 0 2" >> "$root/etc/fstab"
