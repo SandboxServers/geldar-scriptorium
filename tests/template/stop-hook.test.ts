@@ -174,4 +174,21 @@ describe.skipIf(shell === undefined)('stop hook', () => {
     if (process.platform === 'win32') return;
     expect(statSync(hook).mode & 0o111).not.toBe(0);
   });
+
+  // The question asks about goals only: a rewrite there must never reach identity.md, which the player
+  // may not edit or write in the play settings (the persona is fixed; SC-188 shows it at every waking).
+  it('asks about goals only and leaves identity.md denied to the player', () => {
+    const reason = readFileSync(hook, 'utf8').match(/"reason":"((?:[^"\\]|\\.)*)"/)?.[1] ?? '';
+    expect(reason).toContain('memory/goals.md');
+    expect(reason).not.toMatch(/identity/i);
+    const play = readFileSync(path.resolve(here, '../../image/settings/play.json'), 'utf8');
+    for (const rule of [
+      'Edit(/memory/identity.md)',
+      'Edit(//player/memory/identity.md)',
+      'Write(/memory/identity.md)',
+      'Write(//player/memory/identity.md)',
+    ]) {
+      expect(play).toContain(rule);
+    }
+  });
 });
