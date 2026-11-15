@@ -6,6 +6,7 @@ export { playInstructions } from './instructions.ts';
 export type { LoopRound } from './loop.ts';
 export { runLoop } from './loop.ts';
 export { record } from './record.ts';
+export { estimateTokens, outputReserve } from './tokens.ts';
 export { connectTools, toolOutput } from './tools.ts';
 export type {
   Block,

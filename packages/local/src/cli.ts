@@ -17,15 +17,13 @@ async function main(): Promise<void> {
   const instructions = playInstructions('/player');
   const connected = await connectTools('/player', process.env);
   try {
-    // Room for the reply: a quarter of the context, at most 2048 tokens.
-    const reserve = Math.min(2048, Math.floor(config.contextTokens / 4));
     const transport = new ChatTransport({
       baseUrl: config.baseUrl,
       ...(config.apiKey === undefined ? {} : { apiKey: config.apiKey }),
       model: config.model,
       instructions,
       tools: connected.tools,
-      maxOutputTokens: reserve,
+      contextTokens: config.contextTokens,
     });
     await runLoop({
       transport,
