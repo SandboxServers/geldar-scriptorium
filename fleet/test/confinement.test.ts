@@ -51,7 +51,7 @@ const FAKE_RUNUSER = [
   '  *"/etc/geldar/tokens/"*) [ "${FAKE_LEAK:-}" = token ] ;;',
   '  *"/etc/geldar/keys/"*) [ "${FAKE_LEAK:-}" = key ] ;;',
   '  *"/home/geldar/.claude/"*) [ "${FAKE_LEAK:-}" = login ] ;;',
-  '  ls *) [ -n "${FAKE_HOME:-}" ] ;;',
+  '  "ls "*) [ -n "${FAKE_HOME:-}" ] ;;',
   '  *"sudo -n true"*) [ -n "${FAKE_SUDO_TRUE:-}" ] ;;',
   '  *"sudo -n -l"*)',
   '    echo "    (root) NOPASSWD: /usr/local/sbin/geldar-fleet-run"',
