@@ -10,7 +10,6 @@ import {
   MAX_FACTS,
   type PassReason,
   type RollRecord,
-  sanitizeFact,
 } from './contract.ts';
 import { decide, type Fx, type FxContext, type InstinctConfig } from './decide.ts';
 import { makeFact } from './facts.ts';
@@ -23,14 +22,33 @@ export const DEFAULT_FXS: readonly Fx[] = [];
 
 export type Env = Record<string, string | undefined>;
 
+/** A numeric env value, or the fallback when the value is missing, blank or not a finite number (never NaN). */
+function numEnv(value: string | undefined, fallback: number): number {
+  const n = value === undefined || value.trim() === '' ? Number.NaN : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export function readConfig(env: Env): InstinctConfig {
   return {
     arm: env.GELDAR_INSTINCT_ARM ?? 'instinct',
-    failureCap: Number(env.GELDAR_INSTINCT_FAILURE_CAP ?? 4),
-    maxPicks: Number(env.GELDAR_INSTINCT_MAX_PICKS ?? 3),
-    thinkP: Number(env.GELDAR_INSTINCT_THINK_P ?? 0.25),
+    failureCap: numEnv(env.GELDAR_INSTINCT_FAILURE_CAP, 4),
+    maxPicks: numEnv(env.GELDAR_INSTINCT_MAX_PICKS, 3),
+    thinkP: numEnv(env.GELDAR_INSTINCT_THINK_P, 0.25),
     rolls: (env.GELDAR_INSTINCT_ROLLS ?? 'on') === 'on',
   };
+}
+
+/** The own-act line kept for the model. Fixed text: the world's reply is never copied into it or into world.line. */
+export const OWN_ACT_LINE = 'Your act was accepted.';
+
+/** True only when the act reply is one JSON object whose accepted field is a non-empty array. */
+export function acceptedReply(text: string): boolean {
+  try {
+    const value = JSON.parse(text) as { accepted?: unknown };
+    return Array.isArray(value.accepted) && value.accepted.length > 0;
+  } catch {
+    return false;
+  }
 }
 
 /** The life key is the last path segment of the world address (/p/<player_id>). */
@@ -47,6 +65,7 @@ export async function runInstinct(
   env: Env,
   runNo: number,
   now = new Date(),
+  connect: (env: Env) => Promise<WorldLink> = connectWorld,
 ): Promise<InstinctResult> {
   const stateDir = env.GELDAR_INSTINCT_STATE ?? '';
   const auditFile = join(dirname(stateDir), 'instinct.jsonl');
@@ -75,7 +94,7 @@ export async function runInstinct(
     const sheet: Sheet | null = parseSheet(readFileSync(sheetFile, 'utf8'));
     if (sheet === null) return audit(pass('sheet_invalid'), 0);
     try {
-      world = await connectWorld(env);
+      world = await connect(env);
     } catch {
       return audit(pass('no_world'), 0);
     }
@@ -163,26 +182,37 @@ async function wake(
   const decided = decide(ctx, DEFAULT_FXS);
   let out: InstinctResult = decided;
   if (decided.kind === 'settle') {
-    let line: string | null = null;
+    // Settle only when the world's reply is JSON with a non-empty accepted array; anything else is send_failed.
+    let accepted = false;
     try {
-      const text = await world.call(decided.act.tool, decided.act.arguments);
-      line = text === '' ? null : sanitizeFact(text, 200);
+      accepted = acceptedReply(await world.call(decided.act.tool, decided.act.arguments));
     } catch {
-      line = null;
+      accepted = false;
     }
-    if (line === null) {
+    if (!accepted) {
       out = pass('send_failed', decided.rolls);
     } else {
-      out = { ...decided, world: { accepted: true, line } };
-      state.pending_acts = [sanitizeFact(line, 120), ...state.pending_acts].slice(0, PENDING_MAX);
+      out = { ...decided, world: { accepted: true, line: OWN_ACT_LINE } };
+      state.pending_acts = [OWN_ACT_LINE, ...state.pending_acts].slice(0, PENDING_MAX);
     }
-  } else if (decided.kind === 'pass-with-facts') {
-    // Own acts not yet shown to the model go first, then the decision's facts; max 4 in all.
+  } else if (
+    decided.kind === 'pass-with-facts' ||
+    (!decided.forced && state.pending_acts.length > 0)
+  ) {
+    // Own acts not yet shown go first, then the decision's facts (max 4). A non-forced pass becomes
+    // pass-with-facts with fx none to carry them; a forced pass leaves pending_acts for the next non-forced result.
     const own = state.pending_acts
       .map((line) => makeFact('own_act', { line }))
       .filter((f): f is string => f !== null);
+    const kept = decided.kind === 'pass-with-facts' ? decided.facts : [];
+    out = {
+      v: 1,
+      kind: 'pass-with-facts',
+      fx: decided.kind === 'pass-with-facts' ? decided.fx : 'none',
+      facts: [...own, ...kept].slice(0, MAX_FACTS),
+      rolls: decided.rolls,
+    };
     state.pending_acts = [];
-    out = { ...decided, facts: [...own, ...decided.facts].slice(0, MAX_FACTS) };
   }
   saveState(stateDir, state);
   return out;

@@ -52,7 +52,20 @@ function validState(value: unknown): value is InstinctState {
   if (!isStrings(value.seen) || !isStrings(value.pending_acts)) return false;
   if (value.cursor !== null && typeof value.cursor !== 'string') return false;
   if (value.last_intent !== null && !isObj(value.last_intent)) return false;
-  return Object.values(value.tried).every(isStrings);
+  // attempts are integer counts; habits are lists of {program, arguments, n}. Any other shape is corrupt (renamed .bad).
+  const attemptsOk = Object.values(value.attempts).every((n) => Number.isSafeInteger(n));
+  const habitsOk = Object.values(value.habits).every(
+    (list) =>
+      Array.isArray(list) &&
+      list.every(
+        (h) =>
+          isObj(h) &&
+          typeof h.program === 'string' &&
+          isObj(h.arguments) &&
+          Number.isSafeInteger(h.n),
+      ),
+  );
+  return attemptsOk && habitsOk && Object.values(value.tried).every(isStrings);
 }
 
 /** Bounds the store on the way out, so a long run cannot grow the file without limit. */

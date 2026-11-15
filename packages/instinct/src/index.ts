@@ -14,7 +14,7 @@ export { decide, sightingKey } from './decide.ts';
 export type { FactKey } from './facts.ts';
 export { makeFact } from './facts.ts';
 export type { EventKind, EventLine, Observation, WorldCalls } from './observe.ts';
-export { classifyLine, observe, parseObservation } from './observe.ts';
+export { classifyEvent, observe, parseObservation } from './observe.ts';
 export { DEFAULT_FXS, lifeKeyOf, readConfig, runInstinct } from './run.ts';
 export type { InstinctState } from './state.ts';
 export { emptyState, loadState, saveState } from './state.ts';

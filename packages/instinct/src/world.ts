@@ -3,6 +3,7 @@
 // memory and git servers, so it is not reused here; HC-05 may absorb this file.
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { BAD_CURSOR } from './observe.ts';
 
 export interface WorldLink {
   call(name: string, args: Record<string, unknown>): Promise<string>;
@@ -11,6 +12,22 @@ export interface WorldLink {
 
 const CALL_TIMEOUT_MS = 20_000;
 const CONNECT_TIMEOUT_MS = 20_000;
+
+/** Headers as mind-loop's worldHeaders builds them (read-only copy): bearer token, harness and model when valid. */
+export function worldHeaders(env: {
+  GELDAR_MCP_TOKEN?: string;
+  GELDAR_HARNESS?: string;
+  GELDAR_RUN_MODEL?: string;
+}): Record<string, string> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${env.GELDAR_MCP_TOKEN ?? ''}`,
+  };
+  const harness = env.GELDAR_HARNESS ?? '';
+  if (/^(claude|chatgpt|local)$/.test(harness)) headers['X-Geldar-Harness'] = harness;
+  const model = env.GELDAR_RUN_MODEL ?? '';
+  if (/^[A-Za-z0-9._:/-]{1,64}$/.test(model)) headers['X-Geldar-Model'] = model;
+  return headers;
+}
 
 function isTextBlock(value: unknown): value is { type: 'text'; text: string } {
   return (
@@ -25,6 +42,8 @@ function isTextBlock(value: unknown): value is { type: 'text'; text: string } {
 export async function connectWorld(env: {
   GELDAR_MCP_URL?: string;
   GELDAR_MCP_TOKEN?: string;
+  GELDAR_HARNESS?: string;
+  GELDAR_RUN_MODEL?: string;
 }): Promise<WorldLink> {
   const url = new URL(env.GELDAR_MCP_URL ?? '');
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
@@ -33,7 +52,7 @@ export async function connectWorld(env: {
   const client = new Client({ name: 'geldar-instinct', version: '0.1.0' });
   const transport = new StreamableHTTPClientTransport(url, {
     requestInit: {
-      headers: { Authorization: `Bearer ${env.GELDAR_MCP_TOKEN ?? ''}` },
+      headers: worldHeaders(env),
       redirect: 'error',
     },
   });
@@ -56,12 +75,15 @@ export async function connectWorld(env: {
       const answer = await client.callTool({ name, arguments: args }, undefined, {
         timeout: CALL_TIMEOUT_MS,
       });
-      if (answer.isError) throw new Error('world refused the call');
       const content: unknown[] = Array.isArray(answer.content) ? answer.content : [];
-      return content
+      const text = content
         .filter(isTextBlock)
         .map((block) => block.text)
         .join('\n');
+      // The refusal text is never echoed: only bad_cursor is named, so the caller can retry it.
+      if (answer.isError)
+        throw new Error(/bad_cursor/.test(text) ? BAD_CURSOR : 'world refused the call');
+      return text;
     },
     async close() {
       await client.close().catch(() => undefined);

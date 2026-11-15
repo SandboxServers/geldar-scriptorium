@@ -7,6 +7,8 @@ import { runInstinct } from './run.ts';
 async function main(argv: string[]): Promise<number> {
   const [verb, ...rest] = argv;
   if (verb === 'run' && rest.length === 2 && rest[0] === '--run') {
+    // No state directory means no store to read or write: refuse rather than use an empty path.
+    if (!process.env.GELDAR_INSTINCT_STATE) return 2;
     const runNo = Number(rest[1]);
     if (!Number.isSafeInteger(runNo) || runNo < 0) return 2;
     const result = await runInstinct(process.env, runNo);

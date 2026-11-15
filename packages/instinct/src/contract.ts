@@ -51,10 +51,29 @@ export interface RollRecord {
   success: boolean;
 }
 
-/** The act the world is asked to run. Argument shape is (to confirm) against the geldar tool schema. */
+/** The act the world is asked to run: the act tool takes intent, actions or say (mcp-play.schema.json ActInput). */
 export interface ActRecord {
   tool: 'act';
   arguments: Record<string, unknown>;
+}
+
+/**
+ * The act for one durable intent. An intent must carry wake_on and limits (thought.schema.json Intent). The act tool
+ * has no source argument (ActInput is additionalProperties false), so the source tag stays in the audit line only.
+ */
+export function actIntent(goal: string, program: string, args: Record<string, unknown>): ActRecord {
+  return {
+    tool: 'act',
+    arguments: {
+      intent: {
+        goal,
+        program,
+        arguments: args,
+        wake_on: ['goal_completed'],
+        limits: { max_world_ticks: 2400, max_block_operations: 64 },
+      },
+    },
+  };
 }
 
 export type InstinctResult =
@@ -82,11 +101,13 @@ function exactKeys(value: Obj, keys: readonly string[]): boolean {
   return have.length === want.length && have.every((k, i) => k === want[i]);
 }
 
-/** Printable ASCII, at most MAX_FACT_CHARS characters: the only text a fact may hold. */
+/** Printable ASCII, at most `max` characters: the only text a fact, a why or a world.line may hold. */
+function isPrintable(value: unknown, max = MAX_FACT_CHARS): value is string {
+  return typeof value === 'string' && value.length <= max && /^[\x20-\x7e]*$/.test(value);
+}
+
 function isFact(value: unknown): value is string {
-  return (
-    typeof value === 'string' && value.length <= MAX_FACT_CHARS && /^[\x20-\x7e]*$/.test(value)
-  );
+  return isPrintable(value);
 }
 
 function isRoll(value: unknown): value is RollRecord {
@@ -133,9 +154,8 @@ function parseSettle(value: Obj): InstinctResult | null {
   if (!isObj(act) || !exactKeys(act, ['tool', 'arguments']) || act.tool !== 'act') return null;
   if (!isObj(act.arguments) || !isObj(world) || !exactKeys(world, ['accepted', 'line']))
     return null;
-  if (world.accepted !== true || typeof world.line !== 'string') return null;
-  if (!(FX_NAMES as readonly unknown[]).includes(value.fx) || typeof value.why !== 'string')
-    return null;
+  if (world.accepted !== true || !isPrintable(world.line)) return null;
+  if (!(FX_NAMES as readonly unknown[]).includes(value.fx) || !isPrintable(value.why)) return null;
   if (!rollsOk(value.rolls)) return null;
   return {
     v: 1,

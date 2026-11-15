@@ -35,6 +35,8 @@ RUN printf '#!/bin/sh\nexec node --use-env-proxy /opt/geldar/packages/chatgpt/sr
  && chmod 0755 /usr/local/bin/geldar-chatgpt
 RUN printf '#!/bin/sh\nexec node --use-env-proxy /opt/geldar/packages/local/src/cli.ts "$@"\n' > /usr/local/bin/geldar-local \
  && chmod 0755 /usr/local/bin/geldar-local
+RUN printf '#!/bin/sh\nexec node --use-env-proxy /opt/geldar/packages/instinct/src/cli.ts "$@"\n' > /usr/local/bin/geldar-instinct \
+  && chmod 0755 /usr/local/bin/geldar-instinct
 # The keeper (SC-161): the gate-and-push binary, its CONNECT helper and the pinned GitHub host keys.
 RUN printf '#!/bin/sh\nexec node /opt/geldar/packages/keeper/src/cli.ts "$@"\n' > /usr/local/bin/geldar-keeper \
  && printf '#!/bin/sh\nexec node /opt/geldar/packages/keeper/src/connect-cli.ts "$@"\n' > /usr/local/bin/geldar-keeper-connect \
