@@ -108,7 +108,8 @@ function readTail(file: string): Tail | null {
     const start = Math.max(0, size - MAX_BYTES);
     const window = Buffer.alloc(size - start);
     const n = readFill(fd, window, start);
-    if (start === 0) return { kept: window.subarray(0, n), cut: false, lines: 0, countCapped: false };
+    if (start === 0)
+      return { kept: window.subarray(0, n), cut: false, lines: 0, countCapped: false };
 
     // Keep the window whole only when it begins right after a newline. Otherwise drop through the first newline.
     const before = Buffer.alloc(1);

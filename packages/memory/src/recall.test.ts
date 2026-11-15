@@ -113,14 +113,26 @@ describe('recall server', () => {
   });
 
   it('keeps valid text when a multi-byte character sits at the journal cut', async () => {
-    const lines = Array.from({ length: 400 }, (_, i) => `${'é'.repeat(30)}${String(i).padStart(4, '0')}\n`);
+    // Each line is 62 + 4 + 1 = 67 bytes, so the window starts at offset 31 of a line: the second byte of an é.
+    const lines = Array.from(
+      { length: 400 },
+      (_, i) => `${'é'.repeat(31)}${String(i).padStart(4, '0')}\n`,
+    );
     write('memory/journal/current.md', lines.join(''));
     const body = JSON.parse(textOf(await recallText('journal/current')));
     expect(body.truncated).toBe(true);
     expect(body.text).not.toContain('�');
     const kept = body.text.split('\n').slice(1, -1);
     expect(kept.length).toBeGreaterThan(0);
-    for (const line of kept) expect(line).toMatch(/^é{30}\d{4}$/);
+    for (const line of kept) expect(line).toMatch(/^é{31}\d{4}$/);
+  });
+
+  it('shows no newest text when the last journal line is longer than the cap', async () => {
+    // The last line alone is 20000 bytes, so nothing after the one older line survives the cut.
+    write('memory/journal/current.md', `older\n${'a'.repeat(20000)}`);
+    const body = JSON.parse(textOf(await recallText('journal/current')));
+    expect(body.truncated).toBe(true);
+    expect(body.text).toBe('(older lines cut: 1)\n');
   });
 
   it('reports a journal of more than 8 MiB of cut lines as a lower bound', async () => {
