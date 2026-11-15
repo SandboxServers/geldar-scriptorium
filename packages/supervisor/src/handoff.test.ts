@@ -36,13 +36,47 @@ describe('readHandoff', () => {
     expect(readHandoff(root)).toBe('abcd\tx\ny');
   });
 
-  it('cuts at 4000 bytes without a half character at the end', () => {
+  it('keeps the last 4000 bytes without a half character at the end', () => {
+    // The window is the file's end, so the first x's are dropped: 3993 x's, then é and the tail.
     note(`${'x'.repeat(3999)}é tail`);
+    expect(readHandoff(root)).toBe(`${'x'.repeat(3993)}é tail`);
+    // A file that ends in a cut character: the cut bytes go, the 3999 x's stay.
+    note(Buffer.concat([Buffer.from('x'.repeat(4000)), Buffer.from([0xc3])]));
     expect(readHandoff(root)).toBe('x'.repeat(3999));
     note('é'.repeat(3000));
     expect(readHandoff(root)).toBe('é'.repeat(2000));
     note('x'.repeat(5000));
     expect(readHandoff(root)).toBe('x'.repeat(4000));
+  });
+
+  it('reads the newest 4000 bytes of a long journal, starting at a whole line', () => {
+    const lines = Array.from(
+      { length: 1400 },
+      (_, i) => `${String(i + 1).padStart(5, '0')} the note\n`,
+    );
+    note(lines.join(''));
+    const text = readHandoff(root);
+    expect(text.split('\n')[0]).toMatch(/^\d{5} the note$/);
+    expect(text.endsWith('01400 the note')).toBe(true);
+    expect(text).not.toContain('00001 the note');
+    expect(text.length).toBeLessThanOrEqual(4000);
+  });
+
+  it('returns a file just under the cap whole and unchanged', () => {
+    const body = `first line\n${'y'.repeat(3900)}\nlast line\n`;
+    note(body);
+    expect(readHandoff(root)).toBe(body.trimEnd());
+  });
+
+  it('gives valid text when the window has no newline and is all é', () => {
+    note(`${'é'.repeat(3000)}END`);
+    expect(readHandoff(root)).toBe(`${'é'.repeat(1998)}END`);
+  });
+
+  it('drops a multibyte character that straddles the window start whole', () => {
+    // The window starts on the second byte of the é: that byte goes, the b's stay.
+    note(`a${'é'}${'b'.repeat(3999)}`);
+    expect(readHandoff(root)).toBe('b'.repeat(3999));
   });
 
   it('refuses a directory at the note path', () => {
@@ -101,11 +135,23 @@ describe('readGoals', () => {
     expect(readGoals(root)).toBe('');
   });
 
-  it('cuts at 3000 bytes without a half character at the end', () => {
+  it('keeps the last 3000 bytes without a half character at the end', () => {
     goals(`${'x'.repeat(2999)}é tail`);
-    expect(readGoals(root)).toBe('x'.repeat(2999));
+    expect(readGoals(root)).toBe(`${'x'.repeat(2993)}é tail`);
     goals('é'.repeat(1600));
     expect(readGoals(root)).toBe('é'.repeat(1500));
+  });
+
+  it('gives the end of a 4 KB goals file, starting at a whole line', () => {
+    const lines = Array.from(
+      { length: 200 },
+      (_, i) => `goal ${String(i + 1).padStart(3, '0')} keep going\n`,
+    );
+    goals(lines.join(''));
+    const text = readGoals(root);
+    expect(text.split('\n')[0]).toMatch(/^goal \d{3} keep going$/);
+    expect(text.endsWith('goal 200 keep going')).toBe(true);
+    expect(text).not.toContain('goal 001 keep going');
   });
 
   it('drops control characters and C1, keeps newline and tab', () => {
