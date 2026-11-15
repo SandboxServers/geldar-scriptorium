@@ -216,6 +216,12 @@ importers:
         specifier: workspace:*
         version: link:../path-rule
 
+  packages/local:
+    dependencies:
+      '@geldar/scriptorium-mind-loop':
+        specifier: workspace:*
+        version: link:../mind-loop
+
   packages/memory:
     dependencies:
       '@geldar/scriptorium-path-rule':
