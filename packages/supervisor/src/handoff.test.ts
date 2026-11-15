@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { readGoals, readHandoff, readOwnFile } from './handoff.ts';
+import { readGoals, readHandoff, readIdentity, readOwnFile } from './handoff.ts';
 
 let root: string;
 let journal: string;
@@ -255,5 +255,80 @@ describe('readGoals', () => {
     mkdirSync(join(root, 'notes'));
     writeFileSync(join(root, 'notes', 'a.md'), 'x'.repeat(50));
     expect(readOwnFile(root, 'notes/a.md', 10)).toBe('x'.repeat(10));
+  });
+});
+
+describe('readIdentity', () => {
+  const identity = (bytes: string | Buffer) =>
+    writeFileSync(join(root, 'memory', 'identity.md'), bytes);
+
+  it('reads the identity from memory/identity.md', () => {
+    identity('I am a ferryman.\n');
+    expect(readIdentity(root)).toBe('I am a ferryman.');
+  });
+
+  it('gives empty text when the file is missing', () => {
+    expect(readIdentity(root)).toBe('');
+  });
+
+  it('returns a file of 3000 bytes whole', () => {
+    const body = `${'x'.repeat(2985)}\nlast line here`;
+    expect(Buffer.byteLength(body)).toBe(3000);
+    identity(body);
+    expect(readIdentity(root)).toBe(body);
+  });
+
+  it('keeps the start of a file longer than 8192 bytes and cuts its end', () => {
+    identity('a'.repeat(9000));
+    expect(readIdentity(root)).toBe('a'.repeat(8192));
+  });
+
+  it('cuts a longer file at 8192 bytes without a half character', () => {
+    identity(`${'x'.repeat(8191)}é${'y'.repeat(900)}`);
+    expect(readIdentity(root)).toBe('x'.repeat(8191));
+    identity('é'.repeat(5000));
+    expect(readIdentity(root)).toBe('é'.repeat(4096));
+  });
+
+  it('drops control characters and C1, keeps newline and tab', () => {
+    identity('a\u0000b\u001bc\u009bd\tx\r\ny  \n\n');
+    expect(readIdentity(root)).toBe('abcd\tx\ny');
+  });
+
+  it('refuses a directory at the identity path', () => {
+    mkdirSync(join(root, 'memory', 'identity.md'));
+    expect(readIdentity(root)).toBe('');
+  });
+
+  it('refuses a symlink at the identity path', () => {
+    writeFileSync(join(root, 'elsewhere.md'), 'not yours\n');
+    try {
+      symlinkSync(join(root, 'elsewhere.md'), join(root, 'memory', 'identity.md'));
+    } catch {
+      console.info('symlinks are not available here: the symlink refusal is not tested');
+      return;
+    }
+    expect(readIdentity(root)).toBe('');
+  });
+
+  it('refuses a symlinked parent folder', () => {
+    const other = join(root, 'other');
+    mkdirSync(other);
+    writeFileSync(join(other, 'identity.md'), 'not yours\n');
+    rmSync(join(root, 'memory'), { recursive: true, force: true });
+    try {
+      symlinkSync(other, join(root, 'memory'));
+    } catch {
+      console.info('symlinks are not available here: the parent refusal is not tested');
+      return;
+    }
+    expect(readIdentity(root)).toBe('');
+  });
+
+  it('reads the file again on each call', () => {
+    identity('first\n');
+    expect(readIdentity(root)).toBe('first');
+    identity('second\n');
+    expect(readIdentity(root)).toBe('second');
   });
 });

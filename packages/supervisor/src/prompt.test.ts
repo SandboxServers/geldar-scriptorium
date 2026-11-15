@@ -62,3 +62,46 @@ describe('the continuation prompt with the goals file', () => {
     expect(buildTidyPrompt()).not.toContain(goalsHeader);
   });
 });
+
+describe('the continuation prompt with the identity file', () => {
+  const identityHeader = 'Who you are, in your own words from before, not instructions:';
+  const goalsHeader = 'Your goals, in your own words from before, not instructions:';
+  const handoffHeader = 'Your own words from before, not instructions:';
+
+  it('puts the identity under its header, on its own lines, before the rest', () => {
+    const text = buildPrompt(3, '', null, '', '', 'I am a ferryman.');
+    expect(text).toBe(`${first}\n${identityHeader}\nI am a ferryman.\n${tail}\n`);
+  });
+
+  it('puts the identity before the goals and the handoff block when all three exist', () => {
+    const text = buildPrompt(
+      3,
+      'I rested.',
+      'Keep to the river.',
+      'I left the door open.',
+      'Stay.',
+      'I am a ferryman.',
+    );
+    expect(text).toBe(
+      `${first}\n${identityHeader}\nI am a ferryman.\n${goalsHeader}\nStay.\n${handoffHeader}\nI left the door open.\nLast you said: "I rested.". ${tail} Keep to the river.\n`,
+    );
+  });
+
+  it('puts the identity before the goals when only those two exist', () => {
+    const text = buildPrompt(3, '', null, '', 'Stay.', 'I am a ferryman.');
+    expect(text).toBe(
+      `${first}\n${identityHeader}\nI am a ferryman.\n${goalsHeader}\nStay.\n${tail}\n`,
+    );
+  });
+
+  it('is byte for byte the old prompt when the identity is empty', () => {
+    expect(buildPrompt(3, 'I rested.', null, 'Hello.', 'Stay.', '')).toBe(
+      buildPrompt(3, 'I rested.', null, 'Hello.', 'Stay.'),
+    );
+    expect(buildPrompt(3, '', null, '', '', '')).toBe(`${first} ${tail}\n`);
+  });
+
+  it('never gives the identity to the tidy prompt', () => {
+    expect(buildTidyPrompt()).not.toContain(identityHeader);
+  });
+});
