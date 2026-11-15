@@ -13,6 +13,7 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { isAllowedPath } from '@geldar/scriptorium-path-rule';
+import type { Block } from './transport.ts';
 import type { Tool } from './types.ts';
 
 const LIMIT = 64 * 1024;
@@ -75,7 +76,7 @@ export function writeNote(root: string, relative: string, text: string, append: 
   }
 }
 
-export const textOutput = (text: string): unknown => [{ type: 'input_text', text }];
+export const textOutput = (text: string): Block[] => [{ type: 'text', text }];
 
 export function fileTools(root: string): Tool[] {
   return [

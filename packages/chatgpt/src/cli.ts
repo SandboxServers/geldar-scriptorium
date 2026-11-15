@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { connectTools, playInstructions } from '@geldar/scriptorium-mind-loop';
+import { connectTools, MindError, playInstructions } from '@geldar/scriptorium-mind-loop';
 import { AuthStore, accessToken, ChatGPTError, models } from './auth.ts';
 import { login } from './login.ts';
 import { runRound } from './responses.ts';
@@ -53,7 +53,7 @@ try {
 } catch (err) {
   // SDK, JSON and JWT exceptions can contain response bodies. Never print them.
   process.stderr.write(
-    `${err instanceof ChatGPTError ? err.message : 'ChatGPT could not complete this operation. Check the connection and login.'}\n`,
+    `${err instanceof MindError ? err.message : 'ChatGPT could not complete this operation. Check the connection and login.'}\n`,
   );
   process.exitCode = 1;
 }

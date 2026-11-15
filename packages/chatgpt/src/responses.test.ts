@@ -1,4 +1,4 @@
-import { toolOutput } from '@geldar/scriptorium-mind-loop';
+import { MindError, toolOutput } from '@geldar/scriptorium-mind-loop';
 import { describe, expect, it, vi } from 'vitest';
 import type { Fetch } from './auth.ts';
 import { completed, type Item, runRound, type Tool } from './responses.ts';
@@ -131,7 +131,7 @@ describe('ChatGPT mind tool loop', () => {
   });
 
   it('never executes unknown tools or another namespace, and bounds the number of model turns', async () => {
-    const call = vi.fn(async () => 'must not run');
+    const call = vi.fn(async () => [{ type: 'text' as const, text: 'must not run' }]);
     const emitted: Item[] = [];
     const request = vi.fn(async () =>
       sse([
@@ -173,7 +173,7 @@ describe('ChatGPT mind tool loop', () => {
 
   it('reports the usage of every completion: uncached input, cached input and output', async () => {
     const emitted: Item[] = [];
-    const call = vi.fn(async () => [{ type: 'input_text', text: 'a tree' }]);
+    const call = vi.fn(async () => [{ type: 'text' as const, text: 'a tree' }]);
     const request = vi
       .fn()
       .mockResolvedValueOnce(
@@ -212,7 +212,7 @@ describe('ChatGPT mind tool loop', () => {
 
   it('reports the usage already spent when a later request fails', async () => {
     const emitted: Item[] = [];
-    const call = vi.fn(async () => [{ type: 'input_text', text: 'a tree' }]);
+    const call = vi.fn(async () => [{ type: 'text' as const, text: 'a tree' }]);
     const request = vi
       .fn()
       .mockResolvedValueOnce(
@@ -242,6 +242,36 @@ describe('ChatGPT mind tool loop', () => {
       is_error: true,
       usage: { input_tokens: 60, cached_input_tokens: 40, output_tokens: 5 },
     });
+  });
+
+  it('ends a round whose completion fails with a transport_error result', async () => {
+    const call = vi.fn(async () => [{ type: 'text' as const, text: 'unused' }]);
+    const tools: Tool[] = [{ name: 'look', description: '', parameters: {}, call }];
+    const cases: Array<() => Promise<Response>> = [
+      async () => new Response('secret body', { status: 429 }),
+      async () => sse([{ type: 'response.failed', error: 'secret body' }]),
+    ];
+    for (const next of cases) {
+      const emitted: Item[] = [];
+      const request = vi.fn(next) as unknown as Fetch;
+      const err = await runRound({
+        model: 'account-model',
+        instructions: '',
+        prompt: '',
+        maxTurns: 1,
+        tools,
+        access: async () => 'secret',
+        emit: (item) => emitted.push(item),
+        request,
+      }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(MindError);
+      expect(call).not.toHaveBeenCalled();
+      expect(emitted.at(-1)).toMatchObject({
+        type: 'result',
+        is_error: true,
+        stop_reason: 'transport_error',
+      });
+    }
   });
 
   it('never reports negative uncached input when cached tokens exceed input tokens', async () => {

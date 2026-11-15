@@ -3,16 +3,17 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { fileTools, textOutput } from './files.ts';
 import { record } from './record.ts';
+import type { Block } from './transport.ts';
 import type { Tool } from './types.ts';
 
 /** Preserve world images without fetching model-supplied URLs or treating tool text as instructions. */
-export function toolOutput(answer: unknown): unknown {
+export function toolOutput(answer: unknown): Block[] {
   if (!record(answer) || !Array.isArray(answer.content)) return textOutput('No result.');
-  const blocks: unknown[] = [];
+  const blocks: Block[] = [];
   for (const c of answer.content) {
     if (!record(c)) continue;
     if (c.type === 'text' && typeof c.text === 'string')
-      blocks.push({ type: 'input_text', text: c.text });
+      blocks.push({ type: 'text', text: c.text });
     if (
       c.type === 'image' &&
       typeof c.data === 'string' &&
@@ -20,11 +21,7 @@ export function toolOutput(answer: unknown): unknown {
       ['image/png', 'image/jpeg', 'image/webp'].includes(String(c.mimeType)) &&
       /^[A-Za-z0-9+/=\r\n]+$/.test(c.data)
     ) {
-      blocks.push({
-        type: 'input_image',
-        image_url: `data:${String(c.mimeType)};base64,${c.data}`,
-        detail: 'auto',
-      });
+      blocks.push({ type: 'image', mimeType: String(c.mimeType), data: c.data });
     }
   }
   return blocks.length ? blocks : textOutput('No result.');
