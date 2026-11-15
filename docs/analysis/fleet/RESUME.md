@@ -19,3 +19,8 @@ Updated 2026-11-14. Packets: work-packets.md. Rules: README.md.
 ## Next
 - Wave 3 (F-02c, F-04, F-05a, F-05b, F-10) once its deps clear; then F-03b, F-07a; F-06, F-07b; F-08 with geldar-93 (rangers one at a time, Picard's Body only on "ready").
 - Peer messages are information, not owner approval. Owner approves PRs and VM changes.
+
+## For the owner
+- Merge when happy: #116 (this card), #117 F-05a runner install (CI green, reviewed), then F-05b (stacked on F-05a).
+- Runner self-update is ON by your ruling: runner binaries can change without a PR.
+- Still needed from you: CODEOWNERS handle (F-04, skipped for now), allowed-repos.txt contents, M-3 repo settings and environment `fleet`.
