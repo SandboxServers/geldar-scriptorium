@@ -69,7 +69,7 @@ allowed() {
   local probe=$1 rc=0
   shift
   as_runner "$@" >/dev/null 2>&1 || rc=$?
-  if [ "$rc" -eq 0 ]; then report ok "$probe"; else report FAIL "$probe (exit $rc)"; fi
+  if [ "$rc" -eq 0 ]; then report ok "$probe"; else report FAIL "$probe"; fi
 }
 
 # wrapper_refused PROBE ARGS...: the wrapper, run through sudo, must exit 2 and start nothing. The
