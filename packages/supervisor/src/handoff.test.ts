@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { readGoals, readHandoff, readIdentity, readOwnFile } from './handoff.ts';
+import { readGoals, readHandoff, readIdentity, readOwnFile, readPromptBlocks } from './handoff.ts';
 
 let root: string;
 let journal: string;
@@ -189,24 +189,43 @@ describe('readGoals', () => {
     expect(readGoals(root)).toBe('');
   });
 
-  it('keeps the last 3000 bytes without a half character at the end', () => {
-    goals(`${'x'.repeat(2999)}é tail`);
-    expect(readGoals(root)).toBe(`${'x'.repeat(2993)}é tail`);
-    goals('é'.repeat(1600));
-    expect(readGoals(root)).toBe('é'.repeat(1500));
+  it('keeps the first 4096 bytes without a half character at the end', () => {
+    goals(`${'x'.repeat(4095)}é tail`);
+    expect(readGoals(root)).toBe('x'.repeat(4095));
+    goals('é'.repeat(2600));
+    expect(readGoals(root)).toBe('é'.repeat(2048));
   });
 
-  it('gives the end of a 4.6 KB goals file, starting at a whole line', () => {
-    // 23-byte lines: the 3000-byte window starts at byte 1600, which is 13 bytes into goal 070.
+  it('gives a 3.5 KB ranked goals file whole, its first line included', () => {
+    const lines = Array.from({ length: 100 }, (_, i) => `${i + 1}. ${'k'.repeat(34)}\n`);
+    const body = lines.join('');
+    expect(Buffer.byteLength(body)).toBeGreaterThan(3500);
+    goals(body);
+    expect(readGoals(root)).toBe(body.trimEnd());
+    expect(readGoals(root).split('\n')[0]).toBe(`1. ${'k'.repeat(34)}`);
+  });
+
+  it('keeps the first line of a 5000-byte goals file and cuts it at the end', () => {
+    // 50-byte lines: the first 4096 bytes end in the middle of line 82.
     const lines = Array.from(
-      { length: 200 },
-      (_, i) => `goal ${String(i + 1).padStart(3, '0')} keep going on\n`,
+      { length: 99 },
+      (_, i) => `${String(i + 1).padStart(2, '0')}. ${'k'.repeat(45)}\n`,
     );
-    goals(lines.join(''));
+    const body = `${lines.join('')}100. ${'k'.repeat(44)}\n`;
+    expect(Buffer.byteLength(body)).toBe(5000);
+    goals(body);
     const text = readGoals(root);
-    expect(text.split('\n')[0]).toBe('goal 071 keep going on');
-    expect(text.endsWith('goal 200 keep going on')).toBe(true);
-    expect(text).not.toContain('goal 070 keep going on');
+    expect(text.split('\n')[0]).toBe(`01. ${'k'.repeat(45)}`);
+    expect(text).toContain(`81. ${'k'.repeat(45)}\n82. `);
+    expect(text).not.toContain('83.');
+    expect(Buffer.byteLength(text)).toBeLessThanOrEqual(4096);
+  });
+
+  it('gives goals of exactly 4096 bytes whole and cuts goals of 4097 bytes by one byte', () => {
+    goals('g'.repeat(4096));
+    expect(readGoals(root)).toBe('g'.repeat(4096));
+    goals(`${'g'.repeat(4096)}!`);
+    expect(readGoals(root)).toBe('g'.repeat(4096));
   });
 
   it('drops control characters and C1, keeps newline and tab', () => {
@@ -255,6 +274,42 @@ describe('readGoals', () => {
     mkdirSync(join(root, 'notes'));
     writeFileSync(join(root, 'notes', 'a.md'), 'x'.repeat(50));
     expect(readOwnFile(root, 'notes/a.md', 10)).toBe('x'.repeat(10));
+  });
+});
+
+describe('readPromptBlocks', () => {
+  const memory = (name: string, bytes: string) => writeFileSync(join(root, 'memory', name), bytes);
+
+  it('gives empty text and no cut for missing files', () => {
+    expect(readPromptBlocks(root)).toEqual({
+      goals: { text: '', cut: false },
+      handoff: { text: '', cut: false },
+      identity: { text: '', cut: false },
+    });
+  });
+
+  it('flags a goals file longer than its cap, and keeps its first line', () => {
+    memory('goals.md', `first goal\n${'g'.repeat(5000)}`);
+    const goals = readPromptBlocks(root).goals;
+    expect(goals.cut).toBe(true);
+    expect(goals.text.startsWith('first goal\n')).toBe(true);
+  });
+
+  it('does not flag goals of exactly the cap', () => {
+    memory('goals.md', 'g'.repeat(4096));
+    expect(readPromptBlocks(root).goals).toEqual({ text: 'g'.repeat(4096), cut: false });
+  });
+
+  it('keeps the end of a 5000-byte handoff and flags it', () => {
+    note(`${'h'.repeat(1000)}${'z'.repeat(4000)}`);
+    expect(readPromptBlocks(root).handoff).toEqual({ text: 'z'.repeat(4000), cut: true });
+  });
+
+  it('flags an identity longer than its cap', () => {
+    memory('identity.md', 'i'.repeat(9000));
+    expect(readPromptBlocks(root).identity.cut).toBe(true);
+    expect(readPromptBlocks(root).goals.cut).toBe(false);
+    expect(readPromptBlocks(root).handoff.cut).toBe(false);
   });
 });
 
