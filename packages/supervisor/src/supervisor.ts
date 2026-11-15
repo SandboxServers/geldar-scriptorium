@@ -573,6 +573,9 @@ export class Supervisor {
         const temp = join(dir, `.pending.tmp-${process.pid}`);
         try {
           writeFileSync(temp, combined, { mode: 0o644 });
+          // The supervisor's umask (027) strips the mode given above, so it is set explicitly: the
+          // player, which runs the tidier, must be able to read the pending.md it renames over.
+          chmodSync(temp, 0o644);
           renameSync(temp, pending);
         } catch (error) {
           rmSync(temp, { force: true });

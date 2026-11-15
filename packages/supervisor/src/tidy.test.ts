@@ -1,4 +1,12 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -134,6 +142,40 @@ describe('the memory tidy', () => {
     } finally {
       process.umask(old);
     }
+  });
+
+  it(`keeps the retried tidy's pending.md readable under a restrictive umask`, async () => {
+    const old = process.umask(0o027);
+    try {
+      const f = makeFixture({ tools: 3 }, limit);
+      setJournal(f, 2000, 'c');
+      writeFileSync(pending(f), 'OLDPENDING\n', { mode: 0o600 });
+      onPoll(f, () => f.supervisor.requestStop());
+      await f.supervisor.run();
+      const text = readFileSync(pending(f), 'utf8');
+      expect(text).toContain('OLDPENDING');
+      expect(text).toContain('cccc');
+      // POSIX only: Windows does not keep these bits. The player (another uid) needs group and other read.
+      if (process.platform !== 'win32') {
+        expect(statSync(pending(f)).mode & 0o044).toBe(0o044);
+      }
+      expect(
+        readdirSync(ws(f, 'memory/journal')).filter((n) => n.startsWith('.pending.tmp-')),
+      ).toEqual([]);
+    } finally {
+      process.umask(old);
+    }
+  });
+
+  it('gives a new pending.md the mode of current.md when there was none', async () => {
+    const f = makeFixture({ tools: 3 }, limit);
+    setJournal(f, 2000, 'd');
+    chmodSync(join(f.root, 'ws/memory/journal/current.md'), 0o604);
+    onPoll(f, () => f.supervisor.requestStop());
+    await f.supervisor.run();
+    expect(readFileSync(pending(f), 'utf8')).toContain('dddd');
+    // POSIX only: Windows does not keep these bits.
+    if (process.platform !== 'win32') expect(statSync(pending(f)).mode & 0o777).toBe(0o604);
   });
 
   it('does not tidy under the limit, with the limit at 0, or without a journal', async () => {
