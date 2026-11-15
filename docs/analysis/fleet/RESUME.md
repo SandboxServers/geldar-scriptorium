@@ -12,7 +12,7 @@ Updated 2026-11-14. Packets: work-packets.md. Rules: README.md.
 ## Open
 1. F-02b, F-07: blocked on launcher cards R-1..R-5 (scriptorium-orchestrator, after HC-08b).
 2. F-03a needs HC-08b and dispatch hook P-1. F-04 needs the owner's CODEOWNERS handle.
-3. D-FL-06 max_hosts, D-FL-07 checksums, D-FL-10 runner self-update. allowed-repos.txt contents.
+3. Owner ruled 2026-11-14: D-FL-06 max_hosts=40; D-FL-10 runner self-update ON (F-05a must not pass --disableupdate; owner accepted the unreviewed-binary risk). D-FL-07 filled. Numbers not yet allocated. allowed-repos.txt contents still open.
 4. `tests/image/entrypoint.test.ts` on main: unknown.
 5. Docs/retro step due at the wave boundary.
 
