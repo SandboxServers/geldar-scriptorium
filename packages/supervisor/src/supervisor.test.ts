@@ -422,3 +422,88 @@ describe('the goals file', () => {
     expect(f.read('prompt.txt')).not.toContain('first goal');
   });
 });
+
+describe('the prompt log line', () => {
+  const memory = (f: ReturnType<typeof makeFixture>) => join(f.root, 'ws', 'memory');
+
+  it('logs the byte sizes of the goals and handoff, and the characters of the last words', async () => {
+    const f = makeFixture({ last: 'héllo 😀', stopAt: 2 });
+    mkdirSync(join(memory(f), 'journal'), { recursive: true });
+    // 'Keep ébé river.' is 15 characters and 17 bytes; 'ça va' is 5 characters and 6 bytes.
+    writeFileSync(join(memory(f), 'goals.md'), 'Keep ébé river.\n');
+    writeFileSync(join(memory(f), 'journal', 'handoff.md'), 'ça va\n');
+    expect(await f.supervisor.run()).toBe(0);
+    const log = f.read('supervisor.log');
+    expect(log).toMatch(/prompt run=1 goals=17 handoff=6 words=0\n/);
+    // The second waking carries the last words of the first: 'héllo 😀' is 7 code points.
+    expect(log).toMatch(/prompt run=2 goals=17 handoff=6 words=7\n/);
+  });
+
+  it('logs zero sizes when the goals and handoff files are absent', async () => {
+    const f = makeFixture({ stopAt: 1 });
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.read('supervisor.log')).toMatch(/prompt run=1 goals=0 handoff=0 words=0\n/);
+  });
+
+  it('never writes the text of the goals, the handoff or the last words to the log', async () => {
+    const f = makeFixture({ last: 'MARROWLAST', stopAt: 2 });
+    mkdirSync(join(memory(f), 'journal'), { recursive: true });
+    writeFileSync(join(memory(f), 'goals.md'), 'ZEPHYRGOAL\n');
+    writeFileSync(join(memory(f), 'journal', 'handoff.md'), 'QUILLHAND\n');
+    expect(await f.supervisor.run()).toBe(0);
+    const log = f.read('supervisor.log');
+    expect(log).toContain('prompt run=2 goals=10 handoff=9 words=10');
+    for (const word of ['ZEPHYRGOAL', 'QUILLHAND', 'MARROWLAST']) expect(log).not.toContain(word);
+  });
+
+  it('logs the capped size of the goals, not the size of the file', async () => {
+    const f = makeFixture({ stopAt: 1 });
+    mkdirSync(memory(f), { recursive: true });
+    // 3500 ASCII bytes on disk; the prompt gets the first 3000.
+    writeFileSync(join(memory(f), 'goals.md'), 'g'.repeat(3500));
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.read('supervisor.log')).toMatch(/prompt run=1 goals=3000 handoff=0 words=0\n/);
+  });
+
+  it('logs the capped size of the handoff, not the size of the file', async () => {
+    const f = makeFixture({ stopAt: 1 });
+    mkdirSync(join(memory(f), 'journal'), { recursive: true });
+    // 4500 ASCII bytes on disk; the prompt gets the first 4000.
+    writeFileSync(join(memory(f), 'journal', 'handoff.md'), 'h'.repeat(4500));
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.read('supervisor.log')).toMatch(/prompt run=1 goals=0 handoff=4000 words=0\n/);
+  });
+
+  it('writes no prompt line for a tidy run', async () => {
+    const limit = { GELDAR_TIDY_BYTES: '1000', GELDAR_RUN_MAX_FAILS: '99' };
+    const f = makeFixture({ last: 'tidy done', stopAt: 2 }, limit);
+    mkdirSync(join(memory(f), 'journal'), { recursive: true });
+    writeFileSync(join(memory(f), 'journal', 'current.md'), `# Journal\n${'x'.repeat(2000)}`);
+    const real = f.deps.exec;
+    f.deps.exec = async (spec) => {
+      if (spec.env?.GELDAR_RUN_MAX_TURNS === '40') {
+        writeFileSync(join(memory(f), 'summary.md'), `summary ${Math.random()}\n`);
+      }
+      return real(spec);
+    };
+    expect(await f.supervisor.run()).toBe(0);
+    const lines = f
+      .read('supervisor.log')
+      .split('\n')
+      .filter((line) => line.includes('prompt run='));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('prompt run=2 ');
+  });
+
+  it('writes one prompt line per waking, each with its own run number', async () => {
+    const f = makeFixture({ stopAt: 2 });
+    expect(await f.supervisor.run()).toBe(0);
+    const lines = f
+      .read('supervisor.log')
+      .split('\n')
+      .filter((line) => line.includes('prompt run='));
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain('prompt run=1 ');
+    expect(lines[1]).toContain('prompt run=2 ');
+  });
+});

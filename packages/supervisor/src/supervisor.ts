@@ -645,6 +645,10 @@ export class Supervisor {
     const handoff = readHandoff(s.workspace);
     const goals = readGoals(s.workspace);
     const promptPath = this.path('prompt.txt');
+    // Sizes only, never the text: the operators check the blocks reached the prompt from this line.
+    this.log(
+      `prompt run=${n} goals=${Buffer.byteLength(goals, 'utf8')} handoff=${Buffer.byteLength(handoff, 'utf8')} words=${Array.from(words).length}`,
+    );
     writePrivate(promptPath, buildPrompt(n, words, note, handoff, goals));
     return this.deps.exec(
       this.asPlayer({
