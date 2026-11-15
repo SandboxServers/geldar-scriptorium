@@ -72,7 +72,10 @@ describe('player instructions: knowledge boundary', () => {
   }
 
   it('the shared wake-up text (ChatGPT and local) tells the player to put the handoff note in with its write tool (SC-176)', () => {
-    const instructions = readFileSync(path.join(repoRoot, 'packages/mind-loop/src/instructions.ts'), 'utf8');
+    const instructions = readFileSync(
+      path.join(repoRoot, 'packages/mind-loop/src/instructions.ts'),
+      'utf8',
+    );
     expect(instructions).toContain(
       'When this waking is nearly over, use your write tool to put a short note in memory/journal/handoff.md, then save before resting.',
     );
