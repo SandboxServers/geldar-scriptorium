@@ -89,6 +89,21 @@ describe('the memory tidy', () => {
     expect(seen[1]?.prompt).not.toContain('tidy done');
   });
 
+  it('gives the handoff note to the play run and never to the tidy', async () => {
+    const f = makeFixture({ last: 'tidy done', stopAt: 2 }, limit);
+    setJournal(f, 2000);
+    mkdirSync(ws(f, 'memory/journal'), { recursive: true });
+    writeFileSync(ws(f, 'memory/journal/handoff.md'), 'my own note\n');
+    const seen = watch(f, (turns) => {
+      if (turns === '40') cleanTidy(f);
+    });
+    expect(await f.supervisor.run()).toBe(0);
+    expect(seen[0]?.turns).toBe('40');
+    expect(seen[0]?.prompt).not.toContain('my own note');
+    expect(seen[1]?.turns).toBe('300');
+    expect(seen[1]?.prompt).toContain('my own note');
+  });
+
   it('gives the fresh journal mode 0666 under a restrictive umask', async () => {
     const old = process.umask(0o027);
     try {

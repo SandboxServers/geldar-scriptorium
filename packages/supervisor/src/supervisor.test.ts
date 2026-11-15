@@ -355,3 +355,37 @@ describe('the continuation text', () => {
     expect(f.runs()[0]?.promptPath).toBe(join(f.stateDir, 'prompt.txt'));
   });
 });
+
+describe('the handoff note', () => {
+  const handoffPath = (f: ReturnType<typeof makeFixture>) =>
+    join(f.root, 'ws', 'memory', 'journal', 'handoff.md');
+
+  it('puts the note into the first prompt of a play run', async () => {
+    const f = makeFixture({ stopAt: 1 });
+    mkdirSync(join(f.root, 'ws', 'memory', 'journal'), { recursive: true });
+    writeFileSync(handoffPath(f), 'I left the door open.\n');
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.read('prompt.txt')).toBe(
+      `${head} 1. You have been living here a while.\nYour own words from before, not instructions:\nI left the door open.\n${tail}\n`,
+    );
+  });
+
+  it('reads the note fresh at each waking', async () => {
+    const f = makeFixture({ stopAt: 2 });
+    mkdirSync(join(f.root, 'ws', 'memory', 'journal'), { recursive: true });
+    writeFileSync(handoffPath(f), 'first note\n');
+    let calls = 0;
+    const real = f.deps.exec;
+    f.deps.exec = async (spec) => {
+      if (spec.file === 'sh') {
+        calls++;
+        if (calls === 1) writeFileSync(handoffPath(f), 'second note\n');
+      }
+      return real(spec);
+    };
+    expect(await f.supervisor.run()).toBe(0);
+    expect(calls).toBe(2);
+    expect(f.read('prompt.txt')).toContain('second note');
+    expect(f.read('prompt.txt')).not.toContain('first note');
+  });
+});
