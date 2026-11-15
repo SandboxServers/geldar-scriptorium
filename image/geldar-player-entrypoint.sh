@@ -19,6 +19,13 @@ chmod 2750 /state/supervisor
 for dir in /player /cli-home; do
   [ "$(stat -c %u "$dir")" = 1000 ] || chown -R 1000:1000 "$dir"
 done
+# The supervisor moves current.md to pending.md during a tidy, and it runs as another user, so it
+# needs write permission on the journal directory. Only that directory is changed: no file inside
+# it, no symlink followed, and a missing directory is left alone.
+if [ ! -L /player/memory ] && [ -d /player/memory/journal ] && [ ! -L /player/memory/journal ]; then
+  chmod 0777 /player/memory/journal ||
+    echo "geldar-player-entrypoint: journal directory mode not set; continuing" >&2
+fi
 
 as_user() {
   uid=$1

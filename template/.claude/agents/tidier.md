@@ -5,6 +5,7 @@ effort: low
 tools:
   - Read
   - Edit
+  - Write
   - mcp__geldar_memory__*
   - mcp__geldar_git__*
 ---

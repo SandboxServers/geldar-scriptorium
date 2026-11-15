@@ -17,8 +17,10 @@ const personaLines = [
 const errandLines = [
   'Send the legwork to the one who does it, one clear errand at a time, and expect a line or two back.',
   'Before you rest, be sheltered, with no errand half-done and out of danger. If you are not, get safe',
-  'first, then put a short note in `memory/journal/handoff.md`: use Edit with that path and an empty old_string to create it, or replace its text if it exists, and go on after.',
+  'first, then put a short note in `memory/journal/handoff.md` with Write (Write makes the file, or replaces the whole file if it exists), and go on after.',
 ];
+const toolBullet =
+  '- Write makes a file or replaces the whole file. Edit changes part of a file: give text that is in the file as old_string; an empty old_string only makes a new file. There is no append: Read the file and Edit it, or Write the whole file.';
 const audienceWords =
   /watch(ed|ing)\s+humans|humans?\s+(watch|read)|watch(ed|ing)|observer|audience|spectator/i;
 // Decision 40: no meta terms ("and the like") in the prompt text SC-78 added.
@@ -68,6 +70,12 @@ describe('player instructions: knowledge boundary', () => {
 
     it(`${file} tells the player to choose an intent instead of repeating a greeting`, () => {
       expect(text.split('\n')).toContain(intentLine);
+    });
+
+    it(`${file} says which tool writes a file, in one bullet, without meta words`, () => {
+      expect(text.split('\n')).toContain(toolBullet);
+      expect(toolBullet).not.toMatch(metaTerms);
+      expect(toolBullet).not.toMatch(audienceWords);
     });
   }
 

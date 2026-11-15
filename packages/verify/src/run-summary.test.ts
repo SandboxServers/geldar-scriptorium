@@ -5,7 +5,6 @@ import {
   EMPTY,
   ERROR_RUN,
   GOOD,
-  LONG_CONTROL,
   MISSING_NUMBERS,
   NOISE,
   SURROGATE,
@@ -21,6 +20,17 @@ function run(input: string, args: string[] = []) {
     encoding: 'utf8',
     timeout: 60_000,
   });
+}
+
+/** A stream with one assistant text per argument, then a good result line. */
+function streamOf(...texts: string[]): string {
+  const lines = texts.map((t) =>
+    JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: t }] } }),
+  );
+  lines.push(
+    JSON.stringify({ type: 'result', total_cost_usd: 0.1, num_turns: 1, is_error: false }),
+  );
+  return `${lines.join('\n')}\n`;
 }
 
 function summary(input: string) {
@@ -95,16 +105,40 @@ describe('geldar-verify run-summary', () => {
     expect(summary(TWO_RESULTS)).toMatchObject({ cost: 2, turns: 2, is_error: false });
   });
 
-  it('strips control characters and cuts last_text to 1500 characters', () => {
-    const out = summary(LONG_CONTROL);
+  it('keeps the last 1500 characters of a long message', () => {
+    const out = summary(streamOf(`FIRST${'-'.repeat(2991)}LAST`));
     expect(out.last_text).toHaveLength(1500);
-    expect(out.last_text.startsWith('start[31mlinetab')).toBe(true);
-    expect([...out.last_text].some((c) => c.charCodeAt(0) < 0x20 || c === '\u007f')).toBe(false);
+    expect(out.last_text).toBe(`${'-'.repeat(1496)}LAST`);
+    expect(out.last_text.includes('FIRST')).toBe(false);
   });
 
-  it('never splits a surrogate pair at the cut', () => {
+  it('keeps the end of a message with an emoji near the start', () => {
     const out = summary(SURROGATE);
-    expect(out.last_text).toBe('a'.repeat(1499));
+    expect(out.last_text).toBe(`${'a'.repeat(1495)}\u{1F600}tail`);
+  });
+
+  it('never starts the kept text with a lone surrogate', () => {
+    // 5 a, an emoji (two UTF-16 units), 1499 b: the last 1500 characters are the emoji and the b's.
+    const out = summary(streamOf(`${'a'.repeat(5)}\u{1F600}${'b'.repeat(1499)}`));
+    expect(out.last_text).toBe(`\u{1F600}${'b'.repeat(1499)}`);
+    const first = out.last_text.charCodeAt(0);
+    expect(first >= 0xdc00 && first <= 0xdfff).toBe(false);
+  });
+
+  it('drops a lone low surrogate at the new start', () => {
+    const out = summary(streamOf(`${'d'.repeat(3)}\uDC00${'c'.repeat(1499)}`));
+    expect(out.last_text).toBe('c'.repeat(1499));
+  });
+
+  it('keeps 1500 characters unchanged', () => {
+    const out = summary(streamOf('y'.repeat(1500)));
+    expect(out.last_text).toBe('y'.repeat(1500));
+  });
+
+  it('strips control characters before the cut', () => {
+    const out = summary(streamOf(`${'x'.repeat(1500)}\u001b[31mend\n`));
+    expect(out.last_text).toBe(`${'x'.repeat(1493)}[31mend`);
+    expect([...out.last_text].some((c) => c.charCodeAt(0) < 0x20 || c === '\u007f')).toBe(false);
   });
 
   it('exits 2 on an unknown option', () => {
