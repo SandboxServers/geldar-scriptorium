@@ -50,9 +50,12 @@ not the pins alone.
 the setuid `sudo` binary, and `NoNewPrivileges` stops a setuid binary from raising privileges, which
 breaks that path. The snapshot test asserts the line is absent.
 
-Whether `sudo` works under `ProtectSystem=strict` and `PrivateTmp` (timestamp and log writes) is
-verified on the real unit in F-08 step 1. If it fails, the orchestrator adjusts `ReadWritePaths` and
-the snapshot together.
+The setuid `sudo` child inherits the unit's mount namespace, so the wrapper and the launcher run
+inside it. `ProtectHome=read-only` keeps `/home/geldar` readable, and `ReadWritePaths` names the
+only places they write: the launcher clone, its state directory and `/srv/geldar`, plus the runner
+paths. `/etc/geldar` stays read-only. This is reasoned, not verified: running one wrapper verb
+through the real unit on the VM (F-08 step 1) is mandatory before the unit is enabled for real work.
+If it fails, the orchestrator adjusts `ReadWritePaths` and the snapshot together.
 
 ### Test seam
 
