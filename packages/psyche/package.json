@@ -1,0 +1,13 @@
+{
+  "name": "@geldar/scriptorium-psyche",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The vendored psyche roll engine, pinned by a recorded tree hash (MIRROR.json)",
+  "type": "module",
+  "exports": {
+    ".": "./engine/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p . --noEmit"
+  }
+}
