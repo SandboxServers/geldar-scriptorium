@@ -39,6 +39,15 @@ async function recallText(section: string) {
   return call({ section });
 }
 
+const LATER_CUT = '\n(later lines cut)';
+
+// Lines of the form 'line 00000' with a newline, each 11 bytes long when width is 5.
+function numberedLines(count: number): string {
+  let out = '';
+  for (let i = 0; i < count; i++) out += `line ${String(i).padStart(5, '0')}\n`;
+  return out;
+}
+
 describe('recall server', () => {
   it('exposes exactly one tool, recall', async () => {
     const client = await connect(createServer(root));
@@ -72,8 +81,66 @@ describe('recall server', () => {
     write('memory/summary.md', Buffer.from(`a${'é'.repeat(10000)}`, 'utf8'));
     const body = JSON.parse(textOf(await recallText('summary')));
     expect(body.truncated).toBe(true);
-    expect(Buffer.byteLength(body.text, 'utf8')).toBeLessThanOrEqual(16384);
+    expect(body.text.endsWith(LATER_CUT)).toBe(true);
+    const head = body.text.slice(0, -LATER_CUT.length);
+    expect(Buffer.byteLength(head, 'utf8')).toBeLessThanOrEqual(16384);
     expect(body.text).not.toContain('�');
+  });
+
+  it('keeps the newest journal lines when the journal is over the cap', async () => {
+    write('memory/journal/current.md', numberedLines(2000));
+    const body = JSON.parse(textOf(await recallText('journal/current')));
+    expect(body.truncated).toBe(true);
+    expect(body.text).toContain('line 01999\n');
+    expect(body.text).not.toContain('line 00000\n');
+    // The kept text starts at a line boundary: the second line is whole.
+    expect(body.text.split('\n')[1]).toBe('line 00511');
+  });
+
+  it('states exactly how many older lines were cut from the journal', async () => {
+    // Each line is 11 bytes. The window starts inside line 510, which is dropped with the lines before it.
+    write('memory/journal/current.md', numberedLines(2000));
+    const body = JSON.parse(textOf(await recallText('journal/current')));
+    expect(body.text.startsWith('(older lines cut: 511)\n')).toBe(true);
+  });
+
+  it('returns an under-cap journal exactly, with no notice', async () => {
+    const journal = 'first entry\nsecond entry\n';
+    write('memory/journal/current.md', journal);
+    const body = JSON.parse(textOf(await recallText('journal/current')));
+    expect(body.truncated).toBe(false);
+    expect(body.text).toBe(journal);
+  });
+
+  it('keeps valid text when a multi-byte character sits at the journal cut', async () => {
+    const lines = Array.from({ length: 400 }, (_, i) => `${'é'.repeat(30)}${String(i).padStart(4, '0')}\n`);
+    write('memory/journal/current.md', lines.join(''));
+    const body = JSON.parse(textOf(await recallText('journal/current')));
+    expect(body.truncated).toBe(true);
+    expect(body.text).not.toContain('�');
+    const kept = body.text.split('\n').slice(1, -1);
+    expect(kept.length).toBeGreaterThan(0);
+    for (const line of kept) expect(line).toMatch(/^é{30}\d{4}$/);
+  });
+
+  it('reports a journal of more than 8 MiB of cut lines as a lower bound', async () => {
+    // 10-byte lines, 9 MiB in all. The cut prefix is larger than the 8 MiB counting limit.
+    const count = Math.ceil((9 * 1024 * 1024) / 10);
+    const buf = Buffer.alloc(count * 10);
+    for (let i = 0; i < count; i++) buf.write(`L${String(i).padStart(8, '0')}\n`, i * 10, 'ascii');
+    write('memory/journal/current.md', buf);
+    const body = JSON.parse(textOf(await recallText('journal/current')));
+    expect(body.truncated).toBe(true);
+    // Newlines in the first 8 MiB of the prefix: 838860 whole lines.
+    expect(body.text.startsWith('(older lines cut: more than 838860)\n')).toBe(true);
+    expect(body.text).toContain(`L${String(count - 1).padStart(8, '0')}`);
+  }, 30000);
+
+  it('ends a cut section with the later-lines notice and keeps its head', async () => {
+    write('memory/summary.md', 'a'.repeat(20000));
+    const body = JSON.parse(textOf(await recallText('summary')));
+    expect(body.truncated).toBe(true);
+    expect(body.text).toBe(`${'a'.repeat(16384)}${LATER_CUT}`);
   });
 
   it('refuses unknown sections with unknown_section and does not echo the root', async () => {
