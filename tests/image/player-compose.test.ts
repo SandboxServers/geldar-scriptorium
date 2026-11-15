@@ -313,7 +313,9 @@ describe('player compose: the local harness names', () => {
     ];
     for (const name of names) {
       expect(envNames('player')).toContain(name);
-      expect(envNames('keeper')).not.toContain(name);
+      for (const other of services.filter((s) => s !== 'player')) {
+        expect(envNames(other)).not.toContain(name);
+      }
     }
     expect(compose).not.toMatch(/GELDAR_LOCAL_API_KEY=/);
   });

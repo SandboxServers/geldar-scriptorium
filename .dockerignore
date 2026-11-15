@@ -10,6 +10,7 @@
 !packages/verify
 !packages/supervisor
 !packages/chatgpt
+!packages/local
 !packages/mind-loop
 !image/settings
 !image/geldar-entrypoint.sh

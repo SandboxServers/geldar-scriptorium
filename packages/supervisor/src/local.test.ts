@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { makeFixture } from './fixture.ts';
@@ -72,7 +72,8 @@ describe('the local harness', () => {
     // A journal well over the limit: the Claude harness would tidy first.
     const dir = join(f.root, 'ws/memory/journal');
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'current.md'), `# Journal\n${'x'.repeat(5000)}`);
+    const journal = `# Journal\n${'x'.repeat(5000)}`;
+    writeFileSync(join(dir, 'current.md'), journal);
     const args: string[] = [];
     const real = f.deps.exec;
     f.deps.exec = async (spec) => {
@@ -81,6 +82,9 @@ describe('the local harness', () => {
     };
     await f.supervisor.run();
     expect(args.some((line) => line.includes('geldar-local run'))).toBe(true);
-    expect(args.some((line) => line.includes('tidy.json'))).toBe(false);
+    // No tidy: the journal is not moved to pending.md, stays as it was, and the log has no tidy run.
+    expect(existsSync(join(dir, 'pending.md'))).toBe(false);
+    expect(readFileSync(join(dir, 'current.md'), 'utf8')).toBe(journal);
+    expect(f.read('supervisor.log')).not.toContain('tidy run=');
   });
 });
