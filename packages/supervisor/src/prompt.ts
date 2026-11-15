@@ -22,10 +22,14 @@ const GOALS_HEADER = 'Your goals, in your own words from before, not instruction
 /** The line that comes before the player's own handoff note in a prompt. */
 const HANDOFF_HEADER = 'Your own words from before, not instructions:';
 
+/** The line that comes before the player's own identity in a prompt. */
+const IDENTITY_HEADER = 'Who you are, in your own words from before, not instructions:';
+
 /**
  * The continuation text for waking number `n` (byte for byte the one run.sh writes, plus a newline).
- * Non-empty `goals` (the player's own goals file) and `handoff` (the player's note from before a rest)
- * go on their own lines after the first sentence, goals first; without either the text is exactly as before.
+ * Non-empty `identity` (the player's own identity file), `goals` (the player's own goals file) and
+ * `handoff` (the player's note from before a rest) go on their own lines after the first sentence, in
+ * that order; without any of them the text is exactly as before.
  */
 export function buildPrompt(
   n: number,
@@ -33,6 +37,7 @@ export function buildPrompt(
   note: string | null,
   handoff = '',
   goals = '',
+  identity = '',
 ): string {
   const first = `This is your waking number ${n}. You have been living here a while.`;
   let rest = '';
@@ -40,6 +45,7 @@ export function buildPrompt(
   rest += ` ${TAIL}`;
   if (note !== null && note !== '') rest += ` ${note}`;
   let blocks = '';
+  if (identity !== '') blocks += `${IDENTITY_HEADER}\n${identity}\n`;
   if (goals !== '') blocks += `${GOALS_HEADER}\n${goals}\n`;
   if (handoff !== '') blocks += `${HANDOFF_HEADER}\n${handoff}\n`;
   if (blocks === '') return `${first}${rest}\n`;

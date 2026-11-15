@@ -7,6 +7,9 @@ const HANDOFF_MAX = 4000;
 /** The most bytes of the player's own goals that go into a prompt. */
 const GOALS_MAX = 3000;
 
+/** The most bytes of the player's own identity that go into a prompt. */
+const IDENTITY_MAX = 8192;
+
 /**
  * The player's own note from before a rest, read fresh from memory/journal/handoff.md under the
  * workspace root. The same rules as readOwnFile: '' for a missing, linked, unreadable or non-file path.
@@ -20,16 +23,27 @@ export function readGoals(workspaceRoot: string): string {
   return readOwnFile(workspaceRoot, 'memory/goals.md', GOALS_MAX);
 }
 
+/** The player's own identity, read fresh from memory/identity.md from its start (see readOwnFile). */
+export function readIdentity(workspaceRoot: string): string {
+  return readOwnFile(workspaceRoot, 'memory/identity.md', IDENTITY_MAX, 'start');
+}
+
 /**
  * A text file of the player's own, read fresh from `relPath` (slash-separated) under the workspace
- * root. At most the last `maxBytes` bytes are read, since the player keeps adding to these files and
- * the newest text is at the end. A longer file starts after its first newline in that window, so no
- * line starts half-way. Every component is checked with lstat: a symlink, a directory, a FIFO or a
- * device at that path gives ''. So does a missing or unreadable file. The text is untrusted and is
- * cleaned the way the hook cleans it: control characters out (newline and tab kept), C1 out, no half
- * character at either end, trailing whitespace trimmed.
+ * root. By default at most the last `maxBytes` bytes are read, since the player keeps adding to these
+ * files and the newest text is at the end. A longer file starts after its first newline in that window,
+ * so no line starts half-way. With `from` 'start' the first `maxBytes` bytes are read instead, so a
+ * file that fits is read whole and a longer one is cut at its end. Every component is checked with
+ * lstat: a symlink, a directory, a FIFO or a device at that path gives ''. So does a missing or
+ * unreadable file. The text is untrusted and is cleaned the way the hook cleans it: control characters
+ * out (newline and tab kept), C1 out, no half character at either end, trailing whitespace trimmed.
  */
-export function readOwnFile(workspaceRoot: string, relPath: string, maxBytes: number): string {
+export function readOwnFile(
+  workspaceRoot: string,
+  relPath: string,
+  maxBytes: number,
+  from: 'start' | 'end' = 'end',
+): string {
   try {
     const parts = relPath.split('/');
     const name = parts.pop() ?? '';
@@ -46,8 +60,8 @@ export function readOwnFile(workspaceRoot: string, relPath: string, maxBytes: nu
     try {
       const info = fstatSync(fd);
       if (!info.isFile()) return '';
-      const start = Math.max(0, info.size - maxBytes);
-      const want = info.size - start;
+      const start = from === 'start' ? 0 : Math.max(0, info.size - maxBytes);
+      const want = from === 'start' ? Math.min(info.size, maxBytes) : info.size - start;
       const buf = Buffer.alloc(want);
       let total = 0;
       while (total < want) {
