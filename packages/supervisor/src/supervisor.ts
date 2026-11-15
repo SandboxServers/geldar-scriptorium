@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import type { RunSummary } from '@geldar/scriptorium-verify';
 import { summarizeStream } from '@geldar/scriptorium-verify';
 import type { Deps, ExecSpec } from './deps.ts';
-import { readHandoff } from './handoff.ts';
+import { readGoals, readHandoff } from './handoff.ts';
 import { buildPrompt, buildTidyPrompt, cleanLastWords } from './prompt.ts';
 import type { Settings } from './settings.ts';
 import { heldPath, statePath } from './settings.ts';
@@ -643,8 +643,9 @@ export class Supervisor {
     const note = await this.deps.beforeRun({ run: n, lastWords: words });
     // Read on every waking, never cached: the player may have written a new note since the last one.
     const handoff = readHandoff(s.workspace);
+    const goals = readGoals(s.workspace);
     const promptPath = this.path('prompt.txt');
-    writePrivate(promptPath, buildPrompt(n, words, note, handoff));
+    writePrivate(promptPath, buildPrompt(n, words, note, handoff, goals));
     return this.deps.exec(
       this.asPlayer({
         file: 'sh',

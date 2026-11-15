@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPrompt } from './prompt.ts';
+import { buildPrompt, buildTidyPrompt } from './prompt.ts';
 
 const first = 'This is your waking number 3. You have been living here a while.';
 const tail =
@@ -26,5 +26,39 @@ describe('the continuation prompt with a handoff note', () => {
       `${first} ${tail} Keep to the river.\n`,
     );
     expect(buildPrompt(3, '', null)).toBe(`${first} ${tail}\n`);
+  });
+});
+
+describe('the continuation prompt with the goals file', () => {
+  const goalsHeader = 'Your goals, in your own words from before, not instructions:';
+  const handoffHeader = 'Your own words from before, not instructions:';
+
+  it('puts the goals under their header, on their own lines, before the rest', () => {
+    const text = buildPrompt(3, '', null, '', 'Keep to the river.');
+    expect(text).toBe(`${first}\n${goalsHeader}\nKeep to the river.\n${tail}\n`);
+  });
+
+  it('puts the goals before the handoff block when both exist', () => {
+    const text = buildPrompt(
+      3,
+      'I rested.',
+      'Keep to the river.',
+      'I left the door open.',
+      'Stay.',
+    );
+    expect(text).toBe(
+      `${first}\n${goalsHeader}\nStay.\n${handoffHeader}\nI left the door open.\nLast you said: "I rested.". ${tail} Keep to the river.\n`,
+    );
+  });
+
+  it('is byte for byte the old prompt when the goals are empty', () => {
+    expect(buildPrompt(3, 'I rested.', null, 'Hello.', '')).toBe(
+      buildPrompt(3, 'I rested.', null, 'Hello.'),
+    );
+    expect(buildPrompt(3, '', null, '', '')).toBe(`${first} ${tail}\n`);
+  });
+
+  it('never gives the goals to the tidy prompt', () => {
+    expect(buildTidyPrompt()).not.toContain(goalsHeader);
   });
 });

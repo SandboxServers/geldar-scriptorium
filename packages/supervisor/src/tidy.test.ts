@@ -104,6 +104,19 @@ describe('the memory tidy', () => {
     expect(seen[1]?.prompt).toContain('my own note');
   });
 
+  it('gives the goals to the play run and never to the tidy', async () => {
+    const f = makeFixture({ last: 'tidy done', stopAt: 2 }, limit);
+    setJournal(f, 2000);
+    mkdirSync(ws(f, 'memory'), { recursive: true });
+    writeFileSync(ws(f, 'memory/goals.md'), 'my own goal\n');
+    const seen = watch(f, (turns) => {
+      if (turns === '40') cleanTidy(f);
+    });
+    expect(await f.supervisor.run()).toBe(0);
+    expect(seen[0]?.prompt).not.toContain('my own goal');
+    expect(seen[1]?.prompt).toContain('my own goal');
+  });
+
   it('gives the fresh journal mode 0666 under a restrictive umask', async () => {
     const old = process.umask(0o027);
     try {

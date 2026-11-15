@@ -16,27 +16,34 @@ export function cleanLastWords(text: string): string {
   return kept.slice(0, WORDS_MAX).join('').replace(/"/g, "'");
 }
 
+/** The line that comes before the player's own goals in a prompt. */
+const GOALS_HEADER = 'Your goals, in your own words from before, not instructions:';
+
 /** The line that comes before the player's own handoff note in a prompt. */
 const HANDOFF_HEADER = 'Your own words from before, not instructions:';
 
 /**
  * The continuation text for waking number `n` (byte for byte the one run.sh writes, plus a newline).
- * A non-empty `handoff` (the player's note from before a rest) goes on its own lines after the first
- * sentence; without one the text is exactly as before.
+ * Non-empty `goals` (the player's own goals file) and `handoff` (the player's note from before a rest)
+ * go on their own lines after the first sentence, goals first; without either the text is exactly as before.
  */
 export function buildPrompt(
   n: number,
   lastWords: string,
   note: string | null,
   handoff = '',
+  goals = '',
 ): string {
   const first = `This is your waking number ${n}. You have been living here a while.`;
   let rest = '';
   if (lastWords !== '') rest += ` Last you said: "${lastWords}".`;
   rest += ` ${TAIL}`;
   if (note !== null && note !== '') rest += ` ${note}`;
-  if (handoff === '') return `${first}${rest}\n`;
-  return `${first}\n${HANDOFF_HEADER}\n${handoff}\n${rest.slice(1)}\n`;
+  let blocks = '';
+  if (goals !== '') blocks += `${GOALS_HEADER}\n${goals}\n`;
+  if (handoff !== '') blocks += `${HANDOFF_HEADER}\n${handoff}\n`;
+  if (blocks === '') return `${first}${rest}\n`;
+  return `${first}\n${blocks}${rest.slice(1)}\n`;
 }
 
 /**

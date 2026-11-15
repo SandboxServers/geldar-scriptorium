@@ -4,31 +4,49 @@ import { join } from 'node:path';
 /** The most bytes of the player's note that go into a prompt (the same cut the session-start hook makes). */
 const HANDOFF_MAX = 4000;
 
+/** The most bytes of the player's own goals that go into a prompt. */
+const GOALS_MAX = 3000;
+
 /**
  * The player's own note from before a rest, read fresh from memory/journal/handoff.md under the
- * workspace root. Every component is checked with lstat: a symlink, a directory, a FIFO or a device
- * at that path gives ''. So does a missing or unreadable file. The text is untrusted and is cleaned
- * the way the hook cleans it: control characters out (newline and tab kept), C1 out, no half
- * character at the end, trailing whitespace trimmed.
+ * workspace root. The same rules as readOwnFile: '' for a missing, linked, unreadable or non-file path.
  */
 export function readHandoff(workspaceRoot: string): string {
+  return readOwnFile(workspaceRoot, 'memory/journal/handoff.md', HANDOFF_MAX);
+}
+
+/** The player's own goals, read fresh from memory/goals.md under the workspace root (see readOwnFile). */
+export function readGoals(workspaceRoot: string): string {
+  return readOwnFile(workspaceRoot, 'memory/goals.md', GOALS_MAX);
+}
+
+/**
+ * A text file of the player's own, read fresh from `relPath` (slash-separated) under the workspace
+ * root, at most `maxBytes` bytes. Every component is checked with lstat: a symlink, a directory, a
+ * FIFO or a device at that path gives ''. So does a missing or unreadable file. The text is untrusted
+ * and is cleaned the way the hook cleans it: control characters out (newline and tab kept), C1 out,
+ * no half character at the end, trailing whitespace trimmed.
+ */
+export function readOwnFile(workspaceRoot: string, relPath: string, maxBytes: number): string {
   try {
+    const parts = relPath.split('/');
+    const name = parts.pop() ?? '';
     let dir = workspaceRoot;
-    for (const part of ['memory', 'journal']) {
+    for (const part of parts) {
       dir = join(dir, part);
       // lstat does not follow links: a symlinked folder is not a directory here.
       if (!lstatSync(dir).isDirectory()) return '';
     }
-    const path = join(dir, 'handoff.md');
+    const path = join(dir, name);
     if (!lstatSync(path).isFile()) return '';
     const flags = constants.O_RDONLY | (constants.O_NONBLOCK ?? 0) | (constants.O_NOFOLLOW ?? 0);
     const fd = openSync(path, flags);
     try {
       if (!fstatSync(fd).isFile()) return '';
-      const buf = Buffer.alloc(HANDOFF_MAX);
+      const buf = Buffer.alloc(maxBytes);
       let total = 0;
-      while (total < HANDOFF_MAX) {
-        const got = readSync(fd, buf, total, HANDOFF_MAX - total, null);
+      while (total < maxBytes) {
+        const got = readSync(fd, buf, total, maxBytes - total, null);
         if (got === 0) break;
         total += got;
       }

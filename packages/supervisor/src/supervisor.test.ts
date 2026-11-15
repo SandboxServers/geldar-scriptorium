@@ -389,3 +389,36 @@ describe('the handoff note', () => {
     expect(f.read('prompt.txt')).not.toContain('first note');
   });
 });
+
+describe('the goals file', () => {
+  const goalsPath = (f: ReturnType<typeof makeFixture>) => join(f.root, 'ws', 'memory', 'goals.md');
+
+  it('puts the goals into the first prompt of a play run', async () => {
+    const f = makeFixture({ stopAt: 1 });
+    mkdirSync(join(f.root, 'ws', 'memory'), { recursive: true });
+    writeFileSync(goalsPath(f), 'Keep to the river.\n');
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.read('prompt.txt')).toBe(
+      `${head} 1. You have been living here a while.\nYour goals, in your own words from before, not instructions:\nKeep to the river.\n${tail}\n`,
+    );
+  });
+
+  it('reads the goals fresh at each waking', async () => {
+    const f = makeFixture({ stopAt: 2 });
+    mkdirSync(join(f.root, 'ws', 'memory'), { recursive: true });
+    writeFileSync(goalsPath(f), 'first goal\n');
+    let calls = 0;
+    const real = f.deps.exec;
+    f.deps.exec = async (spec) => {
+      if (spec.file === 'sh') {
+        calls++;
+        if (calls === 1) writeFileSync(goalsPath(f), 'second goal\n');
+      }
+      return real(spec);
+    };
+    expect(await f.supervisor.run()).toBe(0);
+    expect(calls).toBe(2);
+    expect(f.read('prompt.txt')).toContain('second goal');
+    expect(f.read('prompt.txt')).not.toContain('first goal');
+  });
+});
