@@ -1,0 +1,18 @@
+{
+  "name": "@geldar/scriptorium-instinct",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The instinct step: the geldar-instinct world link, observation, result protocol and audit",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contract": "./src/contract.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "dependencies": {
+    "@geldar/scriptorium-psyche": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.2"
+  }
+}
