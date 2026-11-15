@@ -9,6 +9,9 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { record } from '@geldar/scriptorium-mind-loop';
+
+export { record };
 
 export const ISSUER = 'https://auth.openai.com';
 export const RESOURCE = 'https://api.openai.com/v1';
@@ -33,10 +36,6 @@ export interface Credentials {
   id: string;
   scopes: string[];
   expires: number;
-}
-
-export function record(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 /** CLI home is never mounted in a tool server. No path here is supplied by the model. */

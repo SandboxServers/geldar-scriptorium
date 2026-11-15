@@ -1,9 +1,9 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { record } from './auth.ts';
 import { fileTools, textOutput } from './files.ts';
-import type { Tool } from './responses.ts';
+import { record } from './record.ts';
+import type { Tool } from './types.ts';
 
 /** Preserve world images without fetching model-supplied URLs or treating tool text as instructions. */
 export function toolOutput(answer: unknown): unknown {

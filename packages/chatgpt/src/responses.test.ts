@@ -1,7 +1,7 @@
+import { toolOutput } from '@geldar/scriptorium-mind-loop';
 import { describe, expect, it, vi } from 'vitest';
 import type { Fetch } from './auth.ts';
 import { completed, type Item, runRound, type Tool } from './responses.ts';
-import { toolOutput } from './tools.ts';
 
 const response = (output: Item[], usage = {}) => ({
   type: 'response.completed',
@@ -269,18 +269,5 @@ describe('ChatGPT mind tool loop', () => {
       type: 'result',
       usage: { input_tokens: 0, cached_input_tokens: 40, output_tokens: 2 },
     });
-  });
-
-  it('keeps MCP error text as tool output and never fetches a tool-supplied resource URL', () => {
-    expect(
-      toolOutput({
-        isError: true,
-        content: [
-          { type: 'text', text: 'Action failed: blocked.' },
-          { type: 'resource_link', uri: 'https://untrusted.test/secret' },
-          { type: 'image', mimeType: 'text/html', data: 'AAAA' },
-        ],
-      }),
-    ).toEqual([{ type: 'input_text', text: 'Action failed: blocked.' }]);
   });
 });

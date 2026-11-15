@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { worldHeaders } from './tools.ts';
+import { toolOutput, worldHeaders } from './tools.ts';
+
+describe('toolOutput', () => {
+  it('keeps MCP error text as tool output and never fetches a tool-supplied resource URL', () => {
+    expect(
+      toolOutput({
+        isError: true,
+        content: [
+          { type: 'text', text: 'Action failed: blocked.' },
+          { type: 'resource_link', uri: 'https://untrusted.test/secret' },
+          { type: 'image', mimeType: 'text/html', data: 'AAAA' },
+        ],
+      }),
+    ).toEqual([{ type: 'input_text', text: 'Action failed: blocked.' }]);
+  });
+});
 
 describe('worldHeaders', () => {
   it('sends the bearer token and both stamp headers for good values', () => {
