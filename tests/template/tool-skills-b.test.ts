@@ -36,7 +36,10 @@ describe.each(names)('tool skill %s', (name) => {
 
   it('has no digit outside a quoted world text or a listed game number', () => {
     const allowed = numericClauses[name] ?? [];
-    const rest = allowed.reduce((text, clause) => text.split(clause).join(' '), unquoted(skill.text));
+    const rest = allowed.reduce(
+      (text, clause) => text.split(clause).join(' '),
+      unquoted(skill.text),
+    );
     expect(rest).not.toMatch(/\d/);
   });
 

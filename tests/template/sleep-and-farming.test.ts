@@ -34,6 +34,8 @@ describe('sleep and farming facts', () => {
 
   it('pins the trampling rule of farmland', () => {
     const { text } = readSkill('farming-and-animals');
-    expect(text).toContain('Landing on farmland after a jump or a fall can trample it. Walking does not.');
+    expect(text).toContain(
+      'Landing on farmland after a jump or a fall can trample it. Walking does not.',
+    );
   });
 });
