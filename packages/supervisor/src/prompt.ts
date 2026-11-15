@@ -1,19 +1,28 @@
-/** The longest stretch of the character's last words that goes into the next prompt. */
+/** The longest stretch of the character's last words that goes into the next prompt, in code points. */
 const WORDS_MAX = 1500;
 
 const TAIL =
   'Read your journal first, then look around. If something does not work, read why and try another way. If you are truly stuck, wait or sleep and try again later; do not stop.';
 
+// A lone low surrogate: one UTF-16 unit in the DC00..DFFF range (a pair would be two units).
+function isLoneLowSurrogate(ch: string): boolean {
+  const code = ch.charCodeAt(0);
+  return ch.length === 1 && code >= 0xdc00 && code <= 0xdfff;
+}
+
 /**
  * The character's last words as untrusted text: no control characters (C0, DEL, C1), double
- * quotes turned into single quotes, at most 1500 code points.
+ * quotes turned into single quotes, at most the last 1500 code points (the end is where a handoff
+ * note sits). A surrogate pair is never split; a lone low surrogate at the new start is dropped.
  */
 export function cleanLastWords(text: string): string {
   const kept = Array.from(text).filter((ch) => {
     const code = ch.codePointAt(0) ?? 0;
     return !(code < 0x20 || (code >= 0x7f && code <= 0x9f));
   });
-  return kept.slice(0, WORDS_MAX).join('').replace(/"/g, "'");
+  const tail = kept.slice(-WORDS_MAX);
+  if (isLoneLowSurrogate(tail[0] ?? '')) tail.shift();
+  return tail.join('').replace(/"/g, "'");
 }
 
 /** The line that comes before the player's own goals in a prompt. */
