@@ -5,7 +5,7 @@
   "description": "The vendored psyche roll engine, pinned by a recorded tree hash (MIRROR.json)",
   "type": "module",
   "exports": {
-    ".": "./engine/index.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p . --noEmit"
