@@ -12,7 +12,7 @@ describe('toolOutput', () => {
           { type: 'image', mimeType: 'text/html', data: 'AAAA' },
         ],
       }),
-    ).toEqual([{ type: 'input_text', text: 'Action failed: blocked.' }]);
+    ).toEqual([{ type: 'text', text: 'Action failed: blocked.' }]);
   });
 });
 

@@ -131,7 +131,7 @@ describe('ChatGPT mind tool loop', () => {
   });
 
   it('never executes unknown tools or another namespace, and bounds the number of model turns', async () => {
-    const call = vi.fn(async () => 'must not run');
+    const call = vi.fn(async () => [{ type: 'text' as const, text: 'must not run' }]);
     const emitted: Item[] = [];
     const request = vi.fn(async () =>
       sse([
@@ -173,7 +173,7 @@ describe('ChatGPT mind tool loop', () => {
 
   it('reports the usage of every completion: uncached input, cached input and output', async () => {
     const emitted: Item[] = [];
-    const call = vi.fn(async () => [{ type: 'input_text', text: 'a tree' }]);
+    const call = vi.fn(async () => [{ type: 'text' as const, text: 'a tree' }]);
     const request = vi
       .fn()
       .mockResolvedValueOnce(
@@ -212,7 +212,7 @@ describe('ChatGPT mind tool loop', () => {
 
   it('reports the usage already spent when a later request fails', async () => {
     const emitted: Item[] = [];
-    const call = vi.fn(async () => [{ type: 'input_text', text: 'a tree' }]);
+    const call = vi.fn(async () => [{ type: 'text' as const, text: 'a tree' }]);
     const request = vi
       .fn()
       .mockResolvedValueOnce(
