@@ -73,7 +73,7 @@ describe.skipIf(missing.length > 0)('H-18 hooks without the kit marker', () => {
 
   it('finds the three known hooks', () => {
     expect(scripts).toEqual(
-      expect.arrayContaining(['post-tool-use.sh', 'session-end.sh', 'session-start.sh']),
+      expect.arrayContaining(['post-tool-use.sh', 'session-end.sh', 'session-start.sh', 'stop.sh']),
     );
   });
 

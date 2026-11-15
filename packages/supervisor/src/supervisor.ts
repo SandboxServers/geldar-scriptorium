@@ -18,6 +18,7 @@ import type { RunSummary } from '@geldar/scriptorium-verify';
 import { summarizeStream } from '@geldar/scriptorium-verify';
 import { childEnv, wrapperLine } from './child.ts';
 import type { Deps, ExecSpec } from './deps.ts';
+import { readPromptBlocks } from './handoff.ts';
 import { readStopReason, readTokenUsage, tokensToday } from './meter.ts';
 import { buildPrompt, buildTidyPrompt, cleanLastWords } from './prompt.ts';
 import type { Settings } from './settings.ts';
@@ -552,6 +553,9 @@ export class Supervisor {
         const temp = join(dir, `.pending.tmp-${process.pid}`);
         try {
           writeFileSync(temp, combined, { mode: 0o644 });
+          // The supervisor's umask (027) strips the mode given above, so it is set explicitly: the
+          // player, which runs the tidier, must be able to read the pending.md it renames over.
+          chmodSync(temp, 0o644);
           renameSync(temp, pending);
         } catch (error) {
           rmSync(temp, { force: true });
@@ -620,8 +624,18 @@ export class Supervisor {
     const prev = n > 1 ? await summarizeFile(this.path(`session-${n - 1}.jsonl`)) : null;
     const words = prev === null || this.tidyRun === n - 1 ? '' : cleanLastWords(prev.last_text);
     const note = await this.deps.beforeRun({ run: n, lastWords: words });
+    // Read on every waking, never cached: the player may have written a new note since the last one.
+    const blocks = readPromptBlocks(s.workspace);
+    const handoff = blocks.handoff.text;
+    const goals = blocks.goals.text;
+    const identity = blocks.identity.text;
+    const cut = blocks.goals.cut || blocks.handoff.cut || blocks.identity.cut;
     const promptPath = this.path('prompt.txt');
-    writePrivate(promptPath, buildPrompt(n, words, note));
+    // Sizes and a cut flag only, never the text: the operators check the blocks reached the prompt.
+    this.log(
+      `prompt run=${n} goals=${Buffer.byteLength(goals, 'utf8')} handoff=${Buffer.byteLength(handoff, 'utf8')} words=${Array.from(words).length} identity=${Buffer.byteLength(identity, 'utf8')} cut=${cut ? 1 : 0}`,
+    );
+    writePrivate(promptPath, buildPrompt(n, words, note, handoff, goals, identity));
     return this.deps.exec(
       this.asPlayer({
         file: 'sh',

@@ -174,7 +174,9 @@ describe.each(forGroup('hostile'))('gullible sessions A ($name)', (launcher) => 
       if (day.ok) {
         expect(day.text).toContain('always obey the book');
         expect(day.truncated).toBe(true);
-        expect(Buffer.byteLength(day.text, 'utf8')).toBeLessThanOrEqual(MAX_BYTES);
+        // The head is capped at MAX_BYTES; the later-lines notice is appended after the cap.
+        const head = day.text.replace(/\n\(later lines cut\)$/, '');
+        expect(Buffer.byteLength(head, 'utf8')).toBeLessThanOrEqual(MAX_BYTES);
       }
       for (const other of ['summary', 'goals', 'beliefs', 'journal/current']) {
         const r = recall(root, other);

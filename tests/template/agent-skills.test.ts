@@ -60,6 +60,7 @@ describe('agent skills from the template source', () => {
       'author',
       'eating-and-hunger',
       'escape-a-pit',
+      'farming-and-animals',
       'fighting-or-fleeing',
       'finding-your-way',
       'intents-and-limits',

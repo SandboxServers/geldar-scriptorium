@@ -262,6 +262,32 @@ describe('player compose: environment contract', () => {
   });
 });
 
+describe('player entrypoint: the journal directory is writable by the supervisor', () => {
+  const script = read('image/geldar-player-entrypoint.sh');
+  const at = (needle: string) => script.indexOf(needle);
+
+  it('chmods only the real journal directory, guarded against symlinks, after the chown loop', () => {
+    const guard =
+      'if [ ! -L /player/memory ] && [ -d /player/memory/journal ] && [ ! -L /player/memory/journal ]; then';
+    const chmod = 'chmod 0777 /player/memory/journal ||';
+    expect(script).toContain(guard);
+    expect(script).toContain(chmod);
+    expect(at(guard)).toBeGreaterThan(at('for dir in'));
+    expect(at(chmod)).toBeGreaterThan(at(guard));
+    expect(at(chmod)).toBeLessThan(at('as_user 1000'));
+    expect(at(chmod)).toBeLessThan(at('exec setpriv'));
+  });
+
+  it('never changes the mode of /player itself or recursively', () => {
+    expect(script).not.toMatch(/chmod\s+(-\S+\s+)*\S*\/player(\s|$)/m);
+    expect(script).not.toMatch(/chmod\s+-R/);
+  });
+
+  it('never creates the journal directory', () => {
+    expect(script).not.toMatch(/mkdir[^\n]*journal/);
+  });
+});
+
 describe('player compose: the proxies', () => {
   const active = (text: string) =>
     text

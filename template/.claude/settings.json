@@ -28,6 +28,7 @@
       "Skill(author)",
       "Skill(eating-and-hunger)",
       "Skill(escape-a-pit)",
+      "Skill(farming-and-animals)",
       "Skill(fighting-or-fleeing)",
       "Skill(finding-your-way)",
       "Skill(intents-and-limits)",
@@ -43,15 +44,23 @@
       "Skill(water-and-drowning)",
       "Read(/**)",
       "Edit(/memory/**)",
-      "Edit(/skills/**)"
+      "Write(/memory/**)",
+      "Edit(/skills/**)",
+      "Write(/skills/**)"
     ],
     "deny": [
       "Edit(/.claude/**)",
+      "Write(/.claude/**)",
       "Edit(/CLAUDE.md)",
+      "Write(/CLAUDE.md)",
       "Edit(/AGENTS.md)",
+      "Write(/AGENTS.md)",
       "Edit(/.mcp.json)",
+      "Write(/.mcp.json)",
       "Edit(/player.json)",
-      "Edit(/.gitattributes)"
+      "Write(/player.json)",
+      "Edit(/.gitattributes)",
+      "Write(/.gitattributes)"
     ]
   },
   "hooks": {
@@ -96,6 +105,18 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/session-end.sh\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/stop.sh\"",
+            "timeout": 10
           }
         ]
       }
