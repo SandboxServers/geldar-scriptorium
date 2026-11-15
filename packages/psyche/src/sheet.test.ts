@@ -143,11 +143,13 @@ describe('parseSheet', () => {
     expect(parseSheet(JSON.stringify(inside))).toBeNull();
   });
 
-  it('reads texts up to MAX_SHEET_BYTES bytes and refuses one byte more', () => {
+  it('reads texts of 4096 bytes and refuses 4097 (literal limit, not the constant)', () => {
     const json = JSON.stringify(base());
-    const at = ' '.repeat(MAX_SHEET_BYTES - json.length) + json;
-    const over = ' '.repeat(MAX_SHEET_BYTES - json.length + 1) + json;
-    expect(new TextEncoder().encode(at).byteLength).toBe(MAX_SHEET_BYTES);
+    const at = ' '.repeat(4096 - json.length) + json;
+    const over = ' '.repeat(4097 - json.length) + json;
+    expect(MAX_SHEET_BYTES).toBe(4096);
+    expect(new TextEncoder().encode(at).byteLength).toBe(4096);
+    expect(new TextEncoder().encode(over).byteLength).toBe(4097);
     expect(parseSheet(at)).toEqual(STANDARD_SHEET);
     expect(parseSheet(over)).toBeNull();
   });

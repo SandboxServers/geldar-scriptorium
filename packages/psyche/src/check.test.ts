@@ -1,6 +1,7 @@
 // successChance against the engine's enumeration and the brief 4.1 table, check() with rolls off and on, and the
 // names the package entry exposes.
 import { describe, expect, it } from 'vitest';
+import * as engine from '../engine/index.ts';
 import {
   type DrawKey,
   exactChance,
@@ -10,7 +11,7 @@ import {
   roll,
   type Score,
 } from '../engine/index.ts';
-import { check, successChance } from './check.ts';
+import { type CheckOptions, check, successChance, successProbability } from './check.ts';
 import * as entry from './index.ts';
 
 const SCORES: readonly Score[] = [1, 2, 3, 4, 5];
@@ -102,6 +103,17 @@ describe('check', () => {
       total: null,
       success: true,
     });
+  });
+
+  it('rolls off records the score bonus plus proficiency', () => {
+    const rng = scripted([]);
+    const guard = check('guard', 5, 17, rng, 2, 'life-a', 3, { prof: 2, rolls: false });
+    expect(guard.roll.bonus).toBe(4);
+    expect(guard.success).toBe(true);
+    const idle = check('idle', 1, 8, rng, 3, 'life-a', 3, { prof: 1, rolls: false });
+    expect(idle.roll.bonus).toBe(-1);
+    expect(idle.success).toBe(false);
+    expect(rng.draws).toBe(0);
   });
 
   it('rolls off never calls the rng', () => {
@@ -209,9 +221,161 @@ describe('package entry', () => {
       'rngFor',
       'step',
       'successChance',
+      'successProbability',
+      'ENGINE_VERSION',
+      'canonicalSheetJson',
+      'DEFAULT_DCS',
+      'DEFAULT_THRESHOLDS',
+      'normalizeSheet',
+      'seedFor',
+      'sheetOrStandard',
+      'd20',
     ];
     expect(Object.keys(entry).sort()).toEqual([...pinned].sort());
     expect(Object.keys(entry)).not.toContain('TEMPERAMENT_BANK');
     expect(Object.keys(entry)).not.toContain('temperamentFor');
+  });
+
+  it('exports successProbability as the same function as successChance', () => {
+    expect(successProbability).toBe(successChance);
+    expect(entry.successProbability).toBe(entry.successChance);
+    expect(entry.successProbability).toBe(successChance);
+  });
+
+  it('re-exports each engine name as the engine has it', () => {
+    expect(entry.ENGINE_VERSION).toBe(engine.ENGINE_VERSION);
+    expect(entry.normalizeSheet).toBe(engine.normalizeSheet);
+    expect(entry.sheetOrStandard).toBe(engine.sheetOrStandard);
+    expect(entry.seedFor).toBe(engine.seedFor);
+    expect(entry.DEFAULT_DCS).toBe(engine.DEFAULT_DCS);
+    expect(entry.DEFAULT_THRESHOLDS).toBe(engine.DEFAULT_THRESHOLDS);
+    expect(entry.canonicalSheetJson).toBe(engine.canonicalSheetJson);
+  });
+});
+
+/** The value a test passes where a Score is typed; check() must refuse it. */
+function asScore(value: number): Score {
+  return value as Score;
+}
+
+/** The error a call throws, or undefined when it does not throw. */
+function thrownBy(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (error) {
+    return error;
+  }
+  return undefined;
+}
+
+describe('check input validation', () => {
+  const both: readonly CheckOptions[] = [
+    { prof: 0, rolls: true },
+    { prof: 0, rolls: false },
+  ];
+
+  const refused: Array<[string, (opts: CheckOptions, rng: Rng) => unknown, string]> = [
+    [
+      'score 0',
+      (o, r) => check('idle', asScore(0), 11, r, 0, 'life-a', 1, o),
+      'score must be an integer from 1 to 5',
+    ],
+    [
+      'score 6',
+      (o, r) => check('idle', asScore(6), 11, r, 0, 'life-a', 1, o),
+      'score must be an integer from 1 to 5',
+    ],
+    [
+      'score 3.5',
+      (o, r) => check('idle', asScore(3.5), 11, r, 0, 'life-a', 1, o),
+      'score must be an integer from 1 to 5',
+    ],
+    [
+      'score NaN',
+      (o, r) => check('idle', asScore(Number.NaN), 11, r, 0, 'life-a', 1, o),
+      'score must be an integer from 1 to 5',
+    ],
+    [
+      'dc 10.5',
+      (o, r) => check('idle', 3, 10.5, r, 0, 'life-a', 1, o),
+      'dc must be a finite integer',
+    ],
+    [
+      'dc NaN',
+      (o, r) => check('idle', 3, Number.NaN, r, 0, 'life-a', 1, o),
+      'dc must be a finite integer',
+    ],
+    [
+      'dc Infinity',
+      (o, r) => check('idle', 3, Number.POSITIVE_INFINITY, r, 0, 'life-a', 1, o),
+      'dc must be a finite integer',
+    ],
+    [
+      'n -1',
+      (o, r) => check('idle', 3, 11, r, -1, 'life-a', 1, o),
+      'n must be a safe non-negative integer',
+    ],
+    [
+      'n 1.5',
+      (o, r) => check('idle', 3, 11, r, 1.5, 'life-a', 1, o),
+      'n must be a safe non-negative integer',
+    ],
+    [
+      'n NaN',
+      (o, r) => check('idle', 3, 11, r, Number.NaN, 'life-a', 1, o),
+      'n must be a safe non-negative integer',
+    ],
+    [
+      'tick -1',
+      (o, r) => check('idle', 3, 11, r, 0, 'life-a', -1, o),
+      'tick must be a safe non-negative integer',
+    ],
+    [
+      'tick 2^53',
+      (o, r) => check('idle', 3, 11, r, 0, 'life-a', Number.MAX_SAFE_INTEGER + 1, o),
+      'tick must be a safe non-negative integer',
+    ],
+    [
+      'fx empty',
+      (o, r) => check('', 3, 11, r, 0, 'life-a', 1, o),
+      'fx must be a non-empty string without ":"',
+    ],
+    [
+      'fx with a colon',
+      (o, r) => check('a:b', 3, 11, r, 0, 'life-a', 1, o),
+      'fx must be a non-empty string without ":"',
+    ],
+    [
+      'lifeKey empty',
+      (o, r) => check('idle', 3, 11, r, 0, '', 1, o),
+      'lifeKey must be a non-empty string without ":"',
+    ],
+    [
+      'lifeKey with a colon',
+      (o, r) => check('idle', 3, 11, r, 0, 'a:1', 1, o),
+      'lifeKey must be a non-empty string without ":"',
+    ],
+  ];
+
+  it('refuses each bad input with a RangeError and a constant message, before any draw', () => {
+    for (const [label, attempt, message] of refused) {
+      for (const opts of both) {
+        const rng = scripted([face(1), face(1)]);
+        const error = thrownBy(() => attempt(opts, rng));
+        expect(error, `${label} rolls ${opts.rolls}`).toBeInstanceOf(RangeError);
+        expect((error as RangeError).message, label).toBe(message);
+        expect(rng.draws, `${label} rolls ${opts.rolls}`).toBe(0);
+      }
+    }
+  });
+
+  it('accepts the edges of every range', () => {
+    const rng = scripted([]);
+    const off: CheckOptions = { prof: 3, rolls: false };
+    expect(thrownBy(() => check('idle', 1, -10, rng, 0, 'a', 0, off))).toBeUndefined();
+    expect(
+      thrownBy(() => check('idle', 5, 45, rng, Number.MAX_SAFE_INTEGER, 'z-9', 0, off)),
+    ).toBeUndefined();
+    expect(rng.draws).toBe(0);
   });
 });
