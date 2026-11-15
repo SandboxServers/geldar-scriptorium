@@ -34,9 +34,9 @@ describeBash('fleet/bootstrap/bootstrap.sh (F-01b)', () => {
     const world = makeWorld();
     expect(run(world).status).toBe(0);
     expect(fstabLines(world)).toEqual([
-      'LABEL=geldar-nvme-d /srv/geldar/nvme-d auto defaults,nofail 0 2',
-      'LABEL=geldar-nvme-e /srv/geldar/nvme-e auto defaults,nofail 0 2',
-      'LABEL=geldar-nvme-g /srv/geldar/nvme-g auto defaults,nofail 0 2',
+      'LABEL=nvme-d /srv/geldar/nvme-d auto defaults,nofail 0 2',
+      'LABEL=nvme-e /srv/geldar/nvme-e auto defaults,nofail 0 2',
+      'LABEL=nvme-g /srv/geldar/nvme-g auto defaults,nofail 0 2',
     ]);
     for (const x of ['d', 'e', 'g']) {
       const mnt = join(world.root, 'srv', 'geldar', `nvme-${x}`);
