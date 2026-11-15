@@ -330,8 +330,7 @@ describeBash('runner install (F-05a)', () => {
     expect(r.status, r.out).toBe(0);
     expect(configLog(world)).toContain(`ACTIONS_RUNNER_INPUT_TOKEN=${TOKEN}\n`);
     const argv = configLog(world)
-      .split('
-')
+      .split('\n')
       .filter((l) => l.startsWith('argv: '));
     expect(argv).toEqual(['argv: --unattended --replace']);
     expect(calls(world).join('\n')).not.toContain(TOKEN);
