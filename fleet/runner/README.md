@@ -30,6 +30,13 @@ What the script does, in order:
    Skipped when `.runner` is already there.
 6. Copies `geldar-runner.service` to `/etc/systemd/system/`, then runs `systemctl enable --now`.
 
+Notes on a re-run:
+
+- A re-run does not restart a unit that is already running. After a change to the unit, restart it
+  by hand (`systemctl restart geldar-runner.service`).
+- The script does not run `bin/installdependencies.sh` of the runner, so it does not install the
+  runner's dependencies (libicu). F-08 step 1 verifies libicu on the VM.
+
 ### Self-update
 
 The runner updates itself. This is the owner's choice (D-FL-10): runner binaries may change without

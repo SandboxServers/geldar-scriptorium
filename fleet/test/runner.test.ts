@@ -23,7 +23,6 @@ const here = dirname(fileURLToPath(import.meta.url));
 const runnerDir = resolve(here, '..', 'runner');
 const URL_OK = 'https://github.com/example-org/example-repo';
 const TOKEN = 'test-registration-token';
-const DEFAULT_GROUPS = 'docker:x:999:\nsudo:x:27:\nwheel:x:10:\n';
 const DEFAULT_PASSWD = 'geldar-runner:x:1002:1002::/opt/geldar-runner:/usr/sbin/nologin\n';
 
 // The unit snapshot: geldar-runner.service must equal this text byte for byte.
@@ -56,14 +55,10 @@ const UNIT_SNAPSHOT = [
 
 // Fake commands for the script's PATH. Each logs its name and argv to $FAKE_STATE/calls.log; state
 // files in $FAKE_STATE steer them. The fake tar unpacks the payload config.sh into the directory.
+// The fake id answers -u with the uid and -nG with the names in runner-groups.
 const FAKE_BODIES: Record<string, string> = {
-  id: 'cat "$FAKE_STATE/uid"',
-  getent: [
-    'case "$1" in',
-    '  passwd) grep "^$2:" "$FAKE_STATE/passwd" ;;',
-    '  group) shift; for g in "$@"; do grep "^$g:" "$FAKE_STATE/group" || true; done ;;',
-    'esac',
-  ].join('\n'),
+  id: 'if [ "$1" = "-nG" ]; then cat "$FAKE_STATE/runner-groups"; else cat "$FAKE_STATE/uid"; fi',
+  getent: 'grep "^$2:" "$FAKE_STATE/passwd"',
   useradd: [
     'echo "useradd $*" >> "$FAKE_STATE/calls.log"',
     'cat "$FAKE_STATE/passwd-line" >> "$FAKE_STATE/passwd"',
@@ -77,7 +72,7 @@ const FAKE_BODIES: Record<string, string> = {
   ].join('\n'),
   sha256sum: [
     'echo "sha256sum $*" >> "$FAKE_STATE/calls.log"',
-    'cat > /dev/null',
+    'cat > "$FAKE_STATE/sha-input"',
     '[ ! -e "$FAKE_STATE/sha-bad" ] || exit 1',
   ].join('\n'),
   tar: [
@@ -117,10 +112,12 @@ const LOG_ONLY: Record<string, string> = {
 interface Setup {
   edits?: Record<string, string>; // versions.env keys to replace in the temp copy
   token?: string | null; // the token file's text; null leaves no token file at all
-  groups?: string; // the group fixture (/etc/group lines)
+  runnerGroups?: string; // what id -nG reports for the runner account; default geldar-runner
   noAccount?: boolean; // the passwd fixture has no geldar-runner account
   shaBad?: boolean; // sha256sum reports a mismatch
   pathsLogOnly?: boolean; // mkdir, cp, chmod, tar and runuser only log; the runner dir exists
+  hasConfig?: boolean; // the runner dir already holds config.sh (a re-run)
+  hasRunner?: boolean; // the runner dir already holds .runner (registered)
   uid?: string; // what the fake id reports; default 0
 }
 
@@ -178,11 +175,16 @@ function makeWorld(setup: Setup = {}): World {
   writeFileSync(join(world.state, 'uid'), setup.uid ?? '0');
   writeFileSync(join(world.state, 'passwd'), setup.noAccount ? '' : DEFAULT_PASSWD);
   writeFileSync(join(world.state, 'passwd-line'), DEFAULT_PASSWD);
-  writeFileSync(join(world.state, 'group'), setup.groups ?? DEFAULT_GROUPS);
+  writeFileSync(join(world.state, 'runner-groups'), `${setup.runnerGroups ?? 'geldar-runner'}\n`);
   if (setup.shaBad) writeFileSync(join(world.state, 'sha-bad'), '');
   const tokenText = setup.token === undefined ? `${TOKEN}\n` : setup.token;
   if (tokenText !== null) writeFileSync(world.token, tokenText);
-  if (setup.pathsLogOnly) mkdirSync(join(world.root, 'opt', 'geldar-runner'), { recursive: true });
+  const runnerHome = join(world.root, 'opt', 'geldar-runner');
+  if (setup.pathsLogOnly || setup.hasConfig || setup.hasRunner) {
+    mkdirSync(runnerHome, { recursive: true });
+  }
+  if (setup.hasConfig) writeExe(join(runnerHome, 'config.sh'), CONFIG_BODY);
+  if (setup.hasRunner) writeFileSync(join(runnerHome, '.runner'), '{}\n');
   return world;
 }
 
@@ -219,6 +221,17 @@ function configLog(world: World): string {
   return readLog(join(world.state, 'config.log'));
 }
 
+// The tarball path the script fetched: the -o argument of its curl call.
+function tarballOf(world: World): string {
+  const argv = (calls(world).find((c) => c.startsWith('curl ')) ?? '').split(' ');
+  return argv[argv.indexOf('-o') + 1] ?? '';
+}
+
+// The runner directory under the GEL_ROOT tree, as the script names it in its calls.
+function runnerDirOf(world: World): string {
+  return bashPath(join(world.root, 'opt', 'geldar-runner'));
+}
+
 // The fakes are extensionless scripts on PATH; Git Bash on win32 does not run them, so the suite
 // runs on Linux (and in CI) and skips on win32 with the reason.
 const win = process.platform === 'win32';
@@ -247,9 +260,30 @@ describeBash('runner install (F-05a)', () => {
     expect(installed).toBe(UNIT_SNAPSHOT);
     expect(readFileSync(join(runnerDir, 'geldar-runner.service'), 'utf8')).toBe(UNIT_SNAPSHOT);
     expect(installed).not.toMatch(/NoNewPrivileges/);
-    expect(calls(world)).toContain(
-      'systemctl enable --now geldar-runner.service',
-    );
+    expect(calls(world)).toContain('systemctl enable --now geldar-runner.service');
+  });
+
+  it('checks the tarball against the pinned sha256 before it is unpacked', () => {
+    const world = makeWorld();
+    expect(run(world).status).toBe(0);
+    const versions = readFileSync(join(runnerDir, 'versions.env'), 'utf8');
+    const pinned = /^RUNNER_SHA256=(.*)$/m.exec(versions)?.[1];
+    expect(pinned).toMatch(/^[0-9a-f]{64}$/);
+    const checked = readLog(join(world.state, 'sha-input'));
+    expect(checked).toBe(`${pinned}  ${tarballOf(world)}\n`);
+  });
+
+  it('unpacks the tarball into the runner directory with tar -xzf', () => {
+    const world = makeWorld();
+    expect(run(world).status).toBe(0);
+    const dirArg = runnerDirOf(world);
+    expect(calls(world)).toContain(`tar -xzf ${tarballOf(world)} -C ${dirArg}`);
+  });
+
+  it('gives the runner directory to the runner account', () => {
+    const world = makeWorld();
+    expect(run(world).status).toBe(0);
+    expect(calls(world)).toContain(`chown -R geldar-runner:geldar-runner ${runnerDirOf(world)}`);
   });
 
   it('a FILL_ME checksum exits 5 before anything is fetched or unpacked', () => {
@@ -302,11 +336,49 @@ describeBash('runner install (F-05a)', () => {
   });
 
   it.each(['docker', 'sudo', 'wheel'])('refuses the account in %s (exit 6)', (group) => {
-    const world = makeWorld({ groups: `${group}:x:999:geldar-runner\n` });
+    const world = makeWorld({ runnerGroups: `geldar-runner ${group}` });
     const r = run(world);
     expect(r.status, r.out).toBe(6);
     expect(configLog(world)).toBe('');
     expect(calls(world).some((c) => c.startsWith('runuser '))).toBe(false);
+  });
+
+  it('refuses the account whose primary group is docker (exit 6)', () => {
+    const world = makeWorld({ runnerGroups: 'docker' });
+    const r = run(world);
+    expect(r.status, r.out).toBe(6);
+    expect(configLog(world)).toBe('');
+    expect(calls(world).some((c) => c.startsWith('runuser '))).toBe(false);
+  });
+
+  it.each([
+    ['empty', ''],
+    ['two lines', `${TOKEN}\nsecond\n`],
+    ['a CR', `${TOKEN}\r\n`],
+  ])('refuses a token file that is %s (exit 2) before anything runs', (_, token) => {
+    const world = makeWorld({ token });
+    const r = run(world);
+    expect(r.status, r.out).toBe(2);
+    expect(calls(world)).toEqual([]);
+  });
+
+  it('skips the download when config.sh is already there, and still registers', () => {
+    const world = makeWorld({ hasConfig: true });
+    const r = run(world);
+    expect(r.status, r.out).toBe(0);
+    expect(calls(world).some((c) => c.startsWith('curl '))).toBe(false);
+    expect(calls(world).some((c) => c.startsWith('tar '))).toBe(false);
+    expect(configLog(world)).toContain('run-as: geldar-runner\n');
+  });
+
+  it('skips the registration when .runner is there, and still chowns the directory', () => {
+    const world = makeWorld({ hasConfig: true, hasRunner: true });
+    const r = run(world);
+    expect(r.status, r.out).toBe(0);
+    expect(calls(world).some((c) => c.startsWith('curl '))).toBe(false);
+    expect(calls(world).some((c) => c.startsWith('runuser '))).toBe(false);
+    expect(configLog(world)).toBe('');
+    expect(calls(world)).toContain(`chown -R geldar-runner:geldar-runner ${runnerDirOf(world)}`);
   });
 
   it('creates the runner account when it is absent', () => {
@@ -341,9 +413,9 @@ describeBash('runner install (F-05a)', () => {
     const off = makeWorld({ pathsLogOnly: true });
     run(off, { seam: false });
     const offCalls = calls(off);
-    expect(offCalls.some((c) => c.startsWith('tar ') && c.endsWith(' -C /opt/geldar-runner'))).toBe(
-      true,
-    );
+    expect(
+      offCalls.some((c) => c.startsWith('tar ') && c.endsWith(' -C /opt/geldar-runner')),
+    ).toBe(true);
     expect(offCalls.join('\n')).not.toContain(bashPath(off.root));
   });
 });

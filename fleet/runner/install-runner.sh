@@ -55,14 +55,17 @@ pin() {
   printf -v "$2" '%s' "$value"
 }
 
-# runner_not_privileged exits 6 when the runner account is in docker, sudo or wheel. Its only sudo
-# rule is the wrapper, installed by F-05b; any other group would widen what the runner can reach.
+# runner_not_privileged exits 6 when the runner account is in docker, sudo or wheel, its primary
+# group included (id -nG lists it). Its only sudo rule is the wrapper, installed by F-05b; any other
+# group would widen what the runner can reach.
 runner_not_privileged() {
-  local hits
-  hits=$(getent group docker sudo wheel 2>/dev/null |
-    awk -F: -v u="$runner_account" '{ n = split($4, m, ","); for (i = 1; i <= n; i++) if (m[i] == u) print $1 }') ||
-    true
-  [ -z "$hits" ] || die 6 "$runner_account is in a refused group: ${hits//$'\n'/ }"
+  local names g
+  names=$(id -nG "$runner_account") || die 7 "id -nG $runner_account failed"
+  for g in $names; do
+    case $g in
+      docker | sudo | wheel) die 6 "$runner_account is in a refused group: $g" ;;
+    esac
+  done
 }
 
 # ensure_account creates the runner account as a system user with no login shell, when absent.
@@ -74,19 +77,24 @@ ensure_account() {
 }
 
 # fetch_and_unpack downloads the pinned tarball, checks its sha256 before anything is unpacked, and
-# unpacks it into the runner directory, owned by the runner account.
+# unpacks it into the runner directory. Only the first run of a fresh install reaches it.
 fetch_and_unpack() {
   local tarball_name tarball_url tarball
   tarball_name="actions-runner-linux-x64-$runner_version.tar.gz"
   tarball_url="https://github.com/actions/runner/releases/download/v$runner_version/$tarball_name"
-  tmp=$(mktemp -d)
+  tmp=$(mktemp -d) || die 7 "mktemp of the download directory failed"
   tarball="$tmp/$tarball_name"
   curl --fail --location --silent --show-error -o "$tarball" "$tarball_url" ||
     die 7 "download of the runner tarball failed"
   printf '%s  %s\n' "$runner_sha" "$tarball" | sha256sum --check --status ||
     die 5 "the runner tarball does not match RUNNER_SHA256"
-  mkdir -p "$runner_dir"
+  mkdir -p "$runner_dir" || die 7 "mkdir of $runner_dir failed"
   tar -xzf "$tarball" -C "$runner_dir" || die 7 "unpack of the runner tarball failed"
+}
+
+# own_runner_dir gives the runner directory to the runner account. Runs on every run, so a re-run
+# repairs the ownership, and config.sh (run as the runner account) can write into the directory.
+own_runner_dir() {
   chown -R "$runner_account:$runner_account" "$runner_dir" || die 7 "chown of $runner_dir failed"
 }
 
@@ -103,7 +111,7 @@ read_token() {
 # so it runs as the runner account through runuser.
 configure() {
   (
-    cd "$runner_dir"
+    cd "$runner_dir" || die 7 "cannot enter $runner_dir"
     ACTIONS_RUNNER_INPUT_TOKEN=$token \
       ACTIONS_RUNNER_INPUT_URL=$url \
       ACTIONS_RUNNER_INPUT_LABELS=$runner_labels \
@@ -155,6 +163,7 @@ read_token "$token_file"
 ensure_account
 runner_not_privileged
 [ -f "$runner_dir/config.sh" ] || fetch_and_unpack
+own_runner_dir
 [ -f "$runner_dir/.runner" ] || configure
 install_unit
 echo "result=installed version=$runner_version labels=$runner_labels"
