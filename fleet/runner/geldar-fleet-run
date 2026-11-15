@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # The root wrapper of the fleet (F-05b): the one command the runner account may run, through sudo.
 # Usage: geldar-fleet-run <verb> <id> [flags], or geldar-fleet-run check-login. Installed as
 # /usr/local/sbin/geldar-fleet-run (root:root 0755) by install-wrapper.sh. Every argument is checked
@@ -7,16 +7,22 @@
 # Exit codes: the launcher verb's code passes through; 2 usage, or a verb, id, flag or value that is
 # refused; 6 check-secrets or check-login fails; 7 a step failed.
 set -euo pipefail
+# The search path and the locale are fixed first, so nothing below depends on the caller's.
+readonly WRAP_PATH=/usr/local/bin:/usr/bin:/bin
+PATH=$WRAP_PATH
+export PATH
+export LC_ALL=C
 umask 022
 
 # The constants below are the only paths and environment values the wrapper uses. The test copies
 # the wrapper and rewrites these lines with sed; the installed values are the real ones.
 readonly WRAP_LAUNCHER_USER=geldar
 readonly WRAP_LAUNCHER_HOME=/home/geldar
-readonly WRAP_PATH=/usr/local/bin:/usr/bin:/bin
 readonly WRAP_DOCKER_HOST=unix:///var/run/docker.sock
 readonly WRAP_STATE_DIR=/home/geldar/.local/state
 readonly WRAP_RUNUSER=/usr/sbin/runuser
+readonly WRAP_STAT=/usr/bin/stat
+readonly WRAP_CHOWN=/usr/bin/chown
 readonly WRAP_TOKEN_DIR=/etc/geldar/tokens
 readonly WRAP_KEY_DIR=/etc/geldar/keys
 readonly WRAP_DATA_DIR=/srv/geldar
@@ -60,10 +66,11 @@ allowed_flags() {
 }
 
 # check_value FLAG VALUE ID: the value of a flag with a value must match its pattern for this id.
+# An org or a name never starts with -, so a value cannot read as a flag.
 check_value() {
   local flag=$1 value=$2 id=$3 re
   case $flag in
-    --repo) re='^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$' ;;
+    --repo) re='^[A-Za-z0-9._][A-Za-z0-9._-]*/[A-Za-z0-9._][A-Za-z0-9._-]*$' ;;
     --token-file) re="^$WRAP_TOKEN_DIR/$id\.token\$" ;;
     --data-dir) re="^$WRAP_DATA_DIR/nvme-[deg]/players/player-$id\$" ;;
     *) die 2 "flag $flag takes no value" ;;
@@ -91,8 +98,8 @@ check_secrets() {
 check_login() {
   local owner mode
   [ -f "$WRAP_LOGIN" ] || die 6 "the shared login is missing"
-  owner=$(stat -c %U "$WRAP_LOGIN") || die 6 "the shared login cannot be read"
-  mode=$(stat -c %a "$WRAP_LOGIN") || die 6 "the shared login cannot be read"
+  owner=$("$WRAP_STAT" -c %U "$WRAP_LOGIN") || die 6 "the shared login cannot be read"
+  mode=$("$WRAP_STAT" -c %a "$WRAP_LOGIN") || die 6 "the shared login cannot be read"
   [ "$owner" = "$WRAP_LAUNCHER_USER" ] || die 6 "the shared login is not owned by the launcher"
   [ $((8#$mode & 077)) -eq 0 ] || die 6 "the shared login has group or world bits"
 }
@@ -124,6 +131,7 @@ if [ "$verb" = check-secrets ]; then
 fi
 
 flags=()
+seen=" "
 while [ "$#" -gt 0 ]; do
   flag=$1
   shift
@@ -131,6 +139,11 @@ while [ "$#" -gt 0 ]; do
     *" $flag "*) ;;
     *) die 2 "flag $flag is not allowed for $verb" ;;
   esac
+  # A flag given twice is refused, so the launcher never sees two values for one flag.
+  case $seen in
+    *" $flag "*) die 2 "flag $flag is repeated" ;;
+  esac
+  seen="$seen$flag "
   case $flag in
     --no-start | --yes | --kv)
       flags+=("$flag")
@@ -155,7 +168,12 @@ fi
 rc=0
 "${launch[@]}" || rc=$?
 if [ "$rc" -eq 0 ]; then
+  key="$WRAP_STATE_DIR/$id/deploy-key"
+  # The chown follows no symlink: a link in the id directory or on the key itself is refused.
+  if [ -L "$WRAP_STATE_DIR/$id" ] || [ -L "$key" ]; then
+    die 7 "the deploy key path holds a symlink"
+  fi
   # Interim, until R-4 lands: the keeper reads the deploy key as uid 1002. Delete with R-4.
-  chown 1002:1002 "$WRAP_STATE_DIR/$id/deploy-key" || die 7 "chown of the deploy key failed"
+  "$WRAP_CHOWN" -h 1002:1002 "$key" || die 7 "chown of the deploy key failed"
 fi
 exit "$rc"

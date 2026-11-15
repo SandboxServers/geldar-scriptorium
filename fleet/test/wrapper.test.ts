@@ -7,6 +7,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir, userInfo } from 'node:os';
@@ -41,6 +42,10 @@ const BAD_IDS = [
   'ag-x`id`',
   'ag-x b',
   'ag-x\nb',
+  'ag-ab\n',
+  'ag-*',
+  'ag-?',
+  'ag-café',
   '../x',
   'ag-',
   'ag-a--b',
@@ -76,6 +81,10 @@ const BAD_CALLS: string[][] = [
   ['remove', ID, '--repo', 'org/a'],
   ['check-secrets', ID, '--yes'],
   ['check-login', ID],
+  ['adopt', ID, '--no-start', '--no-start'],
+  ['adopt', ID, '--repo', 'org/a', '--repo', 'org/b'],
+  ['adopt', ID, '--repo', '-org/a'],
+  ['adopt', ID, '--repo', 'org/-a'],
 ];
 
 interface Setup {
@@ -171,6 +180,7 @@ function makeWorld(setup: Setup = {}): World {
     WRAP_DOCKER_HOST: DOCKER_SOCKET,
     WRAP_STATE_DIR: w.state,
     WRAP_RUNUSER: join(w.fakes, 'runuser'),
+    WRAP_CHOWN: join(w.fakes, 'chown'),
     WRAP_TOKEN_DIR: w.tokens,
     WRAP_KEY_DIR: w.keys,
     WRAP_LOGIN: w.login,
@@ -204,14 +214,26 @@ function installWorld(visudoFails = false) {
   }
   writeExe(join(fakes, 'id'), 'echo 0');
   writeExe(join(fakes, 'visudo'), `echo "visudo $*" >> '${calls}'\nexit ${visudoFails ? 1 : 0}`);
+  // mkdir and install only act under GEL_ROOT: a real install path is refused, so a seam that is
+  // ignored shows up as exit 7 with the real path in the log, and nothing is written outside.
+  writeExe(
+    join(fakes, 'mkdir'),
+    `echo "mkdir $*" >> '${calls}'\nfor a in "$@"; do\n  case "$a" in\n    -p | "$GEL_ROOT"/*) ;;\n    *) exit 1 ;;\n  esac\ndone\ncommand -p mkdir "$@"`,
+  );
   // install -o root -g root -m MODE SRC DST: the source is argument 7, the destination 8.
-  writeExe(join(fakes, 'install'), `echo "install $*" >> '${calls}'\ncp "$7" "$8"`);
+  writeExe(
+    join(fakes, 'install'),
+    `echo "install $*" >> '${calls}'\ncase "$8" in\n  "$GEL_ROOT"/*) cp "$7" "$8" ;;\n  *) exit 1 ;;\nesac`,
+  );
   return { src, fakes, root, calls, script: join(src, 'install-wrapper.sh') };
 }
 
-function runInstall(iw: ReturnType<typeof installWorld>) {
+// Runs the installer. The GEL_ROOT seam is set only when `internal` is true, so the test of a
+// seam that must be ignored can run without GELDAR_INTERNAL=1.
+function runInstall(iw: ReturnType<typeof installWorld>, internal = true) {
+  const seam = internal ? { GELDAR_INTERNAL: '1' } : {};
   const r = spawnSync(bashExe as string, [iw.script], {
-    env: { ...HOSTILE, PATH: `${iw.fakes}:/usr/bin:/bin`, GEL_ROOT: iw.root },
+    env: { PATH: `${iw.fakes}:/usr/bin:/bin`, GEL_ROOT: iw.root, ...seam },
     encoding: 'utf8',
     timeout: 60_000,
   });
@@ -294,16 +316,41 @@ describeBash('root wrapper (F-05b)', () => {
   it('runs the interim deploy-key chown after success, and not after a failure', () => {
     const ok = makeWorld();
     expect(runWrapper(ok, ['deploy-key', ID]).status).toBe(0);
-    expect(readOr(ok.runuserLog)).toContain(`chown 1002:1002 ${ok.state}/${ID}/deploy-key`);
+    expect(readOr(ok.runuserLog)).toContain(`chown -h 1002:1002 ${ok.state}/${ID}/deploy-key`);
     const bad = makeWorld({ playFail: true });
     expect(runWrapper(bad, ['deploy-key', ID]).status).toBe(4);
     expect(readOr(bad.runuserLog)).not.toContain('chown');
   });
 
+  it('refuses a symlink on the deploy-key path with exit 7 and chowns nothing', () => {
+    for (const link of ['id-dir', 'key-file']) {
+      const w = makeWorld();
+      const real = join(dirname(w.wrapper), `real-${link}`);
+      mkdirSync(real);
+      if (link === 'id-dir') {
+        symlinkSync(real, join(w.state, ID));
+      } else {
+        mkdirSync(join(w.state, ID));
+        symlinkSync(real, join(w.state, ID, 'deploy-key'));
+      }
+      const r = runWrapper(w, ['deploy-key', ID]);
+      expect(r.status, `${link}: ${r.out}`).toBe(7);
+      expect(readOr(w.runuserLog), link).not.toContain('chown');
+    }
+  });
+
   it('keeps the interim chown line in the wrapper, marked for deletion with R-4', () => {
     const text = readFileSync(join(runnerDir, 'geldar-fleet-run'), 'utf8');
-    expect(text).toContain('chown 1002:1002 "$WRAP_STATE_DIR/$id/deploy-key"');
-    expect(text).toMatch(/Delete this line with R-4/);
+    expect(text).toContain('chown -h 1002:1002 "$key"');
+    expect(text).toMatch(/Delete with R-4\./);
+  });
+
+  it('accepts a 39-character id, the longest the launcher allows', () => {
+    const longId = `ag-${'a'.repeat(36)}`;
+    const w = makeWorld();
+    const r = runWrapper(w, ['start', longId]);
+    expect(r.status, r.out).toBe(0);
+    expect(readOr(w.playLog).split('\n')[0]).toBe(`argv: start ${longId}`);
   });
 
   it('check-secrets exits 6 for a bad secret and 0 for good ones', () => {
@@ -326,7 +373,7 @@ describeBash('root wrapper (F-05b)', () => {
     expect(text).toBe(SUDOERS_RULE);
   });
 
-  it('checks the sudoers rule with visudo, then installs both with the Contract modes', () => {
+  it('checks the sudoers rule under a temp name with visudo, then renames it into place', () => {
     const iw = installWorld();
     const r = runInstall(iw);
     expect(r.status, r.out).toBe(0);
@@ -334,18 +381,50 @@ describeBash('root wrapper (F-05b)', () => {
     const srcSudoers = join(iw.src, 'geldar-fleet-sudoers');
     const dstRun = join(iw.root, 'usr', 'local', 'sbin', 'geldar-fleet-run');
     const dstSudoers = join(iw.root, 'etc', 'sudoers.d', 'geldar-fleet');
+    const tmp = `${dstSudoers}.new`;
     expect(readOr(iw.calls).split('\n').filter(Boolean)).toEqual([
-      `visudo -cf ${srcSudoers}`,
+      `mkdir -p ${dirname(dstRun)} ${dirname(dstSudoers)}`,
       `install -o root -g root -m 0755 ${srcRun} ${dstRun}`,
-      `install -o root -g root -m 0440 ${srcSudoers} ${dstSudoers}`,
+      `install -o root -g root -m 0440 ${srcSudoers} ${tmp}`,
+      `visudo -cf ${tmp}`,
     ]);
+    expect(readOr(dstSudoers)).toBe(SUDOERS_RULE);
+    expect(existsSync(tmp)).toBe(false);
   });
 
-  it('installs no sudoers rule when visudo refuses it', () => {
+  it('installs no sudoers rule when visudo refuses it, and removes the temp file', () => {
     const iw = installWorld(true);
     const r = runInstall(iw);
     expect(r.status).toBe(7);
-    expect(existsSync(join(iw.root, 'etc', 'sudoers.d', 'geldar-fleet'))).toBe(false);
-    expect(readOr(iw.calls)).not.toContain('install ');
+    const dstSudoers = join(iw.root, 'etc', 'sudoers.d', 'geldar-fleet');
+    expect(existsSync(dstSudoers)).toBe(false);
+    expect(existsSync(`${dstSudoers}.new`)).toBe(false);
+    expect(readOr(iw.calls)).toContain(`visudo -cf ${dstSudoers}.new`);
+  });
+
+  it('ignores GEL_ROOT when GELDAR_INTERNAL is not 1, and writes nothing under it', () => {
+    const iw = installWorld();
+    const r = runInstall(iw, false);
+    expect(r.status).toBe(7);
+    expect(readOr(iw.calls)).toContain('mkdir -p /usr/local/sbin');
+    expect(readOr(iw.calls)).not.toContain(iw.root);
+    expect(existsSync(join(iw.root, 'usr'))).toBe(false);
+  });
+});
+
+// shellcheck is optional on the machine: the lint runs when it is installed and is skipped, with a
+// message, when it is not.
+const shellcheckFound = spawnSync('shellcheck', ['--version'], { encoding: 'utf8' });
+const hasShellcheck = !shellcheckFound.error && shellcheckFound.status === 0;
+if (!hasShellcheck) {
+  console.warn('SKIPPED: shellcheck is missing; the wrapper lint did not run');
+}
+
+describe('root wrapper lint (F-05b)', () => {
+  it.skipIf(!hasShellcheck)('passes shellcheck -x and never turns on set -x', () => {
+    const path = join(runnerDir, 'geldar-fleet-run');
+    const r = spawnSync('shellcheck', ['-x', path], { encoding: 'utf8' });
+    expect(r.status, `${r.stdout ?? ''}${r.stderr ?? ''}`).toBe(0);
+    expect(readFileSync(path, 'utf8')).not.toMatch(/set -x/);
   });
 });

@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Proves the runner account is confined (F-05b). Run as root on the VM, after install-wrapper.sh.
 # Each probe runs as geldar-runner through runuser and prints "ok <probe>" or "FAIL <probe>". A
-# probe that must be refused is ok when the runner is refused. F-08 step 1 runs this on the VM.
+# probe that must be refused is ok only when the runner is refused, and only when its target exists
+# (checked as root first, so a missing target cannot pass the probe by accident). F-08 step 1 runs
+# this on the VM.
 # Usage: verify-confinement.sh
 # Exit codes: 0 every probe is ok, 1 a probe is FAIL, 2 not root.
 set -euo pipefail
@@ -9,10 +11,17 @@ umask 022
 
 runner=geldar-runner
 wrapper=/usr/local/sbin/geldar-fleet-run
-login=/home/geldar/.claude/.credentials.json
+# The paths the probes aim at. The test rewrites these lines to a temp world; on the VM they are real.
+readonly CONF_SHADOW=/etc/shadow
+readonly CONF_HOMES=/home
+readonly CONF_TOKEN_DIR=/etc/geldar/tokens
+readonly CONF_KEY_DIR=/etc/geldar/keys
+readonly CONF_LOGIN=/home/geldar/.claude/.credentials.json
+readonly CONF_LOG=/var/log/geldar-hosts.log
 fails=0
 
 [ "$(id -u)" -eq 0 ] || { echo "verify-confinement: must run as root" >&2; exit 2; }
+id -u "$runner" >/dev/null 2>&1 || { echo "FAIL runner account $runner is missing"; exit 1; }
 
 # report STATUS PROBE prints one line and counts a FAIL.
 report() {
@@ -25,11 +34,26 @@ as_runner() {
   runuser -u "$runner" -- "$@"
 }
 
-# refused PROBE CMD...: the runner must be refused, so CMD must exit non-zero.
+# refused PROBE TARGET CMD...: the runner must be refused, so CMD must exit non-zero. TARGET is the
+# path the probe aims at; as root it must exist (an empty TARGET skips the check). Exit 127 means
+# the command is missing, which is a FAIL: a probe must not pass because its tool is absent.
 refused() {
-  local probe=$1
+  local probe=$1 target=$2 rc=0
+  shift 2
+  if [ -n "$target" ] && [ ! -e "$target" ]; then
+    report FAIL "$probe (precondition: $target missing)"
+    return 0
+  fi
+  as_runner "$@" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -ne 0 ] && [ "$rc" -ne 127 ]; then report ok "$probe"; else report FAIL "$probe"; fi
+}
+
+# allowed PROBE CMD...: the runner must be allowed, so CMD must exit 0.
+allowed() {
+  local probe=$1 rc=0
   shift
-  if as_runner "$@" >/dev/null 2>&1; then report FAIL "$probe"; else report ok "$probe"; fi
+  as_runner "$@" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq 0 ]; then report ok "$probe"; else report FAIL "$probe"; fi
 }
 
 # wrapper_refused PROBE ARGS...: the wrapper, run through sudo, must exit 2 and start nothing.
@@ -48,12 +72,14 @@ positive_control() {
   if [ "$rc" -eq 0 ] || [ "$rc" -eq 6 ]; then report ok "$1"; else report FAIL "$1"; fi
 }
 
-# sudo_lists_wrapper_only: the runner's sudo list holds exactly one NOPASSWD command, the wrapper.
+# sudo_lists_wrapper_only: the runner's sudo list holds exactly one command line in all, and it is
+# the wrapper with NOPASSWD. A second rule, with or without a password, is a FAIL.
 sudo_lists_wrapper_only() {
-  local out
+  local out cmds
   out=$(as_runner sudo -n -l 2>/dev/null || true)
-  if [ "$(printf '%s\n' "$out" | grep -c 'NOPASSWD:' || true)" -eq 1 ] &&
-    printf '%s\n' "$out" | grep -q "NOPASSWD: $wrapper\$"; then
+  cmds=$(printf '%s\n' "$out" | grep -c '^ *(.*) ' || true)
+  if [ "$cmds" -eq 1 ] &&
+    printf '%s\n' "$out" | grep -q "^ *(.*) NOPASSWD: $wrapper\$"; then
     report ok "sudo -n -l"
   else
     report FAIL "sudo -n -l"
@@ -80,7 +106,6 @@ groups_clean() {
 # unit_confinement: the unit's own settings, as systemd reports them. NoNewPrivileges must be no,
 # because the runner reaches the wrapper through setuid sudo.
 unit_confinement() {
-  local out
   local out probe="systemctl show geldar-runner -p ProtectSystem,ReadWritePaths,NoNewPrivileges"
   out=$(systemctl show geldar-runner -p ProtectSystem,ReadWritePaths,NoNewPrivileges 2>/dev/null ||
     true)
@@ -92,24 +117,26 @@ unit_confinement() {
   fi
 }
 
+# One real file of each kind is picked as root; the runner is then refused on that exact path. An
+# empty pick falls back to the directory's name in the precondition message.
+token=$(find "$CONF_TOKEN_DIR" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | head -n 1 || true)
+key=$(find "$CONF_KEY_DIR" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | head -n 1 || true)
+home=$(find "$CONF_HOMES" -mindepth 1 -maxdepth 1 2>/dev/null | head -n 1 || true)
+
 # The runner reads no secret, no home directory and no shadow file, and has no sudo beyond the
 # wrapper.
-refused "test -r /etc/shadow" test -r /etc/shadow
-refused "ls /home/*" sh -c 'ls /home/*'
-refused "sudo -n true" sudo -n true
+refused "test -r /etc/shadow" "$CONF_SHADOW" test -r "$CONF_SHADOW"
+refused "ls /home/*" "${home:-$CONF_HOMES/<any entry>}" sh -c "ls $CONF_HOMES/*"
+refused "sudo -n true" "" sudo -n true
 sudo_lists_wrapper_only
-refused "test -w /etc/geldar/keys" test -w /etc/geldar/keys
-# The single quotes are deliberate: $f belongs to the probe's own shell, not to this script.
-# shellcheck disable=SC2016
-refused "test -r /etc/geldar/tokens/<any file>" \
-  sh -c 'for f in /etc/geldar/tokens/*; do test -r "$f" && exit 0; done; exit 1'
-# shellcheck disable=SC2016
-refused "test -r /etc/geldar/keys/<any file>" \
-  sh -c 'for f in /etc/geldar/keys/*; do test -r "$f" && exit 0; done; exit 1'
-refused "test -r <shared login>" test -r "$login"
-allowed "append /var/log/geldar-hosts.log" sh -c ': >> /var/log/geldar-hosts.log'
+refused "test -w /etc/geldar/keys" "$CONF_KEY_DIR" test -w "$CONF_KEY_DIR"
+refused "test -r /etc/geldar/tokens/<any file>" "${token:-$CONF_TOKEN_DIR/<any file>}" \
+  test -r "$token"
+refused "test -r /etc/geldar/keys/<any file>" "${key:-$CONF_KEY_DIR/<any file>}" test -r "$key"
+refused "test -r <shared login>" "$CONF_LOGIN" test -r "$CONF_LOGIN"
+allowed "append /var/log/geldar-hosts.log" sh -c ": >> $CONF_LOG"
 groups_clean
-refused "docker ps" docker ps
+refused "docker ps" "" docker ps
 
 # The wrapper refuses every bad id, verb and flag with exit 2, before anything runs.
 wrapper_refused "wrapper AG-x" check-secrets AG-x
