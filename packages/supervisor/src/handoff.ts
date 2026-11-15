@@ -22,10 +22,12 @@ export function readGoals(workspaceRoot: string): string {
 
 /**
  * A text file of the player's own, read fresh from `relPath` (slash-separated) under the workspace
- * root, at most `maxBytes` bytes. Every component is checked with lstat: a symlink, a directory, a
- * FIFO or a device at that path gives ''. So does a missing or unreadable file. The text is untrusted
- * and is cleaned the way the hook cleans it: control characters out (newline and tab kept), C1 out,
- * no half character at the end, trailing whitespace trimmed.
+ * root. At most the last `maxBytes` bytes are read, since the player keeps adding to these files and
+ * the newest text is at the end. A longer file starts after its first newline in that window, so no
+ * line starts half-way. Every component is checked with lstat: a symlink, a directory, a FIFO or a
+ * device at that path gives ''. So does a missing or unreadable file. The text is untrusted and is
+ * cleaned the way the hook cleans it: control characters out (newline and tab kept), C1 out, no half
+ * character at either end, trailing whitespace trimmed.
  */
 export function readOwnFile(workspaceRoot: string, relPath: string, maxBytes: number): string {
   try {
@@ -42,21 +44,39 @@ export function readOwnFile(workspaceRoot: string, relPath: string, maxBytes: nu
     const flags = constants.O_RDONLY | (constants.O_NONBLOCK ?? 0) | (constants.O_NOFOLLOW ?? 0);
     const fd = openSync(path, flags);
     try {
-      if (!fstatSync(fd).isFile()) return '';
-      const buf = Buffer.alloc(maxBytes);
+      const info = fstatSync(fd);
+      if (!info.isFile()) return '';
+      const start = Math.max(0, info.size - maxBytes);
+      const want = info.size - start;
+      const buf = Buffer.alloc(want);
       let total = 0;
-      while (total < maxBytes) {
-        const got = readSync(fd, buf, total, maxBytes - total, null);
+      while (total < want) {
+        const got = readSync(fd, buf, total, want - total, start + total);
         if (got === 0) break;
         total += got;
       }
-      return clean(buf.subarray(0, total));
+      const window = buf.subarray(0, total);
+      return clean(start > 0 ? fromLineStart(window) : window);
     } finally {
       closeSync(fd);
     }
   } catch {
     return '';
   }
+}
+
+/**
+ * The part of a window cut from the middle of a file that starts at a whole line: after its first
+ * newline. A window with no newline, or with nothing but whitespace after its first newline (one long
+ * paragraph and a final newline), starts at its first character boundary instead.
+ */
+function fromLineStart(bytes: Buffer): Buffer {
+  const newline = bytes.indexOf(0x0a);
+  const after = newline >= 0 ? bytes.subarray(newline + 1) : null;
+  if (after && after.toString('utf8').trim() !== '') return after;
+  let start = 0;
+  while (start < bytes.length && ((bytes[start] ?? 0) & 0xc0) === 0x80) start++;
+  return bytes.subarray(start);
 }
 
 /** The text of the bytes, without an incomplete UTF-8 sequence at the end and without bad controls. */
