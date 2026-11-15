@@ -85,7 +85,11 @@ services:
       - GELDAR_MODE=play
       - GELDAR_HARNESS=${GELDAR_HARNESS:-claude}
       - GELDAR_KEEPER_STATE=/keeper-state
-      # Name only: the value is passed through from the launcher's environment, never written here.
+      # Names only: the values are passed through from the launcher's environment, never written here.
+      - GELDAR_LOCAL_API_KEY
+      - GELDAR_LOCAL_BASE_URL
+      - GELDAR_LOCAL_CONTEXT_TOKENS
+      - GELDAR_LOCAL_IMAGES
       # The world address the .mcp.json reads (not a secret: its host is on the egress allowlist).
       - GELDAR_MCP_URL=${GELDAR_MCP_URL:?}
       - GELDAR_MCP_TOKEN

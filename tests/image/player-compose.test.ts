@@ -302,3 +302,19 @@ describe('player compose: the proxies', () => {
     ]);
   });
 });
+
+describe('player compose: the local harness names', () => {
+  it('passes the four GELDAR_LOCAL names into player only, by name and never with a value', () => {
+    const names = [
+      'GELDAR_LOCAL_API_KEY',
+      'GELDAR_LOCAL_BASE_URL',
+      'GELDAR_LOCAL_CONTEXT_TOKENS',
+      'GELDAR_LOCAL_IMAGES',
+    ];
+    for (const name of names) {
+      expect(envNames('player')).toContain(name);
+      expect(envNames('keeper')).not.toContain(name);
+    }
+    expect(compose).not.toMatch(/GELDAR_LOCAL_API_KEY=/);
+  });
+});

@@ -31,10 +31,18 @@
       "pattern": "^$|^https?://"
     },
     "harness": {
-      "enum": ["claude", "codex"]
+      "enum": ["claude", "chatgpt", "local", "codex"]
     },
     "declared_model": {
       "type": "string"
+    },
+    "context_tokens": {
+      "type": "integer",
+      "minimum": 1024,
+      "maximum": 2000000
+    },
+    "images": {
+      "type": "boolean"
     },
     "kit_version": {
       "type": "string",
