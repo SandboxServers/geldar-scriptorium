@@ -20,8 +20,10 @@ function load(relative: string): Settings {
 const managed = load('image/settings/managed.json');
 const play = load('image/settings/play.json');
 const setup = load('image/settings/setup.json');
+const tidy = load('image/settings/tidy.json');
 const managedDeny = managed.permissions?.deny ?? [];
 const playDeny = play.permissions?.deny ?? [];
+const tidyDeny = tidy.permissions?.deny ?? [];
 
 describe('image managed and play settings', () => {
   it('managed denies Read and Edit of the CLI home, as a glob and as the directory', () => {
@@ -49,12 +51,17 @@ describe('image managed and play settings', () => {
     }
   }, 120_000);
 
-  it('managed and play deny Write wherever they deny Edit, with the same path', () => {
-    for (const rule of [...managedDeny, ...playDeny]) {
+  it('managed, play and tidy deny Write wherever they deny Edit, with the same path', () => {
+    const all = [...managedDeny, ...playDeny, ...tidyDeny];
+    for (const rule of all) {
       if (!rule.startsWith('Edit(')) continue;
-      expect(managedDeny.concat(playDeny), `${rule} has no Write twin`).toContain(
-        `Write(${rule.slice('Edit('.length)}`,
-      );
+      expect(all, `${rule} has no Write twin`).toContain(`Write(${rule.slice('Edit('.length)}`);
+    }
+  }, 120_000);
+
+  it('tidy denies Write of identity.md, relative and absolute', () => {
+    for (const rule of ['Write(/memory/identity.md)', 'Write(//player/memory/identity.md)']) {
+      expect(tidyDeny).toContain(rule);
     }
   }, 120_000);
 
