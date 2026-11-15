@@ -11,6 +11,7 @@
 !packages/supervisor
 !packages/chatgpt
 !packages/local
+!packages/psyche
 !packages/mind-loop
 !image/settings
 !image/geldar-entrypoint.sh

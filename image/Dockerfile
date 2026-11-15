@@ -12,7 +12,7 @@ RUN npm install -g pnpm@12.15.0
 WORKDIR /opt/geldar
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages ./packages
-RUN pnpm install --frozen-lockfile --prod --filter "./packages/{path-rule,memory,git,verify,keeper,supervisor,chatgpt,mind-loop,local}"
+RUN pnpm install --frozen-lockfile --prod --filter "./packages/{path-rule,memory,git,verify,keeper,supervisor,chatgpt,mind-loop,local,psyche}"
 
 FROM node:22.23.4-trixie-slim@sha256:be1e2a3dc2c4fd68cdfadad2a696a280e0d2749098bee509230174d72fb768c6 AS kit
 ARG CLAUDE_CODE_VERSION=2.1.310

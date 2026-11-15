@@ -248,6 +248,8 @@ importers:
 
   packages/path-rule: {}
 
+  packages/psyche: {}
+
   packages/stub-cli:
     dependencies:
       '@modelcontextprotocol/sdk':
