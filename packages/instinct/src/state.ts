@@ -2,6 +2,7 @@
 // (state.json.new, mode 0600, then rename). A corrupt file is renamed state.json.bad once and an empty state is used.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { CURSOR_PATTERN } from './observe.ts';
 
 export const SEEN_MAX = 500;
 export const TRIED_MAX = 8;
@@ -50,7 +51,12 @@ function validState(value: unknown): value is InstinctState {
     return false;
   if (!isObj(value.attempts) || !isObj(value.tried) || !isObj(value.habits)) return false;
   if (!isStrings(value.seen) || !isStrings(value.pending_acts)) return false;
-  if (value.cursor !== null && typeof value.cursor !== 'string') return false;
+  // A cursor is null or the contract's c_<digits> shape; anything else is corrupt (renamed .bad).
+  if (
+    value.cursor !== null &&
+    !(typeof value.cursor === 'string' && CURSOR_PATTERN.test(value.cursor))
+  )
+    return false;
   if (value.last_intent !== null && !isObj(value.last_intent)) return false;
   // attempts are integer counts; habits are lists of {program, arguments, n}. Any other shape is corrupt (renamed .bad).
   const attemptsOk = Object.values(value.attempts).every((n) => Number.isSafeInteger(n));

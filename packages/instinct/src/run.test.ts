@@ -136,6 +136,7 @@ describe('runInstinct with a world (injected connect and fx list)', () => {
   it('a rejected act gives send_failed, never settles as accepted, and keeps pending acts', async () => {
     const { stateDir, audit } = volume();
     writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    writeState(stateDir, { pending_acts: [OWN_ACT_LINE] });
     const { connect, calls } = fakeWorld('{}', REJECTED);
     const result = await runInstinct(
       { GELDAR_INSTINCT_STATE: stateDir, ...WORLD_ENV },
@@ -147,7 +148,7 @@ describe('runInstinct with a world (injected connect and fx list)', () => {
     expect(calls).toEqual(['wait', 'act']);
     expect(result).toMatchObject({ kind: 'pass', reason: 'send_failed' });
     expect(JSON.stringify(result)).not.toMatch(/"accepted":true/);
-    expect(loadState(stateDir).pending_acts).toEqual([]);
+    expect(loadState(stateDir).pending_acts).toEqual([OWN_ACT_LINE]);
     expect(JSON.parse(readFileSync(audit, 'utf8').trim())).toMatchObject({
       kind: 'pass',
       reason: 'send_failed',
@@ -169,6 +170,24 @@ describe('runInstinct with a world (injected connect and fx list)', () => {
     );
     expect(result).toMatchObject({ kind: 'settle', world: { accepted: true, line: OWN_ACT_LINE } });
     expect(loadState(stateDir).pending_acts).toEqual([OWN_ACT_LINE]);
+  });
+
+  it('a wait with a death event gives pass dead and no act is sent', async () => {
+    const { stateDir } = volume();
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    const deathWait = JSON.stringify({
+      events: [{ seq: 1, type: 'death', tick: 4, text: 'You died.' }],
+    });
+    const { connect, calls } = fakeWorld(deathWait, ACCEPTED);
+    const result = await runInstinct(
+      { GELDAR_INSTINCT_STATE: stateDir, ...WORLD_ENV },
+      7,
+      new Date(),
+      connect,
+      [ACT_FX],
+    );
+    expect(result).toMatchObject({ kind: 'pass', reason: 'dead' });
+    expect(calls).toEqual(['wait']);
   });
 
   it('the audit line of a run with a valid sheet holds no sheet field name', async () => {

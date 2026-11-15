@@ -15,7 +15,7 @@ describe('state', () => {
   });
 
   it('survives a restart: save then load returns the same state', () => {
-    const state = { ...emptyState(), waking: 7, attempts: { 'k:1': 2 }, cursor: 'c-9' };
+    const state = { ...emptyState(), waking: 7, attempts: { 'k:1': 2 }, cursor: 'c_9' };
     saveState(dir, state);
     expect(loadState(dir)).toEqual(state);
     expect(existsSync(join(dir, 'state.json.new'))).toBe(false);
@@ -79,6 +79,13 @@ describe('state', () => {
     );
     expect(loadState(dir)).toEqual(emptyState());
     expect(existsSync(join(dir, 'state.json.bad'))).toBe(true);
+  });
+
+  it('a cursor that is not c_ and digits is corrupt (renamed .bad)', () => {
+    writeFileSync(join(dir, 'state.json'), JSON.stringify({ ...emptyState(), cursor: 'c-9' }));
+    expect(loadState(dir)).toEqual(emptyState());
+    expect(existsSync(join(dir, 'state.json.bad'))).toBe(true);
+    expect(existsSync(join(dir, 'state.json'))).toBe(false);
   });
 
   it('a version other than 1 is corrupt (renamed .bad)', () => {

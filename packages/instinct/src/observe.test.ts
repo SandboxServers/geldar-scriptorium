@@ -93,6 +93,7 @@ describe('parseObservation on the real wait shapes', () => {
     });
     expect(obs.cursor).toBe('c_8');
     expect(obs.tick).toBeNull();
+    // No death event in this reply, so not dead (dead comes from a death event, see the death test below).
     expect(obs.dead).toBe(false);
     expect(obs.inventoryFull).toBeNull();
   });
@@ -145,6 +146,27 @@ describe('events are objects classified by type', () => {
     ]);
   });
 
+  it('a type intent_finished event with a failure text is intent_failed (the world sends this for every outcome)', () => {
+    expect(classifyEvent('intent_finished', 'Your intent failed: no path.', null).kind).toBe(
+      'intent_failed',
+    );
+    expect(classifyEvent('intent_finished', 'Your intent ran out of time.', null).kind).toBe(
+      'intent_failed',
+    );
+    expect(classifyEvent('intent_finished', 'Your intent finished.', null).kind).toBe(
+      'intent_finished',
+    );
+    expect(classifyEvent('intent_finished', 'anything', null).kind).toBe('intent_finished');
+  });
+
+  it('a wait with a death event is dead', () => {
+    const obs = parseObservation(
+      waitReply({ events: [{ seq: 4, type: 'death', tick: 4, text: 'You died.' }] }),
+    );
+    expect(obs.dead).toBe(true);
+    expect(obs.events).toEqual([{ kind: 'death', text: 'You died.' }]);
+  });
+
   it('matches the bare intent failure and plan stop texts', () => {
     expect(classifyEvent('', 'Your intent failed.', null).kind).toBe('intent_failed');
     expect(classifyEvent('', 'Your intent ran out of time.', null).kind).toBe('intent_failed');
@@ -176,6 +198,12 @@ describe('observe calls wait only', () => {
   it('sends no cursor key on the first wake', async () => {
     const world = fakeWorld([waitReply()]);
     await observe(world, null);
+    expect(world.calls).toEqual([['wait', { max_seconds: 5 }]]);
+  });
+
+  it('sends no cursor key when the stored cursor does not match the contract shape', async () => {
+    const world = fakeWorld([waitReply()]);
+    await observe(world, 'c-9');
     expect(world.calls).toEqual([['wait', { max_seconds: 5 }]]);
   });
 

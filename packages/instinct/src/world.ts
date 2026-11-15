@@ -38,6 +38,22 @@ function isTextBlock(value: unknown): value is { type: 'text'; text: string } {
   );
 }
 
+/**
+ * The text of one tool answer: its text blocks joined by a newline (other blocks are dropped). An error answer throws
+ * BAD_CURSOR when the text names bad_cursor, and otherwise 'world refused the call'. The refusal text is never echoed.
+ */
+export function replyText(answer: Record<string, unknown>): string {
+  const content: unknown[] = Array.isArray(answer.content) ? answer.content : [];
+  const text = content
+    .filter(isTextBlock)
+    .map((block) => block.text)
+    .join('\n');
+  if (answer.isError) {
+    throw new Error(/bad_cursor/.test(text) ? BAD_CURSOR : 'world refused the call');
+  }
+  return text;
+}
+
 /** Connects to the world. Throws on a bad address or a failed or slow connect; the caller maps that to no_world. */
 export async function connectWorld(env: {
   GELDAR_MCP_URL?: string;
@@ -75,15 +91,7 @@ export async function connectWorld(env: {
       const answer = await client.callTool({ name, arguments: args }, undefined, {
         timeout: CALL_TIMEOUT_MS,
       });
-      const content: unknown[] = Array.isArray(answer.content) ? answer.content : [];
-      const text = content
-        .filter(isTextBlock)
-        .map((block) => block.text)
-        .join('\n');
-      // The refusal text is never echoed: only bad_cursor is named, so the caller can retry it.
-      if (answer.isError)
-        throw new Error(/bad_cursor/.test(text) ? BAD_CURSOR : 'world refused the call');
-      return text;
+      return replyText(answer);
     },
     async close() {
       await client.close().catch(() => undefined);

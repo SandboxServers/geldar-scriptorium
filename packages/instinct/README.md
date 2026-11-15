@@ -31,3 +31,12 @@ decide how instinct waits are scoped (a non-advancing read).
 
 **GELDAR_INSTINCT must not be enabled on a life until a world-side non-advancing read exists.** Until then, the
 instinct step can cost the model events it would otherwise have seen.
+
+An instinct `wait` also ends an open model wait for the same life (`wait_replaced`).
+
+## Known gaps
+
+- The world identifies instinct connections by the `x-geldar-instinct-key` header (GX-06). `world.ts` does not send it
+  yet, so accepted instinct acts are recorded as model acts until HC-19 / HC-L1 wires it.
+- The fake-world fixture and its tests (`connectWorld().call` text joining, `isError`, the 20 s timeout) are split to
+  HC-18b. This package has unit tests for `replyText` only.

@@ -6,7 +6,8 @@
 // (threshold/mcp wait.ts rememberDelivered). So an instinct wait can hide events from the model's later cursorless wait.
 // This step cannot prevent it; a world-side card must decide how instinct waits are scoped.
 //
-// Not given by the world: tick (null), dead (false; death is an event of type `death`), inventory_full (null).
+// Not given by the world: tick (null), inventory_full (null). dead is true when an event of kind death came in
+// (the world has no dead field; death is an event of type `death`).
 // The status tool is not called: it holds budget, days and law lines only.
 
 export type EventKind =
@@ -54,7 +55,8 @@ export const WAIT_SECONDS = 5;
 export const BAD_CURSOR = 'bad_cursor';
 
 const MAX_EVENT_CHARS = 200;
-const CURSOR = /^c_[0-9]{1,12}$/;
+/** The shape of a wait cursor the contract gives (`c_` and 1 to 12 digits). Anything else is not sent or stored. */
+export const CURSOR_PATTERN = /^c_[0-9]{1,12}$/;
 
 type Obj = Record<string, unknown>;
 
@@ -82,13 +84,14 @@ const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 export function classifyEvent(type: string, rawText: string, from: string | null): EventLine {
   const text = rawText.trim().slice(0, MAX_EVENT_CHARS);
   if (type === 'speech_to_me') return { kind: 'speech_to_me', text, from: from ?? '' };
+  // The text decides first: the world sends type intent_finished for every intent outcome, failures included.
+  if (/^Your intent (failed|ran out of time)/.test(text) || /^Your plan stopped: /.test(text)) {
+    return { kind: 'intent_failed', text };
+  }
   if (type === 'intent_finished' || text === 'Your intent finished.') {
     return { kind: 'intent_finished', text };
   }
   if (type === 'action_failed') return { kind: 'action_failed', text };
-  if (/^Your intent (failed|ran out of time)/.test(text) || /^Your plan stopped: /.test(text)) {
-    return { kind: 'intent_failed', text };
-  }
   if (type === 'damage' || type === 'hurt') return { kind: 'hurt', text };
   if (type === 'death') return { kind: 'death', text };
   return { kind: 'other', text };
@@ -181,9 +184,10 @@ export function parseObservation(waitText: string): Observation {
   const speaker = firstSpeech ? str(firstSpeech.from) : null;
   const inventory = self.inventory;
   const cursor = str(body.cursor);
+  const events = eventsOf(w, waitText, speaker);
   return {
     tick: null,
-    dead: false,
+    dead: events.some((e) => e.kind === 'death'),
     night: worldTime ? worldTime.time_of_day === 'night' : null,
     position: positionOf(self.position),
     health: num(self.health),
@@ -197,22 +201,24 @@ export function parseObservation(waitText: string): Observation {
     entities: entitiesOf(surroundings.entities),
     notable: notableOf(surroundings.notable_blocks),
     intent: planOf(snap.current_plan),
-    events: eventsOf(w, waitText, speaker),
-    cursor: cursor !== null && CURSOR.test(cursor) ? cursor : null,
+    events,
+    cursor: cursor !== null && CURSOR_PATTERN.test(cursor) ? cursor : null,
   };
 }
 
 /**
- * One wait of WAIT_SECONDS from the given cursor. A bad_cursor refusal is retried once with no cursor, so a stale
- * cursor cannot wedge the step; the caller stores the cursor of whichever reply it got.
+ * One wait of WAIT_SECONDS from the given cursor. A cursor that does not match CURSOR_PATTERN is not sent (no cursor
+ * key). A bad_cursor refusal is retried once with no cursor, so a stale cursor cannot wedge the step; the caller
+ * stores the cursor of whichever reply it got.
  */
 export async function observe(world: WorldCalls, cursor: string | null): Promise<Observation> {
+  const sent = cursor !== null && CURSOR_PATTERN.test(cursor) ? cursor : null;
   const waitArgs = (c: string | null): Record<string, unknown> =>
     c === null ? { max_seconds: WAIT_SECONDS } : { max_seconds: WAIT_SECONDS, cursor: c };
   try {
-    return parseObservation(await world.call('wait', waitArgs(cursor)));
+    return parseObservation(await world.call('wait', waitArgs(sent)));
   } catch (err) {
-    if (cursor === null || !(err instanceof Error) || err.message !== BAD_CURSOR) throw err;
+    if (sent === null || !(err instanceof Error) || err.message !== BAD_CURSOR) throw err;
     return parseObservation(await world.call('wait', waitArgs(null)));
   }
 }
