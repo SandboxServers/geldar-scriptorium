@@ -10,7 +10,7 @@ ExecStart=/opt/geldar-runner/run.sh
 Restart=always
 KillMode=process
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
-ProtectHome=yes
+ProtectHome=read-only
 PrivateTmp=yes
 ProtectSystem=strict
 ReadWritePaths=-/etc/geldar/placement
@@ -18,6 +18,9 @@ ReadWritePaths=-/var/log/geldar-hosts.log
 ReadWritePaths=-/run/geldar-fleet
 ReadWritePaths=-/opt/geldar-runner
 ReadWritePaths=-/run/sudo
+ReadWritePaths=-/home/geldar/scriptorium
+ReadWritePaths=-/home/geldar/.local/state
+ReadWritePaths=-/srv/geldar
 
 [Install]
 WantedBy=multi-user.target
