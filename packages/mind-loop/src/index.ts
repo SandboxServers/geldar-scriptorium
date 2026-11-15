@@ -1,3 +1,5 @@
+export type { ChatConfig } from './chat.ts';
+export { ChatTransport } from './chat.ts';
 export { MindError } from './errors.ts';
 export { checked, fileTools, readBounded, textOutput, writeNote } from './files.ts';
 export { playInstructions } from './instructions.ts';
