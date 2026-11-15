@@ -63,7 +63,7 @@ describe.skipIf(!ready)('kit image build', () => {
     const [link, ...pkgs] = out.trim().split('\n');
     expect(link).toContain('claude-code');
     expect(pkgs.join(' ')).toBe(
-      'chatgpt git keeper local memory mind-loop path-rule psyche supervisor verify',
+      'chatgpt git instinct keeper local memory mind-loop path-rule psyche supervisor verify',
     );
     expect(out).not.toContain('stub-cli');
   }, 120_000);
