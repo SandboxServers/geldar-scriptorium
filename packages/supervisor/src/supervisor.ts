@@ -18,7 +18,7 @@ import type { RunSummary } from '@geldar/scriptorium-verify';
 import { summarizeStream } from '@geldar/scriptorium-verify';
 import { childEnv, wrapperLine } from './child.ts';
 import type { Deps, ExecSpec } from './deps.ts';
-import { readTokenUsage, tokensToday } from './meter.ts';
+import { readStopReason, readTokenUsage, tokensToday } from './meter.ts';
 import { buildPrompt, buildTidyPrompt, cleanLastWords } from './prompt.ts';
 import type { Settings } from './settings.ts';
 import { heldPath, statePath } from './settings.ts';
@@ -401,8 +401,10 @@ export class Supervisor {
         last = 'failed';
       }
       const today = costToday(s.stateDir, fmt(t1, 'date'));
+      // The recorded stop reason (when the run gave one) is in this log line and the session stream only.
+      const reason = readStopReason(this.path(`session-${n}.jsonl`));
       this.log(
-        `run=${n} turns=${turns} cost=${cost} secs=${secs} exit=${code} result=${last} delay=${delay} fails=${fails}`,
+        `run=${n} turns=${turns} cost=${cost} secs=${secs} exit=${code} result=${last} delay=${delay} fails=${fails}${reason ? ` reason=${reason}` : ''}`,
       );
       this.status(n, 'sleeping', last, today);
       if (fails >= s.maxFails) {
