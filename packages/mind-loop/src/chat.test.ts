@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ChatTransport } from './chat.ts';
+import { type ChatConfig, ChatTransport } from './chat.ts';
 import { runLoop } from './loop.ts';
+import { estimateTokens, MESSAGE_OVERHEAD } from './tokens.ts';
 import type { Fetch, ToolCall, ToolReturn } from './transport.ts';
 import type { Item, Tool } from './types.ts';
 
@@ -424,5 +425,189 @@ describe('ChatTransport in the loop', () => {
       num_turns: 2,
       usage: { input_tokens: 250, cached_input_tokens: 0, output_tokens: 10 },
     });
+  });
+});
+
+type Msg = Record<string, unknown>;
+const STUB = '[older result removed to make room]';
+const BIG = 'x'.repeat(150);
+
+/** The estimate of a request as the transport counts it: every message, then the tool list. */
+function estimateOf(messages: Msg[]): number {
+  const total = messages.reduce(
+    (sum, m) => sum + estimateTokens(JSON.stringify(m)) + MESSAGE_OVERHEAD,
+    0,
+  );
+  return total + estimateTokens(JSON.stringify([TOOL]));
+}
+
+/** The probe tool answers with `size` characters. */
+function probeTool(size: number): Tool {
+  return {
+    name: 'probe',
+    description: 'test',
+    parameters: {},
+    async call() {
+      return [{ type: 'text', text: 'x'.repeat(size) }];
+    },
+  };
+}
+
+/**
+ * A fake server that asks for the probe tool `calls` times, then answers. Each reply reports
+ * `prompt_tokens` as `promptOf` says of the raw estimate of the request it received.
+ */
+function toolServer(calls: number, promptOf?: (raw: number) => number) {
+  let n = 0;
+  return vi.fn<Fetch>(async (_url, init) => {
+    const body = JSON.parse(String(init?.body)) as { messages: Msg[] };
+    const usage = promptOf ? { prompt_tokens: promptOf(estimateOf(body.messages)) } : undefined;
+    const reply =
+      n < calls
+        ? {
+            choices: [
+              {
+                finish_reason: 'tool_calls',
+                message: {
+                  content: '',
+                  tool_calls: [{ id: `c${n}`, function: { name: 'probe', arguments: '{}' } }],
+                },
+              },
+            ],
+          }
+        : { choices: [{ message: { content: 'done' } }] };
+    n++;
+    return new Response(JSON.stringify(usage ? { ...reply, usage } : reply), { status: 200 });
+  });
+}
+
+/** Runs the loop with a probe tool and the given config; the emitted items go to `items`. */
+async function runScript(
+  items: Item[],
+  request: Fetch,
+  config: Partial<ChatConfig>,
+  size: number,
+): Promise<void> {
+  await runLoop({
+    transport: new ChatTransport({
+      baseUrl: BASE,
+      model: 'qwen3:8b',
+      instructions: 'You are the mind.',
+      tools: [TOOL],
+      request,
+      ...config,
+    }),
+    prompt: 'hello',
+    maxTurns: 50,
+    tools: [probeTool(size)],
+    emit: (item) => items.push(item),
+    costSource: 'not_metered_local',
+  });
+}
+
+/** The parsed body of every request the fake received. */
+function bodies(request: ReturnType<typeof toolServer>): { messages: Msg[]; max_tokens: number }[] {
+  return request.mock.calls.map(
+    (c) =>
+      JSON.parse(String((c[1] as RequestInit).body)) as { messages: Msg[]; max_tokens: number },
+  );
+}
+
+/** True when every tool message follows an assistant message that asked for its id. */
+function noOrphans(messages: Msg[]): boolean {
+  let asked = new Set<unknown>();
+  for (const m of messages) {
+    if (m.role === 'assistant') {
+      const calls = (m.tool_calls as { id: string }[] | undefined) ?? [];
+      asked = new Set(calls.map((c) => c.id));
+    }
+    if (m.role === 'tool' && !asked.has(m.tool_call_id)) return false;
+  }
+  return true;
+}
+
+describe('ChatTransport budget', () => {
+  it('keeps every request within the budget, the head and the last four turns, and stubs the oldest results', async () => {
+    const request = toolServer(10);
+    await runScript([], request, { contextTokens: 1200 }, 150);
+    const sent = bodies(request);
+    for (const body of sent) expect(estimateOf(body.messages)).toBeLessThanOrEqual(900);
+    const last = sent.at(-1)?.messages ?? [];
+    expect(last.slice(0, 2)).toEqual([
+      { role: 'system', content: 'You are the mind.' },
+      { role: 'user', content: 'hello' },
+    ]);
+    expect(last.slice(2, 6).map((m) => m.role)).toEqual(['assistant', 'tool', 'assistant', 'tool']);
+    expect(last.slice(-8).map((m) => m.role)).toEqual([
+      'assistant',
+      'tool',
+      'assistant',
+      'tool',
+      'assistant',
+      'tool',
+      'assistant',
+      'tool',
+    ]);
+    const tools = last.filter((m) => m.role === 'tool');
+    expect(tools.slice(0, 2).map((m) => m.content)).toEqual([BIG, BIG]);
+    expect(tools.slice(-4).map((m) => m.content)).toEqual([BIG, BIG, BIG, BIG]);
+    for (const m of tools.slice(2, -4)) expect(m.content).toBe(STUB);
+  });
+
+  it('never leaves a tool message without the assistant message that asked for it', async () => {
+    const request = toolServer(20);
+    await runScript([], request, { contextTokens: 1200 }, 150);
+    for (const body of bodies(request)) {
+      expect(estimateOf(body.messages)).toBeLessThanOrEqual(900);
+      expect(noOrphans(body.messages)).toBe(true);
+    }
+  });
+
+  it('throws context_too_small when the system prompt alone is larger than the budget', async () => {
+    const request = toolServer(3);
+    const items: Item[] = [];
+    await expect(
+      runScript(items, request, { contextTokens: 1200, instructions: 'x'.repeat(3000) }, 150),
+    ).rejects.toThrow('The waking no longer fits the declared context size.');
+    expect(request).not.toHaveBeenCalled();
+    expect(items.at(-1)).toMatchObject({
+      type: 'result',
+      is_error: true,
+      stop_reason: 'context_too_small',
+    });
+  });
+
+  it('a reported prompt size above the estimate raises the scale; a lower one never lowers it below 1', async () => {
+    const finalCount = async (factor: number): Promise<number> => {
+      const request = toolServer(12, (raw) => Math.floor(raw * factor));
+      await runScript([], request, { contextTokens: 4000 }, 150);
+      return (bodies(request).at(-1)?.messages ?? []).length;
+    };
+    const full = await finalCount(1);
+    // Two system and user messages, then 12 exchanges of two messages each: nothing trimmed.
+    expect(full).toBe(26);
+    expect(await finalCount(0.5)).toBe(full);
+    expect(await finalCount(3)).toBeLessThan(full);
+  });
+
+  it('sends max_tokens equal to the reserve', async () => {
+    for (const [contextTokens, reserve] of [
+      [1200, 300],
+      [8000, 2000],
+    ] as const) {
+      const request = toolServer(0);
+      await runScript([], request, { contextTokens }, 150);
+      expect(bodies(request)[0]?.max_tokens).toBe(reserve);
+    }
+  });
+
+  it('without contextTokens nothing is trimmed or changed', async () => {
+    const request = toolServer(10);
+    await runScript([], request, {}, 600);
+    const last = bodies(request).at(-1);
+    const tools = (last?.messages ?? []).filter((m) => m.role === 'tool');
+    expect(tools.length).toBe(10);
+    for (const m of tools) expect(m.content).toBe('x'.repeat(600));
+    expect(last?.max_tokens).toBe(2048);
   });
 });
