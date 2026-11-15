@@ -124,4 +124,40 @@ describe('engine', () => {
   it('engine: decisionId joins the six key fields with colons', () => {
     expect(decisionId(KEY)).toBe('body:life-1:0:0:roll:0');
   });
+
+  it('engine: alignment reads law first and good second, with the 4 and 3 boundaries', () => {
+    expect(alignmentLabel(5, 1)).toBe('LE');
+    expect(alignmentLabel(1, 5)).toBe('CG');
+    expect(alignmentLabel(4, 2)).toBe('LE');
+    expect(alignmentLabel(2, 4)).toBe('CG');
+    expect(alignmentLabel(4, 3)).toBe('LN');
+    expect(alignmentLabel(3, 4)).toBe('TG');
+  });
+
+  it('engine: modeFor puts 1 and 2 on disadvantage, 3 on flat and 4 and 5 on advantage', () => {
+    expect(modeFor(2).mode).toBe('dis');
+    expect(modeFor(3).mode).toBe('flat');
+    expect(modeFor(4).mode).toBe('adv');
+    expect(modeFor(5).mode).toBe('adv');
+  });
+
+  it('engine: step clamps at the minimum and at the maximum', () => {
+    expect(step(5, 6, -2, 4, 14)).toBe(4);
+    expect(step(1, 6, 3, 2, 8)).toBe(2);
+    expect(step(1, 6, -3, 2, 8)).toBe(8);
+    expect(step(5, 6, 3, 2, 8)).toBe(8);
+    expect(step(3, 6, -2, 2, 14)).toBe(6);
+  });
+
+  it('engine: proficiency adds to the bonus of a roll and of the exact chance', () => {
+    const plain = roll('check', 3, 11, scripted([faceValue(10)]));
+    expect(plain.bonus).toBe(0);
+    expect(plain.total).toBe(10);
+    expect(plain.success).toBe(false);
+    const skilled = roll('check', 3, 11, scripted([faceValue(10)]), 2);
+    expect(skilled.bonus).toBe(2);
+    expect(skilled.total).toBe(12);
+    expect(skilled.success).toBe(true);
+    expect(exactChance(3, 11, 1)).toEqual({ wins: 11, total: 20 });
+  });
 });

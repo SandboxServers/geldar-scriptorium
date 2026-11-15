@@ -12,6 +12,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -21,12 +22,17 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /** The tag of the release this mirror is pinned to. */
 export const RELEASE_TAG = 'psyche-v1.0.0';
-/** The largest file the vendor copies. */
+/** The largest file the vendor copies: 200 KiB exactly is accepted, one byte more is refused. */
 export const MAX_FILE_BYTES = 200 * 1024;
 
 const SOURCE_REPO = 'SandboxServers/geldar';
 const SOURCE_PATH = 'psyche/src';
 const TREE_ALGORITHM = 'geldar-tree-v1';
+const RELEASE_TAG_FORM = /^psyche-v\d+\.\d+\.\d+$/;
+const HEX_SHA256 = /^[0-9a-f]{64}$/;
+/** The directory the copy is built in, inside the package; removed on success and on failure. */
+const STAGING = '.engine-staging';
+const MIRROR_TMP = 'MIRROR.json.tmp';
 
 export interface SourceFile {
   /** POSIX path relative to the directory. */
@@ -118,53 +124,81 @@ export function checkSource(source: string): void {
   if (source.split(/[\\/]+/).includes('..')) throw new Error('--source must not contain ".."');
 }
 
-/** Checks the source against RELEASE.json, then copies it into engine/ and writes MIRROR.json. */
+/** Refuses a RELEASE.json that does not name the algorithm, a tag of the release form, or a hash. */
+export function checkRelease(release: unknown): asserts release is ReleaseFile {
+  if (typeof release !== 'object' || release === null) {
+    throw new Error('RELEASE.json must be a JSON object');
+  }
+  const fields = release as Partial<ReleaseFile>;
+  if (fields.tree_hash_algorithm !== TREE_ALGORITHM) {
+    throw new Error(`RELEASE.json must name ${TREE_ALGORITHM}`);
+  }
+  if (typeof fields.tag !== 'string' || !RELEASE_TAG_FORM.test(fields.tag)) {
+    throw new Error('RELEASE.json tag must match psyche-vMAJOR.MINOR.PATCH');
+  }
+  if (typeof fields.tree_hash !== 'string' || !HEX_SHA256.test(fields.tree_hash)) {
+    throw new Error('RELEASE.json tree_hash must be 64 lower-case hex characters');
+  }
+}
+
+/**
+ * Checks the source, builds the copy in a staging directory, and only then replaces engine/ and
+ * MIRROR.json. Every refusal happens before engine/ is touched, so a failed run leaves it as it was.
+ */
 export function vendor(options: VendorOptions): { tree_sha256: string; files: string[] } {
   checkCommit(options.commit);
   checkSource(options.source);
   const source = resolve(options.source);
+  if (lstatSync(source).isSymbolicLink()) {
+    throw new Error('refusing a symbolic link as the source root');
+  }
   const releasePath = join(source, '..', 'RELEASE.json');
   if (!existsSync(releasePath)) throw new Error('RELEASE.json is missing next to the source');
-  const release = JSON.parse(readFileSync(releasePath, 'utf8')) as ReleaseFile;
-  if (release.tree_hash_algorithm !== TREE_ALGORITHM) {
-    throw new Error(`RELEASE.json must name ${TREE_ALGORITHM}`);
-  }
+  const release: unknown = JSON.parse(readFileSync(releasePath, 'utf8'));
+  checkRelease(release);
   const walked = walkFiles(source);
   for (const { path, full } of walked) {
     if (statSync(full).size > MAX_FILE_BYTES) throw new Error(`file over 200 KiB: ${path}`);
   }
-  // The check runs before anything is copied: a tampered source leaves engine/ untouched.
+  const copied = walked.filter(({ path }) => !path.endsWith('.test.ts'));
+  if (copied.length === 0) throw new Error('the source has no engine files to vendor');
   if (geldarTreeV1(source).tree_hash !== release.tree_hash) {
     throw new Error('source does not match RELEASE.json tree_hash; refusing to vendor');
   }
 
   const engine = join(options.packageRoot, 'engine');
-  rmSync(engine, { recursive: true, force: true });
-  for (const { path, full } of walked) {
-    if (path.endsWith('.test.ts')) continue;
-    const target = join(engine, ...path.split('/'));
-    mkdirSync(dirname(target), { recursive: true });
-    copyFileSync(full, target);
+  const staging = join(options.packageRoot, STAGING);
+  const mirrorPath = join(options.packageRoot, 'MIRROR.json');
+  const mirrorTmp = join(options.packageRoot, MIRROR_TMP);
+  rmSync(staging, { recursive: true, force: true });
+  try {
+    for (const { path, full } of copied) {
+      const target = join(staging, ...path.split('/'));
+      mkdirSync(dirname(target), { recursive: true });
+      copyFileSync(full, target);
+    }
+    const tree_sha256 = treeHash(staging);
+    const files = walkFiles(staging).map(({ path }) => path);
+    const mirror = {
+      source_repo: SOURCE_REPO,
+      source_path: SOURCE_PATH,
+      source_commit: options.commit,
+      source_release_tag: release.tag,
+      source_release_tree_hash: release.tree_hash,
+      tree_sha256,
+      files,
+      vendored_by: 'scripts/vendor.ts',
+    };
+    writeFileSync(mirrorTmp, `${JSON.stringify(mirror, null, 2)}\n`, 'utf8');
+    // Every check and the copy have passed: only now is the old engine replaced.
+    rmSync(engine, { recursive: true, force: true });
+    renameSync(staging, engine);
+    renameSync(mirrorTmp, mirrorPath);
+    return { tree_sha256, files };
+  } finally {
+    rmSync(staging, { recursive: true, force: true });
+    rmSync(mirrorTmp, { force: true });
   }
-
-  const tree_sha256 = treeHash(engine);
-  const files = walkFiles(engine).map(({ path }) => path);
-  const mirror = {
-    source_repo: SOURCE_REPO,
-    source_path: SOURCE_PATH,
-    source_commit: options.commit,
-    source_release_tag: release.tag,
-    source_release_tree_hash: release.tree_hash,
-    tree_sha256,
-    files,
-    vendored_by: 'scripts/vendor.ts',
-  };
-  writeFileSync(
-    join(options.packageRoot, 'MIRROR.json'),
-    `${JSON.stringify(mirror, null, 2)}\n`,
-    'utf8',
-  );
-  return { tree_sha256, files };
 }
 
 function argValue(argv: readonly string[], flag: string): string {
