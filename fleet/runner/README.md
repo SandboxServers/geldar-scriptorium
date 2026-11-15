@@ -68,3 +68,37 @@ only when `GELDAR_INTERNAL=1`; on the VM it is empty. The table in `fleet/README
 | 5 | `RUNNER_VERSION` or `RUNNER_SHA256` is `FILL_ME`, empty or malformed; the tarball does not match `RUNNER_SHA256` |
 | 6 | `geldar-runner` is in `docker`, `sudo` or `wheel` |
 | 7 | a step failed (download, unpack, `config.sh`, `systemctl`) |
+
+## Confinement
+
+The runner reaches the fleet only through the root wrapper `geldar-fleet-run`, installed as
+`/usr/local/sbin/geldar-fleet-run` (root:root 0755) and allowed by one sudo rule in
+`/etc/sudoers.d/geldar-fleet` (root:root 0440, `geldar-runner ALL=(root) NOPASSWD:` the wrapper).
+Run as root on the VM, after `install-runner.sh`:
+
+```
+install-wrapper.sh
+verify-confinement.sh
+```
+
+`install-wrapper.sh` checks the sudoers rule with `visudo -cf` before it lands. `verify-confinement.sh`
+runs the probes as `geldar-runner` through `runuser` and prints `ok <probe>` or `FAIL <probe>`; it
+exits 1 on any FAIL. The probes cover the reads that must be refused, the sudo list (exactly the
+wrapper), the groups, `docker ps`, the wrapper's refusals of bad ids, verbs and flags, a positive
+control (`check-secrets ag-probe-00` exits 0 or 6, never 2, so a wrapper that refuses everything
+cannot pass), and the unit's `NoNewPrivileges=no`. F-08 step 1 runs it once on the VM.
+
+The wrapper validates every id, verb and flag before it runs anything; a refused input exits 2 with
+nothing started. It starts the launcher verb as `geldar` with a fixed environment (`HOME`, `PATH`,
+`DOCKER_HOST` and the state directory only); the caller's environment is never passed on.
+
+Policy:
+
+- dispatch only; a separate unprivileged account with one sudo rule;
+- the runner never reads tokens, keys or the login and never touches docker;
+- tokens are read from root-owned files by `geldar` at run time, never in inputs or logs;
+- a workflow change needs the owner's PR approval;
+- fork approval and the `fleet` environment's `main` restriction are required (M-3);
+- write access to this repo can still run a branch workflow on the runner (D-FL-08), reaching only
+  the wrapper's verbs, so the collaborator list is reviewed by the owner;
+- the runner has no route to the owner's desktop.
