@@ -4,28 +4,75 @@ import { join } from 'node:path';
 /** The most bytes of the player's note that go into a prompt (the same cut the session-start hook makes). */
 const HANDOFF_MAX = 4000;
 
-/** The most bytes of the player's own goals that go into a prompt. */
-const GOALS_MAX = 3000;
+/** The most bytes of the player's own goals that go into a prompt (the launcher's cap on the goals). */
+const GOALS_MAX = 4096;
 
 /** The most bytes of the player's own identity that go into a prompt. */
 const IDENTITY_MAX = 8192;
 
+/** A block as read: the cleaned text, and whether bytes of the file were left out of it. */
+export type BlockText = { text: string; cut: boolean };
+
+/** The three blocks of the play prompt, each read fresh from the workspace root. */
+export type PromptBlocks = { goals: BlockText; handoff: BlockText; identity: BlockText };
+
+/** The three blocks of the play prompt, read fresh from the workspace root (see readOwnFileInfo). */
+export function readPromptBlocks(workspaceRoot: string): PromptBlocks {
+  return {
+    goals: readGoalsBlock(workspaceRoot),
+    handoff: readHandoffBlock(workspaceRoot),
+    identity: readIdentityBlock(workspaceRoot),
+  };
+}
+
 /**
  * The player's own note from before a rest, read fresh from memory/journal/handoff.md under the
- * workspace root. The same rules as readOwnFile: '' for a missing, linked, unreadable or non-file path.
+ * workspace root. The last HANDOFF_MAX bytes are kept, since the newest text is at the end. The same
+ * rules as readOwnFileInfo: '' for a missing, linked, unreadable or non-file path.
  */
+export function readHandoffBlock(workspaceRoot: string): BlockText {
+  return readOwnFileInfo(workspaceRoot, 'memory/journal/handoff.md', HANDOFF_MAX);
+}
+
+/**
+ * The player's own goals, read fresh from memory/goals.md under the workspace root. The goals are a
+ * ranked list, so the first GOALS_MAX bytes are kept: the top goals are never the ones cut.
+ */
+export function readGoalsBlock(workspaceRoot: string): BlockText {
+  return readOwnFileInfo(workspaceRoot, 'memory/goals.md', GOALS_MAX, 'start');
+}
+
+/** The player's own identity, read fresh from memory/identity.md from its start (see readOwnFileInfo). */
+export function readIdentityBlock(workspaceRoot: string): BlockText {
+  return readOwnFileInfo(workspaceRoot, 'memory/identity.md', IDENTITY_MAX, 'start');
+}
+
+/** The text of readHandoffBlock. */
 export function readHandoff(workspaceRoot: string): string {
-  return readOwnFile(workspaceRoot, 'memory/journal/handoff.md', HANDOFF_MAX);
+  return readHandoffBlock(workspaceRoot).text;
 }
 
-/** The player's own goals, read fresh from memory/goals.md under the workspace root (see readOwnFile). */
+/** The text of readGoalsBlock. */
 export function readGoals(workspaceRoot: string): string {
-  return readOwnFile(workspaceRoot, 'memory/goals.md', GOALS_MAX);
+  return readGoalsBlock(workspaceRoot).text;
 }
 
-/** The player's own identity, read fresh from memory/identity.md from its start (see readOwnFile). */
+/** The text of readIdentityBlock. */
 export function readIdentity(workspaceRoot: string): string {
-  return readOwnFile(workspaceRoot, 'memory/identity.md', IDENTITY_MAX, 'start');
+  return readIdentityBlock(workspaceRoot).text;
+}
+
+/**
+ * The text of a text file of the player's own, read fresh from `relPath` (slash-separated) under the
+ * workspace root (see readOwnFileInfo).
+ */
+export function readOwnFile(
+  workspaceRoot: string,
+  relPath: string,
+  maxBytes: number,
+  from: 'start' | 'end' = 'end',
+): string {
+  return readOwnFileInfo(workspaceRoot, relPath, maxBytes, from).text;
 }
 
 /**
@@ -37,13 +84,15 @@ export function readIdentity(workspaceRoot: string): string {
  * lstat: a symlink, a directory, a FIFO or a device at that path gives ''. So does a missing or
  * unreadable file. The text is untrusted and is cleaned the way the hook cleans it: control characters
  * out (newline and tab kept), C1 out, no half character at either end, trailing whitespace trimmed.
+ * `cut` is true when the file was longer than `maxBytes`, so bytes of it were left out; it is false
+ * for a path that gives ''.
  */
-export function readOwnFile(
+export function readOwnFileInfo(
   workspaceRoot: string,
   relPath: string,
   maxBytes: number,
   from: 'start' | 'end' = 'end',
-): string {
+): BlockText {
   try {
     const parts = relPath.split('/');
     const name = parts.pop() ?? '';
@@ -51,15 +100,15 @@ export function readOwnFile(
     for (const part of parts) {
       dir = join(dir, part);
       // lstat does not follow links: a symlinked folder is not a directory here.
-      if (!lstatSync(dir).isDirectory()) return '';
+      if (!lstatSync(dir).isDirectory()) return { text: '', cut: false };
     }
     const path = join(dir, name);
-    if (!lstatSync(path).isFile()) return '';
+    if (!lstatSync(path).isFile()) return { text: '', cut: false };
     const flags = constants.O_RDONLY | (constants.O_NONBLOCK ?? 0) | (constants.O_NOFOLLOW ?? 0);
     const fd = openSync(path, flags);
     try {
       const info = fstatSync(fd);
-      if (!info.isFile()) return '';
+      if (!info.isFile()) return { text: '', cut: false };
       const start = from === 'start' ? 0 : Math.max(0, info.size - maxBytes);
       const want = from === 'start' ? Math.min(info.size, maxBytes) : info.size - start;
       const buf = Buffer.alloc(want);
@@ -70,12 +119,15 @@ export function readOwnFile(
         total += got;
       }
       const window = buf.subarray(0, total);
-      return clean(start > 0 ? fromLineStart(window) : window);
+      return {
+        text: clean(start > 0 ? fromLineStart(window) : window),
+        cut: info.size > maxBytes,
+      };
     } finally {
       closeSync(fd);
     }
   } catch {
-    return '';
+    return { text: '', cut: false };
   }
 }
 

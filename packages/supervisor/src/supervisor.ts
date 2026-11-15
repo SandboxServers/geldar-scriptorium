@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import type { RunSummary } from '@geldar/scriptorium-verify';
 import { summarizeStream } from '@geldar/scriptorium-verify';
 import type { Deps, ExecSpec } from './deps.ts';
-import { readGoals, readHandoff, readIdentity } from './handoff.ts';
+import { readPromptBlocks } from './handoff.ts';
 import { buildPrompt, buildTidyPrompt, cleanLastWords } from './prompt.ts';
 import type { Settings } from './settings.ts';
 import { heldPath, statePath } from './settings.ts';
@@ -645,13 +645,15 @@ export class Supervisor {
     const words = prev === null || this.tidyRun === n - 1 ? '' : cleanLastWords(prev.last_text);
     const note = await this.deps.beforeRun({ run: n, lastWords: words });
     // Read on every waking, never cached: the player may have written a new note since the last one.
-    const handoff = readHandoff(s.workspace);
-    const goals = readGoals(s.workspace);
-    const identity = readIdentity(s.workspace);
+    const blocks = readPromptBlocks(s.workspace);
+    const handoff = blocks.handoff.text;
+    const goals = blocks.goals.text;
+    const identity = blocks.identity.text;
+    const cut = blocks.goals.cut || blocks.handoff.cut || blocks.identity.cut;
     const promptPath = this.path('prompt.txt');
-    // Sizes only, never the text: the operators check the blocks reached the prompt from this line.
+    // Sizes and a cut flag only, never the text: the operators check the blocks reached the prompt.
     this.log(
-      `prompt run=${n} goals=${Buffer.byteLength(goals, 'utf8')} handoff=${Buffer.byteLength(handoff, 'utf8')} words=${Array.from(words).length} identity=${Buffer.byteLength(identity, 'utf8')}`,
+      `prompt run=${n} goals=${Buffer.byteLength(goals, 'utf8')} handoff=${Buffer.byteLength(handoff, 'utf8')} words=${Array.from(words).length} identity=${Buffer.byteLength(identity, 'utf8')} cut=${cut ? 1 : 0}`,
     );
     writePrivate(promptPath, buildPrompt(n, words, note, handoff, goals, identity));
     return this.deps.exec(
