@@ -93,7 +93,7 @@ fetch_and_unpack() {
 # read_token FILE sets token to the file's content: one token, no CR, no second line. The token is
 # never printed. A missing, unreadable or malformed file exits 2.
 read_token() {
-  [ -f "$1" ] && [ -r "$1" ] || die 2 "token file is missing or unreadable"
+  if [ ! -f "$1" ] || [ ! -r "$1" ]; then die 2 "token file is missing or unreadable"; fi
   token=$(cat -- "$1")
   [[ $token =~ ^[A-Za-z0-9_-]+$ ]] || die 2 "token file is empty or malformed"
 }
@@ -139,7 +139,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ "$(id -u)" -eq 0 ] || die 2 "must run as root"
-[ -n "$url" ] && [ -n "$token_file" ] || die 2 "usage: install-runner.sh --url <repo-url> --token-file <file>"
+if [ -z "$url" ] || [ -z "$token_file" ]; then die 2 "usage: install-runner.sh --url <repo-url> --token-file <file>"; fi
 re_url='^https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$'
 [[ $url =~ $re_url ]] || die 2 "the URL must be https://github.com/<org>/<repo>"
 
