@@ -552,6 +552,7 @@ describe('ChatTransport budget', () => {
     expect(tools.slice(0, 2).map((m) => m.content)).toEqual([BIG, BIG]);
     expect(tools.slice(-4).map((m) => m.content)).toEqual([BIG, BIG, BIG, BIG]);
     for (const m of tools.slice(2, -4)) expect(m.content).toBe(STUB);
+    expect(tools.some((m) => m.content === STUB)).toBe(true);
   });
 
   it('never leaves a tool message without the assistant message that asked for it', async () => {
@@ -577,17 +578,45 @@ describe('ChatTransport budget', () => {
     });
   });
 
-  it('a reported prompt size above the estimate raises the scale; a lower one never lowers it below 1', async () => {
-    const finalCount = async (factor: number): Promise<number> => {
-      const request = toolServer(12, (raw) => Math.floor(raw * factor));
-      await runScript([], request, { contextTokens: 4000 }, 150);
+  it('a reported prompt size above the estimate raises the scale, capped at 3; a lower one never lowers it below 1', async () => {
+    const finalCount = async (factor: number, contextTokens: number): Promise<number> => {
+      const request = toolServer(12, (raw) => raw * factor);
+      await runScript([], request, { contextTokens }, 150);
       return (bodies(request).at(-1)?.messages ?? []).length;
     };
-    const full = await finalCount(1);
-    // Two system and user messages, then 12 exchanges of two messages each: nothing trimmed.
+    // Budget 3000: two system and user messages, then 12 exchanges of two messages each, nothing trimmed.
+    const full = await finalCount(1, 4000);
     expect(full).toBe(26);
-    expect(await finalCount(0.5)).toBe(full);
-    expect(await finalCount(3)).toBeLessThan(full);
+    expect(await finalCount(3, 4000)).toBeLessThan(full);
+    // The scale is capped at 3, so a factor of 10 trims exactly as 3 does.
+    expect(await finalCount(10, 4000)).toBe(await finalCount(3, 4000));
+    // Budget 900: scale 1 trims. A scale of 0.5 would fit the same history, so the floor at 1 must keep the trim.
+    const trimmed = await finalCount(1, 1200);
+    expect(trimmed).toBeLessThan(26);
+    expect(await finalCount(0.5, 1200)).toBe(trimmed);
+  });
+
+  it('with only two tail turns left to fit, trims the third and fourth newest exchanges and does not throw', async () => {
+    const big = 'x'.repeat(200);
+    const request = toolServer(12);
+    await runScript([], request, { contextTokens: 1200 }, 200);
+    const sent = bodies(request);
+    for (const body of sent) expect(estimateOf(body.messages)).toBeLessThanOrEqual(900);
+    const tools = (sent.at(-1)?.messages ?? []).filter((m) => m.role === 'tool');
+    expect(tools.slice(0, 2).map((m) => m.content)).toEqual([big, big]);
+    expect(tools.slice(-2).map((m) => m.content)).toEqual([big, big]);
+    expect(tools.slice(2, -2).some((m) => m.content === big)).toBe(false);
+  });
+
+  it('keepTurns below 1 is kept at 1, so the newest exchange with its results is never trimmed', async () => {
+    const request = toolServer(10);
+    await runScript([], request, { contextTokens: 1200, keepTurns: 0 }, 150);
+    for (const body of bodies(request)) {
+      expect(estimateOf(body.messages)).toBeLessThanOrEqual(900);
+      expect(noOrphans(body.messages)).toBe(true);
+    }
+    const last = (bodies(request).at(-1)?.messages ?? []).filter((m) => m.role === 'tool');
+    expect(last.at(-1)?.content).toBe(BIG);
   });
 
   it('sends max_tokens equal to the reserve', async () => {

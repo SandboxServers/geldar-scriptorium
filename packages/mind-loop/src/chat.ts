@@ -17,10 +17,14 @@ export interface ChatConfig {
   model: string;
   instructions: string;
   tools: ToolSpec[];
+  /** The max_tokens of every request. Ignored when contextTokens is set (the reserve then comes from it). */
   maxOutputTokens?: number;
-  /** The context size in tokens. With it the history is trimmed to fit and max_tokens is the reserve. */
+  /**
+   * The context size in tokens. With it the history is trimmed to fit and max_tokens is the reserve.
+   * Below 4 the reserve is 0; the config layer keeps the size at 1024 or more, so that never happens there.
+   */
   contextTokens?: number;
-  /** How many of the latest assistant turns trimming never touches (default 4). */
+  /** How many of the latest assistant turns trimming never touches (default 4, at least 1). */
   keepTurns?: number;
   request?: Fetch;
 }
@@ -137,7 +141,7 @@ export class ChatTransport implements Transport {
       contextTokens === undefined ? (config.maxOutputTokens ?? 2048) : outputReserve(contextTokens);
     this.budget =
       contextTokens === undefined ? undefined : contextTokens - outputReserve(contextTokens);
-    this.keepTurns = config.keepTurns ?? KEEP_TURNS;
+    this.keepTurns = Math.max(1, config.keepTurns ?? KEEP_TURNS);
   }
 
   async send(input: { prompt: string } | { results: ToolReturn[] }): Promise<Completion> {
@@ -168,7 +172,7 @@ export class ChatTransport implements Transport {
   private trim(budget: number): void {
     this.shrink(budget);
     if (this.used() <= budget) return;
-    this.keepTurns = Math.min(this.keepTurns, 2);
+    this.keepTurns = Math.max(1, Math.min(this.keepTurns, 2));
     this.shrink(budget);
     if (this.used() > budget) {
       throw new MindError(
@@ -195,7 +199,11 @@ export class ChatTransport implements Transport {
     }
   }
 
-  /** The raw estimate of the request as it stands: every message, then the tool list. */
+  /**
+   * The raw estimate of the request as it stands: every message, then the tool list. The list is counted
+   * bare, without the function wrapper the request adds (about 30 bytes a tool); the scale and the
+   * margin of the estimate cover that difference.
+   */
   private rawEstimate(): number {
     const messages = this.messages.reduce(
       (sum, m) => sum + estimateTokens(JSON.stringify(m)) + MESSAGE_OVERHEAD,
