@@ -456,6 +456,24 @@ describe('the prompt log line', () => {
     for (const word of ['ZEPHYRGOAL', 'QUILLHAND', 'MARROWLAST']) expect(log).not.toContain(word);
   });
 
+  it('logs the capped size of the goals, not the size of the file', async () => {
+    const f = makeFixture({ stopAt: 1 });
+    mkdirSync(memory(f), { recursive: true });
+    // 3500 ASCII bytes on disk; the prompt gets the first 3000.
+    writeFileSync(join(memory(f), 'goals.md'), 'g'.repeat(3500));
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.read('supervisor.log')).toMatch(/prompt run=1 goals=3000 handoff=0 words=0\n/);
+  });
+
+  it('logs the capped size of the handoff, not the size of the file', async () => {
+    const f = makeFixture({ stopAt: 1 });
+    mkdirSync(join(memory(f), 'journal'), { recursive: true });
+    // 4500 ASCII bytes on disk; the prompt gets the first 4000.
+    writeFileSync(join(memory(f), 'journal', 'handoff.md'), 'h'.repeat(4500));
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.read('supervisor.log')).toMatch(/prompt run=1 goals=0 handoff=4000 words=0\n/);
+  });
+
   it('writes no prompt line for a tidy run', async () => {
     const limit = { GELDAR_TIDY_BYTES: '1000', GELDAR_RUN_MAX_FAILS: '99' };
     const f = makeFixture({ last: 'tidy done', stopAt: 2 }, limit);
