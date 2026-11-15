@@ -67,11 +67,13 @@ export function readOwnFile(workspaceRoot: string, relPath: string, maxBytes: nu
 
 /**
  * The part of a window cut from the middle of a file that starts at a whole line: after its first
- * newline. A window with no newline starts at its first character boundary instead.
+ * newline. A window with no newline, or with nothing but whitespace after its first newline (one long
+ * paragraph and a final newline), starts at its first character boundary instead.
  */
 function fromLineStart(bytes: Buffer): Buffer {
   const newline = bytes.indexOf(0x0a);
-  if (newline >= 0) return bytes.subarray(newline + 1);
+  const after = newline >= 0 ? bytes.subarray(newline + 1) : null;
+  if (after && after.toString('utf8').trim() !== '') return after;
   let start = 0;
   while (start < bytes.length && ((bytes[start] ?? 0) & 0xc0) === 0x80) start++;
   return bytes.subarray(start);

@@ -79,6 +79,60 @@ describe('readHandoff', () => {
     expect(readHandoff(root)).toBe('b'.repeat(3999));
   });
 
+  it('keeps a long paragraph and a final newline: the last bytes, not nothing', () => {
+    note(`${'x'.repeat(5000)}\n`);
+    expect(readHandoff(root)).toBe('x'.repeat(3999));
+    // The window starts on a continuation byte and ends on the newline: the cut é goes, the rest stays.
+    note(`${'é'.repeat(3000)}\n`);
+    expect(readHandoff(root)).toBe('é'.repeat(1999));
+  });
+
+  it('drops the whole first line when the window starts exactly on a line boundary', () => {
+    // 10-byte lines, 1000 of them: the window starts at byte 6000, the first byte of line 601.
+    // That line is cut whole, so the text starts at line 602.
+    const lines = Array.from(
+      { length: 1000 },
+      (_, i) => `line ${String(i + 1).padStart(4, '0')}\n`,
+    );
+    note(lines.join(''));
+    const expected = Array.from(
+      { length: 399 },
+      (_, k) => `line ${String(k + 602).padStart(4, '0')}`,
+    );
+    expect(readHandoff(root)).toBe(expected.join('\n'));
+  });
+
+  it('starts at the next line when the window starts on a newline', () => {
+    // The file is 4050 bytes and byte 50 is the newline: the window is that newline and 3999 y's.
+    note(`${'x'.repeat(50)}\n${'y'.repeat(3999)}`);
+    expect(readHandoff(root)).toBe('y'.repeat(3999));
+  });
+
+  it('keeps exactly maxBytes whole, and drops from the first line at maxBytes plus one', () => {
+    note(`a\n${'b'.repeat(3998)}`);
+    expect(readHandoff(root)).toBe(`a\n${'b'.repeat(3998)}`);
+    note(`aa\n${'b'.repeat(3998)}`);
+    expect(readHandoff(root)).toBe('b'.repeat(3998));
+  });
+
+  it('gives the end of a CRLF file longer than the cap, with no stray carriage return', () => {
+    // 11-byte CRLF lines: the window starts 4 bytes into a line, so the cut is mid-line.
+    const lines = Array.from(
+      { length: 500 },
+      (_, i) => `line ${String(i + 1).padStart(4, '0')}\r\n`,
+    );
+    note(lines.join(''));
+    const text = readHandoff(root);
+    expect(text).not.toContain('\r');
+    expect(text.split('\n')[0]).toMatch(/^line \d{4}$/);
+    expect(text.endsWith('line 0500')).toBe(true);
+  });
+
+  it('gives empty text for an empty file', () => {
+    note('');
+    expect(readHandoff(root)).toBe('');
+  });
+
   it('refuses a directory at the note path', () => {
     mkdirSync(join(journal, 'handoff.md'));
     expect(readHandoff(root)).toBe('');
@@ -142,16 +196,17 @@ describe('readGoals', () => {
     expect(readGoals(root)).toBe('é'.repeat(1500));
   });
 
-  it('gives the end of a 4 KB goals file, starting at a whole line', () => {
+  it('gives the end of a 4.6 KB goals file, starting at a whole line', () => {
+    // 23-byte lines: the 3000-byte window starts at byte 1600, which is 13 bytes into goal 070.
     const lines = Array.from(
       { length: 200 },
-      (_, i) => `goal ${String(i + 1).padStart(3, '0')} keep going\n`,
+      (_, i) => `goal ${String(i + 1).padStart(3, '0')} keep going on\n`,
     );
     goals(lines.join(''));
     const text = readGoals(root);
-    expect(text.split('\n')[0]).toMatch(/^goal \d{3} keep going$/);
-    expect(text.endsWith('goal 200 keep going')).toBe(true);
-    expect(text).not.toContain('goal 001 keep going');
+    expect(text.split('\n')[0]).toBe('goal 071 keep going on');
+    expect(text.endsWith('goal 200 keep going on')).toBe(true);
+    expect(text).not.toContain('goal 070 keep going on');
   });
 
   it('drops control characters and C1, keeps newline and tab', () => {
