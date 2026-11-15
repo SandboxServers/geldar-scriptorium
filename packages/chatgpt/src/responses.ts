@@ -1,12 +1,7 @@
+import type { Item, Tool } from '@geldar/scriptorium-mind-loop';
 import { ChatGPTError, type Fetch, RESOURCE, record } from './auth.ts';
 
-export type Item = Record<string, unknown>;
-export interface Tool {
-  name: string;
-  description: string;
-  parameters: Record<string, unknown>;
-  call(args: Record<string, unknown>): Promise<unknown>;
-}
+export type { Item, Tool };
 
 /** SSE is framed by blank lines, independent of network chunks or CRLF boundaries. */
 export async function completed(response: Response): Promise<Item> {

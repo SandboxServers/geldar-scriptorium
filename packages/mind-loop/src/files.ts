@@ -13,7 +13,7 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { isAllowedPath } from '@geldar/scriptorium-path-rule';
-import type { Tool } from './responses.ts';
+import type { Tool } from './types.ts';
 
 const LIMIT = 64 * 1024;
 
