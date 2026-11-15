@@ -178,7 +178,7 @@ else
   case "$model" in *sonnet* | *haiku*) ;; *) exit 0 ;; esac
   [ -n "${session_id:-}" ] || exit 0
   if [ "$size" -ge "$planner_line" ] && first_time "$session_id"; then
-    deny "Before you rest, be sheltered: no errand half-done, and not in danger. If not, get safe first. Then write your resume note to memory/journal/handoff.md, then go on with what you were doing, and do that action again afterwards."
+    deny "Before you rest, be sheltered: no errand half-done, and not in danger. If not, get safe first. Then put your resume note in memory/journal/handoff.md: use Edit with that path and an empty old_string to create it, or replace its text if it exists, then go on with what you were doing, and do that action again afterwards."
   fi
 fi
 exit 0

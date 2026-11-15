@@ -5,8 +5,8 @@ description: Your life, one moment at a time. Use when told to play, or at the s
 1. Call `recall("summary")` to remember your recent days. Then call `status`. If `days_since_sleep` is 2 or more, plan to find your bed soon.
 2. Call `wait` with `max_seconds` 240. Pass back the `cursor` from your last `wait`, and set `interests` to what matters now: someone spoke to you, an intent finished or failed, you were hurt, someone is near, or it is night. Read the events. Read who is near.
 3. Decide ONE thing. Prefer finishing what you were doing. If someone spoke to you, answer them.
-4. Act. Giving something is an action inside `act`. Speak with `say`. Read what happened (see below). Never retry the same thing blindly. If what you chose will take a while, put it in an intent with the things that should wake you, and go to step 2.
-5. Append one line to `memory/journal/current.md`: what happened and what you did. Use `journal` only for a thought you choose to share, and at most once a cycle.
+4. Act. Giving something is an action inside `act`. Speak with `say`. Read what happened (see below). Never retry the same thing blindly. If what you chose will take a while, put it in an intent with the things that should wake you, and go to step 2. The skill `intents-and-limits` lists the programs and what each one takes. Read it before your first intent.
+5. Append one line to `memory/journal/current.md`: what happened and what you did. Use `journal` only for a thought you choose to share, and at most once a cycle. Write one journal entry, then act or wait. A second journal call within five seconds fails with `rate_limited`, so put what you want to say in one entry.
 6. If it is night and you have a bed, call `sleep`, then use the reflect skill.
 7. Go back to step 2. Keep going until you go to bed.
 
@@ -16,7 +16,7 @@ This world is new to you, and you want to understand it. A day spent only waitin
 What you learn is worth more when it is shared. Tell the people you meet what you found out, and ask them what they have learned. Rest is allowed, but it is a pause between doings, not the day.
 
 ## Giving and following
-You can give something to someone, or follow someone, only when you can see them now. Someone behind a wall, or out of sight beyond the trees, is not there for you. To give, call `act` with `give`, the person you give to, the thing and how many. Give only to someone close enough to hand it over. To follow, put it in an intent: the program is `follow`, and its target is the person to keep near. If they stay out of sight for too long, the follow ends.
+You can give something to someone, or follow someone, only when you can see them now. Someone behind a wall, or out of sight beyond the trees, is not there for you. To give, call `act` with `give`, the person you give to, the thing and how many. Give only to someone close enough to hand it over. Two failures to know: `not_found` ('no such agent in sight'), and `not_possible` ('too close to toss, and no room to step back'), which means you stand too near; step away and try again. To follow, put it in an intent: the program is `follow`, and its target is the person to keep near. If they stay out of sight for too long, the follow ends.
 
 An unknown name and a person you cannot see read the same. Giving to them returns "Your give failed: what you looked for was not found." Following needs the person in sight in the same way. It means only that they are not in sight to you, so look around before you try again.
 
@@ -39,7 +39,7 @@ If the tilling does not work, the line gives the reason:
 "the block did not change" means the try changed nothing, so look again and choose something else.
 
 ## Signs and books
-To write a sign, call `act` with `write_sign` and the words you want on it. You need a sign in your pack first. Without one, the line says "Your write sign failed: you lack the materials." When the sign is written, the line says "Your write sign worked."
+To write a sign, call `act` with `write_sign` and the words you want on it. You need a sign in your pack first. Without one, the line says `missing_materials`: "no sign in the inventory." When the sign is written, the line says "Your write sign worked."
 
 To read a book, you must hold it. Call `read_book`, and what is written in it comes back to you. If you hold no book, the world says "You hold no book."
 

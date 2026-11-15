@@ -147,7 +147,7 @@ describe('play skill', () => {
       '## Signs and books',
       'To write a sign, call `act` with `write_sign` and the words you want on it.',
       'You need a sign in your pack first.',
-      '"Your write sign failed: you lack the materials."',
+      'Without one, the line says `missing_materials`: "no sign in the inventory."',
       '"Your write sign worked."',
       'To read a book, you must hold it.',
       'Call `read_book`, and what is written in it comes back to you.',
@@ -158,6 +158,25 @@ describe('play skill', () => {
     expect(body.indexOf('## Signs and books')).toBeLessThan(
       body.indexOf('## Reading your results'),
     );
+  });
+
+  it('points step 4 at the intents-and-limits skill before the first intent', () => {
+    expect(body).toContain(
+      'The skill `intents-and-limits` lists the programs and what each one takes. Read it before your first intent.',
+    );
+  });
+
+  it('spaces the journal: one entry, then act or wait, and the five-second rate limit', () => {
+    expect(body).toContain(
+      'Write one journal entry, then act or wait. A second journal call within five seconds fails with `rate_limited`, so put what you want to say in one entry.',
+    );
+  });
+
+  it('teaches the two give failures, not_found and not_possible, without a distance number', () => {
+    expect(body).toContain(
+      "Two failures to know: `not_found` ('no such agent in sight'), and `not_possible` ('too close to toss, and no room to step back'), which means you stand too near; step away and try again.",
+    );
+    expect(body).not.toMatch(/not_possible[^.]*\d/);
   });
 
   it('never teaches the unavailable book writing, and never mentions a moot or a shrine', () => {

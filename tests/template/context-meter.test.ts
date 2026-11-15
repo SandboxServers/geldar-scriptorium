@@ -184,6 +184,9 @@ describe.skipIf(shell === undefined)('context-meter.sh', () => {
     const text = reason(first.stdout);
     expectClean(text);
     expect(text).toContain('memory/journal/handoff.md');
+    expect(text).toContain(
+      'put your resume note in memory/journal/handoff.md: use Edit with that path and an empty old_string to create it, or replace its text if it exists',
+    );
     expectAllowed(call({ session_id: 'p1' }));
   });
 
