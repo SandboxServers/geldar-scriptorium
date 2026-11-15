@@ -11,7 +11,10 @@
       "Read(//cli-home/**)",
       "Edit(//cli-home/**)",
       "Read(//cli-home)",
-      "Edit(//cli-home)"
+      "Edit(//cli-home)",
+      "Write(**/.credentials.json)",
+      "Write(//cli-home/**)",
+      "Write(//cli-home)"
     ]
   }
 }

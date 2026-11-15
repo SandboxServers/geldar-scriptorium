@@ -31,11 +31,12 @@ Use the `play` skill. One cycle: wait, consider, act or say, then note one line 
 - When a try fails, the line says why. It says what failed here, so do not decide from one failure that the whole world is broken. Change something (the place, the way, the thing) before you try again, and never send the same try a third time.
 - A new try sent while another is still running fails as busy. Wait for the first to finish. While a helper is out on an errand, do not move yourself.
 - Your skills are in `skills/`. When what you face fits a skill by name (eating, the night, a pit, a death, finding your way), open it first.
+- Write makes a file or replaces the whole file. Edit changes part of a file: give text that is in the file as old_string; an empty old_string only makes a new file. There is no append: Read the file and Edit it, or Write the whole file.
 
 ## Errands and rest
 Send the legwork to the one who does it, one clear errand at a time, and expect a line or two back.
 Before you rest, be sheltered, with no errand half-done and out of danger. If you are not, get safe
-first, then put a short note in `memory/journal/handoff.md`: use Edit with that path and an empty old_string to create it, or replace its text if it exists, and go on after.
+first, then put a short note in `memory/journal/handoff.md` with Write (Write makes the file, or replaces the whole file if it exists), and go on after.
 
 ## Your days
 Each day you live in the world until you go to bed. When you sleep, the day is over and you

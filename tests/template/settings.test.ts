@@ -60,7 +60,9 @@ const skillRules = readdirSync(
   .map((name) => `Skill(${name})`);
 const allowedPathRules = new Set([
   'Edit(/memory/**)',
+  'Write(/memory/**)',
   'Edit(/skills/**)',
+  'Write(/skills/**)',
   'Read(/**)',
   ...skillRules,
 ]);
@@ -148,6 +150,18 @@ describe('Claude Code settings layers', () => {
     }
   });
 
+  it('project denies Write on every kit file, as it denies Edit', () => {
+    for (const path of kitPaths) {
+      expect(project.permissions?.deny).toContain(`Write(${path})`);
+    }
+  });
+
+  it('project allows Write on memory, and on skills as it does Edit', () => {
+    expect(project.permissions?.allow).toEqual(
+      expect.arrayContaining(['Write(/memory/**)', 'Write(/skills/**)']),
+    );
+  });
+
   it('project runs in dontAsk mode', () => {
     expect(project.permissions?.defaultMode).toBe('dontAsk');
   });
@@ -163,13 +177,23 @@ describe('Claude Code settings layers', () => {
     );
   });
 
-  it('no layer carries a Write permission rule (Edit rules cover every file-editing tool)', () => {
+  it('every Write path rule has the same path as an Edit rule in the same layer', () => {
     for (const [name, settings] of Object.entries(layers)) {
       for (const list of [settings.permissions?.allow ?? [], settings.permissions?.deny ?? []]) {
         for (const rule of list) {
-          expect(rule === 'Write' || rule.startsWith('Write('), `${name} has ${rule}`).toBe(false);
+          if (!rule.startsWith('Write(')) continue;
+          const edit = `Edit(${rule.slice('Write('.length)}`;
+          expect(list, `${name} has ${rule} without ${edit}`).toContain(edit);
         }
       }
+    }
+  });
+
+  it('every Edit path rule in the project allow list has a Write twin', () => {
+    const allow = project.permissions?.allow ?? [];
+    for (const rule of allow) {
+      if (!rule.startsWith('Edit(')) continue;
+      expect(allow, `${rule} has no Write twin`).toContain(`Write(${rule.slice('Edit('.length)}`);
     }
   });
 

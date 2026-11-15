@@ -9,6 +9,7 @@ tools:
   - Skill
   - Read
   - Edit
+  - Write
   - mcp__geldar__*
   - mcp__geldar_memory__*
   - mcp__geldar_git__*
@@ -32,4 +33,4 @@ Now and then your thoughts are trimmed so you stay sharp. Before you rest:
 
 - Be sheltered, with no errand half-done, and not in danger.
 - If you are not, get safe first.
-- Then put a short note in `memory/journal/handoff.md`: use Edit with that path and an empty old_string to create it, or replace its text if it exists, and go on after the trim.
+- Then put a short note in `memory/journal/handoff.md` with Write (Write makes the file, or replaces the whole file if it exists), and go on after the trim.

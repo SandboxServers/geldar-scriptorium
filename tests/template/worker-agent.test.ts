@@ -79,4 +79,11 @@ describe('the worker agent', () => {
     expect(flat).toContain('what is done, what is left, and the one next step');
     expect(flat).toContain('That reply is your hand-off. You write no file.');
   });
+
+  it('says it cannot read or change files, and has only the tools of the world', () => {
+    const flat = body.replace(/\s+/g, ' ');
+    expect(flat).toContain(
+      'You cannot read or change files. You have only the tools of the world.',
+    );
+  });
 });
