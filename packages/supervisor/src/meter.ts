@@ -58,6 +58,32 @@ export function readTokenUsage(path: string, harness: 'claude' | 'chatgpt' | 'lo
   };
 }
 
+/**
+ * The stop reason of the last `result` line of a session stream (for example `context_too_small`),
+ * or '' when there is none or it is not a short lower-case word.
+ */
+export function readStopReason(path: string): string {
+  let text: string;
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch {
+    return '';
+  }
+  let reason = '';
+  for (const line of text.split('\n')) {
+    try {
+      const entry: unknown = JSON.parse(line);
+      if (isRecord(entry) && entry.type === 'result') {
+        const value = entry.stop_reason;
+        reason = typeof value === 'string' && /^[a-z_]{1,32}$/.test(value) ? value : '';
+      }
+    } catch {
+      // not a json line
+    }
+  }
+  return reason;
+}
+
 /** Sum of input + output over the lines of tokens.csv whose utc column starts with the UTC date (cached excluded). */
 export function tokensToday(stateDir: string, date: string): number {
   const file = join(stateDir, 'tokens.csv');

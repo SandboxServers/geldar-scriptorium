@@ -59,6 +59,13 @@ describe('the token meter', () => {
     expect(f.read('supervisor.log')).not.toContain('token cap reached');
   });
 
+  it('logs the recorded stop reason of a run that gave one', async () => {
+    const f = makeFixture({ ...spent, stopReason: 'context_too_small' });
+    onPoll(f, () => f.supervisor.requestStop());
+    await f.supervisor.run();
+    expect(f.read('supervisor.log')).toContain('reason=context_too_small');
+  });
+
   it('refuses a daily token cap that is not a number', () => {
     expect(() => readSettings({ GELDAR_RUN_DAILY_TOKEN_CAP: 'abc' })).toThrow(SettingError);
     expect(readSettings({}).dailyTokenCap).toBe(0);

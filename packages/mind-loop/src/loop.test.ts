@@ -155,3 +155,108 @@ describe('runLoop', () => {
     expect(items.at(-1)).toMatchObject({ type: 'result', result: 'first words' });
   });
 });
+
+describe('runLoop with validate', () => {
+  /** A probe whose schema wants one string `word`, and that records each call it runs. */
+  function typed(log: Record<string, unknown>[]): Tool {
+    return {
+      ...probe(log),
+      name: 'typed',
+      parameters: {
+        type: 'object',
+        properties: { word: { type: 'string' } },
+        required: ['word'],
+        additionalProperties: false,
+      },
+    };
+  }
+
+  function validated(transport: Transport, tools: Tool[], items: Item[]): Promise<void> {
+    return runLoop({
+      transport,
+      prompt: 'hello',
+      maxTurns: 10,
+      tools,
+      emit: (item) => items.push(item),
+      costSource: 'not_metered_local',
+      validate: true,
+    });
+  }
+
+  it('does not run an invalid call, answers it with the correction, and runs the next valid call', async () => {
+    const items: Item[] = [];
+    const executed: Record<string, unknown>[] = [];
+    const { transport, sends } = scripted([
+      { text: '', calls: [{ id: 'a', name: 'typed', arguments: '{"word":3}' }] },
+      { text: '', calls: [{ id: 'b', name: 'typed', arguments: '{"word":"x"}' }] },
+      { text: 'done', calls: [] },
+    ]);
+    await validated(transport, [typed(executed)], items);
+    expect(executed).toEqual([{ word: 'x' }]);
+    const first = sends[1] as { results: ToolReturn[] };
+    expect(first.results[0]?.blocks).toEqual([
+      {
+        type: 'text',
+        text: 'Your call to typed was not valid: /word must be string. Send the call again with corrected arguments.',
+      },
+    ]);
+    expect(items.at(-1)).toMatchObject({ type: 'result', is_error: false, num_turns: 3 });
+  });
+
+  it('a model that errs every third call is never ended', async () => {
+    const items: Item[] = [];
+    const executed: Record<string, unknown>[] = [];
+    const bad = { text: '', calls: [{ id: 'x', name: 'typed', arguments: '{}' }] };
+    const good = { text: '', calls: [{ id: 'y', name: 'typed', arguments: '{"word":"g"}' }] };
+    const { transport } = scripted([bad, good, bad, good, bad, good, { text: 'end', calls: [] }]);
+    await validated(transport, [typed(executed)], items);
+    expect(executed).toHaveLength(3);
+    expect(items.at(-1)).toMatchObject({ type: 'result', is_error: false });
+  });
+
+  it('two invalid calls in a row end the round and the tool never runs', async () => {
+    const items: Item[] = [];
+    const executed: Record<string, unknown>[] = [];
+    const { transport } = scripted([
+      { text: '', calls: [{ id: 'a', name: 'typed', arguments: '{"word":3}' }] },
+      { text: '', calls: [{ id: 'b', name: 'typed', arguments: '{"word":4}' }] },
+    ]);
+    await expect(validated(transport, [typed(executed)], items)).rejects.toThrow(
+      'did not produce a valid tool call',
+    );
+    expect(executed).toEqual([]);
+    expect(items.at(-1)).toMatchObject({
+      type: 'result',
+      is_error: true,
+      stop_reason: 'invalid_tool_calls',
+    });
+  });
+
+  it('answers an unknown tool with its own sentence', async () => {
+    const items: Item[] = [];
+    const { transport, sends } = scripted([
+      { text: '', calls: [{ id: 'a', name: 'missing', arguments: '{}' }] },
+      { text: 'end', calls: [] },
+    ]);
+    await validated(transport, [], items);
+    const answer = sends[1] as { results: ToolReturn[] };
+    expect(answer.results[0]?.blocks).toEqual([
+      { type: 'text', text: 'There is no tool named missing.' },
+    ]);
+  });
+
+  it('without validate an invalid-args call gets the old fixed answer and the tool is not run', async () => {
+    const items: Item[] = [];
+    const executed: Record<string, unknown>[] = [];
+    const { transport, sends } = scripted([
+      { text: '', calls: [{ id: 'a', name: 'typed', arguments: 'not json' }] },
+      { text: 'end', calls: [] },
+    ]);
+    await run(transport, [typed(executed)], items);
+    expect(executed).toEqual([]);
+    const answer = sends[1] as { results: ToolReturn[] };
+    expect(answer.results[0]?.blocks).toEqual([
+      { type: 'text', text: 'That tool call could not be completed.' },
+    ]);
+  });
+});

@@ -32,6 +32,7 @@ async function main(): Promise<void> {
       tools: connected.tools,
       emit: (item) => process.stdout.write(`${JSON.stringify(item)}\n`),
       costSource: 'not_metered_local',
+      validate: true,
     });
   } finally {
     await connected.close();
