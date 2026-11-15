@@ -18,8 +18,9 @@ const UNIT_PROBE = 'systemctl show geldar-runner -p ProtectSystem,ReadWritePaths
 
 // The probe names, in order, as the snapshot. A renamed or dropped probe fails here.
 const PROBES = [
+  'runuser -u geldar-runner -- true',
   'test -r /etc/shadow',
-  'ls /home/*',
+  'ls /home/<each entry>',
   'sudo -n true',
   'sudo -n -l',
   'test -w /etc/geldar/keys',
@@ -45,11 +46,12 @@ const PROBES = [
 const FAKE_RUNUSER = [
   'shift 3',
   'case "$*" in',
-  '  *"/etc/shadow"*) [ "${FAKE_LEAK:-}" = shadow ] ;;',
+  '  true) [ -z "${FAKE_RUNNER_DOWN:-}" ] ;;',
+  '  *"/etc/shadow"*) [ -z "${FAKE_RC:-}" ] || exit "$FAKE_RC"; [ "${FAKE_LEAK:-}" = shadow ] ;;',
   '  *"/etc/geldar/tokens/"*) [ "${FAKE_LEAK:-}" = token ] ;;',
   '  *"/etc/geldar/keys/"*) [ "${FAKE_LEAK:-}" = key ] ;;',
   '  *"/home/geldar/.claude/"*) [ "${FAKE_LEAK:-}" = login ] ;;',
-  '  *"/home/*"*) [ -n "${FAKE_HOME:-}" ] ;;',
+  '  ls *) [ -n "${FAKE_HOME:-}" ] ;;',
   '  *"sudo -n true"*) [ -n "${FAKE_SUDO_TRUE:-}" ] ;;',
   '  *"sudo -n -l"*)',
   '    echo "    (root) NOPASSWD: /usr/local/sbin/geldar-fleet-run"',
@@ -59,10 +61,22 @@ const FAKE_RUNUSER = [
   '  *"test -w "*) [ -n "${FAKE_WRITE:-}" ] ;;',
   '  *"sudo -n /usr/local/sbin/geldar-fleet-run check-secrets ag-probe-00"*)',
   '    exit "${FAKE_POSITIVE:-0}" ;;',
-  '  *"geldar-fleet-run"*) [ -z "${FAKE_WRAPPER_ACCEPTS:-}" ] || exit 0; exit 2 ;;',
+  '  *"geldar-fleet-run"*)',
+  '    [ -z "${FAKE_WRAPPER_ACCEPTS:-}" ] || exit 0',
+  '    [ -n "${FAKE_WRAPPER_BARE:-}" ] || echo "geldar-fleet-run: refused" >&2',
+  '    exit 2',
+  '    ;;',
   '  *"id -nG"*) echo "geldar-runner ${FAKE_GROUPS:-}" ;;',
   '  *": >> "*) [ -z "${FAKE_NO_APPEND:-}" ] ;;',
-  '  *"docker ps"*) [ -n "${FAKE_DOCKER:-}" ] ;;',
+  '  *"docker ps"*)',
+  '    [ -z "${FAKE_DOCKER:-}" ] || exit 0',
+  '    if [ -n "${FAKE_DOCKER_ERR:-}" ]; then',
+  '      echo "docker: not found" >&2',
+  '    else',
+  '      echo "permission denied" >&2',
+  '    fi',
+  '    exit 1',
+  '    ;;',
   '  *) exit 1 ;;',
   'esac',
 ].join('\n');
@@ -119,7 +133,7 @@ function runVerify(knobs: Record<string, string> = {}, missing: string[] = []) {
   writeFileSync(join(root, 'etc/geldar/tokens/ag-probe-00.token'), 'token\n');
   writeFileSync(join(root, 'etc/geldar/keys/ag-probe-00'), 'key\n');
   writeFileSync(join(root, 'home/geldar/.claude/.credentials.json'), '{}\n');
-  for (const m of missing) rmSync(join(root, m), { force: true });
+  for (const m of missing) rmSync(join(root, m), { recursive: true, force: true });
   writeExe(join(fakes, 'runuser'), FAKE_RUNUSER);
   writeExe(join(fakes, 'systemctl'), FAKE_SYSTEMCTL);
   writeExe(join(fakes, 'id'), FAKE_ID);
@@ -188,10 +202,21 @@ describeBash('runner confinement check (F-05b)', () => {
     expect(r.lines).not.toContain('ok test -r /etc/geldar/tokens/<any file>');
   });
 
+  it('prints FAIL for the home probe when /home has no entry, and exits 1', () => {
+    const r = runVerify({}, ['home/geldar']);
+    expect(r.status).toBe(1);
+    const probe = 'FAIL ls /home/<each entry> (precondition: ';
+    expect(r.lines.some((l) => l.startsWith(probe))).toBe(true);
+  });
+
   // Each knob flips one probe: the run must print FAIL for that probe and exit 1.
   const CASES: [string, Record<string, string>][] = [
+    ['runuser -u geldar-runner -- true', { FAKE_RUNNER_DOWN: '1' }],
     ['test -r /etc/shadow', { FAKE_LEAK: 'shadow' }],
-    ['ls /home/*', { FAKE_HOME: '1' }],
+    ['test -r /etc/shadow', { FAKE_RC: '125' }],
+    ['test -r /etc/shadow', { FAKE_RC: '126' }],
+    ['test -r /etc/shadow', { FAKE_RC: '127' }],
+    ['ls /home/<each entry>', { FAKE_HOME: '1' }],
     ['sudo -n true', { FAKE_SUDO_TRUE: '1' }],
     ['sudo -n -l', { FAKE_SUDO_EXTRA: '1' }],
     ['sudo -n -l', { FAKE_SUDO_PASSWD: '1' }],
@@ -202,7 +227,9 @@ describeBash('runner confinement check (F-05b)', () => {
     ['append /var/log/geldar-hosts.log', { FAKE_NO_APPEND: '1' }],
     ['id -nG has no docker, sudo or wheel', { FAKE_GROUPS: 'docker' }],
     ['docker ps', { FAKE_DOCKER: '1' }],
+    ['docker ps', { FAKE_DOCKER_ERR: '1' }],
     ['wrapper ../x', { FAKE_WRAPPER_ACCEPTS: '1' }],
+    ['wrapper ../x', { FAKE_WRAPPER_BARE: '1' }],
     ['wrapper positive control: check-secrets ag-probe-00', { FAKE_POSITIVE: '2' }],
     [UNIT_PROBE, { FAKE_NNP: 'yes' }],
   ];

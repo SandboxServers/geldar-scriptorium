@@ -6,6 +6,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -26,13 +27,16 @@ const ID = 'ag-probe-00';
 const SUDOERS_RULE = 'geldar-runner ALL=(root) NOPASSWD: /usr/local/sbin/geldar-fleet-run\n';
 const DOCKER_SOCKET = 'unix:///run/fleet-test.sock';
 
-// Caller environment that must never reach the launcher: a fleet root seam, a token and a socket.
+// Caller environment that must never reach the launcher: a fleet root seam, a token, a socket and a
+// locale. BASH_ENV is added per world, since it names a file of the test.
 const HOSTILE = {
   HOSTILE_TOKEN: 'leak-me',
   DOCKER_HOST: 'tcp://evil.example:2375',
   XDG_STATE_HOME: '/evil',
   GEL_ROOT: '/evil',
   GELDAR_INTERNAL: '1',
+  LC_ALL: 'en_US.UTF-8',
+  LANG: 'en_US.UTF-8',
 };
 
 const BAD_IDS = [
@@ -92,11 +96,13 @@ interface Setup {
   key?: string | null; // the key file's text; null leaves no key file
   loginMode?: number | null; // the shared login's mode; null leaves no login file
   playFail?: boolean; // the fake geldar-play exits 4
+  keyUid?: number; // the deploy key's owner uid as the fake stat reports it; 1001 when unset
 }
 
 interface World {
   wrapper: string;
   fakes: string;
+  hostile: string; // a caller PATH folder with an env of its own, which must never run
   state: string;
   home: string;
   tokens: string;
@@ -104,7 +110,11 @@ interface World {
   login: string;
   playLog: string;
   runuserLog: string;
+  wrapEnv: string; // the environment and PATH the fake runuser saw, one per line
   playFail: string;
+  keyUid: string;
+  bashEnv: string; // the BASH_ENV file of the hostile environment
+  bashEnvRan: string; // present only if bash read BASH_ENV
 }
 
 const made: string[] = [];
@@ -139,6 +149,7 @@ function makeWorld(setup: Setup = {}): World {
   const w: World = {
     wrapper: join(dir, 'geldar-fleet-run'),
     fakes: join(dir, 'fakes'),
+    hostile: join(dir, 'hostile'),
     state: join(dir, 'state'),
     home: join(dir, 'home'),
     tokens: join(dir, 'tokens'),
@@ -146,11 +157,20 @@ function makeWorld(setup: Setup = {}): World {
     login: join(dir, 'login.json'),
     playLog: join(dir, 'play.log'),
     runuserLog: join(dir, 'runuser.log'),
+    wrapEnv: join(dir, 'wrap-env.log'),
     playFail: join(dir, 'play-fail'),
+    keyUid: join(dir, 'key-uid'),
+    bashEnv: join(dir, 'bash-env.sh'),
+    bashEnvRan: join(dir, 'bash-env-ran'),
   };
-  for (const d of [w.fakes, w.state, join(w.home, 'scriptorium'), w.tokens, w.keys]) {
+  // The launcher keeps its player folders under <state>/geldar, as launcher/lib/common.sh does.
+  for (const d of [w.fakes, w.hostile, w.state, join(w.state, 'geldar'), w.tokens, w.keys]) {
     mkdirSync(d, { recursive: true });
   }
+  mkdirSync(join(w.home, 'scriptorium'), { recursive: true });
+  writeFileSync(w.keyUid, `${setup.keyUid ?? 1001}\n`);
+  writeFileSync(w.bashEnv, `echo ran > '${w.bashEnvRan}'\n`);
+  writeExe(join(w.hostile, 'env'), `echo hostile-env >> '${w.playLog}'\nexit 9`);
   const token = setup.token === undefined ? 'test-registration-token' : setup.token;
   if (token !== null) writeFileSync(join(w.tokens, `${ID}.token`), token);
   const key = setup.key === undefined ? 'test-key-text' : setup.key;
@@ -162,13 +182,27 @@ function makeWorld(setup: Setup = {}): World {
   }
   if (setup.playFail) writeFileSync(w.playFail, '');
 
+  // runuser logs its arguments and what it inherits (the locale and PATH), then runs the command.
+  // geldar-play logs its argv, its directory, its umask and its environment. stat answers the key's
+  // owner from the keyUid file; any other stat call is the real one.
   const bodies: Record<string, string> = {
-    runuser: `echo "$*" >> '${w.runuserLog}'\nshift 3\nexec "$@"`,
+    runuser: [
+      `echo "$*" >> '${w.runuserLog}'`,
+      `{ echo "LC_ALL=$LC_ALL"; echo "PATH=$PATH"; } >> '${w.wrapEnv}'`,
+      'shift 3',
+      'exec "$@"',
+    ].join('\n'),
     'geldar-play': [
-      `{ echo "argv: $*"; env; } >> '${w.playLog}'`,
+      `{ echo "argv: $*"; echo "cwd: $(pwd -P)"; echo "umask: $(umask)"; env; } >> '${w.playLog}'`,
       `if [ -e '${w.playFail}' ]; then exit 4; fi`,
     ].join('\n'),
     chown: `echo "chown $*" >> '${w.runuserLog}'`,
+    stat: [
+      'case "$*" in',
+      `  *"%u"*) cat '${w.keyUid}' ;;`,
+      '  *) exec /usr/bin/stat "$@" ;;',
+      'esac',
+    ].join('\n'),
   };
   for (const [name, body] of Object.entries(bodies)) writeExe(join(w.fakes, name), body);
 
@@ -179,8 +213,10 @@ function makeWorld(setup: Setup = {}): World {
     WRAP_PATH: `${w.fakes}:/usr/bin:/bin`,
     WRAP_DOCKER_HOST: DOCKER_SOCKET,
     WRAP_STATE_DIR: w.state,
+    WRAP_PLAYER_STATE: join(w.state, 'geldar'),
     WRAP_RUNUSER: join(w.fakes, 'runuser'),
     WRAP_CHOWN: join(w.fakes, 'chown'),
+    WRAP_STAT: join(w.fakes, 'stat'),
     WRAP_TOKEN_DIR: w.tokens,
     WRAP_KEY_DIR: w.keys,
     WRAP_LOGIN: w.login,
@@ -189,10 +225,25 @@ function makeWorld(setup: Setup = {}): World {
   return w;
 }
 
-// Runs the wrapper with the hostile environment and the fakes first on PATH.
+// The keyed path the launcher writes a player's deploy key to: <state>/geldar/<id>/deploy-key.
+function keyPath(w: World): string {
+  return join(w.state, 'geldar', ID, 'deploy-key');
+}
+
+// Builds the deploy key where the launcher leaves it after deploy-key.
+function placeKey(w: World): void {
+  mkdirSync(dirname(keyPath(w)), { recursive: true });
+  writeFileSync(keyPath(w), 'key\n');
+}
+
+// Runs the wrapper as sudo does: the hostile environment, a caller PATH whose first folder holds an
+// env that must never run, a caller umask of 077 and a caller directory away from the clone. The
+// wrapper runs under bash -p, the flag its shebang carries, so BASH_ENV is not read.
 function runWrapper(w: World, args: string[]) {
-  const r = spawnSync(bashExe as string, [w.wrapper, ...args], {
-    env: { ...HOSTILE, PATH: `${w.fakes}:/usr/bin:/bin` },
+  const argv = ['-p', '-c', 'umask 0077; exec "$0" "$@"', w.wrapper, ...args];
+  const r = spawnSync(bashExe as string, argv, {
+    cwd: w.state,
+    env: { ...HOSTILE, PATH: `${w.hostile}:/nonexistent:/usr/bin:/bin`, BASH_ENV: w.bashEnv },
     encoding: 'utf8',
     timeout: 60_000,
   });
@@ -201,7 +252,8 @@ function runWrapper(w: World, args: string[]) {
 
 // Installer world: copies of the installer, the wrapper and the sudoers rule in a temp runner dir,
 // a fake visudo, id and install, and a temp root for GEL_ROOT.
-function installWorld(visudoFails = false) {
+function installWorld(opts: { visudoFails?: boolean; mvFails?: boolean } = {}) {
+  const { visudoFails = false, mvFails = false } = opts;
   const dir = mkdtempSync(join(tmpdir(), 'fleet-f05b-inst-'));
   made.push(dir);
   const src = join(dir, 'runner');
@@ -219,6 +271,11 @@ function installWorld(visudoFails = false) {
   writeExe(
     join(fakes, 'mkdir'),
     `echo "mkdir $*" >> '${calls}'\nfor a in "$@"; do\n  case "$a" in\n    -p | "$GEL_ROOT"/*) ;;\n    *) exit 1 ;;\n  esac\ndone\ncommand -p mkdir "$@"`,
+  );
+  // mv logs its arguments. With mvFails set it fails at once; otherwise it is the real mv.
+  writeExe(
+    join(fakes, 'mv'),
+    `echo "mv $*" >> '${calls}'\n${mvFails ? 'exit 1' : 'command -p mv "$@"'}`,
   );
   // install -o root -g root -m MODE SRC DST: the source is argument 7, the destination 8.
   writeExe(
@@ -287,6 +344,26 @@ describeBash('root wrapper (F-05b)', () => {
     expect(log).toContain(`XDG_STATE_HOME=${w.state}`);
     expect(log).toContain(`HOME=${w.home}`);
     expect(log.join('\n')).not.toMatch(/HOSTILE_TOKEN|GEL_ROOT|GELDAR_INTERNAL|evil/);
+    expect(existsSync(w.bashEnvRan)).toBe(false);
+  });
+
+  it('pins PATH, locale, umask and directory, and starts runuser as the launcher', () => {
+    const w = makeWorld();
+    const r = runWrapper(w, ['start', ID]);
+    expect(r.status, r.out).toBe(0);
+    const pinned = `${w.fakes}:/usr/bin:/bin`;
+    // geldar-play's view: its PATH is the pinned one, its umask 022 and its directory the clone.
+    const log = readOr(w.playLog).split('\n');
+    expect(log).toContain(`PATH=${pinned}`);
+    expect(log).toContain('umask: 0022');
+    expect(log).toContain(`cwd: ${realpathSync(join(w.home, 'scriptorium'))}`);
+    // runuser's view, from the wrapper: the locale is pinned to C and the PATH is the pinned one.
+    const wrapEnv = readOr(w.wrapEnv).split('\n');
+    expect(wrapEnv).toContain('LC_ALL=C');
+    expect(wrapEnv).toContain(`PATH=${pinned}`);
+    // The launcher account is named with -u, and -- ends runuser's own options.
+    const invocation = readOr(w.runuserLog).split('\n')[0];
+    expect(invocation.split(' ').slice(0, 3)).toEqual(['-u', userInfo().username, '--']);
   });
 
   it('passes the flags of the verb through, with a value for each value flag', () => {
@@ -315,11 +392,23 @@ describeBash('root wrapper (F-05b)', () => {
 
   it('runs the interim deploy-key chown after success, and not after a failure', () => {
     const ok = makeWorld();
+    placeKey(ok);
     expect(runWrapper(ok, ['deploy-key', ID]).status).toBe(0);
-    expect(readOr(ok.runuserLog)).toContain(`chown -h 1002:1002 ${ok.state}/${ID}/deploy-key`);
+    expect(readOr(ok.runuserLog)).toContain(
+      `chown -h --from=geldar:geldar 1002:1002 -- ${keyPath(ok)}`,
+    );
     const bad = makeWorld({ playFail: true });
+    placeKey(bad);
     expect(runWrapper(bad, ['deploy-key', ID]).status).toBe(4);
     expect(readOr(bad.runuserLog)).not.toContain('chown');
+  });
+
+  it('skips the deploy-key chown when the key is already owned by uid 1002, and exits 0', () => {
+    const w = makeWorld({ keyUid: 1002 });
+    placeKey(w);
+    const r = runWrapper(w, ['deploy-key', ID]);
+    expect(r.status, r.out).toBe(0);
+    expect(readOr(w.runuserLog)).not.toContain('chown');
   });
 
   it('refuses a symlink on the deploy-key path with exit 7 and chowns nothing', () => {
@@ -328,10 +417,10 @@ describeBash('root wrapper (F-05b)', () => {
       const real = join(dirname(w.wrapper), `real-${link}`);
       mkdirSync(real);
       if (link === 'id-dir') {
-        symlinkSync(real, join(w.state, ID));
+        symlinkSync(real, join(w.state, 'geldar', ID));
       } else {
-        mkdirSync(join(w.state, ID));
-        symlinkSync(real, join(w.state, ID, 'deploy-key'));
+        mkdirSync(join(w.state, 'geldar', ID));
+        symlinkSync(real, keyPath(w));
       }
       const r = runWrapper(w, ['deploy-key', ID]);
       expect(r.status, `${link}: ${r.out}`).toBe(7);
@@ -341,8 +430,13 @@ describeBash('root wrapper (F-05b)', () => {
 
   it('keeps the interim chown line in the wrapper, marked for deletion with R-4', () => {
     const text = readFileSync(join(runnerDir, 'geldar-fleet-run'), 'utf8');
-    expect(text).toContain('"$WRAP_CHOWN" -h 1002:1002 "$key"');
+    expect(text).toContain('"$WRAP_CHOWN" -h --from=geldar:geldar 1002:1002 -- "$key"');
     expect(text).toMatch(/Delete with R-4\./);
+  });
+
+  it('runs under bash -p, the shebang the sudoers rule relies on', () => {
+    const text = readFileSync(join(runnerDir, 'geldar-fleet-run'), 'utf8');
+    expect(text.split('\n')[0]).toBe('#!/bin/bash -p');
   });
 
   it('accepts a 39-character id, the longest the launcher allows', () => {
@@ -373,7 +467,7 @@ describeBash('root wrapper (F-05b)', () => {
     expect(text).toBe(SUDOERS_RULE);
   });
 
-  it('checks the sudoers rule under a temp name with visudo, then renames it into place', () => {
+  it('checks the sudoers rule with visudo under a temp name, then renames both files', () => {
     const iw = installWorld();
     const r = runInstall(iw);
     expect(r.status, r.out).toBe(0);
@@ -381,25 +475,47 @@ describeBash('root wrapper (F-05b)', () => {
     const srcSudoers = join(iw.src, 'geldar-fleet-sudoers');
     const dstRun = join(iw.root, 'usr', 'local', 'sbin', 'geldar-fleet-run');
     const dstSudoers = join(iw.root, 'etc', 'sudoers.d', 'geldar-fleet');
+    const tmpRun = `${dstRun}.new`;
     const tmp = `${dstSudoers}.new`;
     expect(readOr(iw.calls).split('\n').filter(Boolean)).toEqual([
       `mkdir -p ${dirname(dstRun)} ${dirname(dstSudoers)}`,
-      `install -o root -g root -m 0755 ${srcRun} ${dstRun}`,
+      `install -o root -g root -m 0755 ${srcRun} ${tmpRun}`,
       `install -o root -g root -m 0440 ${srcSudoers} ${tmp}`,
       `visudo -cf ${tmp}`,
+      `mv -f ${tmpRun} ${dstRun}`,
+      `mv -f ${tmp} ${dstSudoers}`,
     ]);
+    expect(readOr(dstRun)).toBe(readOr(srcRun));
     expect(readOr(dstSudoers)).toBe(SUDOERS_RULE);
+    expect(existsSync(tmpRun)).toBe(false);
     expect(existsSync(tmp)).toBe(false);
   });
 
-  it('installs no sudoers rule when visudo refuses it, and removes the temp file', () => {
-    const iw = installWorld(true);
+  it('installs neither file when visudo refuses the rule, and removes both temp files', () => {
+    const iw = installWorld({ visudoFails: true });
     const r = runInstall(iw);
     expect(r.status).toBe(7);
+    const dstRun = join(iw.root, 'usr', 'local', 'sbin', 'geldar-fleet-run');
     const dstSudoers = join(iw.root, 'etc', 'sudoers.d', 'geldar-fleet');
     expect(existsSync(dstSudoers)).toBe(false);
     expect(existsSync(`${dstSudoers}.new`)).toBe(false);
+    expect(existsSync(dstRun)).toBe(false);
+    expect(existsSync(`${dstRun}.new`)).toBe(false);
     expect(readOr(iw.calls)).toContain(`visudo -cf ${dstSudoers}.new`);
+    expect(readOr(iw.calls)).not.toContain('mv -f');
+  });
+
+  it('removes both temp files when a step fails after they are made, through the ERR trap', () => {
+    const iw = installWorld({ mvFails: true });
+    const r = runInstall(iw);
+    expect(r.status, r.out).toBe(7);
+    expect(r.out).toContain('step failed at line');
+    const dstRun = join(iw.root, 'usr', 'local', 'sbin', 'geldar-fleet-run');
+    const dstSudoers = join(iw.root, 'etc', 'sudoers.d', 'geldar-fleet');
+    expect(existsSync(`${dstRun}.new`)).toBe(false);
+    expect(existsSync(`${dstSudoers}.new`)).toBe(false);
+    expect(existsSync(dstRun)).toBe(false);
+    expect(existsSync(dstSudoers)).toBe(false);
   });
 
   it('ignores GEL_ROOT when GELDAR_INTERNAL is not 1, and writes nothing under it', () => {

@@ -1,5 +1,7 @@
-#!/bin/bash
+#!/bin/bash -p
 # The root wrapper of the fleet (F-05b): the one command the runner account may run, through sudo.
+# The sudoers rule relies on sudo's env_reset, which drops BASH_ENV and SHELLOPTS before this runs;
+# -p keeps bash from reading them even if they arrive anyway.
 # Usage: geldar-fleet-run <verb> <id> [flags], or geldar-fleet-run check-login. Installed as
 # /usr/local/sbin/geldar-fleet-run (root:root 0755) by install-wrapper.sh. Every argument is checked
 # before anything runs; a bad one exits 2 with nothing started. The launcher verb then runs as the
@@ -20,6 +22,8 @@ readonly WRAP_LAUNCHER_USER=geldar
 readonly WRAP_LAUNCHER_HOME=/home/geldar
 readonly WRAP_DOCKER_HOST=unix:///var/run/docker.sock
 readonly WRAP_STATE_DIR=/home/geldar/.local/state
+# The launcher's player folders: launcher/lib/common.sh appends /geldar to the state dir.
+readonly WRAP_PLAYER_STATE=/home/geldar/.local/state/geldar
 readonly WRAP_RUNUSER=/usr/sbin/runuser
 readonly WRAP_STAT=/usr/bin/stat
 readonly WRAP_CHOWN=/usr/bin/chown
@@ -168,12 +172,17 @@ fi
 rc=0
 "${launch[@]}" || rc=$?
 if [ "$rc" -eq 0 ]; then
-  key="$WRAP_STATE_DIR/$id/deploy-key"
+  key="$WRAP_PLAYER_STATE/$id/deploy-key"
   # The chown follows no symlink: a link in the id directory or on the key itself is refused.
-  if [ -L "$WRAP_STATE_DIR/$id" ] || [ -L "$key" ]; then
+  if [ -L "$WRAP_PLAYER_STATE/$id" ] || [ -L "$key" ]; then
     die 7 "the deploy key path holds a symlink"
   fi
+  owner=$("$WRAP_STAT" -c %u "$key") || die 7 "the deploy key cannot be read"
   # Interim, until R-4 lands: the keeper reads the deploy key as uid 1002. Delete with R-4.
-  "$WRAP_CHOWN" -h 1002:1002 "$key" || die 7 "chown of the deploy key failed"
+  # Only a key still owned by the launcher account is changed; one already at 1002 is left alone.
+  if [ "$owner" != 1002 ]; then
+    "$WRAP_CHOWN" -h --from=geldar:geldar 1002:1002 -- "$key" ||
+      die 7 "chown of the deploy key failed"
+  fi
 fi
 exit "$rc"

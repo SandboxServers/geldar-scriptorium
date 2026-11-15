@@ -36,7 +36,8 @@ as_runner() {
 
 # refused PROBE TARGET CMD...: the runner must be refused, so CMD must exit non-zero. TARGET is the
 # path the probe aims at; as root it must exist (an empty TARGET skips the check). Exit 127 means
-# the command is missing, which is a FAIL: a probe must not pass because its tool is absent.
+# the command is missing, and 125 and 126 mean runuser itself could not run it: each is a FAIL, so a
+# probe must not pass because its tool or runuser is broken.
 refused() {
   local probe=$1 target=$2 rc=0
   shift 2
@@ -45,7 +46,22 @@ refused() {
     return 0
   fi
   as_runner "$@" >/dev/null 2>&1 || rc=$?
-  if [ "$rc" -ne 0 ] && [ "$rc" -ne 127 ]; then report ok "$probe"; else report FAIL "$probe"; fi
+  case $rc in
+    0 | 125 | 126 | 127) report FAIL "$probe" ;;
+    *) report ok "$probe" ;;
+  esac
+}
+
+# docker_refused: the runner must be refused by the Docker socket, and the refusal must say so in
+# stderr. Any other failure, such as a missing docker, is a FAIL.
+docker_refused() {
+  local err rc=0
+  err=$(as_runner docker ps 2>&1 >/dev/null) || rc=$?
+  if [ "$rc" -ne 0 ] && printf '%s\n' "$err" | grep -qi 'permission denied'; then
+    report ok "docker ps"
+  else
+    report FAIL "docker ps"
+  fi
 }
 
 # allowed PROBE CMD...: the runner must be allowed, so CMD must exit 0.
@@ -56,12 +72,18 @@ allowed() {
   if [ "$rc" -eq 0 ]; then report ok "$probe"; else report FAIL "$probe"; fi
 }
 
-# wrapper_refused PROBE ARGS...: the wrapper, run through sudo, must exit 2 and start nothing.
+# wrapper_refused PROBE ARGS...: the wrapper, run through sudo, must exit 2 and start nothing. The
+# refusal message on stderr is the sentinel: the wrapper prints it before it starts anything, so a
+# bare exit 2 without it is a FAIL.
 wrapper_refused() {
-  local probe=$1 rc=0
+  local probe=$1 rc=0 err
   shift
-  as_runner sudo -n "$wrapper" "$@" >/dev/null 2>&1 || rc=$?
-  if [ "$rc" -eq 2 ]; then report ok "$probe"; else report FAIL "$probe"; fi
+  err=$(as_runner sudo -n "$wrapper" "$@" 2>&1 >/dev/null) || rc=$?
+  if [ "$rc" -eq 2 ] && printf '%s\n' "$err" | grep -q '^geldar-fleet-run: '; then
+    report ok "$probe"
+  else
+    report FAIL "$probe"
+  fi
 }
 
 # positive_control PROBE: a good id reaches the wrapper, so the run exits 0 or 6, never 2. A wrapper
@@ -121,12 +143,24 @@ unit_confinement() {
 # empty pick falls back to the directory's name in the precondition message.
 token=$(find "$CONF_TOKEN_DIR" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | head -n 1 || true)
 key=$(find "$CONF_KEY_DIR" -mindepth 1 -maxdepth 1 -type f 2>/dev/null | head -n 1 || true)
-home=$(find "$CONF_HOMES" -mindepth 1 -maxdepth 1 2>/dev/null | head -n 1 || true)
+
+# The positive control: the runner can run a command at all, so the refused probes below are not
+# passing because runuser is broken.
+allowed "runuser -u $runner -- true" true
 
 # The runner reads no secret, no home directory and no shadow file, and has no sudo beyond the
 # wrapper.
 refused "test -r /etc/shadow" "$CONF_SHADOW" test -r "$CONF_SHADOW"
-refused "ls /home/*" "${home:-$CONF_HOMES/<any entry>}" sh -c "ls $CONF_HOMES/*"
+# Every entry under /home is probed on its own. With no entry at all the probe fails on its
+# precondition, so an empty /home cannot pass by accident.
+homes=0
+while IFS= read -r home; do
+  homes=$((homes + 1))
+  refused "ls /home/<each entry>" "$home" ls "$home"
+done < <(find "$CONF_HOMES" -mindepth 1 -maxdepth 1 2>/dev/null)
+if [ "$homes" -eq 0 ]; then
+  report FAIL "ls /home/<each entry> (precondition: $CONF_HOMES/<any entry> missing)"
+fi
 refused "sudo -n true" "" sudo -n true
 sudo_lists_wrapper_only
 refused "test -w /etc/geldar/keys" "$CONF_KEY_DIR" test -w "$CONF_KEY_DIR"
@@ -136,7 +170,7 @@ refused "test -r /etc/geldar/keys/<any file>" "${key:-$CONF_KEY_DIR/<any file>}"
 refused "test -r <shared login>" "$CONF_LOGIN" test -r "$CONF_LOGIN"
 allowed "append /var/log/geldar-hosts.log" sh -c ": >> $CONF_LOG"
 groups_clean
-refused "docker ps" "" docker ps
+docker_refused
 
 # The wrapper refuses every bad id, verb and flag with exit 2, before anything runs.
 wrapper_refused "wrapper AG-x" check-secrets AG-x
