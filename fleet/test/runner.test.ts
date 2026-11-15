@@ -329,7 +329,10 @@ describeBash('runner install (F-05a)', () => {
     const r = run(world);
     expect(r.status, r.out).toBe(0);
     expect(configLog(world)).toContain(`ACTIONS_RUNNER_INPUT_TOKEN=${TOKEN}\n`);
-    const argv = configLog(world).split('\n').filter((l) => l.startsWith('argv: '));
+    const argv = configLog(world)
+      .split('
+')
+      .filter((l) => l.startsWith('argv: '));
     expect(argv).toEqual(['argv: --unattended --replace']);
     expect(calls(world).join('\n')).not.toContain(TOKEN);
     expect(r.out).not.toContain(TOKEN);
@@ -413,9 +416,9 @@ describeBash('runner install (F-05a)', () => {
     const off = makeWorld({ pathsLogOnly: true });
     run(off, { seam: false });
     const offCalls = calls(off);
-    expect(
-      offCalls.some((c) => c.startsWith('tar ') && c.endsWith(' -C /opt/geldar-runner')),
-    ).toBe(true);
+    expect(offCalls.some((c) => c.startsWith('tar ') && c.endsWith(' -C /opt/geldar-runner'))).toBe(
+      true,
+    );
     expect(offCalls.join('\n')).not.toContain(bashPath(off.root));
   });
 });
