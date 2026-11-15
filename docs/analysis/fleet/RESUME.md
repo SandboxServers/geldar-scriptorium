@@ -25,3 +25,4 @@ Updated 2026-11-14. Packets: work-packets.md. Rules: README.md.
 - Runner self-update is ON by your ruling: runner binaries can change without a PR.
 - Still needed from you: CODEOWNERS handle (F-04, skipped for now), allowed-repos.txt contents, M-3 repo settings and environment `fleet`.
 - Runner sandbox (#117): the setuid sudo child inherits the unit's mount namespace. Option A (in the PR): keep ProtectSystem=strict, ProtectHome=read-only, list the launcher and /srv/geldar paths as writable; reasoned only, F-08 step 1 must test one wrapper verb inside the real unit. Option B: drop ProtectHome and ProtectSystem=strict; less isolation, nothing to get wrong.
+- #118 (F-05b) review record: two review rounds, all findings fixed, CI green; the final fix pass was not re-reviewed and nothing ran on the VM. F-08 step 1 must run verify-confinement and one wrapper verb inside the real unit.
