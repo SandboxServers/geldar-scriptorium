@@ -83,6 +83,13 @@ describe('ChatTransport request', () => {
     ]);
   });
 
+  it('JSON of the transport never shows the api key', async () => {
+    const { fetch } = fake([{ body: { choices: [{ message: { content: 'ok' } }] } }]);
+    const chat = transport(fetch, { apiKey: 'key-never-shown-42' });
+    await chat.send({ prompt: 'hi' });
+    expect(JSON.stringify(chat)).not.toContain('key-never-shown-42');
+  });
+
   it('omits tools when the list is empty', async () => {
     const { request, fetch } = fake([{ body: { choices: [{ message: { content: 'ok' } }] } }]);
     await new ChatTransport({
@@ -252,6 +259,73 @@ describe('ChatTransport history', () => {
     const messages = sentBody(request, 1).messages as Record<string, unknown>[];
     expect(messages[2]).toMatchObject({ role: 'assistant', content: 'Visible reply.' });
   });
+
+  it('strips an unclosed think block that starts the reply to empty history content', async () => {
+    const { request, fetch } = fake([
+      { body: { choices: [{ message: { content: '<think>still thinking' } }] } },
+      { body: { choices: [{ message: { content: 'next' } }] } },
+    ]);
+    const chat = transport(fetch);
+    await chat.send({ prompt: 'hi' });
+    await chat.send({ prompt: 'again' });
+    const messages = sentBody(request, 1).messages as Record<string, unknown>[];
+    expect(messages[2]).toMatchObject({ role: 'assistant', content: '' });
+  });
+
+  it('keeps prose that mentions the think tags byte for byte in the history', async () => {
+    const prose =
+      'Qwen wraps reasoning in <think> tags and ends it with </think>; I answer plainly.';
+    const { request, fetch } = fake([
+      { body: { choices: [{ message: { content: prose } }] } },
+      { body: { choices: [{ message: { content: 'next' } }] } },
+    ]);
+    const chat = transport(fetch);
+    await chat.send({ prompt: 'hi' });
+    await chat.send({ prompt: 'again' });
+    const messages = sentBody(request, 1).messages as Record<string, unknown>[];
+    expect(messages[2]).toMatchObject({ role: 'assistant', content: prose });
+  });
+
+  it('keeps literal think tags inside tool-call arguments unchanged', async () => {
+    const args = '{"s":"<think>x</think>"}';
+    const { request, fetch } = fake([
+      {
+        body: {
+          choices: [
+            {
+              message: {
+                content: 'calling',
+                tool_calls: [{ id: 'c1', function: { name: 'probe', arguments: args } }],
+              },
+            },
+          ],
+        },
+      },
+      { body: { choices: [{ message: { content: 'done' } }] } },
+    ]);
+    const chat = transport(fetch);
+    const first = await chat.send({ prompt: 'hi' });
+    await chat.send({ results: [{ call: first.calls[0] as ToolCall, blocks: [] }] });
+    const messages = sentBody(request, 1).messages as Record<string, unknown>[];
+    expect(messages[2]).toMatchObject({
+      tool_calls: [{ function: { name: 'probe', arguments: args } }],
+    });
+  });
+
+  it('keeps every earlier message of the history, unchanged, at the start of the next request', async () => {
+    const { request, fetch } = fake([
+      { body: { choices: [{ message: { content: 'first' } }] } },
+      { body: { choices: [{ message: { content: 'second' } }] } },
+    ]);
+    const chat = transport(fetch);
+    await chat.send({ prompt: 'hi' });
+    await chat.send({ prompt: 'again' });
+    const first = sentBody(request, 0).messages as Record<string, unknown>[];
+    const second = sentBody(request, 1).messages as Record<string, unknown>[];
+    expect(first[0]).toEqual({ role: 'system', content: 'You are the mind.' });
+    expect(second.slice(0, first.length)).toEqual(first);
+    expect(second.length).toBe(first.length + 2);
+  });
 });
 
 describe('ChatTransport errors', () => {
@@ -276,6 +350,11 @@ describe('ChatTransport errors', () => {
 
   it('a reply with no choices message throws the unreadable message', async () => {
     const { fetch } = fake([{ body: { choices: [] } }]);
+    await expect(transport(fetch).send({ prompt: 'hi' })).rejects.toThrow('could not read');
+  });
+
+  it('a null entry in tool_calls throws the unreadable message', async () => {
+    const { fetch } = fake([{ body: { choices: [{ message: { tool_calls: [null] } }] } }]);
     await expect(transport(fetch).send({ prompt: 'hi' })).rejects.toThrow('could not read');
   });
 

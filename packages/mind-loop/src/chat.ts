@@ -35,12 +35,22 @@ type ChatMessage =
   | { role: 'tool'; tool_call_id: string; content: string };
 
 const IMAGE_OMITTED = '[image omitted: this model reads text only]';
-const THINK_CLOSED = /<think>[\s\S]*?<\/think>/g;
-const THINK_OPEN = /<think>[\s\S]*$/;
+const THINK_CLOSED = /^\s*<think>[\s\S]*?<\/think>/;
+const THINK_OPEN = /^\s*<think>[\s\S]*$/;
 
-/** Removes Qwen-style reasoning text so the history keeps only the visible reply. */
+/**
+ * Removes Qwen-style reasoning text so the history keeps only the visible reply. Only a think block
+ * that starts the content is removed, so prose that merely mentions the tags is kept as written.
+ */
 function stripThink(text: string): string {
-  return text.replace(THINK_CLOSED, '').replace(THINK_OPEN, '').trim();
+  let rest = text;
+  let next = rest.replace(THINK_CLOSED, '');
+  while (next !== rest) {
+    rest = next;
+    next = rest.replace(THINK_CLOSED, '');
+  }
+  rest = rest.replace(THINK_OPEN, '');
+  return rest === text ? text : rest.trim();
 }
 
 /** Reads a message's content: a string, null, or an array of parts (their text parts, concatenated). */
@@ -71,16 +81,17 @@ function resultText(blocks: Block[]): string {
 export class ChatTransport implements Transport {
   private readonly messages: ChatMessage[];
   private readonly url: string;
-  private readonly config: ChatConfig;
-  private readonly apiKey: string | undefined;
+  private readonly config: Omit<ChatConfig, 'apiKey'>;
+  readonly #apiKey: string | undefined;
   private readonly request: Fetch;
   private callCounter = 0;
 
   constructor(config: ChatConfig) {
-    this.config = config;
+    const { apiKey, ...rest } = config;
+    this.config = rest;
     this.messages = [{ role: 'system', content: config.instructions }];
     this.url = `${config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
-    this.apiKey = config.apiKey;
+    this.#apiKey = apiKey;
     this.request = config.request ?? ((input, init) => fetch(input, init));
   }
 
@@ -109,7 +120,7 @@ export class ChatTransport implements Transport {
       signal: AbortSignal.timeout(10 * 60_000),
       headers: {
         'Content-Type': 'application/json',
-        ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
+        ...(this.#apiKey ? { Authorization: `Bearer ${this.#apiKey}` } : {}),
       },
       body: JSON.stringify({
         model: this.config.model,
@@ -149,6 +160,7 @@ export class ChatTransport implements Transport {
 
     const seen = new Set<string>();
     const calls: ToolCall[] = rawCalls.map((raw) => {
+      if (!raw || typeof raw !== 'object') throw unreadable();
       const call = raw as { id?: unknown; function?: { name?: unknown; arguments?: unknown } };
       const id = this.callId(call.id, seen);
       const args = call.function?.arguments;
