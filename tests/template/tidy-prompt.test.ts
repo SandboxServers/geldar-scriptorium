@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { TIDY_PROMPT } from '../../packages/supervisor/src/prompt.ts';
 import { forbiddenMention, markedWords } from './tool-skill-scan.ts';
@@ -42,5 +43,14 @@ describe('the memory tidy prompt', () => {
       expect(TIDY_PROMPT).toContain(part);
     }
     expect(TIDY_PROMPT).not.toContain('under 60 lines');
+  });
+
+  it('the reflect skill keeps the same summary size as the tidy prompt (SC-187)', () => {
+    const reflect = readFileSync(
+      new URL('../../template/.claude/skills/reflect/SKILL.md', import.meta.url),
+      'utf8',
+    );
+    expect(reflect).toContain('so it fits on one page, under 100 lines');
+    expect(reflect).not.toContain('60 lines');
   });
 });
