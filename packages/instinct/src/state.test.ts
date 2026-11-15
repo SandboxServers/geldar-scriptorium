@@ -44,11 +44,46 @@ describe('state', () => {
     expect(back.tried['p:1']).toHaveLength(TRIED_MAX);
   });
 
-  it('creates a missing directory and, off Windows, writes the file 0600', () => {
+  it('creates a missing directory', () => {
     const nested = join(dir, 'instinct');
     saveState(nested, emptyState());
     expect(readFileSync(join(nested, 'state.json'), 'utf8')).toContain('"v":1');
-    if (process.platform !== 'win32')
-      expect(statSync(join(nested, 'state.json')).mode & 0o777).toBe(0o600);
+  });
+
+  it.skipIf(process.platform === 'win32')('writes the state file 0600', () => {
+    const nested = join(dir, 'instinct');
+    saveState(nested, emptyState());
+    expect(statSync(join(nested, 'state.json')).mode & 0o777).toBe(0o600);
+  });
+
+  it('a habits entry of the wrong shape is corrupt (renamed .bad)', () => {
+    const bad = { ...emptyState(), habits: { 'k:1': [{ program: 7, arguments: {}, n: 1 }] } };
+    writeFileSync(join(dir, 'state.json'), JSON.stringify(bad));
+    expect(loadState(dir)).toEqual(emptyState());
+    expect(existsSync(join(dir, 'state.json.bad'))).toBe(true);
+  });
+
+  it('attempts that are not integer counts are corrupt (renamed .bad)', () => {
+    writeFileSync(
+      join(dir, 'state.json'),
+      JSON.stringify({ ...emptyState(), attempts: { 'k:1': 'two' } }),
+    );
+    expect(loadState(dir)).toEqual(emptyState());
+    expect(existsSync(join(dir, 'state.json.bad'))).toBe(true);
+  });
+
+  it('tried lists that are not strings are corrupt (renamed .bad)', () => {
+    writeFileSync(
+      join(dir, 'state.json'),
+      JSON.stringify({ ...emptyState(), tried: { 'p:1': [1, 2] } }),
+    );
+    expect(loadState(dir)).toEqual(emptyState());
+    expect(existsSync(join(dir, 'state.json.bad'))).toBe(true);
+  });
+
+  it('a version other than 1 is corrupt (renamed .bad)', () => {
+    writeFileSync(join(dir, 'state.json'), JSON.stringify({ ...emptyState(), v: 2 }));
+    expect(loadState(dir)).toEqual(emptyState());
+    expect(existsSync(join(dir, 'state.json.bad'))).toBe(true);
   });
 });

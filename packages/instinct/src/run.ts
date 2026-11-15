@@ -66,6 +66,7 @@ export async function runInstinct(
   runNo: number,
   now = new Date(),
   connect: (env: Env) => Promise<WorldLink> = connectWorld,
+  fxs: readonly Fx[] = DEFAULT_FXS,
 ): Promise<InstinctResult> {
   const stateDir = env.GELDAR_INSTINCT_STATE ?? '';
   const auditFile = join(dirname(stateDir), 'instinct.jsonl');
@@ -98,7 +99,7 @@ export async function runInstinct(
     } catch {
       return audit(pass('no_world'), 0);
     }
-    return audit(await wake(env, world, stateDir, sheet, cfg), waking(stateDir));
+    return audit(await wake(env, world, stateDir, sheet, cfg, fxs), waking(stateDir));
   } catch {
     // No message or stack reaches the audit or the result: only the fixed reason.
     try {
@@ -122,6 +123,7 @@ async function wake(
   stateDir: string,
   sheet: Sheet,
   cfg: InstinctConfig,
+  fxs: readonly Fx[],
 ): Promise<InstinctResult> {
   const state = loadState(stateDir);
   state.waking += 1;
@@ -179,7 +181,7 @@ async function wake(
       return value;
     },
   };
-  const decided = decide(ctx, DEFAULT_FXS);
+  const decided = decide(ctx, fxs);
   let out: InstinctResult = decided;
   if (decided.kind === 'settle') {
     // Settle only when the world's reply is JSON with a non-empty accepted array; anything else is send_failed.

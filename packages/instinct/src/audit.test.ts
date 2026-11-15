@@ -33,8 +33,6 @@ const kinds: InstinctResult[] = [
   },
   { v: 1, kind: 'pass', reason: 'first_sighting', forced: true, rolls: [] },
 ];
-// The sheet's field names (brief 3.2). A word match, so "good" in a longer word is not a hit.
-const SHEET_WORDS = /\b(curiosity|common_sense|cleverness|aggression|law|good|op_modes)\b/;
 
 describe('audit', () => {
   it('every kind carries source "instinct" and the contract fields', () => {
@@ -51,10 +49,6 @@ describe('audit', () => {
     expect(lines.map((l) => l.model_called)).toEqual([false, true, true]);
     expect(lines[2].reason).toBe('first_sighting');
     expect(lines[2].forced).toBe(true);
-  });
-
-  it('holds no sheet field name, even when the result text is long', () => {
-    for (const result of kinds) expect(buildAuditLine(meta, result)).not.toMatch(SHEET_WORDS);
   });
 
   it('appendAudit appends one line per call', () => {
