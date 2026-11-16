@@ -4,7 +4,7 @@ Part of [work-packets.md](work-packets.md): its dispatch rules 1-17 apply to eve
 
 ## Wave 3: the mock world (repo G, ten packets, one PR each)
 
-Every packet is Repo **G** (`C:\Users\Steve\source\projects\geldar`, GitHub `SandboxServers/geldar`). The scriptorium repo is not touched by this wave. Nothing here goes under `template/`, so the template voice rule (rule 7) does not apply, but strings the mock returns to the character stay plain and short.
+Every packet is Repo **G** (`<geldar checkout>`, GitHub `SandboxServers/geldar`). The scriptorium repo is not touched by this wave. Nothing here goes under `template/`, so the template voice rule (rule 7) does not apply, but strings the mock returns to the character stay plain and short.
 
 **Order (each arrow is "merged to geldar `main` first"):**
 
