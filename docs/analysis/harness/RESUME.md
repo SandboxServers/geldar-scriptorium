@@ -17,7 +17,7 @@ Updated 2026-11-14. Read [README.md](README.md) (ledger, decisions, waves) and [
 
 1. Cross-check the six files: shared names (packages, env vars, message keys, JSON shapes, the field names GX-01 and HC-04 must agree on), duplicate ownership of a file, dependency order against the ledger. Fix the README ledger rows to the real card ids and `Ready` / `BlockedDependency` / `BlockedDecision`.
 2. Open a PR with the campaign folder. Ask the owner to rule on D-HC-02 to D-HC-10 and the assumed D-CS answers (README Decisions).
-3. Tell the geldar orchestrator (geldar-93) and geldar-registration: the 62-packet original lives only as untracked files in the Codex worktree `C:\Users\Steve\.codex\worktrees\24f7\geldar\docs\analysis\character-sheet\` (not pushed), and the world cards here replace it for the packets that stay in geldar.
+3. Tell the geldar orchestrator (geldar-93) and geldar-registration: the 62-packet original lives only as untracked files in the Codex worktree `a Codex worktree on the owner's desktop (docs/analysis/character-sheet/)` (not pushed), and the world cards here replace it for the packets that stay in geldar.
 4. When the owner accepts: create `scriptorium/hw0`, dispatch HC-00 to HC-04, then HW1 (HC-05 onward) with the `campaign-packet` skill.
 
 **Open decisions** D-HC-02 (engine sharing), D-HC-03 (sheet storage), D-HC-04 (instinct state and audit), D-HC-05 (local API), D-HC-06 (commitments in the kit, BlockedDecision), D-HC-07 (veto scope), D-HC-08 (metering), D-HC-09, D-HC-10; the geldar D-CS-01 to D-CS-18 stay assumed at their recommended answers.

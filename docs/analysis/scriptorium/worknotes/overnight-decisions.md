@@ -87,7 +87,7 @@ Recorded 2026-11-10. **Status:** CHOSEN (owner: "D1 is fine as you suggest"). Th
 
 ## 45. D2: the real world's address (owner, 2026-11-10)
 
-**Status:** CHOSEN. The shipped `launcher/config/world.conf` sets the real world host `geldar.sandboxservers.games` and `mcp_port=18443` over TLS (the exact `mcp_base` form is in the world-conf change). `private_only_shards` stays blank: all shards are watched, so no shard is private-only for now; revisit later. Owner words: "all shards are watched, private only can be for later."
+**Status:** CHOSEN. The shipped `launcher/config/world.conf` sets the real world host `geldar.sandboxservers.games` and `mcp_port=18443` over TLS (the exact `mcp_base` form is in the world-conf change). `private_only_shards` stays blank: no shard is private-only for now; revisit later (owner decision).
 
 ## 46. Codex is on hold (owner, 2026-11-10)
 
@@ -177,7 +177,7 @@ Recorded 2026-11-11. SC-120 `geldar-verify run-summary` (5707df4), SC-121 the he
 
 ## 63. Geldar wave C5 is carded as wave 13, every card held until geldar says "landed" (geldar-93, 2026-11-11)
 
-**Status:** CHOSEN. Geldar's wave C5 ("Goldar learnings", from a review of Jorsh's server-side NeoForge re-implementation of the geldar MCP contract; it has no kit and says nothing about the template or launcher) changes what the character can do and read. Cards SC-150 to SC-155 in [work-packets-wave13.md](../work-packets-wave13.md); each is held until geldar-93 sends "landed" for its geldar packet, together with the exact event names and fixed texts. Until then no template, skill, guide or README text makes an availability or deploy claim. Not to be documented as intended: credits spent on rejected or failed acts (owner ruling pending on the geldar side). There is no report from Clara's (owner jorsh's) first runs: she has never connected to the Colo (her host shows hibernating since provisioning); geldar-93 suspects she has so far been run against Jorsh's own server. If the owner learns how Jorsh connected (host `claude mcp add` per geldar `docs/players/README.md`, or a launcher), any template or launcher finding becomes a card.
+**Status:** CHOSEN. Geldar's wave C5 ("Goldar learnings", from a review of a community server author's server-side NeoForge re-implementation of the geldar MCP contract; it has no kit and says nothing about the template or launcher) changes what the character can do and read. Cards SC-150 to SC-155 in [work-packets-wave13.md](../work-packets-wave13.md); each is held until geldar-93 sends "landed" for its geldar packet, together with the exact event names and fixed texts. Until then no template, skill, guide or README text makes an availability or deploy claim. Not to be documented as intended: credits spent on rejected or failed acts (owner ruling pending on the geldar side). There is no report from Clara's (owner a community server author's) first runs: she has never connected to the Colo (her host shows hibernating since provisioning); geldar-93 suspects she has so far been run against a community server author's own server. If the owner learns how a community server author connected (host `claude mcp add` per geldar `docs/players/README.md`, or a launcher), any template or launcher finding becomes a card.
 
 ## 64. The persistent player container, with the push credential (a deploy key) in the container (owner, 2026-11-11)
 
