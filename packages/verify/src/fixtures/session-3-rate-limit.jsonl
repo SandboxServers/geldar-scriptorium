@@ -1,0 +1,4 @@
+{"type":"system","subtype":"init","model":"claude-sonnet-5-5","session_id":"synthetic-3"}
+{"type":"assistant","message":{"id":"msg_20","model":"claude-sonnet-5-5","role":"assistant","content":[{"type":"text","text":"Checking the calendar."}],"stop_reason":"end_turn"}}
+{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","resetsAt":1767225600,"rateLimitType":"five_hour"},"session_id":"synthetic-3"}
+{"type":"result","subtype":"error_during_execution","is_error":true,"num_turns":1,"total_cost_usd":0,"result":"synthetic usage limit"}
