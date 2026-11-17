@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { GOOD, LONG_CONTROL, LONG_CONTROL_TEXT, SURROGATE } from './run-summary.fixtures.ts';
 import { cleanText, RunSummaryBuilder } from './run-summary.ts';
-import { SessionParser, type StreamRecord } from './session-stream.ts';
+import { parseSessionLine, SessionParser, type StreamRecord } from './session-stream.ts';
 
 function fixture(name: string): string {
   return readFileSync(fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url)), 'utf8');
@@ -163,7 +163,7 @@ describe('fixtures parse to the expected records', () => {
     ]);
   });
 
-  it('session 3: a rejected rate limit, then an error result with no usage', () => {
+  it('session 3: a failed tool result, a rejected rate limit, then an error result with no usage', () => {
     expect(parseAll(fixture('session-3-rate-limit.jsonl'))).toEqual([
       { kind: 'init', model: 'claude-sonnet-5-5' },
       {
@@ -172,11 +172,18 @@ describe('fixtures parse to the expected records', () => {
         id: 'msg_20',
         model: 'claude-sonnet-5-5',
         usage: null,
-        stopReason: 'end_turn',
+        stopReason: 'tool_use',
         parentToolUseId: null,
         text: 'Checking the calendar.',
         reasoning: '',
-        toolUses: [],
+        toolUses: [{ id: 'toolu_cal', name: 'Read', input: { file_path: 'calendar/week.md' } }],
+      },
+      {
+        kind: 'tool_result',
+        toolUseId: 'toolu_cal',
+        isError: true,
+        content: 'calendar/week.md: locked by another session',
+        parentToolUseId: null,
       },
       {
         kind: 'rate_limit',
@@ -294,6 +301,77 @@ describe('chunking and bad input', () => {
     if (result?.kind !== 'tool_result') return;
     expect(result.content).not.toContain('QUJD');
     expect(result.content.length).toBeLessThan(100);
+  });
+});
+
+describe('defaults and odd fields', () => {
+  it('a turn with a partial usage object defaults the missing counts to 0; a null usage stays null', () => {
+    const parser = new SessionParser();
+    const partial = parser.feed(
+      '{"type":"assistant","message":{"id":"msg_p","content":[],"usage":{"input_tokens":7}}}',
+    );
+    expect(partial).toEqual([
+      {
+        kind: 'turn',
+        index: 0,
+        id: 'msg_p',
+        model: null,
+        usage: { input: 7, output: 0, cacheRead: 0, cacheCreation: 0 },
+        stopReason: null,
+        parentToolUseId: null,
+        text: '',
+        reasoning: '',
+        toolUses: [],
+      },
+    ]);
+    const none = parser.feed('{"type":"assistant","message":{"id":"msg_n","content":[]}}');
+    expect(none[0]).toMatchObject({ kind: 'turn', index: 1, usage: null });
+  });
+
+  it('a rate limit with a non-numeric resetsAt gives null; a system line of another subtype gives nothing', () => {
+    const parser = new SessionParser();
+    expect(
+      parser.feed(
+        '{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":"soon"}}',
+      ),
+    ).toEqual([{ kind: 'rate_limit', status: 'allowed', limitKind: null, resetsAt: null }]);
+    expect(parser.feed('{"type":"system","subtype":"hook_started","model":"x"}')).toEqual([]);
+  });
+
+  it('an init line without a model gives model null', () => {
+    expect(parseSessionLine('{"type":"system","subtype":"init"}', { turnIndex: 0 })).toEqual([
+      { kind: 'init', model: null },
+    ]);
+  });
+
+  it('text blocks of one turn are joined with no separator; the run summary keeps only the last one', () => {
+    const line = (text: string | null) =>
+      JSON.stringify({
+        type: 'assistant',
+        message: {
+          id: 'msg_t',
+          content: text === null ? [] : [{ type: 'text', text }],
+        },
+      });
+    const lines = [
+      JSON.stringify({
+        type: 'assistant',
+        message: {
+          id: 'msg_t',
+          content: [
+            { type: 'text', text: 'A' },
+            { type: 'text', text: 'B' },
+          ],
+        },
+      }),
+      line(null),
+    ];
+    const parser = new SessionParser();
+    const records = lines.flatMap((l) => parser.feed(l));
+    expect(turns(records).map((t) => t.text)).toEqual(['AB', '']);
+    const builder = new RunSummaryBuilder();
+    for (const l of lines) builder.addLine(l);
+    expect(builder.summary().last_text).toBe('B');
   });
 });
 

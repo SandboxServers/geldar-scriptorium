@@ -2,6 +2,7 @@
  * Pure parser for the lines of `session-<n>.jsonl`: stream-json from the Claude CLI, or the ChatGPT
  * harness's equivalent. Telemetry and the turn records both read through here, so they cannot disagree.
  * No I/O and no clock: a caller feeds lines and gets records back. Text is kept in full; callers cut it.
+ * No upper bound on line length is applied here: memory is bounded only by the caller's line splitter.
  */
 
 /** Token counts of one message or of a whole run. Every count defaults to 0 when absent. */
@@ -12,7 +13,13 @@ export interface StreamUsage {
   cacheCreation: number;
 }
 
-/** One record per useful stream line. An unknown line or block produces nothing. */
+/**
+ * One record per useful stream line. An unknown line or block produces nothing.
+ * A `turn` is one record per assistant LINE, not per API message: a real stream may repeat `id` (and
+ * `usage`) across several lines, so a caller that sums usage or counts turns must dedupe on `id`.
+ * `text` joins all text blocks of the line with no separator (the run summary keeps only the last
+ * text block). A `tool_use` without an `id` gets `''`.
+ */
 export type StreamRecord =
   | { kind: 'init'; model: string | null }
   | {
