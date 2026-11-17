@@ -5,7 +5,10 @@ import { parse } from 'yaml';
 
 // The otel-agent config is read as text (for the literal scans) and parsed with the YAML reader
 // (for the structure). Nothing here starts a Collector: the image is validated by the ops agent.
-const raw = readFileSync(fileURLToPath(new URL('./config.yaml', import.meta.url)), 'utf8');
+const raw = readFileSync(
+  fileURLToPath(new URL('../../image/otel-agent/config.yaml', import.meta.url)),
+  'utf8',
+);
 
 interface Statements {
   context: string;
@@ -22,15 +25,18 @@ interface Collector {
   extensions: Record<string, { endpoint: string }>;
   receivers: Record<string, { protocols: Record<string, { max_request_body_size?: number }> }>;
   processors: Record<string, unknown>;
-  exporters: Record<
-    string,
-    {
+  exporters: {
+    otlphttp: {
       endpoint: string;
       headers: Record<string, string>;
-      sending_queue: { enabled: boolean; queue_size: number };
-    }
-  >;
-  service: { extensions: string[]; pipelines: Record<string, Pipeline> };
+      sending_queue: { enabled: boolean; queue_size: number; block_on_overflow?: boolean };
+    };
+  };
+  service: {
+    extensions: string[];
+    telemetry: { logs: { level: string } };
+    pipelines: Record<string, Pipeline>;
+  };
 }
 
 const config = parse(raw) as Collector;
@@ -69,7 +75,7 @@ describe('otel-agent collector config', () => {
     expect(otlphttp.endpoint).toBe('https://${env:GELDAR_INGEST_HOST}');
     // biome-ignore lint/suspicious/noTemplateCurlyInString: the expected values are the literal collector placeholders
     expect(otlphttp.headers.Authorization).toBe('Bearer ${env:GELDAR_INGEST_TOKEN}');
-    expect(raw).not.toMatch(/Bearer (?!\$\{env:GELDAR_INGEST_TOKEN\})/);
+    expect(raw).not.toMatch(/bearer (?!\$\{env:GELDAR_INGEST_TOKEN\})/i);
   });
 
   it('(c) only OTLP over HTTP in, only otlphttp out, no debug, logging, file, pprof, zpages or gRPC', () => {
@@ -78,6 +84,8 @@ describe('otel-agent collector config', () => {
     expect(Object.keys(config.exporters)).toEqual(['otlphttp']);
     expect(Object.keys(config.extensions)).toEqual(['health_check']);
     expect(config.service.extensions).toEqual(['health_check']);
+    // The collector's own logs stay at warn, so request bodies and headers are not logged.
+    expect(config.service.telemetry.logs.level).toBe('warn');
     expect(raw).not.toMatch(
       /pprof|zpages|grpc|\bdebug\b|\blogging\b|file_storage|docker_stats|hostmetrics/,
     );
@@ -90,6 +98,8 @@ describe('otel-agent collector config', () => {
   it('(e) the sending queue is enabled and bounded, and the request body limit stays under 8 MiB', () => {
     expect(otlphttp.sending_queue.enabled).toBe(true);
     expect(otlphttp.sending_queue.queue_size).toBeLessThanOrEqual(500);
+    // Overflow drops the item instead of blocking the exporter (R5: the Mind never waits on telemetry).
+    expect(otlphttp.sending_queue.block_on_overflow ?? false).toBe(false);
     expect(
       config.receivers.otlp?.protocols.http?.max_request_body_size ?? Infinity,
     ).toBeLessThanOrEqual(8 * 1024 * 1024);
