@@ -41,9 +41,10 @@ const telemetryWords: readonly string[] = [
 // Hits that are clearly unrelated to telemetry (a word in a sentence about hunger, say). Empty today.
 const exceptions: readonly { label: string; word: string; reason: string }[] = [];
 
+// A phrase separator is any run of whitespace, `_` or `-`, so a hard-wrapped or double-spaced phrase still matches.
 const wordPattern = new RegExp(
   `(?<![A-Za-z0-9])(?:${telemetryWords
-    .map((word) => word.replace(/[ _]/g, '[ _-]'))
+    .map((word) => word.replace(/ |_/g, '[\\s_-]+'))
     .join('|')})(?![A-Za-z0-9])`,
   'gi',
 );
@@ -56,9 +57,26 @@ interface Hit {
   word: string;
 }
 
-// The telemetry words in one text; the label names where the text came from.
+// Splits camelCase, PascalCase and letter/digit runs (`traceId`, `OTELExporter`, `otel2`) so that the
+// boundary rule above sees each word on its own.
+function splitIdentifiers(text: string): string {
+  return text
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .replace(/([A-Za-z])([0-9])/g, '$1 $2')
+    .replace(/([0-9])([A-Za-z])/g, '$1 $2');
+}
+
+// The telemetry words in one text; the label names where the text came from. The text is read as written
+// (`TraceParent` must not be split) and split at identifier boundaries; a word found either way is one hit.
 function scanText(label: string, text: string): Hit[] {
-  return [...text.matchAll(wordPattern)].map((m) => ({ label, word: m[0].toLowerCase() }));
+  const found = new Set<string>();
+  for (const view of [text, splitIdentifiers(text)]) {
+    for (const m of view.matchAll(wordPattern)) {
+      found.add(m[0].replace(/\s+/g, ' ').toLowerCase());
+    }
+  }
+  return [...found].map((word) => ({ label, word }));
 }
 
 // Scans the template (content and file names) and image/settings/*.json under root.
@@ -144,7 +162,13 @@ describe('telemetry words in what the model reads', () => {
         'image/settings/managed.json',
       ]),
     );
-    expect(promptSamples.length).toBeGreaterThan(0);
+    expect(promptSamples.map(([label]) => label)).toEqual([
+      'buildPrompt, empty input',
+      'buildPrompt, long last words',
+      'buildPrompt, with a handoff, goals and identity',
+      'buildPrompt, with a note',
+      'buildTidyPrompt',
+    ]);
   });
 
   it('the prompt builders produce clean text for neutral inputs', () => {
@@ -171,6 +195,34 @@ describe('telemetry words in what the model reads', () => {
     );
     expect(messages(scanKit(root).hits)).toEqual([
       'template/.claude/skills/play/SKILL.md contains "telemetry"',
+    ]);
+  });
+
+  it('fails on a camelCase telemetry key added to .mcp.json', () => {
+    const root = copyKit((r) =>
+      appendFileSync(path.join(r, 'template/.mcp.json'), '\n"telemetryEnabled": true\n'),
+    );
+    expect(messages(scanKit(root).hits)).toEqual(['template/.mcp.json contains "telemetry"']);
+  });
+
+  it('fails on a PascalCase file name that starts with a telemetry word', () => {
+    const root = copyKit((r) =>
+      writeFileSync(path.join(r, 'template/TelemetryNotes.md'), 'Notes.\n'),
+    );
+    expect(messages(scanKit(root).hits)).toEqual([
+      'file name template/TelemetryNotes.md contains "telemetry"',
+    ]);
+  });
+
+  it('fails on a telemetry phrase hard-wrapped across a line in a skill', () => {
+    const root = copyKit((r) =>
+      appendFileSync(
+        path.join(r, 'template/.claude/skills/play/SKILL.md'),
+        '\nWe\nrecord your steps.\n',
+      ),
+    );
+    expect(messages(scanKit(root).hits)).toEqual([
+      'template/.claude/skills/play/SKILL.md contains "we record"',
     ]);
   });
 
