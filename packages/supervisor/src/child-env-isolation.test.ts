@@ -1,6 +1,6 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { ExecSpec } from './deps.ts';
 import { makeFixture, onPoll } from './fixture.ts';
 import { readSettings } from './settings.ts';
@@ -78,14 +78,28 @@ function assertSpecs(specs: ExecSpec[]): void {
   }
 }
 
+/** Every fixture's temp root, removed after each test. */
+const roots: string[] = [];
+
+/** A fixture whose temp root is removed after the test. */
+function fixture(...args: Parameters<typeof makeFixture>): ReturnType<typeof makeFixture> {
+  const f = makeFixture(...args);
+  roots.push(f.root);
+  return f;
+}
+
 /** A play run with one stop: the run, the save step and the idle wait all happen in the fixture. */
 function playRun() {
-  const f = makeFixture({ last: 'done', stopAt: 1 }, {}, CANARY_ENV);
+  const f = fixture({ last: 'done', stopAt: 1 }, {}, CANARY_ENV);
   onPoll(f, () => f.supervisor.requestStop());
   return f;
 }
 
 describe('the model child inherits none of the supervisor environment', () => {
+  afterEach(() => {
+    for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+  });
+
   it('gives a play run and the save step only the allowed names, with the model credentials', async () => {
     const f = playRun();
     expect(await f.supervisor.run()).toBe(0);
@@ -99,7 +113,7 @@ describe('the model child inherits none of the supervisor environment', () => {
   });
 
   it('gives a tidy run only the allowed names', async () => {
-    const f = makeFixture(
+    const f = fixture(
       { last: 'tidy done', stopAt: 1 },
       { GELDAR_TIDY_BYTES: '1000', GELDAR_RUN_MAX_FAILS: '99' },
       CANARY_ENV,
@@ -115,8 +129,11 @@ describe('the model child inherits none of the supervisor environment', () => {
   });
 
   it('gives the upstream sync git calls only the allowed names and GIT_ENV', async () => {
-    const f = makeFixture({}, {}, CANARY_ENV);
+    const f = fixture({}, {}, CANARY_ENV);
     // A manifest that is not a commit id: the sync asks git for the tip first, then refuses.
+    // Every git call goes through the one git() method (supervisor.ts), which builds the env the
+    // same way, so the calls captured here prove that construction. The later calls (merge-base,
+    // rebase with the GIT_COMMITTER_* names) are not reached by this manifest and are not captured.
     writeFileSync(join(f.keeperDir, 'upstream.json'), '{"head":"not-a-sha"}');
     onPoll(f, () => f.supervisor.requestStop());
     expect(await f.supervisor.run()).toBe(0);
@@ -125,13 +142,17 @@ describe('the model child inherits none of the supervisor environment', () => {
     assertSpecs(git);
   });
 
-  it('writes no canary to the files the operators read', async () => {
+  it('writes no canary or credential to the files the operators read, nor to stdout', async () => {
     const f = playRun();
     expect(await f.supervisor.run()).toBe(0);
+    // 7f3a is in every fake secret, the two model credentials included (they carry no 'canary').
     for (const name of ['supervisor.log', 'status.json', 'costs.csv', 'prompt.txt']) {
       expect(f.has(name), name).toBe(true);
       expect(f.read(name), name).not.toContain('canary');
+      expect(f.read(name), name).not.toContain('7f3a');
     }
+    expect(f.said.join('\n')).not.toContain('canary');
+    expect(f.said.join('\n')).not.toContain('7f3a');
   });
 
   it.each(['claude', 'chatgpt'] as const)(
