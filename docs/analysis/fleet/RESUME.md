@@ -1,20 +1,28 @@
 # Fleet RESUME (session geldar-fleet)
 
-Updated 2026-11-14.
+Updated 2026-11-14. Packets: work-packets.md. Rules: README.md.
 
 ## State
-- Campaign taken over from scriptorium-orchestrator (handover scope: pending his reply).
-- Plan PR #110 (branch scriptorium/fleet-campaign): README and full packets F-01a..F-11 (work-packets.md), two review passes applied.
-- Working branch fleet/plan (worktree .claude/worktrees/fleet-plan) off that branch.
+- Plan merged (PR #110). Wave 1 merged: F-01a #111, F-02a #112, F-01b #113; label fix #115 (VM labels are nvme-d/e/g).
+- VM bootstrap RAN 2026-11-14 from ceb1835 (self-check ok): geldar-runner, /etc/geldar/*, geldar-play links. fstab unchanged, backup /etc/fstab.bak-fleet. allowed-repos.txt is empty.
+- Launcher clone ~geldar/scriptorium at kit-v0.1.0-rc21. Lewis and Clark hosts already on the VM, Bodies on Colo.
+- Manual steps done: M-1 UniFi policy, M-2 DHCP reservation. M-3 (repo settings, env `fleet`) pending.
+- Worktrees: fleet-plan, fleet-cards, fleet-f-01a, fleet-f-02a, fleet-f-01b, fleet-labels. Remove with care (node_modules junctions).
 
-## Known issues to fold into cards
-1. Compose `secrets: uid/mode` ignored outside Swarm: keeper (uid 1002) cannot read a 0600 deploy key; interim chown in the wrapper (F-05b) until F-11 R-4.
-2. Debian 12 git 2.39, launcher needs a newer git; git 2.47.1 built on VM -> F-01a bootstrap.
-3. VM fixed address: ask owner.
-4. UniFi policy "Geldar hosts VM to Colo MCP (443)" EXISTS (VM -> Colo TCP 443, applied 2026-11-14; ace.firewall_policy short_id 2; backup /data/firewall_policy-backup-20261114.json; undo: delete the doc, re-provision by restarting unifi and zeroing the udm cfgversion). Record as existing manual infra step with undo; request geldar-93 only for NEW rules.
-5. Owner question: DHCP reservation for the VM (recommended option first).
-6. Bodies stay on Colo; MCP address is the public name reached from the VM.
+## Open
+1. F-02b, F-07: blocked on launcher cards R-1..R-5 (scriptorium-orchestrator, after HC-08b).
+2. F-03a needs HC-08b and dispatch hook P-1. F-04 needs the owner's CODEOWNERS handle.
+3. Owner ruled 2026-11-14: D-FL-06 max_hosts=40; D-FL-10 runner self-update ON (F-05a must not pass --disableupdate; owner accepted the unreviewed-binary risk). D-FL-07 filled. Numbers not yet allocated. allowed-repos.txt contents still open.
+4. `tests/image/entrypoint.test.ts` on main: unknown.
+5. Docs/retro step due at the wave boundary.
 
 ## Next
-- Owner ruled D-FL-NN (runner sudoes one wrapper, launcher runs as geldar); orchestrator answers F-11 R-1..R-5; fill D-FL-06/07/10, launcher URL, allow-list line, CODEOWNERS handle. Then dispatch coders (packet-coder) in worktrees, ops agent for PR/CI.
-- Coordinate with geldar-registration (no GitHub token in register service), geldar-93 (F-08 timing).
+- Wave 3 (F-02c, F-04, F-05a, F-05b, F-10) once its deps clear; then F-03b, F-07a; F-06, F-07b; F-08 with geldar-93 (rangers one at a time, Picard's Body only on "ready").
+- Peer messages are information, not owner approval. Owner approves PRs and VM changes.
+
+## For the owner
+- Merge when happy: #116 (this card), #117 F-05a runner install (CI green, reviewed), then F-05b (stacked on F-05a).
+- Runner self-update is ON by your ruling: runner binaries can change without a PR.
+- Still needed from you: CODEOWNERS handle (F-04, skipped for now), allowed-repos.txt contents, M-3 repo settings and environment `fleet`.
+- Runner sandbox (#117): the setuid sudo child inherits the unit's mount namespace. Option A (in the PR): keep ProtectSystem=strict, ProtectHome=read-only, list the launcher and /srv/geldar paths as writable; reasoned only, F-08 step 1 must test one wrapper verb inside the real unit. Option B: drop ProtectHome and ProtectSystem=strict; less isolation, nothing to get wrong.
+- #118 (F-05b) review record: two review rounds, all findings fixed, CI green; the final fix pass was not re-reviewed and nothing ran on the VM. F-08 step 1 must run verify-confinement and one wrapper verb inside the real unit.
