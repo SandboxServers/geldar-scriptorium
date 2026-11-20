@@ -36,8 +36,13 @@ export interface Observation {
   foodCarried: boolean | null;
   inventoryFull: boolean | null;
   agents: { name: string; distance: number | null }[];
-  entities: { kind: string; hostile: boolean; distance: number | null }[];
-  notable: { kind: string; distance: number | null }[];
+  entities: {
+    kind: string;
+    hostile: boolean;
+    distance: number | null;
+    pos?: { x: number; y: number; z: number };
+  }[];
+  notable: { kind: string; distance: number | null; pos?: { x: number; y: number; z: number } }[];
   /** The current plan of the Body, read from current_plan: program is its action, arguments hold its status. */
   intent: { goal: string; program: string; arguments: Record<string, unknown> } | null;
   events: EventLine[];
@@ -121,21 +126,40 @@ function agentsOf(value: unknown): Observation['agents'] {
   );
 }
 
-function entitiesOf(value: unknown): Observation['entities'] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((e) =>
-    isObj(e) && str(e.type) !== null
-      ? [{ kind: str(e.type) as string, hostile: e.hostile === true, distance: num(e.distance) }]
-      : [],
-  );
+/** The position x, y, z when all three are finite numbers, else undefined (the key is then omitted). */
+function posOf(v: Obj): { x: number; y: number; z: number } | undefined {
+  const x = num(v.x);
+  const y = num(v.y);
+  const z = num(v.z);
+  return x !== null && y !== null && z !== null ? { x, y, z } : undefined;
 }
 
-/** Notable blocks carry no distance in the contract, so distance is always null here. */
-function notableOf(value: unknown): Observation['notable'] {
+function entitiesOf(value: unknown): Observation['entities'] {
   if (!Array.isArray(value)) return [];
-  return value.flatMap((n) =>
-    isObj(n) && str(n.type) !== null ? [{ kind: str(n.type) as string, distance: null }] : [],
-  );
+  return value.flatMap((e) => {
+    if (!isObj(e) || str(e.type) === null) return [];
+    const pos = posOf(e);
+    return [
+      {
+        kind: str(e.type) as string,
+        hostile: e.hostile === true,
+        distance: num(e.distance),
+        ...(pos ? { pos } : {}),
+      },
+    ];
+  });
+}
+
+/** Notable blocks carry x, y, z; the distance is measured from the agent's own position, null when either is unknown. */
+function notableOf(value: unknown, self: Observation['position']): Observation['notable'] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((n) => {
+    if (!isObj(n) || str(n.type) === null) return [];
+    const pos = posOf(n);
+    const distance =
+      pos && self ? Math.hypot(pos.x - self.x, pos.y - self.y, pos.z - self.z) : null;
+    return [{ kind: str(n.type) as string, distance, ...(pos ? { pos } : {}) }];
+  });
 }
 
 function positionOf(value: unknown): Observation['position'] {
@@ -199,7 +223,7 @@ export function parseObservation(waitText: string): Observation {
     inventoryFull: null,
     agents: agentsOf(surroundings.agents),
     entities: entitiesOf(surroundings.entities),
-    notable: notableOf(surroundings.notable_blocks),
+    notable: notableOf(surroundings.notable_blocks, positionOf(self.position)),
     intent: planOf(snap.current_plan),
     events,
     cursor: cursor !== null && CURSOR_PATTERN.test(cursor) ? cursor : null,

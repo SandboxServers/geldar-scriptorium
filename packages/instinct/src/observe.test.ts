@@ -77,10 +77,12 @@ describe('parseObservation on the real wait shapes', () => {
     expect(obs.foodCarried).toBe(true);
     expect(obs.agents).toEqual([{ name: 'Ann', distance: 5 }]);
     expect(obs.entities).toEqual([
-      { kind: 'zombie', hostile: true, distance: 6 },
-      { kind: 'cow', hostile: false, distance: 4 },
+      { kind: 'zombie', hostile: true, distance: 6, pos: { x: 4, y: 64, z: -9 } },
+      { kind: 'cow', hostile: false, distance: 4, pos: { x: 14, y: 64, z: -3 } },
     ]);
-    expect(obs.notable).toEqual([{ kind: 'furnace', distance: null }]);
+    expect(obs.notable).toEqual([
+      { kind: 'furnace', distance: Math.sqrt(97), pos: { x: 1, y: 64, z: 1 } },
+    ]);
   });
 
   it('reads night from world_time, the plan from current_plan, and the cursor when it matches the contract', () => {
@@ -227,5 +229,48 @@ describe('observe calls wait only', () => {
     const world = fakeWorld([new Error(BAD_CURSOR), new Error(BAD_CURSOR)]);
     await expect(observe(world, 'c_99')).rejects.toThrow(BAD_CURSOR);
     expect(world.calls).toHaveLength(2);
+  });
+});
+
+function surroundingsReply(self: unknown, notable: unknown[], entities: unknown[] = []): string {
+  return JSON.stringify({
+    snapshot: { self, surroundings: { notable_blocks: notable, entities, agents: [] } },
+    events: [],
+  });
+}
+
+describe('parseObservation keeps the positions the world sends (HC-46a)', () => {
+  const at = { position: { x: 0, y: 64, z: 0 } };
+
+  it("notable distance is the straight-line distance from the agent's position", () => {
+    const obs = parseObservation(surroundingsReply(at, [{ type: 'furnace', x: 3, y: 64, z: 4 }]));
+    expect(obs.notable).toEqual([{ kind: 'furnace', distance: 5, pos: { x: 3, y: 64, z: 4 } }]);
+  });
+
+  it("notable has no distance when the agent's position is unknown", () => {
+    const obs = parseObservation(surroundingsReply({}, [{ type: 'furnace', x: 3, y: 64, z: 4 }]));
+    expect(obs.notable).toEqual([{ kind: 'furnace', distance: null, pos: { x: 3, y: 64, z: 4 } }]);
+  });
+
+  it('a notable block missing z has no pos and no distance', () => {
+    const obs = parseObservation(surroundingsReply(at, [{ type: 'furnace', x: 3, y: 64 }]));
+    expect(obs.notable).toEqual([{ kind: 'furnace', distance: null }]);
+  });
+
+  it("entity pos is copied from x, y, z and its distance is the world's", () => {
+    const obs = parseObservation(
+      surroundingsReply(at, [], [{ type: 'cow', distance: 9, x: 1, y: 2, z: 3 }]),
+    );
+    expect(obs.entities).toEqual([
+      { kind: 'cow', hostile: false, distance: 9, pos: { x: 1, y: 2, z: 3 } },
+    ]);
+  });
+
+  it('an unchanged notable fact still gives an empty list', () => {
+    const reply = JSON.stringify({
+      snapshot: { self: at, surroundings: { notable_blocks: { unchanged: true, count: 2 } } },
+      events: [],
+    });
+    expect(parseObservation(reply).notable).toEqual([]);
   });
 });
