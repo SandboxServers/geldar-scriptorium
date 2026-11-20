@@ -1,10 +1,10 @@
 {
   "source_repo": "SandboxServers/geldar",
   "source_path": "psyche/src",
-  "source_commit": "549e7d0736dc05049cd2c48c7f8aa02191781f9f",
-  "source_release_tag": "psyche-v1.0.0",
-  "source_release_tree_hash": "b89848ab21240fbb2e33832d671a51d73e8393b3235807f19fa7a2355c5e4efe",
-  "tree_sha256": "b89848ab21240fbb2e33832d671a51d73e8393b3235807f19fa7a2355c5e4efe",
+  "source_commit": "194680f609f8d2735d12f1f972d577e30be3551c",
+  "source_release_tag": "psyche-v1.1.0",
+  "source_release_tree_hash": "f243f7c233c78f77fcf051b95a38635d84fde318c9a81301fea998b0720182cf",
+  "tree_sha256": "f243f7c233c78f77fcf051b95a38635d84fde318c9a81301fea998b0720182cf",
   "files": [
     "alignment.ts",
     "index.ts",
@@ -14,6 +14,7 @@
     "roll.ts",
     "sheet.ts",
     "temperament.ts",
+    "threat.ts",
     "types.ts",
     "version.ts"
   ],
