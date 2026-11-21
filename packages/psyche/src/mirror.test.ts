@@ -40,9 +40,9 @@ interface MirrorRecord {
 const PACKAGE = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = resolve(PACKAGE, '..', '..');
 const ENGINE = join(PACKAGE, 'engine');
-const GOOD_COMMIT = '549e7d0736dc05049cd2c48c7f8aa02191781f9f';
+const GOOD_COMMIT = '194680f609f8d2735d12f1f972d577e30be3551c';
 /** Independent anchor: typed here by hand, not read from MIRROR.json or from engine/. */
-const RELEASE_TREE_HASH = 'b89848ab21240fbb2e33832d671a51d73e8393b3235807f19fa7a2355c5e4efe';
+const RELEASE_TREE_HASH = 'f243f7c233c78f77fcf051b95a38635d84fde318c9a81301fea998b0720182cf';
 const MIRROR_KEYS = [
   'source_repo',
   'source_path',
@@ -209,7 +209,7 @@ describe('mirror', () => {
   it('mirror: source commit is 40 hex and the release pin is recorded', () => {
     expect(mirror.source_commit).toMatch(/^[0-9a-f]{40}$/);
     expect(mirror.source_commit).toBe(GOOD_COMMIT);
-    expect(mirror.source_release_tag).toBe('psyche-v1.0.0');
+    expect(mirror.source_release_tag).toBe('psyche-v1.1.0');
     expect(mirror.source_release_tree_hash).toBe(RELEASE_TREE_HASH);
   });
 

@@ -21,7 +21,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /** The tag of the release this mirror is pinned to. */
-export const RELEASE_TAG = 'psyche-v1.0.0';
+export const RELEASE_TAG = 'psyche-v1.1.0';
 /** The largest file the vendor copies: 200 KiB exactly is accepted, one byte more is refused. */
 export const MAX_FILE_BYTES = 200 * 1024;
 
