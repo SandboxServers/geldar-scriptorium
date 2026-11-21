@@ -6,7 +6,7 @@ description: How to write an intent that runs a long job and wakes you only when
 # Intents
 
 An intent is one job your body keeps doing while you wait.
-The programs are travel, gather, craft, rest, flee, follow and build.
+The programs are travel, gather, craft, rest, flee, follow, build, explore, farm and patrol.
 
 An intent has:
 
