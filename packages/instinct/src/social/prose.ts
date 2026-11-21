@@ -18,10 +18,15 @@ export const UNSURE = '[PLACEHOLDER] unsure';
 const MAX_NAME_CHARS = 32;
 
 /**
- * One line: About 'NAME': <bank sentence> <UNSURE>. The name is cleaned and quoted; the quote is a single quote
- * because sanitizeFact turns every double quote into one, so the whole line passes sanitizeFact unchanged.
+ * One line: About 'NAME': <bank sentence> <UNSURE>. The name is cleaned, then every single quote is removed, so the
+ * two quotes around the name are the only quotes in the line. A line over MAX_FACT_CHARS is a bank error and throws,
+ * so UNSURE is never cut.
  */
 export function renderLine(name: string, f: LearnedField, dir: 'high' | 'low'): string {
-  const shown = sanitizeFact(name, MAX_NAME_CHARS).trim() || 'unnamed';
-  return sanitizeFact(`About '${shown}': ${BANK[f][dir]} ${UNSURE}`, MAX_FACT_CHARS);
+  const shown = sanitizeFact(name, MAX_NAME_CHARS).replace(/'/g, '').trim() || 'unnamed';
+  const line = `About '${shown}': ${BANK[f][dir]} ${UNSURE}`;
+  if (line.length > MAX_FACT_CHARS) {
+    throw new Error('social prose line over MAX_FACT_CHARS: shorten the bank sentence');
+  }
+  return line;
 }

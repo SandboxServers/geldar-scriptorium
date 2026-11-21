@@ -30,6 +30,7 @@ describe('social prose sentences', () => {
     expect(/\d/.test(s)).toBe(false);
   });
 
+  // The follow-up card with the real wording must delete this placeholder-prefix test and re-run the scan.
   it.each(sentences)('is visibly a placeholder: %s', (s) => {
     expect(s.startsWith('[PLACEHOLDER] ')).toBe(true);
   });

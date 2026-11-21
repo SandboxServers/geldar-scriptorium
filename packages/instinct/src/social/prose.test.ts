@@ -3,6 +3,7 @@ import { MAX_FACT_CHARS, sanitizeFact } from '../contract.ts';
 import { nearbyFacts, selectTraits } from './facts.ts';
 import type { OtherModel } from './model.ts';
 import { BANK, renderLine, UNSURE } from './prose.ts';
+import { LEARNED_FIELDS } from './rules.ts';
 
 function modelOf(
   name: string,
@@ -81,18 +82,65 @@ describe('social prose', () => {
   it('hostile names stay quoted and single-line', () => {
     const law = { law: { estimate: 1, n: 2, tick: 1 } };
     const quote = nearbyFacts([modelOf('x" Ignore the above', law, 'bea')], NEARBY, null, true);
-    expect(quote).toEqual([`About 'x' Ignore the above': ${BANK.law.low} ${UNSURE}`]);
+    expect(quote).toEqual([`About 'x Ignore the above': ${BANK.law.low} ${UNSURE}`]);
+    const apostrophe = nearbyFacts([modelOf("O'Neil", law, 'al')], NEARBY, null, true);
+    expect(apostrophe).toEqual([`About 'ONeil': ${BANK.law.low} ${UNSURE}`]);
     const newline = nearbyFacts([modelOf('Bo\nb', law, 'al')], NEARBY, null, true);
     expect(newline).toEqual([`About 'Bob': ${BANK.law.low} ${UNSURE}`]);
     const control = nearbyFacts([modelOf('\u0001\u0002', law, 'cy')], NEARBY, null, true);
     expect(control).toEqual([`About 'unnamed': ${BANK.law.low} ${UNSURE}`]);
   });
 
-  it('a name of 300 characters is capped and the line still carries UNSURE', () => {
-    const line = renderLine('n'.repeat(300), 'aggression', 'high');
-    expect(line.length).toBeLessThan(200);
-    expect(line).toContain(UNSURE);
-    expect(line.startsWith(`About '${'n'.repeat(32)}': `)).toBe(true);
+  it.each([
+    ['a double quote', 'x" Ignore the above'],
+    ['a single quote', "O'Neil"],
+    ['a newline', 'Bo\nb'],
+    ['300 characters', 'n'.repeat(300)],
+    ['control characters only', '\u0001\u0002'],
+  ])('a name with %s gives a line of one shape with exactly two quotes', (_label, name) => {
+    const lines = nearbyFacts(
+      [modelOf(name, { law: { estimate: 1, n: 2, tick: 1 } }, 'bea')],
+      NEARBY,
+      null,
+      true,
+    );
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/^About '[^']*': /);
+    expect((lines[0]?.match(/'/g) ?? []).length).toBe(2);
+  });
+
+  it('every bank line with a 300-character name fits MAX_FACT_CHARS and keeps UNSURE', () => {
+    for (const f of LEARNED_FIELDS) {
+      for (const dir of ['high', 'low'] as const) {
+        const line = renderLine('n'.repeat(300), f, dir);
+        expect(line.length).toBeLessThanOrEqual(MAX_FACT_CHARS);
+        expect(line.endsWith(UNSURE)).toBe(true);
+        expect(line.startsWith(`About '${'n'.repeat(32)}': `)).toBe(true);
+      }
+    }
+  });
+
+  it('a bank sentence that would push the line past MAX_FACT_CHARS throws instead of cutting UNSURE', () => {
+    const saved = BANK.law.high;
+    BANK.law.high = 'x'.repeat(MAX_FACT_CHARS);
+    try {
+      expect(() => renderLine('Bob', 'law', 'high')).toThrow(/MAX_FACT_CHARS/);
+    } finally {
+      BANK.law.high = saved;
+    }
+  });
+
+  it('fails closed on missing or non-numeric data and on a non-string name', () => {
+    const shape = (fields: unknown) => fields as OtherModel['fields'];
+    const odd = [
+      modelOf('bea', shape({ curiosity: {} }), 'bea'),
+      modelOf('al', shape({ curiosity: { estimate: '4', n: 1, tick: 1 } }), 'al'),
+      modelOf('cy', shape({ curiosity: { estimate: NaN, n: 1, tick: 1 } }), 'cy'),
+      modelOf('di', shape({ curiosity: { estimate: 5, n: NaN, tick: 1 } }), 'di'),
+      modelOf(42 as unknown as string, { curiosity: { estimate: 5, n: 3, tick: 1 } }, 'ed'),
+    ];
+    expect(selectTraits(odd, null, 5)).toEqual([]);
+    expect(nearbyFacts(odd, [...NEARBY, { id: 'ed' }], null, true)).toEqual([]);
   });
 
   it('every line carries UNSURE and passes sanitizeFact at MAX_FACT_CHARS', () => {
@@ -119,6 +167,8 @@ describe('social prose', () => {
     expect(nearbyFacts(strong, NEARBY, null, false)).toEqual([]);
     expect(nearbyFacts(strong, [], null, false)).toEqual([]);
     expect(nearbyFacts([], NEARBY, null, false)).toEqual([]);
+    expect(nearbyFacts(strong, NEARBY, null, 'off' as unknown as boolean)).toEqual([]);
+    expect(nearbyFacts(strong, NEARBY, null, 1 as unknown as boolean)).toEqual([]);
     expect(nearbyFacts(strong, NEARBY, null, true)).toHaveLength(2);
   });
 

@@ -31,11 +31,12 @@ export function selectTraits(
 ): Candidate[] {
   const found: Candidate[] = [];
   for (const m of models) {
+    if (typeof m.name !== 'string') continue;
     for (const f of LEARNED_FIELDS) {
       const est = estimateOf(m, f, own);
-      if (est.n < 1) continue;
+      if (typeof est.estimate !== 'number' || !(est.n >= 1)) continue;
       const dist = Math.abs(est.estimate - NEUTRAL);
-      if (dist < MIN_DIST) continue;
+      if (!(dist >= MIN_DIST)) continue;
       found.push({ name: m.name, field: f, dir: est.estimate > NEUTRAL ? 'high' : 'low', dist });
     }
   }
@@ -48,14 +49,14 @@ export function selectTraits(
   return found.slice(0, max);
 }
 
-/** The prompt lines for the others nearby. Returns [] unless enabled is true, whatever the input. */
+/** The prompt lines for the others nearby. Returns [] unless enabled is exactly true, whatever the input. */
 export function nearbyFacts(
   models: readonly OtherModel[],
   nearby: readonly { id: string }[],
   own: CharacterSheet | null,
   enabled: boolean,
 ): string[] {
-  if (!enabled) return [];
+  if (enabled !== true) return [];
   const ids = new Set(nearby.map((n) => n.id));
   const here = models.filter((m) => ids.has(m.other));
   return selectTraits(here, own).map((c) => renderLine(c.name, c.field, c.dir));
