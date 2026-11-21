@@ -11,9 +11,10 @@ optionally sends one act, saves its store and writes one audit line. Its result 
 
 ## Files (under `GELDAR_INSTINCT_STATE`)
 
-- `sheet.json` is read only. Its values do not reach a result or a fact. The audit line does carry the per-roll
-  `score`, `dc`, `bonus` and `dice` (`rolls`), so `instinct.jsonl` is not neutral: it lives in the supervisor volume,
-  which is not mounted in `/player`, and the supervisor must keep `rolls` out of anything the agent reads.
+- `sheet.json` is read only. Rolls derived from the sheet (`score`, `dc`, `bonus`, `dice`) reach both the printed
+  result and the audit line. The facts and the `why` text do not. Because the audit carries those rolls,
+  `instinct.jsonl` is not neutral: it should live in the supervisor volume (outside `/player`) once the supervisor
+  wiring exists, and the supervisor must keep the rolls out of anything the agent reads.
 - `state.json` is the kit-local store, written atomically at mode 0600. A file of the wrong shape is renamed
   `state.json.bad` and an empty state is used.
 - `instinct.jsonl` is the audit, one line per run, one directory up from the state directory.

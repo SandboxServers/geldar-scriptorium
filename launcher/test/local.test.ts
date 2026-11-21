@@ -195,6 +195,7 @@ describe.each(forGroup('new'))('local model launch ($name)', (l) => {
     const r = startLocal(l, s);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('No model server is set');
+    expect(r.stderr).not.toContain('local-endpoint');
     expect(composeCalls(s.w, 'up')).toHaveLength(0);
   });
 
@@ -206,6 +207,7 @@ describe.each(forGroup('new'))('local model launch ($name)', (l) => {
     const r = startLocal(l, s);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('No model server is set');
+    expect(r.stderr).not.toContain('local-endpoint');
     expect(composeCalls(s.w, 'up')).toHaveLength(0);
   });
 
@@ -305,6 +307,7 @@ describe.each(forGroup('new'))('local model launch ($name)', (l) => {
     );
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('No model server is set');
+    expect(r.stderr).not.toContain('local-endpoint');
     expect(composeCalls(s.w, 'up')).toHaveLength(0);
   });
 

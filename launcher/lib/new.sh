@@ -175,10 +175,6 @@ write_player_json() {
       '  "declared_model": '*)
         case ${GP_CLI:-claude} in
           chatgpt) line='  "declared_model": "",' ;;
-          local)
-            # A local player starts with no model and the context and image settings the launcher reads.
-            line=$'  "declared_model": "",\n  "context_tokens": 8192,\n  "images": false,'
-            ;;
         esac
         ;;
     esac

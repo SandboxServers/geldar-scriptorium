@@ -750,16 +750,11 @@ Why it is safe. The persistent player was not started, and no other model was su
 What to do. Set `declared_model` in `player.json` to the model name your server serves and commit it, or set `GELDAR_RUN_MODEL` before starting it.
 
 ### local_no_endpoint
-What it means. No model server is stored for this local player: the base URL file in its state folder is missing, empty or a link.
+What it means. No model server is stored for this local player: its `local/base-url` file in the player's state folder is missing, empty or a link.
 Why it is safe. The launcher refused before starting the persistent player. The server's address is kept outside the repository, so nothing was written to it.
-What to do. Put the model server's base URL in that state-folder file, as a single line, then retry `start`. Nothing in this release writes that file for you.
+What to do. Put the model server's base URL in `local/base-url` in the player's state folder, as a single line, then retry `start`. Nothing in this release writes that file for you.
 
 ### local_no_context
 What it means. This local player has no usable `context_tokens` setting in its committed `player.json`.
 Why it is safe. The persistent player was not started, and no default context size was assumed.
 What to do. Set `context_tokens` to the context size your model server serves, a whole number from 1024 to 2000000, and commit it.
-
-### local_wrong_harness
-What it means. A local model command was used for a player whose committed harness is not `local`.
-Why it is safe. Nothing was started and no stored setting was changed.
-What to do. Use the player's existing provider, or commit `"harness": "local"` in the player's `player.json` first.

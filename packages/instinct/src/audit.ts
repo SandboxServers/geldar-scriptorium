@@ -1,5 +1,6 @@
 // The audit: one JSON line per instinct run in instinct.jsonl. The line is built only from the result and the run
-// metadata, so no sheet value can reach it (the test scans for the sheet's field names).
+// metadata. Rolls derived from the sheet (score, dc, bonus, dice) reach it; the facts and the why text do not (the
+// test scans for the sheet's field names).
 import { appendFileSync } from 'node:fs';
 import type { InstinctResult } from './contract.ts';
 import { INSTINCT_V } from './contract.ts';

@@ -46,9 +46,6 @@ function Write-PlayerJson([string]$Path, [string]$Id, [string]$Shard, [string]$U
     elseif ($l.StartsWith('  "mcp_url": ', [StringComparison]::Ordinal)) { $l = "  `"mcp_url`": `"$Url`"," }
     elseif ($l.StartsWith('  "harness": ', [StringComparison]::Ordinal)) { $l = "  `"harness`": `"$script:GP_CLI`"," }
     elseif ($l.StartsWith('  "declared_model": ', [StringComparison]::Ordinal) -and $script:GP_CLI -ceq 'chatgpt') { $l = '  "declared_model": "",' }
-    elseif ($l.StartsWith('  "declared_model": ', [StringComparison]::Ordinal) -and $script:GP_CLI -ceq 'local') {
-      $l = "  `"declared_model`": `"`",`n  `"context_tokens`": 8192,`n  `"images`": false,"
-    }
     $lines[$i] = $l
   }
   [System.IO.File]::WriteAllText("$Path.new", ($lines -join "`n"), $utf8)
