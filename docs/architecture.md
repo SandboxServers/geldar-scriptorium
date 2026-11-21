@@ -51,7 +51,7 @@ sequenceDiagram
 |---|---|---|---|
 | Claude | The vendor CLI | `claude -p ...`, started by the supervisor | World, memory and git tools over MCP, plus the vendor's permitted file tools under the managed settings |
 | ChatGPT | The kit's loop, `geldar-chatgpt run` | `geldar-chatgpt run`, started by the supervisor | World, memory and git tools over MCP plus three bounded file tools; no shell |
-| Local (planned) | The kit's loop over a chat completions server | Not built | Not built |
+| Local | The kit's loop over a chat completions server, `geldar-local` | Under the supervisor in the image; the launcher does not offer it in this release (`--cli local` is refused) | Not offered in this release |
 
 The Claude and ChatGPT harnesses read the same character files and keep the same memory, so a player can change harness and keep its memory.
 
@@ -67,6 +67,10 @@ The Claude and ChatGPT harnesses read the same character files and keep the same
 | `supervisor` | `geldar-supervisor` | The run loop inside the player container. |
 | `keeper` | `geldar-keeper` | The gate and push, run by the keeper service of the player group. |
 | `chatgpt` | `geldar-chatgpt` | Sign-in and the ChatGPT loop (`run`). |
+| `mind-loop` | none | The shared mind loop for the kit's own harnesses: tools, files, instructions and records. Library only. |
+| `local` | `geldar-local` | The `local` harness, the kit's loop over a chat completions server. The image and supervisor support it; the launcher does not offer it in this release. |
+| `psyche` | none | The roll engine, vendored from the geldar repo and pinned by a tree hash. Library only. |
+| `instinct` | `geldar-instinct` | The instinct step. Present, not invoked by anything yet, and off. |
 
 At a session end: `geldar-git` makes the commits in the workspace, the bundle container bundles the branch, and `geldar-verify --bundle --start --branch --mode --player-id` answers `{"ok":...,"reasons":[...]}` with stable reason ids. Only an accepted bundle is fetched. Packages: [path-rule](../packages/path-rule/README.md), [memory](../packages/memory/README.md), [git](../packages/git/README.md), [verify](../packages/verify/README.md), [stub-cli](../packages/stub-cli/README.md).
 

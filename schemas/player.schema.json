@@ -42,7 +42,8 @@
       "maximum": 2000000
     },
     "images": {
-      "type": "boolean"
+      "type": "boolean",
+      "description": "Accepted but not yet honoured. The local harness does not send images to its model; it sends a text stub instead. Vision is not built."
     },
     "kit_version": {
       "type": "string",
