@@ -190,12 +190,9 @@ importers:
 
   packages/chatgpt:
     dependencies:
-      '@geldar/scriptorium-path-rule':
+      '@geldar/scriptorium-mind-loop':
         specifier: workspace:*
-        version: link:../path-rule
-      '@modelcontextprotocol/sdk':
-        specifier: 1.32.2
-        version: 1.32.2(zod@4.6.7)
+        version: link:../mind-loop
       jose:
         specifier: 6.2.15
         version: 6.2.15
@@ -212,6 +209,15 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
 
+  packages/instinct:
+    dependencies:
+      '@geldar/scriptorium-psyche':
+        specifier: workspace:*
+        version: link:../psyche
+      '@modelcontextprotocol/sdk':
+        specifier: 1.32.2
+        version: 1.32.2(zod@4.6.7)
+
   packages/keeper:
     dependencies:
       '@geldar/scriptorium-verify':
@@ -221,6 +227,12 @@ importers:
       '@geldar/scriptorium-path-rule':
         specifier: workspace:*
         version: link:../path-rule
+
+  packages/local:
+    dependencies:
+      '@geldar/scriptorium-mind-loop':
+        specifier: workspace:*
+        version: link:../mind-loop
 
   packages/memory:
     dependencies:
@@ -234,7 +246,21 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
 
+  packages/mind-loop:
+    dependencies:
+      '@geldar/scriptorium-path-rule':
+        specifier: workspace:*
+        version: link:../path-rule
+      '@modelcontextprotocol/sdk':
+        specifier: 1.32.2
+        version: 1.32.2(zod@4.6.7)
+      ajv:
+        specifier: 8.17.1
+        version: 8.17.1
+
   packages/path-rule: {}
+
+  packages/psyche: {}
 
   packages/stub-cli:
     dependencies:

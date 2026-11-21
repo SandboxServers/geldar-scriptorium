@@ -172,7 +172,11 @@ write_player_json() {
       '  "shard": '*) line="  \"shard\": \"$shard\"," ;;
       '  "mcp_url": '*) line="  \"mcp_url\": \"$url\"," ;;
       '  "harness": '*) line="  \"harness\": \"${GP_CLI:-claude}\"," ;;
-      '  "declared_model": '*) if [ "${GP_CLI:-claude}" = chatgpt ]; then line='  "declared_model": "",'; fi ;;
+      '  "declared_model": '*)
+        case ${GP_CLI:-claude} in
+          chatgpt) line='  "declared_model": "",' ;;
+        esac
+        ;;
     esac
     out="$out$line"$'\n'
   done < "$f"

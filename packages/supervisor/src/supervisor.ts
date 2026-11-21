@@ -16,8 +16,10 @@ import {
 import { join } from 'node:path';
 import type { RunSummary } from '@geldar/scriptorium-verify';
 import { summarizeStream } from '@geldar/scriptorium-verify';
+import { childEnv, wrapperLine } from './child.ts';
 import type { Deps, ExecSpec } from './deps.ts';
 import { readPromptBlocks } from './handoff.ts';
+import { readStopReason, readTokenUsage, tokensToday } from './meter.ts';
 import { buildPrompt, buildTidyPrompt, cleanLastWords } from './prompt.ts';
 import type { Settings } from './settings.ts';
 import { heldPath, statePath } from './settings.ts';
@@ -45,62 +47,10 @@ const POLL_SECS = 10;
 /** The longest STOP first line kept as `stop_reason` in status.json. */
 const STOP_REASON_MAX = 200;
 const SAVE_MESSAGE = 'session end: unsaved memory';
-const SYSTEM_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
-
-// Environment names from the image and the compose project that the character's CLI needs to
-// reach its proxy and keep its image defaults; everything else stays out of the child.
-const PASS_THROUGH = [
-  'CLAUDE_CODE_OAUTH_TOKEN',
-  'GELDAR_MCP_TOKEN',
-  'GELDAR_MCP_URL',
-  'HTTPS_PROXY',
-  'HTTP_PROXY',
-  'NO_PROXY',
-  'https_proxy',
-  'http_proxy',
-  'no_proxy',
-  'DISABLE_AUTOUPDATER',
-  'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC',
-  'ENABLE_CLAUDEAI_MCP_SERVERS',
-  'ENABLE_TOOL_SEARCH',
-  'CLAUDE_CODE_DISABLE_1M_CONTEXT',
-  'CLAUDE_CODE_SUBAGENT_MODEL',
-  'CLAUDE_CODE_SUBAGENT_MODEL_FORCE',
-];
 
 type Env = Readonly<Record<string, string | undefined>>;
 
-/** The explicit environment of a child: nothing is inherited beyond the names listed here. */
-export function childEnv(
-  settings: Settings,
-  env: Env,
-  maxTurns: number = settings.maxTurns,
-): Record<string, string> {
-  const out: Record<string, string> = {
-    HOME: settings.cliHome,
-    CLAUDE_CONFIG_DIR: settings.cliHome,
-    GELDAR_MODE: 'play',
-    PATH: env.PATH ?? SYSTEM_PATH,
-    GELDAR_RUN_MAX_TURNS: String(maxTurns),
-  };
-  if (settings.harness === 'chatgpt') out.NODE_USE_ENV_PROXY = '1';
-  if (settings.model !== '') out.GELDAR_RUN_MODEL = settings.model;
-  for (const name of PASS_THROUGH) {
-    if (settings.harness === 'chatgpt' && name === 'CLAUDE_CODE_OAUTH_TOKEN') continue;
-    const value = env[name];
-    if (value !== undefined && value !== '') out[name] = value;
-  }
-  return out;
-}
-
-/** The sh wrapper words (as the launcher's run mode): the prompt is read from descriptor 3, never from an argument. */
-export function wrapperLine(settings: Settings, tidy = false): string {
-  if (settings.harness === 'chatgpt') return 'exec geldar-chatgpt run';
-  let line = `exec claude --autocompact 100000 --settings /etc/geldar/settings/${tidy ? 'tidy' : 'play'}.json`;
-  line += ' -p "$(cat <&3)" --max-turns "$GELDAR_RUN_MAX_TURNS"';
-  if (settings.model !== '') line += ' --model "$GELDAR_RUN_MODEL"';
-  return `${line} --output-format stream-json --verbose`;
-}
+export { childEnv, wrapperLine } from './child.ts';
 
 async function summarizeFile(path: string): Promise<RunSummary | null> {
   if (!existsSync(path)) return null;
@@ -164,6 +114,8 @@ export class Supervisor {
   /** After a failed tidy: the journal size it left, and the normal runs since. */
   private tidyFailedAt: number | null = null;
   private runsSinceTidyFail = 0;
+  /** The tokens (input plus output) spent today, as tokens.csv last summed them. */
+  private tokenSum = 0;
 
   private readonly settings: Settings;
   private readonly deps: Deps;
@@ -206,6 +158,9 @@ export class Supervisor {
       started: this.started,
       last_result: last,
       cost_today: cost,
+      tokens_today: this.tokenSum,
+      harness: this.settings.harness,
+      model: this.settings.model,
       upstream_head: this.upstreamHead,
       upstream_result: this.upstreamResult,
       updated: fmt(this.deps.now(), 'stamp'),
@@ -354,12 +309,22 @@ export class Supervisor {
       }
       const e = this.deps.now();
       const sum = costToday(s.stateDir, fmt(e, 'date'));
-      if (sum >= s.dailyCap) {
+      const tokens = tokensToday(s.stateDir, fmt(e, 'date'));
+      this.tokenSum = tokens;
+      const dollars = sum >= s.dailyCap;
+      const tokenCap = s.dailyTokenCap > 0 && tokens >= s.dailyTokenCap;
+      if (dollars || tokenCap) {
         const secs = 86400 - (e % 86400);
         this.deps.say(
-          `The daily cost cap (${s.dailyCap} USD) is reached; waiting for the next day.`,
+          dollars
+            ? `The daily cost cap (${s.dailyCap} USD) is reached; waiting for the next day.`
+            : `The daily token cap (${s.dailyTokenCap} tokens) is reached; waiting for the next day.`,
         );
-        this.log(`cap reached cost=${sum} waiting=${secs}`);
+        this.log(
+          dollars
+            ? `cap reached cost=${sum} waiting=${secs}`
+            : `token cap reached tokens=${tokens} waiting=${secs}`,
+        );
         this.status(n, 'sleeping', last, sum);
         await this.deps.sleep(secs, () => this.shouldStop());
         continue;
@@ -370,13 +335,17 @@ export class Supervisor {
       this.status(n, 'running', last, sum);
       const t0 = this.deps.now();
       const size = this.journalSize();
-      const tidy = this.settings.harness !== 'chatgpt' && this.tidyDue(size) && this.prepareTidy();
+      const tidy = this.settings.harness === 'claude' && this.tidyDue(size) && this.prepareTidy();
       const before = tidy ? this.memoryDigest() : '';
       const code = tidy ? await this.oneTidy(n) : await this.oneRun(n);
       const t1 = this.deps.now();
       const secs = t1 - t0;
       await this.save();
-      writePrivate(this.path('checkpoint-request'), `${n}\n`, 0o644);
+      writePrivate(
+        this.path('checkpoint-request'),
+        `${JSON.stringify({ run: n, harness: s.harness, model: s.model })}\n`,
+        0o644,
+      );
       const done = await summarizeFile(this.path(`session-${n}.jsonl`));
       const turns = done?.turns ?? 0;
       const cost = done?.cost ?? 0;
@@ -389,9 +358,18 @@ export class Supervisor {
         !done.is_error &&
         done.result_seen &&
         (secs >= s.fastSec || !noCalls);
-      appendFileSync(this.path('costs.csv'), `${n},${fmt(t1, 'stamp')},${turns},${cost}\n`, {
-        mode: 0o600,
-      });
+      appendFileSync(
+        this.path('costs.csv'),
+        `${n},${fmt(t1, 'stamp')},${turns},${cost},${s.harness},${s.model}\n`,
+        { mode: 0o600 },
+      );
+      const u = readTokenUsage(this.path(`session-${n}.jsonl`), s.harness);
+      appendFileSync(
+        this.path('tokens.csv'),
+        `${n},${fmt(t1, 'stamp')},${u.input},${u.cached},${u.output},${s.harness},${s.model}\n`,
+        { mode: 0o600 },
+      );
+      this.tokenSum = tokensToday(s.stateDir, fmt(t1, 'date'));
       if (tidy) {
         // The tidy counts as failed for its own backoff when the journal is still over the limit.
         // A clean tidy (ok, and its day file or summary changed) lets go of pending.md.
@@ -424,8 +402,10 @@ export class Supervisor {
         last = 'failed';
       }
       const today = costToday(s.stateDir, fmt(t1, 'date'));
+      // The recorded stop reason (when the run gave one) is in this log line and the session stream only.
+      const reason = readStopReason(this.path(`session-${n}.jsonl`));
       this.log(
-        `run=${n} turns=${turns} cost=${cost} secs=${secs} exit=${code} result=${last} delay=${delay} fails=${fails}`,
+        `run=${n} turns=${turns} cost=${cost} secs=${secs} exit=${code} result=${last} delay=${delay} fails=${fails}${reason ? ` reason=${reason}` : ''}`,
       );
       this.status(n, 'sleeping', last, today);
       if (fails >= s.maxFails) {

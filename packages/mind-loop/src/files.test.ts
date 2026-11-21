@@ -51,7 +51,7 @@ describe('the ChatGPT character file boundary', () => {
     writeFileSync(join(r, '.claude/skills/play/SKILL.md'), 'Wait, consider, act.');
     const skill = fileTools(r).find((t) => t.name === 'read_skill');
     expect(await skill?.call({ name: 'play' })).toEqual([
-      { type: 'input_text', text: 'Wait, consider, act.' },
+      { type: 'text', text: 'Wait, consider, act.' },
     ]);
     for (const name of [
       'setup',

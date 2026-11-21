@@ -28,6 +28,10 @@ export interface Behaviour {
   during?: () => void;
   /** A rejected usage-limit event first in the stream (resetsAt in epoch seconds, or absent). */
   limit?: { resetsAt?: number };
+  /** The usage object on the fake result line (the shape the harness reports). */
+  usage?: Record<string, number>;
+  /** The stop_reason on the fake result line (a value the owned loops record). */
+  stopReason?: string;
 }
 
 /**
@@ -118,6 +122,8 @@ export function makeFixture(
           total_cost_usd: behaviour.cost ?? 1,
           num_turns: 5,
           is_error: behaviour.err ?? false,
+          usage: behaviour.usage,
+          stop_reason: behaviour.stopReason,
         } as never);
       }
       writeFileSync(spec.stdoutPath ?? '', `${lines.map((l) => JSON.stringify(l)).join('\n')}\n`);

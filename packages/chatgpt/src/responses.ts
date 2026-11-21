@@ -1,12 +1,8 @@
-import { ChatGPTError, type Fetch, RESOURCE, record } from './auth.ts';
+import { type Item, record, runLoop, type Tool } from '@geldar/scriptorium-mind-loop';
+import { ChatGPTError, type Fetch } from './auth.ts';
+import { ResponsesTransport } from './transport.ts';
 
-export type Item = Record<string, unknown>;
-export interface Tool {
-  name: string;
-  description: string;
-  parameters: Record<string, unknown>;
-  call(args: Record<string, unknown>): Promise<unknown>;
-}
+export type { Item, Tool };
 
 /** SSE is framed by blank lines, independent of network chunks or CRLF boundaries. */
 export async function completed(response: Response): Promise<Item> {
@@ -75,110 +71,19 @@ export interface Round {
 
 /** No shell, arbitrary URLs, vendor tools or host file tools are exposed to this mind. */
 export async function runRound(round: Round): Promise<void> {
-  const request = round.request ?? fetch;
-  const input: Item[] = [{ role: 'user', content: round.prompt }];
-  const byName = new Map(round.tools.map((t) => [t.name, t]));
-  let turns = 0;
-  let text = '';
-  try {
-    for (; turns < round.maxTurns; ) {
-      const access = await round.access();
-      const res = await request(`${RESOURCE}/responses`, {
-        method: 'POST',
-        redirect: 'error',
-        signal: AbortSignal.timeout(10 * 60_000),
-        headers: { Authorization: `Bearer ${access}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: round.model,
-          instructions: round.instructions,
-          input,
-          store: false,
-          stream: true,
-          include: ['reasoning.encrypted_content'],
-          parallel_tool_calls: false,
-          tools: [
-            {
-              type: 'namespace',
-              name: 'geldar',
-              description: 'Your world and your memories.',
-              tools: round.tools.map((t) => ({
-                type: 'function',
-                name: t.name,
-                description: t.description,
-                parameters: t.parameters,
-                strict: false,
-              })),
-            },
-          ],
-        }),
-      });
-      const result = await completed(res);
-      turns++;
-      // Replaying output, including encrypted reasoning, is required with store:false.
-      const output = (result.output as unknown[]).filter(record);
-      input.push(...output);
-      const calls = output.filter((i) => i.type === 'function_call');
-      for (const item of output) {
-        if (item.type === 'message' && Array.isArray(item.content)) {
-          for (const block of item.content)
-            if (record(block) && block.type === 'output_text' && typeof block.text === 'string')
-              text = block.text;
-        }
-      }
-      round.emit({
-        type: 'assistant',
-        message: {
-          content: [
-            ...(text ? [{ type: 'text', text }] : []),
-            ...calls.map((c) => ({
-              type: 'tool_use',
-              name: c.name,
-              id: c.call_id,
-              input: c.arguments,
-            })),
-          ],
-        },
-        usage: result.usage,
-      });
-      if (calls.length === 0) {
-        round.emit({
-          type: 'result',
-          is_error: false,
-          num_turns: turns,
-          total_cost_usd: 0,
-          result: text,
-          cost_source: 'unavailable_subscription',
-        });
-        return;
-      }
-      for (const call of calls) {
-        // Namespaced calls carry the namespace separately. Reject anything outside our table.
-        const tool =
-          typeof call.name === 'string' &&
-          (call.namespace === undefined || call.namespace === 'geldar')
-            ? byName.get(call.name)
-            : undefined;
-        let answer: unknown;
-        try {
-          const args: unknown = JSON.parse(String(call.arguments));
-          if (!tool || !record(args) || typeof call.call_id !== 'string')
-            throw new Error('invalid call');
-          answer = await tool.call(args);
-        } catch {
-          answer = [{ type: 'input_text', text: 'That tool call could not be completed.' }];
-        }
-        input.push({ type: 'function_call_output', call_id: call.call_id, output: answer });
-      }
-    }
-    throw new ChatGPTError('ChatGPT round reached GELDAR_RUN_MAX_TURNS.');
-  } catch (err) {
-    round.emit({
-      type: 'result',
-      is_error: true,
-      num_turns: turns,
-      total_cost_usd: 0,
-      cost_source: 'unavailable_subscription',
-    });
-    throw err;
-  }
+  const transport = new ResponsesTransport({
+    model: round.model,
+    instructions: round.instructions,
+    tools: round.tools,
+    access: round.access,
+    request: round.request,
+  });
+  await runLoop({
+    transport,
+    prompt: round.prompt,
+    maxTurns: round.maxTurns,
+    tools: round.tools,
+    emit: round.emit,
+    costSource: 'unavailable_subscription',
+  });
 }

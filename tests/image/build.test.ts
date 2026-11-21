@@ -62,7 +62,9 @@ describe.skipIf(!ready)('kit image build', () => {
     const out = inKit('readlink -f /usr/local/bin/claude; ls /opt/geldar/packages').stdout;
     const [link, ...pkgs] = out.trim().split('\n');
     expect(link).toContain('claude-code');
-    expect(pkgs.join(' ')).toBe('chatgpt git keeper memory path-rule supervisor verify');
+    expect(pkgs.join(' ')).toBe(
+      'chatgpt git instinct keeper local memory mind-loop path-rule psyche supervisor verify',
+    );
     expect(out).not.toContain('stub-cli');
   }, 120_000);
 
@@ -74,6 +76,20 @@ describe.skipIf(!ready)('kit image build', () => {
     const git = inKit('geldar-git 2>&1; echo "exit=$?"').stdout;
     expect(git).toMatch(/usage/i);
     expect(git).not.toContain('exit=0');
+  }, 120_000);
+
+  // geldar-instinct (HC-18) is a Dockerfile wrapper like the others: installed, runs, and refuses a bad verb or a run
+  // with no state directory (exit 2, no store touched). Needs Docker, so it runs only in the image lane.
+  it('geldar-instinct is installed and refuses a bad verb and a run without GELDAR_INSTINCT_STATE', () => {
+    expect(inKit('test -x /usr/local/bin/geldar-instinct && echo ok').stdout.trim()).toBe('ok');
+    expect(inKit('geldar-instinct bogus </dev/null >/dev/null 2>&1; echo $?').stdout.trim()).toBe(
+      '2',
+    );
+    expect(
+      inKit(
+        'env -u GELDAR_INSTINCT_STATE geldar-instinct run --run 1 </dev/null >/dev/null 2>&1; echo $?',
+      ).stdout.trim(),
+    ).toBe('2');
   }, 120_000);
 
   it('node matches .nvmrc', () => {

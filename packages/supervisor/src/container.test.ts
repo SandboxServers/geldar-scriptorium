@@ -144,6 +144,7 @@ describe('the child process', () => {
       CLAUDE_CONFIG_DIR: '/cli-home',
       GELDAR_MODE: 'play',
       PATH: '/usr/bin',
+      GELDAR_HARNESS: 'claude',
       GELDAR_RUN_MAX_TURNS: '300',
       GELDAR_RUN_MODEL: 'opus',
       CLAUDE_CODE_OAUTH_TOKEN: secret,
@@ -160,6 +161,7 @@ describe('the child process', () => {
     const spec = f.runs()[0];
     expect(Object.keys(spec?.env ?? {}).sort()).toEqual([
       'CLAUDE_CONFIG_DIR',
+      'GELDAR_HARNESS',
       'GELDAR_MODE',
       'GELDAR_RUN_MAX_TURNS',
       'HOME',
@@ -198,7 +200,7 @@ describe('the child process', () => {
       'session end: unsaved memory',
     ]);
     expect([save?.uid, save?.gid, save?.env.GELDAR_MODE]).toEqual([1000, 1000, 'play']);
-    expect(f.read('checkpoint-request')).toBe('2\n');
+    expect(f.read('checkpoint-request')).toBe('{"run":2,"harness":"claude","model":""}\n');
   });
 
   it('logs a failed save and keeps going', async () => {

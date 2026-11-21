@@ -733,3 +733,28 @@ What to do. Supply `--persona-dir` with the player's identity and goals. ChatGPT
 What it means. No usable ChatGPT model has been selected for this player.
 Why it is safe. The persistent player was not started, and no Claude model or API billing fallback was substituted.
 What to do. Run `chatgpt-models <id>`, then commit a returned slug as `declared_model` in `player.json`, or set `GELDAR_RUN_MODEL` before starting it.
+
+### local_unavailable
+What it means. The local harness was requested with `--cli local`. This release does not offer it.
+Why it is safe. Nothing was created, started or changed, and no remote call was made.
+What to do. Create the player without `--cli local`. Nothing in this release sets up a local player for you.
+
+### local_persistent
+What it means. A local player was asked to run `play` or `run`. Local players are persistent.
+Why it is safe. No local mind was launched through the Claude-only session path.
+What to do. Seed the persona first, set the model and the model server, then use `start`, `stop` and `restart`.
+
+### local_no_model
+What it means. No usable model name is set for this local player.
+Why it is safe. The persistent player was not started, and no other model was substituted.
+What to do. Set `declared_model` in `player.json` to the model name your server serves and commit it, or set `GELDAR_RUN_MODEL` before starting it.
+
+### local_no_endpoint
+What it means. No model server is stored for this local player: its `local/base-url` file in the player's state folder is missing, empty or a link.
+Why it is safe. The launcher refused before starting the persistent player. The server's address is kept outside the repository, so nothing was written to it.
+What to do. Put the model server's base URL in `local/base-url` in the player's state folder, as a single line, then retry `start`. Nothing in this release writes that file for you.
+
+### local_no_context
+What it means. This local player has no usable `context_tokens` setting in its committed `player.json`.
+Why it is safe. The persistent player was not started, and no default context size was assumed.
+What to do. Set `context_tokens` to the context size your model server serves, a whole number from 1024 to 2000000, and commit it.

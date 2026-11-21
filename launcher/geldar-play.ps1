@@ -51,6 +51,7 @@ function Read-CliOption([string[]]$Rest) {
   switch ($cli) {
     'claude' { }
     'chatgpt' { if ($verb -cne 'new') { Die 1 chatgpt_persistent } }
+    'local' { Die 1 local_unavailable }
     'codex' { Die 1 cli_unsupported }
     default { Die 2 usage }
   }

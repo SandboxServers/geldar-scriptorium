@@ -214,6 +214,7 @@ describe('player compose: environment contract', () => {
     expect(run).toEqual(
       [
         'DAILY_CAP_USD',
+        'DAILY_TOKEN_CAP',
         'DELAY',
         'FAST_SEC',
         'MAX_DELAY',
@@ -325,5 +326,23 @@ describe('player compose: the proxies', () => {
       '../proxy/squid-keeper.conf:/etc/squid/squid.conf:ro',
       '../proxy/allowlist-keeper.txt:/etc/squid/allowlist-keeper.txt:ro',
     ]);
+  });
+});
+
+describe('player compose: the local harness names', () => {
+  it('passes the four GELDAR_LOCAL names into player only, by name and never with a value', () => {
+    const names = [
+      'GELDAR_LOCAL_API_KEY',
+      'GELDAR_LOCAL_BASE_URL',
+      'GELDAR_LOCAL_CONTEXT_TOKENS',
+      'GELDAR_LOCAL_IMAGES',
+    ];
+    for (const name of names) {
+      expect(envNames('player')).toContain(name);
+      for (const other of services.filter((s) => s !== 'player')) {
+        expect(envNames(other)).not.toContain(name);
+      }
+    }
+    expect(compose).not.toMatch(/GELDAR_LOCAL_API_KEY=/);
   });
 });

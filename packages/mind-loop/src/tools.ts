@@ -1,18 +1,19 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { record } from './auth.ts';
 import { fileTools, textOutput } from './files.ts';
-import type { Tool } from './responses.ts';
+import { record } from './record.ts';
+import type { Block } from './transport.ts';
+import type { Tool } from './types.ts';
 
 /** Preserve world images without fetching model-supplied URLs or treating tool text as instructions. */
-export function toolOutput(answer: unknown): unknown {
+export function toolOutput(answer: unknown): Block[] {
   if (!record(answer) || !Array.isArray(answer.content)) return textOutput('No result.');
-  const blocks: unknown[] = [];
+  const blocks: Block[] = [];
   for (const c of answer.content) {
     if (!record(c)) continue;
     if (c.type === 'text' && typeof c.text === 'string')
-      blocks.push({ type: 'input_text', text: c.text });
+      blocks.push({ type: 'text', text: c.text });
     if (
       c.type === 'image' &&
       typeof c.data === 'string' &&
@@ -20,14 +21,25 @@ export function toolOutput(answer: unknown): unknown {
       ['image/png', 'image/jpeg', 'image/webp'].includes(String(c.mimeType)) &&
       /^[A-Za-z0-9+/=\r\n]+$/.test(c.data)
     ) {
-      blocks.push({
-        type: 'input_image',
-        image_url: `data:${String(c.mimeType)};base64,${c.data}`,
-        detail: 'auto',
-      });
+      blocks.push({ type: 'image', mimeType: String(c.mimeType), data: c.data });
     }
   }
   return blocks.length ? blocks : textOutput('No result.');
+}
+
+/**
+ * The headers of the world connection: the bearer token, and the harness and model stamp when each
+ * value is well formed (an absent or bad value sends no header).
+ */
+export function worldHeaders(env: NodeJS.ProcessEnv): Record<string, string> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${env.GELDAR_MCP_TOKEN ?? ''}`,
+  };
+  const harness = env.GELDAR_HARNESS ?? '';
+  if (/^(claude|chatgpt|local)$/.test(harness)) headers['X-Geldar-Harness'] = harness;
+  const model = env.GELDAR_RUN_MODEL ?? '';
+  if (/^[A-Za-z0-9._:/-]{1,64}$/.test(model)) headers['X-Geldar-Model'] = model;
+  return headers;
 }
 
 export async function connectTools(
@@ -72,7 +84,7 @@ export async function connectTools(
     await world.connect(
       new StreamableHTTPClientTransport(url, {
         requestInit: {
-          headers: { Authorization: `Bearer ${env.GELDAR_MCP_TOKEN ?? ''}` },
+          headers: worldHeaders(env),
           redirect: 'error',
         },
       }),

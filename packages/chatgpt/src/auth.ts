@@ -9,6 +9,9 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { MindError, record } from '@geldar/scriptorium-mind-loop';
+
+export { record };
 
 export const ISSUER = 'https://auth.openai.com';
 export const RESOURCE = 'https://api.openai.com/v1';
@@ -16,8 +19,15 @@ export const TOKEN_URL = `${ISSUER}/api/accounts/oauth/token`;
 export const PLAN_SCOPE = 'chatgpt.tokens.use.direct';
 export type Fetch = typeof fetch;
 
-/** Deliberately carries no response body, URL or token in an error message. */
-export class ChatGPTError extends Error {}
+/**
+ * Deliberately carries no response body, URL or token in an error message. It is a MindError so the
+ * loop reports it as a transport failure (the stop reason the stream contract allows).
+ */
+export class ChatGPTError extends MindError {
+  constructor(message: string) {
+    super(message, 'transport_error');
+  }
+}
 
 export interface Registration {
   host: string;
@@ -33,10 +43,6 @@ export interface Credentials {
   id: string;
   scopes: string[];
   expires: number;
-}
-
-export function record(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 /** CLI home is never mounted in a tool server. No path here is supplied by the model. */

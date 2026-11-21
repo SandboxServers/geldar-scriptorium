@@ -12,7 +12,7 @@ export class SettingError extends Error {
 
 /** Everything the loop reads from the environment, validated once at start. */
 export interface Settings {
-  harness: 'claude' | 'chatgpt';
+  harness: 'claude' | 'chatgpt' | 'local';
   delayBase: number;
   maxDelay: number;
   fastSec: number;
@@ -24,8 +24,16 @@ export interface Settings {
   tidyMaxTurns: number;
   /** Daily cost cap in USD (UTC day), greater than zero. */
   dailyCap: number;
+  /** Daily token cap (input plus output, UTC day); 0 disables it. */
+  dailyTokenCap: number;
   /** Empty when no model is set. */
   model: string;
+  /** The local server's base URL (`local` only; empty otherwise). The API key is never a setting. */
+  localBaseUrl: string;
+  /** The local model's context window in tokens (`local` only; 0 otherwise). */
+  localContextTokens: number;
+  /** Whether the local model accepts images (`local` only; false otherwise). */
+  localImages: boolean;
   stateDir: string;
   /** The keeper's read-only state directory (holds HELD). */
   keeperDir: string;
@@ -51,10 +59,38 @@ function id(env: Env, name: string): number {
   return Number.parseInt(raw, 10);
 }
 
+/** The local-harness fields: checked only when the harness is `local`, empty or zero otherwise. */
+function localSettings(
+  env: Env,
+  harness: Settings['harness'],
+  model: string,
+): Pick<Settings, 'localBaseUrl' | 'localContextTokens' | 'localImages'> {
+  if (harness !== 'local') return { localBaseUrl: '', localContextTokens: 0, localImages: false };
+  if (model === '') throw new SettingError('GELDAR_RUN_MODEL');
+  const baseUrl = env.GELDAR_LOCAL_BASE_URL ?? '';
+  if (
+    baseUrl.length > 200 ||
+    !/^https?:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?(\/[A-Za-z0-9._~/-]*)?$/.test(baseUrl)
+  )
+    throw new SettingError('GELDAR_LOCAL_BASE_URL');
+  // Missing is an error here: there is no default context size.
+  if (env.GELDAR_LOCAL_CONTEXT_TOKENS === undefined)
+    throw new SettingError('GELDAR_LOCAL_CONTEXT_TOKENS');
+  const contextTokens = num(env, 'GELDAR_LOCAL_CONTEXT_TOKENS', 0, 1024, 2000000);
+  const images = env.GELDAR_LOCAL_IMAGES;
+  if (images !== 'true' && images !== 'false') throw new SettingError('GELDAR_LOCAL_IMAGES');
+  return {
+    localBaseUrl: baseUrl,
+    localContextTokens: contextTokens,
+    localImages: images === 'true',
+  };
+}
+
 /** Reads and validates the GELDAR_RUN_* settings (same names, defaults and bounds as run.sh). */
 export function readSettings(env: Env): Settings {
   const harness = env.GELDAR_HARNESS ?? 'claude';
-  if (harness !== 'claude' && harness !== 'chatgpt') throw new SettingError('GELDAR_HARNESS');
+  if (harness !== 'claude' && harness !== 'chatgpt' && harness !== 'local')
+    throw new SettingError('GELDAR_HARNESS');
   const delayBase = num(env, 'GELDAR_RUN_DELAY', 20, 1, 86400);
   const maxDelay = num(env, 'GELDAR_RUN_MAX_DELAY', 900, 1, 86400);
   const fastSec = num(env, 'GELDAR_RUN_FAST_SEC', 30, 0, 86400);
@@ -66,10 +102,12 @@ export function readSettings(env: Env): Settings {
   if (!/^[0-9]{1,6}(\.[0-9]{1,4})?$/.test(capText) || !(Number(capText) > 0)) {
     throw new SettingError('GELDAR_RUN_DAILY_CAP_USD');
   }
+  const dailyTokenCap = num(env, 'GELDAR_RUN_DAILY_TOKEN_CAP', 0, 0, 999999999);
   const model = env.GELDAR_RUN_MODEL ?? '';
   if (model !== '' && !/^[A-Za-z0-9._:/-]+$/.test(model))
     throw new SettingError('GELDAR_RUN_MODEL');
   if (maxDelay < delayBase) throw new SettingError('GELDAR_RUN_MAX_DELAY');
+  const local = localSettings(env, harness, model);
   return {
     harness,
     delayBase,
@@ -80,7 +118,9 @@ export function readSettings(env: Env): Settings {
     tidyBytes,
     tidyMaxTurns,
     dailyCap: Number(capText),
+    dailyTokenCap,
     model,
+    ...local,
     stateDir: env.GELDAR_SUPERVISOR_STATE ?? '/state/supervisor',
     keeperDir: env.GELDAR_KEEPER_STATE ?? '/keeper-state',
     workspace: env.GELDAR_WORKSPACE ?? '/player',
