@@ -34,3 +34,20 @@ After each restore the file matched its backup byte-for-byte and the test file w
 ## Open items
 
 None for the packet. HC-28b consumes `predict`, `estimatedScores` and `recordPrediction` with the production `Prob` (`successProbability`) as the packet specifies.
+
+## Review pass 1
+
+Changed: `branch.ts`, `predict.ts`, `predict.test.ts`, this note. `model.ts` and the rest are untouched.
+
+- `branch.ts`: `walk` throws `RangeError` when a chance probability is not a number from 0 to 1 (NaN, below 0, above 1). A comment above `Dist` says outcomes are keyed by identity, so they must be primitives or shared constants.
+- `predict.ts`: `recordPrediction` writes `est: { ...scores }`, a copy, so later mutation of the caller's object does not change the recorded line.
+- `predict.test.ts` (now 18 tests in the file): all six fields fractional gives 64 policy calls and a distribution summing to 1; estimates 5, 1, 4.9999999 and 3.0000001 give 1, 1, 2 and 2 calls, and the policy only sees integers 1 to 5; `predict` throws on NaN and on 0.5; a probability of NaN throws; a probability of 1.5 throws; `Prob = () => 1` leaves the failure outcome out of the result; `Prob = () => 0` leaves the success outcome out; the recorded line is unaffected by mutating the scores afterwards.
+
+Revert-checks (the file was confirmed changed before each run, then restored byte-identical):
+
+| Revert | Failing tests |
+|---|---|
+| remove the probability guard in `walk` | `a probability of NaN throws`, `a probability of 1.5 throws` (2 failed, 16 passed) |
+| `est: scores` instead of `est: { ...scores }` | `recordPrediction copies the scores, so a later mutation does not change the line` (1 failed) |
+
+The `Prob = () => 1` / `() => 0` absence tests, the call-count and boundary tests, and the Dist comment change no behavior, so they pass on the code as it was; they are coverage for existing behavior, not revert-checked.

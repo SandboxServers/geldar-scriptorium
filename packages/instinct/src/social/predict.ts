@@ -119,6 +119,6 @@ export function recordPrediction(
     other,
     fx,
     probs: Object.fromEntries(dist),
-    est: scores,
+    est: { ...scores },
   });
 }

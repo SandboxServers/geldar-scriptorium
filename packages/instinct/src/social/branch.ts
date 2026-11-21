@@ -12,6 +12,7 @@ export type Branch<T> =
   | { kind: 'outcome'; outcome: T }
   | { kind: 'chance'; chance: Chance; success: Branch<T>; failure: Branch<T> };
 
+// Outcomes are keyed by identity, so they must be primitives or shared constants.
 export type Dist<T> = Map<T, number>;
 
 /** The chance of success of one check. Production: successProbability from the psyche package. */
@@ -31,6 +32,7 @@ function walk<T>(b: Branch<T>, p: Prob, weight: number, out: Dist<T>): void {
     return;
   }
   const q = p(b.chance);
+  if (!(q >= 0 && q <= 1)) throw new RangeError('probability must be a number from 0 to 1');
   walk(b.success, p, weight * q, out);
   walk(b.failure, p, weight * (1 - q), out);
 }

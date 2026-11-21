@@ -24,6 +24,14 @@ const fightOrWalk: Policy<null, string> = (sheet) => ({
   failure: { kind: 'outcome', outcome: 'walk' },
 });
 
+// The same single check as a fixed branch, for the distribution tests.
+const oneCheck: Branch<string> = {
+  kind: 'chance',
+  chance: { score: 3, dc: 10, proficiency: 0 },
+  success: { kind: 'outcome', outcome: 'fight' },
+  failure: { kind: 'outcome', outcome: 'walk' },
+};
+
 // A test double for the chance: score 1 never succeeds, score 5 always does.
 const linear: Prob = (c) => (c.score - 1) / 4;
 
@@ -139,5 +147,88 @@ describe('prediction by interpolation', () => {
     expect(() => predict(fightOrWalk, scoresWith({ aggression: 5.5 }), null, linear)).toThrow(
       RangeError,
     );
+  });
+
+  it('rejects an estimate of NaN or below 1', () => {
+    expect(() => predict(fightOrWalk, scoresWith({ aggression: NaN }), null, linear)).toThrow(
+      RangeError,
+    );
+    expect(() => predict(fightOrWalk, scoresWith({ aggression: 0.5 }), null, linear)).toThrow(
+      RangeError,
+    );
+  });
+
+  it('all six fields fractional call the policy 64 times and the distribution sums to 1', () => {
+    const spy = vi.fn(fightOrWalk);
+    const dist = predict(
+      spy,
+      scoresWith({
+        curiosity: 2.5,
+        aggression: 2.5,
+        law: 2.5,
+        good: 2.5,
+        common_sense: 2.5,
+        cleverness: 2.5,
+      }),
+      null,
+      linear,
+    );
+    expect(spy).toHaveBeenCalledTimes(64);
+    const total = [...dist.values()].reduce((a, b) => a + b, 0);
+    expect(total).toBeCloseTo(1, 12);
+  });
+
+  it('boundary estimates give the right call counts and only integers 1 to 5 reach the policy', () => {
+    const cases: [number, number][] = [
+      [5, 1],
+      [1, 1],
+      [4.9999999, 2],
+      [3.0000001, 2],
+    ];
+    for (const [v, calls] of cases) {
+      const seen: CharacterSheet[] = [];
+      const spy: Policy<null, string> = (sheet, input) => {
+        seen.push(sheet);
+        return fightOrWalk(sheet, input);
+      };
+      predict(spy, scoresWith({ aggression: v }), null, linear);
+      expect(seen.length).toBe(calls);
+      for (const sheet of seen) {
+        for (const value of allScores(sheet)) {
+          expect(Number.isInteger(value)).toBe(true);
+          expect(value).toBeGreaterThanOrEqual(1);
+          expect(value).toBeLessThanOrEqual(5);
+        }
+      }
+    }
+  });
+
+  it('a certain success leaves the failure outcome out of the distribution', () => {
+    const dist = distribution(oneCheck, () => 1);
+    expect(dist.has('walk')).toBe(false);
+    expect(dist.get('fight')).toBe(1);
+  });
+
+  it('a certain failure leaves the success outcome out of the distribution', () => {
+    const dist = distribution(oneCheck, () => 0);
+    expect(dist.has('fight')).toBe(false);
+    expect(dist.get('walk')).toBe(1);
+  });
+
+  it('a probability of NaN throws', () => {
+    expect(() => distribution(oneCheck, () => NaN)).toThrow(RangeError);
+  });
+
+  it('a probability of 1.5 throws', () => {
+    expect(() => distribution(oneCheck, () => 1.5)).toThrow(RangeError);
+  });
+
+  it('recordPrediction copies the scores, so a later mutation does not change the line', () => {
+    const append = vi.fn<(line: object) => void>();
+    const scores = scoresWith({ aggression: 3.5 });
+    recordPrediction(append, 'ann-1', 'stranger', new Map([['fight', 1]]), scores, 1);
+    scores.aggression = 1;
+    const line = append.mock.calls[0]?.[0] as { est: Record<Field, number> };
+    expect(line.est.aggression).toBe(3.5);
   });
 });
