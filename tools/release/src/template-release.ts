@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 export const TEMPLATE_REPO = 'SandboxServers/geldar-player-template';
 const TAG_RE = /^kit-v((0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.]+)?)$/;
-const SUM_RE = /^([0-9a-f]{64})  (geldar-play-[^/\\\s]+\.tar\.gz)\n$/;
+const SUM_RE = /^([0-9a-f]{64}) {2}(geldar-play-[^/\\\s]+\.tar\.gz)\n$/;
 
 class Fail extends Error {}
 
