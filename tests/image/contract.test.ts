@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { buildKit, dockerPath, dockerReady, KIT_IMAGE, repoRoot, run } from './docker.ts';
+import { openForContainer } from './open-for-container.ts';
 
 const ready = dockerReady();
 const linux = process.platform === 'linux';
@@ -39,16 +40,6 @@ function git(cwd: string, args: string[]): string {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
   if (result.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${result.stderr}`);
   return result.stdout;
-}
-
-// Directories 0755 and files 0644 so the container can read them; a no-op on Windows.
-function openForContainer(path: string): void {
-  if (statSync(path).isDirectory()) {
-    chmodSync(path, 0o755);
-    for (const entry of readdirSync(path)) openForContainer(join(path, entry));
-  } else {
-    chmodSync(path, 0o644);
-  }
 }
 
 // A temp workspace: player.json, memory/identity.md and one host commit on main.
