@@ -1,4 +1,11 @@
-import { mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { bashPath, forGroup, git, type Launcher, repoRoot, run, runLib } from './harness.ts';
@@ -45,7 +52,7 @@ function commitPlayer(clone: string, change: (p: Record<string, unknown>) => voi
   ]);
 }
 
-// Stores the model server's address and key in the player's state folder, as local-endpoint will.
+// Stores the model server's address and key in the player's state folder, where the launcher reads them.
 function storeEndpoint(stateDir: string, url = 'http://host.docker.internal:11434/v1') {
   mkdirSync(join(stateDir, 'local'), { recursive: true });
   writeFileSync(join(stateDir, 'local', 'base-url'), `${url}\n`);
@@ -71,7 +78,9 @@ const startLocal = (l: Launcher, s: ReturnType<typeof setup>) =>
   );
 
 describe.each(forGroup('new'))('local model launch ($name)', (l) => {
-  it('creates a seeded local player with the context and image settings', { timeout: T }, () => {
+  it('refuses new --cli local before creating anything, even with a persona', {
+    timeout: T,
+  }, () => {
     const s = setupWorld();
     const persona = join(s.w.root, 'persona');
     mkdirSync(join(persona, NEW_ID, 'memory'), { recursive: true });
@@ -86,22 +95,20 @@ describe.each(forGroup('new'))('local model launch ($name)', (l) => {
       '--persona-dir',
       l.name === 'bash' ? bashPath(persona) : persona,
     ]);
-    expect(r.status, r.stderr).toBe(0);
-    const player = JSON.parse(
-      readFileSync(join(s.w.players, `player-${NEW_ID}`, 'player.json'), 'utf8'),
-    );
-    expect(player.harness).toBe('local');
-    expect(player.declared_model).toBe('');
-    expect(player.context_tokens).toBe(8192);
-    expect(player.images).toBe(false);
-    expect(r.stderr).toContain(`local-endpoint ${NEW_ID}`);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('not available in this release');
+    expect(r.stderr).not.toContain('local-endpoint');
+    expect(s.ghCalls()).toEqual([]);
+    expect(existsSync(join(s.w.players, `player-${NEW_ID}`))).toBe(false);
   });
 
-  it('refuses an unseeded local birth before creating a remote repository', { timeout: T }, () => {
+  it('refuses an unseeded new --cli local with the same message and no remote call', {
+    timeout: T,
+  }, () => {
     const s = setupWorld();
     const r = newRun(l, s, [NEW_ID, '--cli', 'local', '--mock', MOCK]);
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain('--persona-dir');
+    expect(r.stderr).toContain('not available in this release');
     expect(s.ghCalls()).toEqual([]);
   });
 
@@ -109,7 +116,18 @@ describe.each(forGroup('new'))('local model launch ($name)', (l) => {
     const s = setup(l);
     const r = s.go('play', ID, '--cli', 'local');
     expect(r.status).toBe(1);
+    expect(r.stderr).toContain('not available in this release');
+    expect(composeCalls(s.w, 'up')).toHaveLength(0);
+  });
+
+  it('run on a local player says the local wording, not the ChatGPT one', { timeout: T }, () => {
+    const s = setup(l);
+    commitPlayer(s.p.clone, localPlayer);
+    storeEndpoint(s.p.stateDir);
+    const r = s.go('run', ID);
+    expect(r.status).toBe(1);
     expect(r.stderr).toContain('Local models use persistent players');
+    expect(r.stderr).not.toContain('ChatGPT');
     expect(composeCalls(s.w, 'up')).toHaveLength(0);
   });
 
@@ -176,7 +194,7 @@ describe.each(forGroup('new'))('local model launch ($name)', (l) => {
     }
     const r = startLocal(l, s);
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain('local-endpoint');
+    expect(r.stderr).toContain('No model server is set');
     expect(composeCalls(s.w, 'up')).toHaveLength(0);
   });
 
@@ -187,7 +205,7 @@ describe.each(forGroup('new'))('local model launch ($name)', (l) => {
     writeFileSync(join(s.p.stateDir, 'local', 'base-url'), '');
     const r = startLocal(l, s);
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain('local-endpoint');
+    expect(r.stderr).toContain('No model server is set');
     expect(composeCalls(s.w, 'up')).toHaveLength(0);
   });
 
@@ -286,7 +304,7 @@ describe.each(forGroup('new'))('local model launch ($name)', (l) => {
       { env: { ...s.env, TEST_PLAYER_ID: ID } },
     );
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain('local-endpoint');
+    expect(r.stderr).toContain('No model server is set');
     expect(composeCalls(s.w, 'up')).toHaveLength(0);
   });
 

@@ -370,7 +370,7 @@ function Assert-PlayerReady([string]$Id) {
     if ($model -cnotmatch '^[A-Za-z0-9._:/-]+\z') { Die 1 local_no_model $Id }
     # The base URL must be a regular, non-empty file, not a link.
     $u = Get-Item -LiteralPath (Join-Path (Join-Path $d 'local') 'base-url') -Force -ErrorAction SilentlyContinue
-    if (-not ($u -and -not $u.PSIsContainer -and -not $u.LinkType -and $u.Length -gt 0)) { Die 1 local_no_endpoint $Id $Id }
+    if (-not ($u -and -not $u.PSIsContainer -and -not $u.LinkType -and $u.Length -gt 0)) { Die 1 local_no_endpoint $Id }
     # Defensive: Read-LocalFields refuses a missing context_tokens first.
     if (-not $script:PL_CTX) { Die 1 local_no_context $Id }
   } elseif ($script:PL_HARNESS -ceq 'claude' -and -not (Test-AuthUsable)) { Die 1 player_no_login }

@@ -10,7 +10,6 @@ Every message geldar-play prints has a section below, named by its key in `launc
 | `created` | The player's repository was made. The message names the next command, `setup`. |
 | `created_seeded` | The player was made from the persona you gave. It is already born, so `setup` is not needed; the next command is `play`. |
 | `chatgpt_created` | The seeded ChatGPT player was made. Connect it with `chatgpt-login`, list its models with `chatgpt-models`, then select a model before `start`. |
-| `local_created` | The seeded local player was made. Set its model, context size and image setting in `player.json` and commit them, then give its model server with `local-endpoint` and check it. |
 | `public_notice` | The player's repository is public, memory included. This is information, not a failure. |
 | `mock_note` | The player was made with --mock. A mock player plays only through the dev-world setting (GELDAR_DEV_MCP_URL) or a world.conf whose `mcp_base` is the mock's address. This is information, not a failure. |
 | `many_players` | More than three players were started together. Each one uses your plan's limits, so start with one and watch. |
@@ -735,15 +734,15 @@ What it means. No usable ChatGPT model has been selected for this player.
 Why it is safe. The persistent player was not started, and no Claude model or API billing fallback was substituted.
 What to do. Run `chatgpt-models <id>`, then commit a returned slug as `declared_model` in `player.json`, or set `GELDAR_RUN_MODEL` before starting it.
 
+### local_unavailable
+What it means. The local harness was requested with `--cli local`. This release does not offer it.
+Why it is safe. Nothing was created, started or changed, and no remote call was made.
+What to do. Create the player without `--cli local`. Nothing in this release sets up a local player for you.
+
 ### local_persistent
-What it means. The local model was requested through a birth, single-day or host run command it does not support.
+What it means. A local player was asked to run `play` or `run`. Local players are persistent.
 Why it is safe. No local mind was launched through the Claude-only session path.
 What to do. Seed the persona first, set the model and the model server, then use `start`, `stop` and `restart`.
-
-### local_persona
-What it means. A new local player was requested without a seeded persona.
-Why it is safe. No remote player repository was created for this incomplete request.
-What to do. Supply `--persona-dir` with the player's identity and goals before starting it.
 
 ### local_no_model
 What it means. No usable model name is set for this local player.
@@ -751,9 +750,9 @@ Why it is safe. The persistent player was not started, and no other model was su
 What to do. Set `declared_model` in `player.json` to the model name your server serves and commit it, or set `GELDAR_RUN_MODEL` before starting it.
 
 ### local_no_endpoint
-What it means. No model server is stored for this local player.
+What it means. No model server is stored for this local player: the base URL file in its state folder is missing, empty or a link.
 Why it is safe. The launcher refused before starting the persistent player. The server's address is kept outside the repository, so nothing was written to it.
-What to do. Run `geldar-play local-endpoint <id> --url <base-url>` on the Docker host with your model server's address, then retry `start`. Use a host name such as `host.docker.internal`, not `localhost`.
+What to do. Put the model server's base URL in that state-folder file, as a single line, then retry `start`. Nothing in this release writes that file for you.
 
 ### local_no_context
 What it means. This local player has no usable `context_tokens` setting in its committed `player.json`.

@@ -423,7 +423,6 @@ verb_new() {
   done
   # --kit-version only means something with --repo: it names the template release to copy.
   if [ "${GP_CLI:-claude}" = chatgpt ] && [ -z "$have_persona" ]; then die 1 chatgpt_persona; fi
-  if [ "${GP_CLI:-claude}" = local ] && [ -z "$have_persona" ]; then die 1 local_persona; fi
   if [ -n "$kit" ] && [ -z "$repo" ]; then die 1 kit_version_bad; fi
   [[ $shard =~ $shre ]] || die 1 bad_shard
   if [ -n "$mock" ]; then
@@ -530,8 +529,6 @@ EOF
   fi
   if [ "${GP_CLI:-claude}" = chatgpt ]; then
     say chatgpt_created "$id" "$id"
-  elif [ "${GP_CLI:-claude}" = local ]; then
-    say local_created "$id" "$id"
   elif [ -n "$have_persona" ]; then
     say created_seeded "$id" "$id"
   else
