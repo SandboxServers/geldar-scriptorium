@@ -60,7 +60,7 @@ Naming rule: the tails of the generated validators come from `title` and union `
 
 **Size (every card):** Haiku-class coder, at most about 50k working tokens including reading, checks and the report. Review, fix and ops usage is separate. A card that grows past that is split before dispatch (done below: AN-26, AN-27, AN-28, AN-47, AN-51).
 
-**Worknote path:** `docs/analysis/character-sheet/worknotes/<id>.md` (new directory unless geldar A created it; to confirm). **Worktree:** `C:\Users\Steve\source\projects\geldar\.claude\worktrees\an-<nn>` (the brief supplies the absolute path). **Branch:** `codex/an-<nn>-<slug>` from the named wave branch.
+**Worknote path:** `docs/analysis/character-sheet/worknotes/<id>.md` (new directory unless geldar A created it; to confirm). **Worktree:** `<geldar checkout>\.claude\worktrees\an-<nn>` (the brief supplies the absolute path). **Branch:** `codex/an-<nn>-<slug>` from the named wave branch.
 
 **Number rule:** ADR, migration and prompt numbers are never allocated by a card. Each card writes `<allocate via registry>` and the orchestrator fills it, using `docs/analysis/phase1/packets/decision-number-registry.md`.
 

@@ -17,7 +17,7 @@ Per D-SC-09, on the machine that runs `geldar-play`:
 
 ## The three world values
 
-The real world's address and port are set in [launcher/config/world.conf](../launcher/config/world.conf), to `mcp.geldar.sandboxservers.games` over TLS on the default port 443 (`mcp_port` is blank). The private-only shard list is blank for now: every shard is watched, and the list is revisited later. The file is read as data (`key=value`), never sourced. If the owner blanks a value, the launcher refuses or narrows what it does:
+The real world's address and port are set in [launcher/config/world.conf](../launcher/config/world.conf), to `mcp.geldar.sandboxservers.games` over TLS on the default port 443 (`mcp_port` is blank). The private-only shard list is blank for now: no shard is private-only, and the list is revisited later. The file is read as data (`key=value`), never sourced. If the owner blanks a value, the launcher refuses or narrows what it does:
 
 | Key | What it is | While blank |
 |---|---|---|

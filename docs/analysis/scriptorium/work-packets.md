@@ -169,7 +169,7 @@ SC-01 first. Then SC-02 to SC-05 in parallel from the wave branch after SC-01 me
 ### SC-01 — Workspace, toolchain, repo checks, `scriptorium.ps1`
 
 - **Branch** `scriptorium/sc-01-workspace`, worktree `sc-01`. Commit: `chore: scaffold the pnpm workspace, toolchain and repo checks`.
-- **Source of copies.** The geldar repo is at `C:/Users/Steve/source/projects/geldar`. Copy from its **`origin/main`**, never its working tree (it may have uncommitted work): `git -C C:/Users/Steve/source/projects/geldar show origin/main:<path>`. Write each copy with LF endings.
+- **Source of copies.** The geldar repo is at `<geldar checkout>`. Copy from its **`origin/main`**, never its working tree (it may have uncommitted work): `git -C <geldar checkout> show origin/main:<path>`. Write each copy with LF endings.
 - **Copy unchanged:** `biome.json`, `tsconfig.base.json`, `vitest.config.ts`, `.nvmrc`, `.editorconfig`, `.gitattributes`, `.gitignore`, and every file under `tools/repo-checks/` (list them with `git -C <geldar> ls-tree -r --name-only origin/main tools/repo-checks`).
 - **Create `package.json`:** copy geldar's, then change:
   - `name` to `geldar-scriptorium`;
