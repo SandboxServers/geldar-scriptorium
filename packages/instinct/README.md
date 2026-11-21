@@ -11,7 +11,9 @@ optionally sends one act, saves its store and writes one audit line. Its result 
 
 ## Files (under `GELDAR_INSTINCT_STATE`)
 
-- `sheet.json` is read only. Its values never reach a result, a fact or the audit line.
+- `sheet.json` is read only. Its values do not reach a result or a fact. The audit line does carry the per-roll
+  `score`, `dc`, `bonus` and `dice` (`rolls`), so `instinct.jsonl` is not neutral: it lives in the supervisor volume,
+  which is not mounted in `/player`, and the supervisor must keep `rolls` out of anything the agent reads.
 - `state.json` is the kit-local store, written atomically at mode 0600. A file of the wrong shape is renamed
   `state.json.bad` and an empty state is used.
 - `instinct.jsonl` is the audit, one line per run, one directory up from the state directory.
@@ -21,6 +23,9 @@ optionally sends one act, saves its store and writes one audit line. Its result 
 `GELDAR_MCP_URL` (the world, http or https, no credentials), `GELDAR_MCP_TOKEN`, `GELDAR_HARNESS`,
 `GELDAR_RUN_MODEL`, `GELDAR_INSTINCT_ARM`, `GELDAR_INSTINCT_FAILURE_CAP` (4), `GELDAR_INSTINCT_MAX_PICKS` (3),
 `GELDAR_INSTINCT_THINK_P` (0.25), `GELDAR_INSTINCT_ROLLS` (`on` or `off`). The numbers are first guesses, unmeasured.
+
+`GELDAR_INSTINCT` is the off-by-default switch for the step. The code does not read it yet, and nothing invokes the
+step, so setting it changes nothing.
 
 ## Open issue: a wait advances the shared delivered mark
 
