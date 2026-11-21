@@ -1,15 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -36,8 +26,13 @@ function kit(script: string, extra: string[] = [], input?: string) {
   });
 }
 
+// gc.auto and maintenance.auto are off so the commit never spawns a detached `git maintenance`,
+// which holds objects/maintenance.lock while openForContainer walks the tree (#131).
 function git(cwd: string, args: string[]): string {
-  const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const result = spawnSync('git', ['-c', 'gc.auto=0', '-c', 'maintenance.auto=false', ...args], {
+    cwd,
+    encoding: 'utf8',
+  });
   if (result.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${result.stderr}`);
   return result.stdout;
 }
@@ -66,7 +61,7 @@ function makeWorkspace(): string {
 
 function removeWorkspace(dir: string): void {
   openForContainer(dir);
-  rmSync(dir, { recursive: true, force: true });
+  rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }
 
 // Runs one hook script with the workspace at /player and the hooks read-only at /hooks.
