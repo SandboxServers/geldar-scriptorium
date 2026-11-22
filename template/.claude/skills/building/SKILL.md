@@ -19,7 +19,7 @@ Many blocks, in one plan:
 The plan runs in the background. You may do other things, and it pauses when you must react. It carries on after.
 
 Read before you plan:
-- `survey` takes a `box` with `from` and `to` corners. It answers in layers by height, with a legend and the age of each run in game minutes. Cells you have not seen read `unknown`. A reply that is too big is cut and marked `truncated`: ask for a smaller box.
+- `survey` takes a `box` with `from` and `to` corners, and an optional `layers` count from the lowest. It answers in layers by height, with a legend and the age of each run in game minutes. Cells you have not seen read `unknown`. A reply that is too big is cut and marked `truncated`: ask for a smaller box.
 - What you have seen is kept, and the next life can read it too.
 - `plan_check` takes a plan and tells you the cell count, what materials you need against what you have, the unknown cells, the time it needs and any invalid steps. Fix those before you send it.
 
