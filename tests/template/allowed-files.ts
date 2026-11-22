@@ -25,6 +25,7 @@ export const allowedFiles: readonly string[] = [
   'template/.claude/skills/reading-your-status/SKILL.md',
   'template/.claude/skills/escape-a-pit/SKILL.md',
   'template/.claude/skills/farming-and-animals/SKILL.md',
+  'template/.claude/skills/building/SKILL.md',
   'template/.claude/skills/intents-and-limits/SKILL.md',
   'template/.claude/skills/eating-and-hunger/SKILL.md',
   'template/.claude/skills/night-safety/SKILL.md',
