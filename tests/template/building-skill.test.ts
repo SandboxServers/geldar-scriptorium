@@ -29,6 +29,12 @@ describe('building skill', () => {
     }
   });
 
+  it('explains the survey age mark, the inherited mark and the unseen-cell report', () => {
+    expect(skill.text).toContain('@<min>');
+    expect(skill.text).toContain('trailing `i`');
+    expect(skill.text).toContain('cell not as expected');
+  });
+
   it('has no nudge words', () => {
     expect(skill.text.match(nudge)).toBeNull();
   });

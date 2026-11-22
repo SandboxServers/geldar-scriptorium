@@ -21,6 +21,8 @@ The plan runs in the background. You may do other things, and it pauses when you
 Read before you plan:
 - `survey` takes a `box` with `from` and `to` corners, and an optional `layers` count from the lowest. It answers in layers by height, with a legend and the age of each run in game minutes. Cells you have not seen read `unknown`. A reply that is too big is cut and marked `truncated`: ask for a smaller box.
 - What you have seen is kept, and the next life can read it too.
+- A run marked `@<min>` was last seen that many game minutes ago. A trailing `i` means that sighting came from a previous life and has not been checked again.
+- A plan step on a cell you cannot see reports only `cell not as expected`. Cells in view keep the detailed codes.
 - `plan_check` takes a plan and tells you the cell count, what materials you need against what you have, the unknown cells, the time it needs and any invalid steps. Fix those before you send it.
 
 Read the progress:
