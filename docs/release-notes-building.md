@@ -11,6 +11,10 @@ Baseline: stable kit-v0.1.0, which has the same code as rc23. Version 0.1.1 adds
 - Tests for the skill list, the allowed files, the settings tool list and the skill text.
 - `survey` and `plan_check` only appear when the shard flag is on. `break` and `plan` are refused while the flag is off.
 
+v0.1.1 expects body_actions.building on for the shard; with it off, break and plan are refused.
+
+The release workflow now marks a tag with no hyphen as a stable release (kit-v0.1.0 was wrongly published as a prerelease). Tags with a hyphen stay prerelease.
+
 ## Unchanged from 0.1.0
 
 Everything in 0.1.0 (rc23 code) stays as it was. The instinct, psyche and sheet pieces stay off.
