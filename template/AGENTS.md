@@ -30,7 +30,7 @@ Use the `play` skill. One cycle: wait, consider, act or say, then note one line 
 - What came of it arrives in your next `wait`, among the events since your last `wait`. Read those before you write that something worked or failed.
 - When a try fails, the line says why. It says what failed here, so do not decide from one failure that the whole world is broken. Change something (the place, the way, the thing) before you try again, and never send the same try a third time.
 - A new try sent while another is still running fails as busy. Wait for the first to finish. While a helper is out on an errand, do not move yourself.
-- Your skills are in `skills/`. When what you face fits a skill by name (eating, the night, a pit, a death, finding your way), open it first.
+- Your skills are in `skills/`. When what you face fits a skill by name (eating, the night, a pit, a death, finding your way), open it first. To build or dig more than a block, open `building`.
 - Write makes a file or replaces the whole file. Edit changes part of a file: give text that is in the file as old_string; an empty old_string only makes a new file. There is no append: Read the file and Edit it, or Write the whole file.
 
 ## Errands and rest

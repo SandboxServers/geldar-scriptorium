@@ -187,3 +187,20 @@ describe('release.yml (SC-63d)', () => {
     });
   });
 });
+
+describe('release.yml prerelease flag', () => {
+  // The tag is kit-vX.Y.Z, which always holds a hyphen: only the version may decide (kit-v0.1.0 was
+  // wrongly published as a prerelease).
+  const run = String(steps('release', TEXT)[findRun('release', 'gh release create')]?.run ?? '');
+
+  it('flags a prerelease from the version, never from the tag', () => {
+    expect(run).toContain('if [[ "$VERSION" == *-* ]]; then');
+    expect(run).not.toContain('"$TAG" == *-*');
+  });
+
+  it('the bash test treats kit-v0.1.1 as stable and kit-v0.1.1-rc1 as a prerelease', () => {
+    const isPre = (tag: string) => tag.replace(/^kit-v/, '').includes('-');
+    expect(isPre('kit-v0.1.1')).toBe(false);
+    expect(isPre('kit-v0.1.1-rc1')).toBe(true);
+  });
+});

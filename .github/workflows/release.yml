@@ -315,7 +315,7 @@ jobs:
               cosign verify-blob --bundle geldar-play-$VERSION.tar.gz.sigstore.json --certificate-identity-regexp '^https://github\.com/SandboxServers/geldar-scriptorium/\.github/workflows/release\.yml@refs/tags/kit-v' --certificate-oidc-issuer https://token.actions.githubusercontent.com geldar-play-$VERSION.tar.gz
           NOTES
           flags=()
-          if [[ "$TAG" == *-* ]]; then
+          if [[ "$VERSION" == *-* ]]; then
             flags+=(--prerelease)
           fi
           gh release create "$TAG" --verify-tag --title "Kit $VERSION" --notes-file notes.md "${flags[@]}" assets/*

@@ -49,6 +49,8 @@ const worldTools = [
   'sleep',
   'journal',
   'status',
+  'survey',
+  'plan_check',
 ].map((tool) => `mcp__geldar__${tool}`);
 const companionTools = ['mcp__geldar_memory__recall', 'mcp__geldar_git__commit_memory'];
 // The player may open its own skills by name, and no other: the owner-side setup skill and the
