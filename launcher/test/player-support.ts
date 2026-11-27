@@ -64,7 +64,7 @@ export const DOCKER_STUB = [
   '        dst=${m##*:}',
   '        src=${m%:*}',
   '        case $src in *\\\\*) src=$(printf "%s" "$src" | tr "\\\\" "/") ;; esac',
-  '        case $src in */* | *\*) ;; *) src="$FAKE_DOCKER_ROOT/vol/$src"; mkdir -p "$src" ;; esac',
+  '        case $src in */*) ;; *) src="$FAKE_DOCKER_ROOT/vol/$src"; mkdir -p "$src" ;; esac',
   '        case $dst in /in) vin=$src ;; /player) vpl=$src ;; /vol) vvol=$src ;; /out) vout=$src ;; esac',
   '        shift 2',
   '        ;;',
