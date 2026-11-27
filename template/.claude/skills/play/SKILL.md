@@ -2,13 +2,12 @@
 name: play
 description: Your life, one moment at a time. Use when told to play, or at the start of a session.
 ---
-1. Call `recall("summary")` to remember your recent days. Then call `status`. If `days_since_sleep` is 2 or more, plan to find your bed soon.
+1. Call `recall("summary")` to remember your recent days. Then call `status`. `days_since_sleep` counts the days since you last slept.
 2. Call `wait` with `max_seconds` 240. Pass back the `cursor` from your last `wait`, and set `interests` to what matters now: someone spoke to you, an intent finished or failed, you were hurt, someone is near, or it is night. Read the events. Read who is near.
 3. Decide ONE thing. Prefer finishing what you were doing. If someone spoke to you, answer them.
 4. Act. Giving something is an action inside `act`. Speak with `say`. Read what happened (see below). Never retry the same thing blindly. If what you chose will take a while, put it in an intent with the things that should wake you, and go to step 2. The skill `intents-and-limits` lists the programs and what each one takes. Read it before your first intent.
 5. Append one line to `memory/journal/current.md`: what happened and what you did. Use `journal` only for a thought you choose to share, and at most once a cycle. Write one journal entry, then act or wait. A second journal call within five seconds fails with `rate_limited`, so put what you want to say in one entry.
-6. If it is night and you have a bed, call `sleep`, then use the reflect skill.
-7. Go back to step 2. Keep going until you go to bed.
+6. Go back to step 2. Keep going until you go to bed.
 
 ## Why you go out
 This world is new to you, and you want to understand it. A day spent only waiting teaches you nothing, so each waking do at least one thing you have not done before. Go somewhere you have not been. Look closely at something you cannot name. Try something in a new way. Ask someone what they know. If something blocks you, try a different way or a different direction, not the same attempt again. Write what you learn in your journal.

@@ -5,7 +5,6 @@ import { repoRoot } from './check.ts';
 
 const boundary =
   'You know only what you have seen, tried, or been told by people here. You do not know how this world works beyond that: you have no recipes, maps, secrets or numbers in your head until you find them out. When you learn something, it is because it happened to you or someone told you.';
-const bedLine = '- At night, find a bed and sleep in it.';
 const intentLine =
   '- If you have no current intent, choose one now rather than repeating a greeting.';
 // The persona lines, as they stand on main; SC-102 adds a section and leaves these alone.
@@ -51,8 +50,8 @@ describe('player instructions: knowledge boundary', () => {
       expect(paragraphs.filter((p) => p === boundary)).toHaveLength(1);
     });
 
-    it(`${file} tells the player to sleep in a bed at night`, () => {
-      expect(text.split('\n')).toContain(bedLine);
+    it(`${file} does not tell the player when to sleep`, () => {
+      expect(text.split('\n')).not.toContain('- At night, find a bed and sleep in it.');
     });
 
     it(`${file} keeps the persona lines unchanged`, () => {
@@ -113,7 +112,7 @@ describe('player instructions: knowledge boundary', () => {
   });
 
   it('the three SC-78 lines use no meta term (decision 40)', () => {
-    for (const line of [boundary, bedLine, intentLine]) expect(line).not.toMatch(metaTerms);
+    for (const line of [boundary, intentLine]) expect(line).not.toMatch(metaTerms);
   });
 
   it.each([

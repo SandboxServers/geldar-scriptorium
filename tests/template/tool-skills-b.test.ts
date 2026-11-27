@@ -14,7 +14,7 @@ const numericClauses: Record<string, string[]> = {
     'hunger is 6 or lower',
     'At hunger 20',
   ],
-  'night-safety': ['at least 50 percent', 'hunger is 4 or lower'],
+  'night-safety': ['about a tenth of the people', 'hunger is 4 or lower'],
 };
 
 describe.each(names)('tool skill %s', (name) => {
