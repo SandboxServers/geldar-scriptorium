@@ -23,6 +23,13 @@ import {
 // Each test runs once per launcher; the player-status tests need a double quote in a docker argument,
 // which the .cmd shims on Windows refuse, so pwsh there skips them visibly.
 
+// The docker runs of the key helper that hands the private key to the keeper (its name has geldar-keychown).
+const chownRuns = (s: ReturnType<typeof setup>) =>
+  s.w.calls().filter((c) => c[0] === 'run' && c.includes(`geldar-keychown-${ID}`));
+// The values that follow each occurrence of a docker flag, in one run's arguments.
+const flagValues = (c: string[], flag: string) =>
+  c.flatMap((a, i) => (c[i - 1] === flag ? [a] : []));
+
 for (const l of launchers) {
   describe(l.name, () => {
     it('start refuses without a deploy key, a token file or a usable login', { timeout: T }, () => {
@@ -131,6 +138,57 @@ for (const l of launchers) {
       expect(r.stderr).toContain('A new deploy key was made');
       expect(readFileSync(join(s.p.stateDir, 'deploy-key'), 'utf8')).toContain('STUBPRIVATE2');
       expect(r.stdout + r.stderr).not.toContain('PRIVATE');
+    });
+
+    it('deploy-key hands the new key to the keeper uid through a root helper that adds only CHOWN and FOWNER', {
+      timeout: T,
+    }, () => {
+      const s = setup(l, { key: false });
+      const r = s.go('deploy-key', ID);
+      expect(r.status, r.stderr).toBe(0);
+      const runs = chownRuns(s);
+      expect(runs).toHaveLength(1);
+      const [run] = runs;
+      expect(flagValues(run ?? [], '--user')).toEqual(['0:0']);
+      expect(flagValues(run ?? [], '--cap-drop')).toEqual(['ALL']);
+      expect(flagValues(run ?? [], '--cap-add')).toEqual(['CHOWN', 'FOWNER']);
+      expect(readFileSync(join(s.w.dockerRoot, 'chown-calls.log'), 'utf8')).toContain('1002:1002 ');
+      expectClean(s.w, r);
+    });
+
+    it('the key helper mounts only the key folder, never the token files', { timeout: T }, () => {
+      const s = setup(l, { key: false });
+      expect(s.go('deploy-key', ID).status).toBe(0);
+      const [run] = chownRuns(s);
+      const mounts = flagValues(run ?? [], '-v');
+      expect(mounts).toHaveLength(1);
+      expect(mounts[0]).toMatch(/keygen:\/out$/);
+      expect(mounts.join(' ')).not.toContain('token');
+      expect(readFileSync(join(s.p.stateDir, 'token'), 'utf8')).toBe(`${MCP}\n`);
+    });
+
+    it('a failing key helper stops deploy-key with its message and leaves no key', {
+      timeout: T,
+    }, () => {
+      const s = setup(l, { key: false });
+      writeFileSync(join(s.w.dockerRoot, 'chown-fail'), '');
+      const r = s.go('deploy-key', ID);
+      expect(r.status).toBe(1);
+      expect(r.stdout).toBe('');
+      expect(r.stderr).toContain('could not be made readable by the keeper');
+      expect(existsSync(join(s.p.stateDir, 'deploy-key'))).toBe(false);
+      expect(existsSync(join(s.p.stateDir, 'deploy-key.pub'))).toBe(false);
+      expect(existsSync(join(s.p.stateDir, 'keygen'))).toBe(false);
+      expectClean(s.w, r);
+    });
+
+    it('deploy-key without --rotate reuses the key and runs no key helper', { timeout: T }, () => {
+      const s = setup(l, { key: false });
+      expect(s.go('deploy-key', ID).status).toBe(0);
+      expect(chownRuns(s)).toHaveLength(1);
+      const again = s.go('deploy-key', ID);
+      expect(again.status, again.stderr).toBe(0);
+      expect(chownRuns(s)).toHaveLength(1);
     });
 
     it('player-status shows the supervisor and keeper status and the HELD reason', (ctx) => {

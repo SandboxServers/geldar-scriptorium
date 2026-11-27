@@ -10,6 +10,8 @@ $script:PL_NAME = ''
 $script:PL_SHARD = ''
 $script:PL_MODEL = ''
 $script:PL_KIT_IMAGE = ''
+# The keeper's uid: its image runs as it with every capability dropped, so its deploy key must be owned by it.
+$script:PL_KEEPER_UID = 1002
 
 function Read-FirstLine([string]$Path) {
   $t = [System.IO.File]::ReadAllText($Path, [System.Text.UTF8Encoding]::new($false))
@@ -432,8 +434,8 @@ function Verb-player_status {
   [Console]::Out.Write("supervisor status:`n")
   Write-PlayerStatusPart $id 'supervisor' "geldar-sup-$id" 1001 'cat /vol/status.json'
   [Console]::Out.Write("keeper status:`n")
-  Write-PlayerStatusPart $id 'keeper' "geldar-keep-$id" 1002 'grep -E "\"(last_pushed_head|last_run_utc|upstream_head|upstream_result)\"" /vol/status.json'
-  $held = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" 1002 'ro' 'cat /vol/HELD'
+  Write-PlayerStatusPart $id 'keeper' "geldar-keep-$id" $script:PL_KEEPER_UID 'grep -E "\"(last_pushed_head|last_run_utc|upstream_head|upstream_result)\"" /vol/status.json'
+  $held = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" $script:PL_KEEPER_UID 'ro' 'cat /vol/HELD'
   if ($held.Code -eq 0) { Say player_held (Sanitize ($held.Text.TrimEnd("`r", "`n"))) }
 }
 
@@ -480,6 +482,15 @@ function New-PlayerKey([string]$Id, [string]$Dir) {
   }
   Set-PlayerOwnerOnly $keyPath '(F)'
   Set-PlayerOwnerOnly "$keyPath.pub" '(F)'
+  # The keeper reads the key as its own uid with no capability: a root helper that adds only CHOWN and
+  # FOWNER hands the private key to it. It sees only this folder, opened to traversal (POSIX; Windows has no uid).
+  if (-not $IsWindows) { & chmod 711 $tmp }
+  $keeper = $script:PL_KEEPER_UID
+  $r = Invoke-PlayerHelper 'key' "geldar-keychown-$Id" @('--user', '0:0', '--cap-add', 'CHOWN', '--cap-add', 'FOWNER', '-v', "${tmp}:/out") "chown ${keeper}:${keeper} /out/deploy-key && chmod 0600 /out/deploy-key"
+  if ($r.Code -ne 0) {
+    Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    Die 1 player_key_chown_failed $Id
+  }
   Move-Item -LiteralPath $keyPath -Destination (Join-Path $Dir 'deploy-key') -Force
   Move-Item -LiteralPath "$keyPath.pub" -Destination (Join-Path $Dir 'deploy-key.pub') -Force
   Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
@@ -513,10 +524,10 @@ function Verb-release_hold {
   $id = [string]$args[0]
   Read-Player $id
   $cleared = $false
-  $held = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" 1002 'ro' 'cat /vol/HELD'
+  $held = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" $script:PL_KEEPER_UID 'ro' 'cat /vol/HELD'
   if ($held.Code -eq 0) {
     Say player_held (Sanitize ($held.Text.TrimEnd("`r", "`n")))
-    $rm = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" 1002 'rw' 'rm -f /vol/HELD'
+    $rm = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" $script:PL_KEEPER_UID 'rw' 'rm -f /vol/HELD'
     if ($rm.Code -ne 0) { Die 1 player_release_failed $id }
     $cleared = $true
   }
@@ -545,7 +556,7 @@ function Verb-sync {
   $id = [string]$args[0]
   Read-Player $id
   if (-not (Test-PlayerRunning $id)) { Die 1 player_not_running $id }
-  $r = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" 1002 'rw' 'touch /vol/sync-request'
+  $r = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" $script:PL_KEEPER_UID 'rw' 'touch /vol/sync-request'
   if ($r.Code -ne 0) { Die 1 player_sync_failed $id }
   Say player_sync_requested $id
 }
