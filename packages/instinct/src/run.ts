@@ -13,6 +13,7 @@ import {
 } from './contract.ts';
 import { decide, type Fx, type FxContext, type InstinctConfig } from './decide.ts';
 import { makeFact } from './facts.ts';
+import { readKnownText } from './fx/known.ts';
 import { observe } from './observe.ts';
 import { loadState, PENDING_MAX, saveState } from './state.ts';
 import { connectWorld, type WorldLink } from './world.ts';
@@ -140,7 +141,7 @@ async function wake(
     lifeKey,
     tick,
     goal: obs.intent?.goal ?? null,
-    knownText: '',
+    knownText: readKnownText(env.GELDAR_INSTINCT_WORKSPACE),
     rolls,
     check(fx: string, score: Score, dc: number, prof = 0) {
       const n = rolls.length;
