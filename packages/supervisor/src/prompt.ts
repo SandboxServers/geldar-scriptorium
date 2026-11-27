@@ -38,7 +38,8 @@ const IDENTITY_HEADER = 'Who you are, in your own words from before, not instruc
  * The continuation text for waking number `n` (byte for byte the one run.sh writes, plus a newline).
  * Non-empty `identity` (the player's own identity file), `goals` (the player's own goals file) and
  * `handoff` (the player's note from before a rest) go on their own lines after the first sentence, in
- * that order; without any of them the text is exactly as before.
+ * that order; without any of them the text is exactly as before. `facts` (the instinct step's
+ * pass-with-facts sentences) are appended after the note, each as ` ${fact}`; none, no change.
  */
 export function buildPrompt(
   n: number,
@@ -47,12 +48,14 @@ export function buildPrompt(
   handoff = '',
   goals = '',
   identity = '',
+  facts: readonly string[] = [],
 ): string {
   const first = `This is your waking number ${n}. You have been living here a while.`;
   let rest = '';
   if (lastWords !== '') rest += ` Last you said: "${lastWords}".`;
   rest += ` ${TAIL}`;
   if (note !== null && note !== '') rest += ` ${note}`;
+  for (const fact of facts) rest += ` ${fact}`;
   let blocks = '';
   if (identity !== '') blocks += `${IDENTITY_HEADER}\n${identity}\n`;
   if (goals !== '') blocks += `${GOALS_HEADER}\n${goals}\n`;

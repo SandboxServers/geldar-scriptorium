@@ -9,6 +9,7 @@
     "./cli": "./src/cli.ts"
   },
   "dependencies": {
+    "@geldar/scriptorium-instinct": "workspace:*",
     "@geldar/scriptorium-verify": "workspace:*"
   },
   "scripts": {

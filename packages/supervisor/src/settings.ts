@@ -41,6 +41,20 @@ export interface Settings {
   cliHome: string;
   playerUid: number;
   playerGid: number;
+  /** The instinct step (HC-19): off unless GELDAR_INSTINCT is `on`. */
+  instinct: InstinctSettings;
+}
+
+/** The GELDAR_INSTINCT_* settings (same names, defaults and bounds as the instinct contract). */
+export interface InstinctSettings {
+  enabled: boolean;
+  arm: string;
+  failureCap: number;
+  maxPicks: number;
+  thinkP: number;
+  rolls: boolean;
+  sanity: boolean;
+  timeoutSecs: number;
 }
 
 type Env = Readonly<Record<string, string | undefined>>;
@@ -57,6 +71,32 @@ function id(env: Env, name: string): number {
   const raw = env[name] ?? '1000';
   if (!/^[0-9]{1,9}$/.test(raw)) throw new SettingError(name);
   return Number.parseInt(raw, 10);
+}
+
+/** A switch that is `on` or `off`; the default when unset. */
+function onOff(env: Env, name: string, fallback: 'on' | 'off'): boolean {
+  const raw = env[name] ?? fallback;
+  if (raw !== 'on' && raw !== 'off') throw new SettingError(name);
+  return raw === 'on';
+}
+
+/** The GELDAR_INSTINCT_* fields. `off` by default: with no GELDAR_INSTINCT the step never runs. */
+function instinctSettings(env: Env): InstinctSettings {
+  const enabled = onOff(env, 'GELDAR_INSTINCT', 'off');
+  const arm = env.GELDAR_INSTINCT_ARM ?? 'instinct';
+  if (!/^[a-z][a-z0-9-]{0,30}$/.test(arm)) throw new SettingError('GELDAR_INSTINCT_ARM');
+  const thinkText = env.GELDAR_INSTINCT_THINK_P ?? '0.25';
+  if (!/^(0|1|0\.[0-9]{1,3})$/.test(thinkText)) throw new SettingError('GELDAR_INSTINCT_THINK_P');
+  return {
+    enabled,
+    arm,
+    failureCap: num(env, 'GELDAR_INSTINCT_FAILURE_CAP', 4, 1, 20),
+    maxPicks: num(env, 'GELDAR_INSTINCT_MAX_PICKS', 3, 1, 20),
+    thinkP: Number(thinkText),
+    rolls: onOff(env, 'GELDAR_INSTINCT_ROLLS', 'on'),
+    sanity: onOff(env, 'GELDAR_INSTINCT_SANITY', 'on'),
+    timeoutSecs: num(env, 'GELDAR_INSTINCT_TIMEOUT', 60, 1, 600),
+  };
 }
 
 /** The local-harness fields: checked only when the harness is `local`, empty or zero otherwise. */
@@ -127,6 +167,7 @@ export function readSettings(env: Env): Settings {
     cliHome: env.GELDAR_CLI_HOME ?? '/cli-home',
     playerUid: id(env, 'GELDAR_PLAYER_UID'),
     playerGid: id(env, 'GELDAR_PLAYER_GID'),
+    instinct: instinctSettings(env),
   };
 }
 

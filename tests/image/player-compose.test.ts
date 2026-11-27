@@ -346,3 +346,26 @@ describe('player compose: the local harness names', () => {
     expect(compose).not.toMatch(/GELDAR_LOCAL_API_KEY=/);
   });
 });
+
+describe('player compose: the instinct names', () => {
+  it('compose: the player service lists the eight names and the keeper none', () => {
+    const names = [
+      'GELDAR_INSTINCT',
+      'GELDAR_INSTINCT_ARM',
+      'GELDAR_INSTINCT_FAILURE_CAP',
+      'GELDAR_INSTINCT_MAX_PICKS',
+      'GELDAR_INSTINCT_THINK_P',
+      'GELDAR_INSTINCT_ROLLS',
+      'GELDAR_INSTINCT_SANITY',
+      'GELDAR_INSTINCT_TIMEOUT',
+    ];
+    const player = envNames('player');
+    for (const name of names) expect(player).toContain(name);
+    expect(player.filter((e) => e.startsWith('GELDAR_INSTINCT'))).toHaveLength(names.length);
+    for (const other of services.filter((s) => s !== 'player')) {
+      expect(envNames(other).filter((e) => e.startsWith('GELDAR_INSTINCT'))).toEqual([]);
+    }
+    // Name-only entries: no value follows any instinct name in the file.
+    expect(compose).not.toMatch(/GELDAR_INSTINCT[A-Z_]*=/);
+  });
+});

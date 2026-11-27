@@ -16,6 +16,19 @@ export interface ExecSpec {
   promptPath?: string;
 }
 
+/**
+ * One process of the supervisor's own user (the instinct step's `geldar-instinct`): no setpriv, its
+ * stdout goes to `stdoutPath` (0600) and nothing else is inherited.
+ */
+export interface SelfSpec {
+  file: string;
+  args: string[];
+  env: Record<string, string>;
+  cwd: string;
+  stdoutPath: string;
+  timeoutMs: number;
+}
+
 /** The director hook (wave 12 plugs in): may return a note for the prompt, or null. */
 export interface RunContext {
   run: number;
@@ -30,6 +43,8 @@ export interface Deps {
   sleep(seconds: number, wake: () => boolean): Promise<void>;
   /** Runs one child to the end and returns its exit code (1 when it cannot start). */
   exec(spec: ExecSpec): Promise<number>;
+  /** Runs one of the supervisor's own children to the end (see SelfSpec); 124 when it was killed for the timeout. */
+  execSelf(spec: SelfSpec): Promise<number>;
   /** Calls `fn` every `ms` until the returned function is called. */
   every(ms: number, fn: () => void): () => void;
   /** True when a process with this pid exists. */
@@ -130,7 +145,40 @@ export function createExec(spawnFn: SpawnFn): (spec: ExecSpec) => Promise<number
     });
 }
 
+/** Builds the execSelf dependency over a spawn function: no setpriv, SIGKILL at the timeout. */
+export function createExecSelf(spawnFn: SpawnFn): (spec: SelfSpec) => Promise<number> {
+  return (spec) =>
+    new Promise((resolve) => {
+      let out: number | null = null;
+      let timer: NodeJS.Timeout | undefined;
+      let killed = false;
+      const finish = (code: number): void => {
+        clearTimeout(timer);
+        if (out !== null) closeSync(out);
+        out = null;
+        resolve(code);
+      };
+      try {
+        out = openSync(spec.stdoutPath, 'w', 0o600);
+        const child = spawnFn(spec.file, spec.args, {
+          env: spec.env,
+          cwd: spec.cwd,
+          stdio: ['ignore', out, 'ignore'],
+        });
+        timer = setTimeout(() => {
+          killed = true;
+          child.kill('SIGKILL');
+        }, spec.timeoutMs);
+        child.once('error', () => finish(1));
+        child.once('close', (code) => finish(killed ? 124 : (code ?? 1)));
+      } catch {
+        finish(1);
+      }
+    });
+}
+
 const realExec = createExec(spawn);
+const realExecSelf = createExecSelf(spawn);
 
 /** The real dependencies. */
 export function realDeps(): Deps {
@@ -138,6 +186,7 @@ export function realDeps(): Deps {
     now: () => Math.floor(Date.now() / 1000),
     sleep: realSleep,
     exec: realExec,
+    execSelf: realExecSelf,
     every: (ms, fn) => {
       const timer = setInterval(fn, ms);
       timer.unref();

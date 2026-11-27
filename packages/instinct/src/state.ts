@@ -9,6 +9,13 @@ export const TRIED_MAX = 8;
 export const PENDING_MAX = 3;
 export const HABITS_MAX = 5;
 
+/** The intent the instinct step submitted: its goal, program and the real arguments it sent. */
+export interface Submitted {
+  goal: string;
+  program: string;
+  arguments: Record<string, unknown>;
+}
+
 export interface InstinctState {
   v: 1;
   waking: number;
@@ -17,6 +24,8 @@ export interface InstinctState {
   tried: Record<string, string[]>;
   seen: string[];
   last_intent: { goal: string; program: string; arguments: Record<string, unknown> } | null;
+  /** The intent this step submitted and has not yet seen end (HC-21b). Absent in older files, read as null. */
+  submitted: Submitted | null;
   habits: Record<string, { program: string; arguments: Record<string, unknown>; n: number }[]>;
   pending_acts: string[];
   cursor: string | null;
@@ -31,6 +40,7 @@ export function emptyState(): InstinctState {
     tried: {},
     seen: [],
     last_intent: null,
+    submitted: null,
     habits: {},
     pending_acts: [],
     cursor: null,
@@ -43,6 +53,15 @@ function isObj(value: unknown): value is Record<string, unknown> {
 
 function isStrings(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((x) => typeof x === 'string');
+}
+
+function isSubmitted(value: unknown): value is Submitted {
+  return (
+    isObj(value) &&
+    typeof value.goal === 'string' &&
+    typeof value.program === 'string' &&
+    isObj(value.arguments)
+  );
 }
 
 function validState(value: unknown): value is InstinctState {
@@ -58,6 +77,9 @@ function validState(value: unknown): value is InstinctState {
   )
     return false;
   if (value.last_intent !== null && !isObj(value.last_intent)) return false;
+  // submitted is a {goal, program, arguments} object or null; a file from before it existed has no key (read as null).
+  if (value.submitted !== undefined && value.submitted !== null && !isSubmitted(value.submitted))
+    return false;
   // attempts are integer counts; habits are lists of {program, arguments, n}. Any other shape is corrupt (renamed .bad).
   const attemptsOk = Object.values(value.attempts).every((n) => Number.isSafeInteger(n));
   const habitsOk = Object.values(value.habits).every(
@@ -94,7 +116,7 @@ export function loadState(dir: string): InstinctState {
   if (!existsSync(file)) return emptyState();
   try {
     const value: unknown = JSON.parse(readFileSync(file, 'utf8'));
-    if (validState(value)) return value;
+    if (validState(value)) return { ...value, submitted: value.submitted ?? null };
   } catch {
     // fall through: a file that does not parse is corrupt like any other bad file
   }

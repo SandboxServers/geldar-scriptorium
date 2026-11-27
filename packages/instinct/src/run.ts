@@ -13,6 +13,9 @@ import {
 } from './contract.ts';
 import { decide, type Fx, type FxContext, type InstinctConfig } from './decide.ts';
 import { makeFact } from './facts.ts';
+import { readAdoptedGoal } from './fx/goal.ts';
+import { learnHabits, submittedFrom } from './fx/habits.ts';
+import { readKnownText } from './fx/known.ts';
 import { observe } from './observe.ts';
 import { loadState, PENDING_MAX, saveState } from './state.ts';
 import { connectWorld, type WorldLink } from './world.ts';
@@ -132,6 +135,7 @@ async function wake(
   const lifeKey = lifeKeyOf(env.GELDAR_MCP_URL ?? '');
   const tick = obs.tick ?? state.waking;
   const rolls: RollRecord[] = [];
+  const adopted = readAdoptedGoal(env.GELDAR_INSTINCT_WORKSPACE);
   const ctx: FxContext = {
     obs,
     sheet,
@@ -139,8 +143,8 @@ async function wake(
     cfg,
     lifeKey,
     tick,
-    goal: obs.intent?.goal ?? null,
-    knownText: '',
+    goal: obs.intent?.goal ?? adopted,
+    knownText: readKnownText(env.GELDAR_INSTINCT_WORKSPACE),
     rolls,
     check(fx: string, score: Score, dc: number, prof = 0) {
       const n = rolls.length;
@@ -181,7 +185,17 @@ async function wake(
       return value;
     },
   };
+  // Habits: a finished intent for the adopted goal is remembered once, before the decision reads them.
+  learnHabits(state, obs, adopted);
   const decided = decide(ctx, fxs);
+  // The intent this waking saw is the one the next waking's failure fx reads, so it is stored after decide.
+  if (obs.intent !== null) {
+    state.last_intent = obs.intent;
+    // A different intent seen means the one this step submitted is no longer the running one.
+    const sub = state.submitted;
+    if (sub !== null && (sub.goal !== obs.intent.goal || sub.program !== obs.intent.program))
+      state.submitted = null;
+  }
   let out: InstinctResult = decided;
   if (decided.kind === 'settle') {
     // Settle only when the world's reply is JSON with a non-empty accepted array; anything else is send_failed.
@@ -196,6 +210,9 @@ async function wake(
     } else {
       out = { ...decided, world: { accepted: true, line: OWN_ACT_LINE } };
       state.pending_acts = [OWN_ACT_LINE, ...state.pending_acts].slice(0, PENDING_MAX);
+      // The intent the world accepted from this step: habits replay its real arguments once it finishes.
+      const sent = submittedFrom(decided.act);
+      if (sent !== null) state.submitted = sent;
     }
   } else if (
     decided.kind === 'pass-with-facts' ||
@@ -216,6 +233,11 @@ async function wake(
     };
     state.pending_acts = [];
   }
+  // Picks in a row: only an accepted idle act counts; every other outcome starts the count again at 0.
+  state.picks_in_a_row =
+    decided.kind === 'settle' && out.kind === 'settle' && decided.fx === 'idle'
+      ? state.picks_in_a_row + 1
+      : 0;
   saveState(stateDir, state);
   return out;
 }
