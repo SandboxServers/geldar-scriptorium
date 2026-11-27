@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Fx } from './decide.ts';
 import { failureFx, problemKey } from './fx/failure.ts';
+import { idleFx } from './fx/idle.ts';
 import { lifeKeyOf, OWN_ACT_LINE, runInstinct } from './run.ts';
 import { emptyState, type InstinctState, loadState } from './state.ts';
 import type { WorldLink } from './world.ts';
@@ -219,5 +220,32 @@ describe('runInstinct with a world (injected connect and fx list)', () => {
     const { connect } = fakeWorld('{}', ACCEPTED);
     await runInstinct({ GELDAR_INSTINCT_STATE: stateDir, ...WORLD_ENV }, 6, new Date(), connect);
     expect(readFileSync(audit, 'utf8')).not.toMatch(SHEET_WORDS);
+  });
+
+  it('after maxPicks accepted idle picks the next run escalates max_picks', async () => {
+    const { stateDir } = volume();
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    const workspace = mkdtempSync(join(tmpdir(), 'instinct-ws-'));
+    mkdirSync(join(workspace, 'memory'));
+    writeFileSync(join(workspace, 'memory', 'goals.md'), '- find food\n');
+    writeState(stateDir, {
+      habits: { 'find food': [{ program: 'travel', arguments: { to: 'river' }, n: 1 }] },
+    });
+    const { connect, calls } = fakeWorld('{}', ACCEPTED);
+    const env = {
+      GELDAR_INSTINCT_STATE: stateDir,
+      GELDAR_INSTINCT_WORKSPACE: workspace,
+      GELDAR_INSTINCT_MAX_PICKS: '1',
+      GELDAR_INSTINCT_THINK_P: '0',
+      ...WORLD_ENV,
+    };
+    const first = await runInstinct(env, 1, new Date(), connect, [idleFx]);
+    expect(first).toMatchObject({ kind: 'settle', fx: 'idle' });
+    expect(loadState(stateDir).picks_in_a_row).toBe(1);
+    const second = await runInstinct(env, 2, new Date(), connect, [idleFx]);
+    // The second run sends no act (its pass carries the first act's own line as a fact, so only the act count is checked).
+    expect(second.kind).not.toBe('settle');
+    expect(calls.filter((name) => name === 'act')).toHaveLength(1);
+    expect(loadState(stateDir).picks_in_a_row).toBe(0);
   });
 });
