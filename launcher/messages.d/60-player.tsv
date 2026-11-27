@@ -9,6 +9,7 @@ player_stopped	%s is stopped. Its volumes are kept.
 player_no_status	The %s status cannot be read. It may not have started yet.
 player_held	The launch is held. Reason: %s
 player_key_failed	The deploy key for %s could not be made. The old key, if any, is kept.
+player_key_chown_failed	The deploy key for %s could not be made readable by the keeper. The old key, if any, is kept.
 player_key_rotated	A new deploy key was made for %s. The old key no longer works for the keeper.
 player_key_add	The public key above is the deploy key for the player. Add it to the player's repository with write access.
 player_not_held	%s is not held, so there is nothing to release.

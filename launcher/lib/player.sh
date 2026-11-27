@@ -3,6 +3,9 @@
 
 GP_GROUPS="$GP_GROUPS pre"
 
+# The keeper's uid: its image runs as it with every capability dropped, so its deploy key must be owned by it.
+PL_KEEPER_UID=1002
+
 # The reason text of held/info (only the reason= line, found with case, never sourced).
 held_reason() {
   local line reason=""
@@ -353,8 +356,8 @@ verb_player_status() {
   printf 'supervisor status:\n'
   pl_status_part "$id" supervisor "geldar-sup-$id" 1001 'cat /vol/status.json'
   printf 'keeper status:\n'
-  pl_status_part "$id" keeper "geldar-keep-$id" 1002 'grep -E "\"(last_pushed_head|last_run_utc|upstream_head|upstream_result)\"" /vol/status.json'
-  if reason=$(pl_helper "$id" keeper "geldar-keep-$id" 1002 ro 'cat /vol/HELD' 2> /dev/null); then
+  pl_status_part "$id" keeper "geldar-keep-$id" "$PL_KEEPER_UID" 'grep -E "\"(last_pushed_head|last_run_utc|upstream_head|upstream_result)\"" /vol/status.json'
+  if reason=$(pl_helper "$id" keeper "geldar-keep-$id" "$PL_KEEPER_UID" ro 'cat /vol/HELD' 2> /dev/null); then
     say player_held "$(printf '%s' "$reason" | sanitize)"
   fi
 }
@@ -398,6 +401,15 @@ pl_make_key() {
   fi
   [ -f "$tmp/deploy-key" ] && [ -f "$tmp/deploy-key.pub" ] || die 1 player_key_failed "$id"
   chmod 600 "$tmp/deploy-key" "$tmp/deploy-key.pub"
+  # The keeper reads the key as its own uid with no capability: a root helper that adds only CHOWN and
+  # FOWNER hands the private key to it. It sees only this folder, opened to traversal (the parent is 0700).
+  chmod 711 "$tmp"
+  if ! helper_run player-key "geldar-keychown-$id" "$PL_KIT_IMAGE" --user 0:0 --cap-add CHOWN --cap-add FOWNER \
+    -v "$tmp:/out" -- "chown $PL_KEEPER_UID:$PL_KEEPER_UID /out/deploy-key && chmod 0600 /out/deploy-key" \
+    > /dev/null 2>&1; then
+    rm -rf "$tmp"
+    die 1 player_key_chown_failed "$id"
+  fi
   mv -f "$tmp/deploy-key" "$d/deploy-key"
   mv -f "$tmp/deploy-key.pub" "$d/deploy-key.pub"
   rm -rf "$tmp"
@@ -433,9 +445,9 @@ verb_release_hold() {
   [ $# -eq 1 ] || die 2 usage
   local id=$1 reason stop cleared=0
   read_player "$id"
-  if reason=$(pl_helper "$id" keeper "geldar-keep-$id" 1002 ro 'cat /vol/HELD' 2> /dev/null); then
+  if reason=$(pl_helper "$id" keeper "geldar-keep-$id" "$PL_KEEPER_UID" ro 'cat /vol/HELD' 2> /dev/null); then
     say player_held "$(printf '%s' "$reason" | sanitize)"
-    pl_helper "$id" keeper "geldar-keep-$id" 1002 rw 'rm -f /vol/HELD' > /dev/null 2>&1 ||
+    pl_helper "$id" keeper "geldar-keep-$id" "$PL_KEEPER_UID" rw 'rm -f /vol/HELD' > /dev/null 2>&1 ||
       die 1 player_release_failed "$id"
     cleared=1
   fi
@@ -467,7 +479,7 @@ verb_sync() {
   [ $# -eq 1 ] || die 2 usage
   read_player "$1"
   pl_running "$1" || die 1 player_not_running "$1"
-  pl_helper "$1" keeper "geldar-keep-$1" 1002 rw 'touch /vol/sync-request' > /dev/null 2>&1 ||
+  pl_helper "$1" keeper "geldar-keep-$1" "$PL_KEEPER_UID" rw 'touch /vol/sync-request' > /dev/null 2>&1 ||
     die 1 player_sync_failed "$1"
   say player_sync_requested "$1"
 }

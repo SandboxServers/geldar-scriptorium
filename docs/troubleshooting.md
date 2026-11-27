@@ -674,6 +674,11 @@ What it means. The deploy key for the persistent player could not be made.
 Why it is safe. The new key was made in its own folder and was not moved into place, so an old key, if there is one, is kept.
 What to do. Check that ssh-keygen works on this machine or that Docker is running, then run deploy-key again.
 
+### player_key_chown_failed
+What it means. The new deploy key for the persistent player was made, but it could not be handed to the keeper, which must be able to read it.
+Why it is safe. The key was removed and not moved into place, so an old key, if there is one, is kept, and nothing was pushed with the new key.
+What to do. Check that Docker can run the kit image on this machine, then run deploy-key again.
+
 ### player_key_rotated
 What it means. A new deploy key was made for the persistent player, and the public key is printed above this line.
 Why it is safe. Nothing was pushed with the new key yet. The old key no longer works for the keeper once the new one is in place.
