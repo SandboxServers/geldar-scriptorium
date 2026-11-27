@@ -30,6 +30,7 @@ function Get-VerbNeeds([string]$Verb) {
     { $_ -in 'status', 'run_status' } { return @('git') }
     'upgrade' { return @('git', 'gh') }
     { $_ -in 'chatgpt_login', 'chatgpt_models' } { return @('docker', 'git') }
+    'sheet_set' { return @('git') }
     { $_ -in 'start', 'stop', 'restart', 'player_status', 'logs', 'deploy_key', 'release_hold', 'sync' } { return @('docker', 'git') }
   }
   return @()
@@ -79,6 +80,7 @@ switch -CaseSensitive ($verb) {
   { $_ -in 'new', 'setup', 'play', 'run', 'run-status', 'run-stop', 'resolve', 'archive', 'status', 'upgrade' } { }
   { $_ -in 'auth-set', 'auth-status', 'auth-clear' } { }
   { $_ -in 'chatgpt-login', 'chatgpt-models' } { }
+  'sheet-set' { }
   { $_ -in 'start', 'stop', 'restart', 'player-status', 'logs', 'deploy-key', 'release-hold', 'sync' } { }
   default { Die 2 usage }
 }
@@ -110,6 +112,7 @@ if ($verb -ceq 'deploy-key') { $verb = 'deploy_key' }
 if ($verb -ceq 'release-hold') { $verb = 'release_hold' }
 if ($isAuth) { $verb = $verb.Replace('-', '_') }
 if ($verb -in 'chatgpt-login', 'chatgpt-models') { $verb = $verb.Replace('-', '_') }
+if ($verb -ceq 'sheet-set') { $verb = 'sheet_set' }
 
 $needs = @(Get-VerbNeeds $verb)
 Need @needs

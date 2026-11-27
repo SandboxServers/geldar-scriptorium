@@ -1,0 +1,2 @@
+sheet_stored	The sheet for %s is stored on this machine. It reaches the player at the next start.
+sheet_bad	The sheet file for %s was refused (%s). Nothing was changed.
