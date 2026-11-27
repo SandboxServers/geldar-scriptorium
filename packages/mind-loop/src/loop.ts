@@ -1,8 +1,19 @@
 import { MindError } from './errors.ts';
 import { record } from './record.ts';
+import {
+  isObservation,
+  pendingCall,
+  type SanityParams,
+  VETO_TEXT,
+  vetoOrRun,
+  viewFromStatus,
+} from './sanity.ts';
 import type { Block, Completion, ToolCall, ToolReturn, Transport, Usage } from './transport.ts';
 import type { Item, Tool } from './types.ts';
 import { compileTools } from './validate.ts';
+
+/** The most model calls one decision may take: a corrective retry or a sanity veto spends one of them (HC-23a). */
+const DECISION_CALLS = 2;
 
 /** One round of the mind: the transport it talks through, the prompt and the tools it may call. */
 export interface LoopRound {
@@ -14,6 +25,13 @@ export interface LoopRound {
   costSource: string;
   /** Checks each call against its tool's schema first and gives one corrective retry (default false). */
   validate?: boolean;
+  /** The sanity veto's parameters (HC-23a). Absent or null: every call the loop accepts runs, as before. */
+  sanity?: SanityParams | null;
+}
+
+/** The text of a tool answer: its text blocks, joined. */
+function textOf(blocks: Block[]): string {
+  return blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n');
 }
 
 /** Adds one completion's usage to the running total. */
@@ -76,6 +94,11 @@ export async function runLoop(round: LoopRound): Promise<void> {
   });
   let turns = 0;
   let text = '';
+  // The decision in progress (HC-23a): the model replies it has taken, and whether its veto is spent.
+  let chain = 0;
+  let vetoedInDecision = false;
+  // The text of the last status or look answer, which the sanity veto reads.
+  let observed: string | null = null;
   try {
     let completion: Completion = await round.transport.send({ prompt: round.prompt });
     while (true) {
@@ -119,21 +142,51 @@ export async function runLoop(round: LoopRound): Promise<void> {
       }
       if (turns >= round.maxTurns)
         throw new MindError('The round reached GELDAR_RUN_MAX_TURNS.', 'max_turns');
+      chain++;
+      // Whether this reply was corrected or vetoed: such a decision goes on to another model call.
+      let flagged = false;
       const results: ToolReturn[] = [];
       for (const call of completion.calls) {
         const refused = check ? invalidAnswer(call, byName, check) : null;
         if (refused === null) {
           invalidStreak = 0;
-          results.push({ call, blocks: await runCall(call, byName) });
+          const sanity = round.sanity ?? null;
+          if (sanity) {
+            const judged = vetoOrRun(
+              pendingCall(call),
+              viewFromStatus(observed),
+              sanity,
+              turns,
+              { used: chain - 1, max: DECISION_CALLS },
+              vetoedInDecision,
+            );
+            if (judged.veto !== null) {
+              vetoedInDecision = true;
+              flagged = true;
+              round.emit({ type: 'sanity', check: judged.veto, roll: judged.roll.at(-1) });
+              results.push({ call, blocks: [{ type: 'text', text: VETO_TEXT[judged.veto] }] });
+              continue;
+            }
+          }
+          const blocks = await runCall(call, byName);
+          if (sanity && isObservation(call.name)) observed = textOf(blocks);
+          results.push({ call, blocks });
           continue;
         }
+        flagged = true;
         invalidStreak++;
-        if (invalidStreak >= 2)
+        // A corrective answer needs one more model call; with none left the round ends, as HC-11 defines.
+        if (invalidStreak >= 2 || chain >= DECISION_CALLS)
           throw new MindError(
             'The model did not produce a valid tool call after a correction.',
             'invalid_tool_calls',
           );
         results.push({ call, blocks: [{ type: 'text', text: refused }] });
+      }
+      // A reply with no correction and no veto ends the decision: its calls have run.
+      if (!flagged) {
+        chain = 0;
+        vetoedInDecision = false;
       }
       completion = await round.transport.send({ results });
     }
