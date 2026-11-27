@@ -280,6 +280,9 @@ importers:
 
   packages/supervisor:
     dependencies:
+      '@geldar/scriptorium-instinct':
+        specifier: workspace:*
+        version: link:../instinct
       '@geldar/scriptorium-verify':
         specifier: workspace:*
         version: link:../verify

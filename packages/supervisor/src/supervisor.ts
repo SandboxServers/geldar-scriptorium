@@ -19,6 +19,7 @@ import { summarizeStream } from '@geldar/scriptorium-verify';
 import { childEnv, wrapperLine } from './child.ts';
 import type { Deps, ExecSpec } from './deps.ts';
 import { readPromptBlocks } from './handoff.ts';
+import { runInstinct } from './instinct.ts';
 import { readStopReason, readTokenUsage, tokensToday } from './meter.ts';
 import { buildPrompt, buildTidyPrompt, cleanLastWords } from './prompt.ts';
 import type { Settings } from './settings.ts';
@@ -332,12 +333,25 @@ export class Supervisor {
       // A refused apply has written the STOP: the next pass idles on it.
       if (!(await this.upstream())) continue;
       n = nextRunNumber(s.stateDir);
+      const size = this.journalSize();
+      const willTidy = s.harness === 'claude' && this.tidyDue(size);
+      // The instinct step (off by default) runs before each waking that is not a tidy.
+      const instinct =
+        s.instinct.enabled && !willTidy ? await runInstinct(this.deps, s, this.env, n) : null;
+      if (instinct?.kind === 'settle') {
+        // The character acted in the world: no model run, no save, no cost line; the run number is reused.
+        this.log(`instinct settled run=${n} fx=${instinct.fx}`);
+        last = 'settled';
+        this.status(n, 'sleeping', last, sum);
+        await this.deps.sleep(s.delayBase, () => this.shouldStop());
+        continue;
+      }
+      const facts = instinct?.kind === 'pass-with-facts' ? instinct.facts : [];
       this.status(n, 'running', last, sum);
       const t0 = this.deps.now();
-      const size = this.journalSize();
-      const tidy = this.settings.harness === 'claude' && this.tidyDue(size) && this.prepareTidy();
+      const tidy = willTidy && this.prepareTidy();
       const before = tidy ? this.memoryDigest() : '';
-      const code = tidy ? await this.oneTidy(n) : await this.oneRun(n);
+      const code = tidy ? await this.oneTidy(n) : await this.oneRun(n, facts);
       const t1 = this.deps.now();
       const secs = t1 - t0;
       await this.save();
@@ -619,7 +633,7 @@ export class Supervisor {
   }
 
   /** One headless run as a child of the player user: writes the prompt file, returns the exit code. */
-  private async oneRun(n: number): Promise<number> {
+  private async oneRun(n: number, facts: readonly string[] = []): Promise<number> {
     const s = this.settings;
     const prev = n > 1 ? await summarizeFile(this.path(`session-${n - 1}.jsonl`)) : null;
     const words = prev === null || this.tidyRun === n - 1 ? '' : cleanLastWords(prev.last_text);
@@ -635,7 +649,7 @@ export class Supervisor {
     this.log(
       `prompt run=${n} goals=${Buffer.byteLength(goals, 'utf8')} handoff=${Buffer.byteLength(handoff, 'utf8')} words=${Array.from(words).length} identity=${Buffer.byteLength(identity, 'utf8')} cut=${cut ? 1 : 0}`,
     );
-    writePrivate(promptPath, buildPrompt(n, words, note, handoff, goals, identity));
+    writePrivate(promptPath, buildPrompt(n, words, note, handoff, goals, identity, facts));
     return this.deps.exec(
       this.asPlayer({
         file: 'sh',
