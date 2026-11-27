@@ -39,12 +39,12 @@ export interface SanityView {
   shelterCarried: boolean | null;
 }
 
-/** The fixed text a vetoed call answers with. Kit text, not yet approved (OD-B): see the HC-23a report. */
+/** The fixed text a vetoed call answers with: plain facts, nothing else. OD-B approved 2026-11-27 (decision 0289 once the follow-up lands). */
 export const VETO_TEXT: Record<SanityCheck, string> = {
-  night_exposure: 'You think again: it is night and you have no shelter.',
-  starving_with_food: 'You think again: you are hungry and you carry food.',
-  fighting_near_death: 'You think again: you are badly hurt.',
-  full_inventory: 'You think again: your pack is full.',
+  night_exposure: 'It is night and you have no shelter.',
+  starving_with_food: 'You are hungry and you carry food.',
+  fighting_near_death: 'You are badly hurt.',
+  full_inventory: 'Your pack is full.',
 };
 
 /** The distance over which a night trip outdoors without shelter is a hit (blocks). */
