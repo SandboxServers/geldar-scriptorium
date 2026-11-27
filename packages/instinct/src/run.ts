@@ -13,6 +13,7 @@ import {
 } from './contract.ts';
 import { decide, type Fx, type FxContext, type InstinctConfig } from './decide.ts';
 import { makeFact } from './facts.ts';
+import { readAdoptedGoal } from './fx/goal.ts';
 import { observe } from './observe.ts';
 import { loadState, PENDING_MAX, saveState } from './state.ts';
 import { connectWorld, type WorldLink } from './world.ts';
@@ -139,7 +140,7 @@ async function wake(
     cfg,
     lifeKey,
     tick,
-    goal: obs.intent?.goal ?? null,
+    goal: obs.intent?.goal ?? readAdoptedGoal(env.GELDAR_INSTINCT_WORKSPACE),
     knownText: '',
     rolls,
     check(fx: string, score: Score, dc: number, prof = 0) {
@@ -216,6 +217,11 @@ async function wake(
     };
     state.pending_acts = [];
   }
+  // Picks in a row: only an accepted idle act counts; every other outcome starts the count again at 0.
+  state.picks_in_a_row =
+    decided.kind === 'settle' && out.kind === 'settle' && decided.fx === 'idle'
+      ? state.picks_in_a_row + 1
+      : 0;
   saveState(stateDir, state);
   return out;
 }
