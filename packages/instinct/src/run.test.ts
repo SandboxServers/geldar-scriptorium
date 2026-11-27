@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Fx } from './decide.ts';
+import { failureFx, problemKey } from './fx/failure.ts';
 import { lifeKeyOf, OWN_ACT_LINE, runInstinct } from './run.ts';
 import { emptyState, type InstinctState, loadState } from './state.ts';
 import type { WorldLink } from './world.ts';
@@ -58,6 +59,28 @@ function volume(): { stateDir: string; audit: string } {
   mkdirSync(stateDir, { recursive: true });
   return { stateDir, audit: join(root, 'instinct.jsonl') };
 }
+
+describe('runInstinct last intent across wakings', () => {
+  it('last_intent is stored after a run and the next run failure fx uses it', async () => {
+    const { stateDir } = volume();
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    const running = JSON.stringify({
+      snapshot: { current_plan: { goal: 'find food', action: 'mine', status: 'running' } },
+    });
+    const failed = JSON.stringify({
+      events: [{ seq: 2, type: 'intent_failed', tick: 5, text: 'Your intent failed: no path' }],
+    });
+    const env = { GELDAR_INSTINCT_STATE: stateDir, ...WORLD_ENV };
+    await runInstinct(env, 1, new Date(), fakeWorld(running, ACCEPTED).connect, [failureFx]);
+    expect(loadState(stateDir).last_intent).toEqual({
+      goal: 'find food',
+      program: 'mine',
+      arguments: { status: 'running' },
+    });
+    await runInstinct(env, 2, new Date(), fakeWorld(failed, ACCEPTED).connect, [failureFx]);
+    expect(loadState(stateDir).attempts[problemKey('find food', 'mine')]).toBe(1);
+  });
+});
 
 describe('runInstinct early outcomes (no world, no fixture)', () => {
   it('a missing sheet gives pass no_sheet and one audit line with source instinct', async () => {

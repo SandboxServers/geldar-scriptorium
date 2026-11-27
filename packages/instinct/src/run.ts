@@ -182,6 +182,8 @@ async function wake(
     },
   };
   const decided = decide(ctx, fxs);
+  // The intent this waking saw is the one the next waking's failure fx reads, so it is stored after decide.
+  if (obs.intent !== null) state.last_intent = obs.intent;
   let out: InstinctResult = decided;
   if (decided.kind === 'settle') {
     // Settle only when the world's reply is JSON with a non-empty accepted array; anything else is send_failed.
