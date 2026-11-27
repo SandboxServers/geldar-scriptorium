@@ -375,7 +375,7 @@ verb_new() {
   local id=$1 vis="" mock="" tokfile="" shard=commons base i a clone name url d persona=""
   local have_persona="" repo="" repo_re='^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$' p
   local kit="" kit_re='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.]+)?$'
-  local shre='^[a-z][a-z0-9-]{0,30}$' gh players add=player.json
+  local shre='^[a-z][a-z0-9-]{0,30}$' gh players add=player.json have_sheet="" sheet=""
   shift
   while [ $# -gt 0 ]; do
     case $1 in
@@ -414,6 +414,13 @@ verb_new() {
         kit=$2
         shift 2
         ;;
+      --sheet)
+        [ $# -ge 2 ] || die 2 usage
+        [ -z "$have_sheet" ] || die 1 sheet_bad "$id" twice
+        have_sheet=1
+        sheet=$2
+        shift 2
+        ;;
       *) die 2 usage ;;
     esac
   done
@@ -432,6 +439,8 @@ verb_new() {
   NEW_TOKEN=""
   [ -z "$tokfile" ] || read_token_file "$tokfile"
   [ -z "$have_persona" ] || persona_load "$persona" "$id"
+  # The sheet is checked before anything is created, as the persona is; sheet_store copies it later.
+  [ -z "$have_sheet" ] || sheet_check "$sheet" "$id"
   check_visibility "$shard" "$vis" "$mock"
   url="$base/p/$id"
 
@@ -515,6 +524,7 @@ EOF
 
   umask 077
   private_mkdir "$d"
+  [ -z "$have_sheet" ] || sheet_store "$id" "$sheet"
   printf '%s\n' "$clone" > "$d/clone"
   git_cmd -C "$clone" symbolic-ref --short HEAD > "$d/branch" 2> /dev/null || printf 'main\n' > "$d/branch"
   if [ -n "$NEW_TOKEN" ]; then

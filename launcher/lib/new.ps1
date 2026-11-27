@@ -346,6 +346,8 @@ function Copy-TemplateInto([string]$Url, [string]$Tag, [string]$Clone) {
   $repoSeen = $false
   $kit = ''
   $kitSeen = $false
+  $sheet = ''
+  $haveSheet = $false
   $kitRe = '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.]+)?\z'
   $i = 0
   while ($i -lt $more.Count) {
@@ -377,6 +379,12 @@ function Copy-TemplateInto([string]$Url, [string]$Tag, [string]$Clone) {
       $kit = $more[$i + 1]
       $kitSeen = $true
       $i += 2
+    } elseif ($a -ceq '--sheet') {
+      if ($i + 1 -ge $more.Count) { Die 2 usage }
+      if ($haveSheet) { Die 1 sheet_bad $id 'twice' }
+      $haveSheet = $true
+      $sheet = $more[$i + 1]
+      $i += 2
     } else {
       Die 2 usage
     }
@@ -397,6 +405,8 @@ function Copy-TemplateInto([string]$Url, [string]$Tag, [string]$Clone) {
   if ($tokfile) { $token = Read-TokenFile $tokfile }
   $files = $null
   if ($havePersona) { $files = Read-Persona $persona $id }
+  # The sheet is checked before anything is created, as the persona is; Save-Sheet copies it later.
+  if ($haveSheet) { Test-SheetFile $sheet $id }
   $newVis = Get-Visibility $shard $vis $mock
   $url = "$base/p/$id"
 
@@ -488,6 +498,7 @@ function Copy-TemplateInto([string]$Url, [string]$Tag, [string]$Clone) {
 
   New-PrivateDir (Get-StateDir)
   New-PrivateDir $d
+  if ($haveSheet) { Save-Sheet $id $sheet }
   $utf8 = [System.Text.UTF8Encoding]::new($false)
   [System.IO.File]::WriteAllText((Join-Path $d 'clone'), "$clone`n", $utf8)
   $br = @(Invoke-Git -C $clone symbolic-ref --short HEAD 2> $null)

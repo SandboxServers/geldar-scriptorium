@@ -33,6 +33,7 @@ verb_needs() {
     status | run_status) printf '%s' 'git' ;;
     start | stop | restart | player_status | logs | deploy_key | release_hold | sync) printf '%s' 'docker git perl' ;;
     chatgpt_login | chatgpt_models) printf '%s' 'docker git' ;;
+    sheet_set) printf '%s' 'git perl' ;;
   esac
 }
 
@@ -114,6 +115,7 @@ case $verb in
   start | stop | restart | player-status | logs | deploy-key | release-hold | sync) ;;
   auth-set | auth-status | auth-clear) ;;
   chatgpt-login | chatgpt-models) ;;
+  sheet-set) ;;
   *) die 2 usage ;;
 esac
 
@@ -155,6 +157,7 @@ case $verb in
   auth-clear) verb=auth_clear ;;
   chatgpt-login) verb=chatgpt_login ;;
   chatgpt-models) verb=chatgpt_models ;;
+  sheet-set) verb=sheet_set ;;
 esac
 
 # shellcheck disable=SC2046

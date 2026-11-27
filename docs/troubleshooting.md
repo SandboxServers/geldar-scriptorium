@@ -535,6 +535,16 @@ What it means. The persona files were refused. The reason is in brackets: size m
 Why it is safe. The files are checked before anything is written, so nothing was created.
 What to do. Fix the named problem in the persona files, then run the command again.
 
+### sheet_stored
+What it means. The character sheet was copied into the private state folder of this player on this machine, as sheet.json with owner-only access.
+Why it is safe. The sheet is not in the player repository, and nothing has been delivered to the player yet.
+What to do. Nothing is needed. Run sheet-set again with a new file to replace the stored sheet.
+
+### sheet_bad
+What it means. The sheet file was refused, and the reason is in brackets: link means a symbolic link; type means not a plain file; size means empty or over 4096 bytes; text means not UTF-8 text whose first character is {; write means the copy into the state folder failed; twice means --sheet was given twice.
+Why it is safe. The file is checked before anything is written, so a refusal changes nothing. The sheet text is never printed.
+What to do. Fix the named problem in the sheet file, which must be a plain UTF-8 JSON file of at most 4096 bytes, then run the command again.
+
 ### dev_world_bad
 What it means. GELDAR_DEV_MCP_URL is set, but it is not exactly `http://host.docker.internal:PORT/p/ID` with PORT from 1024 to 65535 and no leading zero.
 Why it is safe. The launcher refused before any lock, state or Docker call, so nothing ran.
