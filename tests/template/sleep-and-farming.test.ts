@@ -5,7 +5,7 @@ import { repoRoot } from './check.ts';
 import { readSkill } from './tool-skill-scan.ts';
 
 // The sleeping share is stated in one place only (the night skill), so a change is one edit.
-const sleepShare = 'at least 50 percent';
+const sleepShare = 'about a tenth of the people';
 
 // The text of every file under a folder, depth first.
 function treeTexts(dir: string): string[] {
