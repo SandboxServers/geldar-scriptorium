@@ -47,6 +47,7 @@ const EVENT_KIND: Partial<Record<SocialEventKind, ObsKind>> = {
   gift_received: 'gave_me',
   property_broken: 'took_mine',
   fight_seen: 'fought_mob',
+  container_taken: 'took_mine',
 };
 
 const EVENT_TAG: Partial<Record<SocialEventKind, string>> = {
@@ -55,6 +56,7 @@ const EVENT_TAG: Partial<Record<SocialEventKind, string>> = {
   gift_received: 'gift',
   property_broken: 'break',
   fight_seen: 'fight',
+  container_taken: 'take',
 };
 
 /** A C0 control character or DEL. */
@@ -84,8 +86,8 @@ function actorOf(event: SocialEvent, nearby: readonly SocialSighting[]): string 
 }
 
 /**
- * The observations the events give. An event without an actor, a kind with no mapping (container_taken, HC-27c) or an
- * event without a non-empty id gives nothing. fight_seen is mapped and then dropped as inactive when applied.
+ * The observations the events give. An event without an actor, a kind with no mapping or an event without a non-empty id
+ * gives nothing. A break and a take are distinct keys, so each counts once.
  */
 export function eventObservations(
   observer: string,

@@ -56,12 +56,12 @@ describe('dedup and scope', () => {
     expect(store.load(OTHER)).toBeNull();
   });
 
-  it('the observer own act is dropped as self; fight_seen is dropped as inactive', () => {
+  it('the observer own act is dropped as self; fled_mob is dropped as inactive', () => {
     const root = freshStateDir();
     const { store, seen } = open(root);
     const self = obsOf({ actor: OBSERVER });
-    const fight = obsOf({ kind: 'fought_mob', key: 'fight:f1' });
-    const r = applyObservations(store, seen, OWN_SHEET, OBSERVER, [self, fight], 1);
+    const fled = obsOf({ kind: 'fled_mob', key: 'flee:f1' });
+    const r = applyObservations(store, seen, OWN_SHEET, OBSERVER, [self, fled], 1);
     expect(r.dropped.self).toBe(1);
     expect(r.dropped.inactive).toBe(1);
     expect(r.applied).toBe(0);
@@ -87,6 +87,34 @@ describe('model updates', () => {
     applyObservations(store, seen, OWN_SHEET, OBSERVER, [took], 2);
     expect(store.load(OTHER)?.fields.law?.n).toBe(1);
     expect(store.load(OTHER)?.fields.good?.n).toBe(1);
+  });
+
+  it('a fight_seen updates aggression once, also when redelivered', () => {
+    const root = freshStateDir();
+    const { store, seen } = open(root);
+    const fight = obsOf({ kind: 'fought_mob', key: 'fight:f1' });
+    const first = applyObservations(store, seen, OWN_SHEET, OBSERVER, [fight], 1);
+    expect(first.applied).toBe(1);
+    expect(store.load(OTHER)?.fields.aggression?.n).toBe(1);
+    const again = applyObservations(store, seen, OWN_SHEET, OBSERVER, [fight, fight], 2);
+    expect(again.applied).toBe(0);
+    expect(again.deduped).toBe(2);
+    expect(store.load(OTHER)?.fields.aggression?.n).toBe(1);
+    expect(store.load(OTHER)?.fields.law).toBeUndefined();
+  });
+
+  it('a container_taken updates law and good once, and a break of the same id is a second key', () => {
+    const root = freshStateDir();
+    const { store, seen } = open(root);
+    const take = obsOf({ kind: 'took_mine', key: 'take:c1' });
+    const brk = obsOf({ kind: 'took_mine', key: 'break:c1' });
+    applyObservations(store, seen, OWN_SHEET, OBSERVER, [take], 1);
+    applyObservations(store, seen, OWN_SHEET, OBSERVER, [take], 2);
+    expect(store.load(OTHER)?.fields.law?.n).toBe(1);
+    expect(store.load(OTHER)?.fields.good?.n).toBe(1);
+    applyObservations(store, seen, OWN_SHEET, OBSERVER, [brk], 3);
+    expect(store.load(OTHER)?.fields.law?.n).toBe(2);
+    expect(store.load(OTHER)?.fields.good?.n).toBe(2);
   });
 
   it('an out-of-order batch gives the same models as the sorted batch', () => {

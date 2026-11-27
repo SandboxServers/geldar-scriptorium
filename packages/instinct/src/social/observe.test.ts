@@ -30,6 +30,7 @@ describe('event table and actor ids', () => {
       eventOf({ kind: 'gift_received', id: 'g' }),
       eventOf({ kind: 'property_broken', id: 'b' }),
       eventOf({ kind: 'fight_seen', id: 'f' }),
+      eventOf({ kind: 'container_taken', id: 't' }),
     ];
     const out = eventObservations(OBSERVER, events, []);
     expect(out.map((o) => [o.kind, o.key])).toEqual([
@@ -37,16 +38,46 @@ describe('event table and actor ids', () => {
       ['gave_me', 'gift:g'],
       ['took_mine', 'break:b'],
       ['fought_mob', 'fight:f'],
+      ['took_mine', 'take:t'],
     ]);
   });
 
-  it('gives nothing for container_taken, which waits for HC-27c', () => {
-    expect(eventObservations(OBSERVER, [eventOf({ kind: 'container_taken' })], [])).toEqual([]);
+  it('a fight_seen with a life id gives fought_mob under its fight key', () => {
+    const out = eventObservations(OBSERVER, [eventOf({ kind: 'fight_seen', id: 'f9' })], []);
+    expect(out).toEqual([
+      {
+        observer: OBSERVER,
+        kind: 'fought_mob',
+        actor: OTHER,
+        actorName: 'Other Name',
+        key: 'fight:f9',
+        tick: 100,
+      },
+    ]);
   });
 
-  it('an event without an actor gives nothing', () => {
-    const bare = eventOf({ actorName: undefined, actorLife: undefined });
-    expect(eventObservations(OBSERVER, [bare], [sightingOf()])).toEqual([]);
+  it('a container_taken with a life id gives took_mine under its take key, apart from a break', () => {
+    const events = [
+      eventOf({ kind: 'container_taken', id: 'c1' }),
+      eventOf({ kind: 'property_broken', id: 'c1' }),
+    ];
+    const keys = eventObservations(OBSERVER, events, []).map((o) => [o.kind, o.key]);
+    expect(keys).toEqual([
+      ['took_mine', 'take:c1'],
+      ['took_mine', 'break:c1'],
+    ]);
+  });
+
+  it('a container_taken whose actor name is not nearby gives nothing', () => {
+    const events = [eventOf({ kind: 'container_taken', actorLife: undefined })];
+    expect(eventObservations(OBSERVER, events, [])).toEqual([]);
+  });
+
+  it('an event without an actor gives nothing, even with one nearby other', () => {
+    for (const kind of ['hurt', 'fight_seen', 'container_taken'] as const) {
+      const bare = eventOf({ kind, actorName: undefined, actorLife: undefined });
+      expect(eventObservations(OBSERVER, [bare], [sightingOf()])).toEqual([]);
+    }
   });
 
   it('an event without a non-empty id gives nothing', () => {

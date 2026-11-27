@@ -66,7 +66,7 @@ describe('social model', () => {
   });
 
   it('inactive rules are marked off and the active ones are on', () => {
-    for (const kind of ['fought_mob', 'fled_mob', 'kept_promise', 'broke_promise'] as const)
+    for (const kind of ['fled_mob', 'kept_promise', 'broke_promise'] as const)
       expect(OBS_RULES[kind].active).toBe(false);
     for (const kind of [
       'spoke_first',
@@ -75,11 +75,20 @@ describe('social model', () => {
       'hit_me',
       'gave_me',
       'took_mine',
+      'fought_mob',
     ] as const)
       expect(OBS_RULES[kind].active).toBe(true);
     expect(OBS_RULES.took_mine.updates).toEqual([
       { field: 'law', value: 1.5 },
       { field: 'good', value: 2 },
     ]);
+  });
+
+  it('a fight_seen rule is aggression 4.5 only, and fled_mob stays inactive', () => {
+    expect(OBS_RULES.fought_mob).toEqual({
+      active: true,
+      updates: [{ field: 'aggression', value: 4.5 }],
+    });
+    expect(OBS_RULES.fled_mob.active).toBe(false);
   });
 });

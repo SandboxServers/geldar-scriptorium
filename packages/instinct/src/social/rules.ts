@@ -1,7 +1,7 @@
 // The social rules: which observed acts move which learned field of another life's model, and to what value (HC-27a).
 // Only the four learned fields have rules. common_sense and cleverness are never learned; they are read as their prior.
-// Inactive rules are recorded for their cards and never applied: fought_mob waits for HC-27c, fled_mob has no causal
-// signal, and the promise pair waits for AN-48.
+// Inactive rules are recorded for their cards and never applied: fled_mob has no causal signal, and the promise pair
+// waits for AN-48.
 
 export const LEARNED_FIELDS = ['curiosity', 'aggression', 'law', 'good'] as const;
 export type LearnedField = (typeof LEARNED_FIELDS)[number];
@@ -45,7 +45,7 @@ export const OBS_RULES: Readonly<Record<ObsKind, ObsRule>> = {
       { field: 'good', value: 2.0 },
     ],
   },
-  fought_mob: { active: false, updates: [{ field: 'aggression', value: 4.5 }] },
+  fought_mob: { active: true, updates: [{ field: 'aggression', value: 4.5 }] },
   fled_mob: { active: false, updates: [{ field: 'aggression', value: 1.5 }] },
   kept_promise: { active: false, updates: [{ field: 'law', value: 4.5 }] },
   broke_promise: { active: false, updates: [{ field: 'law', value: 1.5 }] },
