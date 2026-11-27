@@ -14,6 +14,7 @@ import {
 import { decide, type Fx, type FxContext, type InstinctConfig } from './decide.ts';
 import { makeFact } from './facts.ts';
 import { readAdoptedGoal } from './fx/goal.ts';
+import { learnHabits } from './fx/habits.ts';
 import { readKnownText } from './fx/known.ts';
 import { observe } from './observe.ts';
 import { loadState, PENDING_MAX, saveState } from './state.ts';
@@ -134,6 +135,7 @@ async function wake(
   const lifeKey = lifeKeyOf(env.GELDAR_MCP_URL ?? '');
   const tick = obs.tick ?? state.waking;
   const rolls: RollRecord[] = [];
+  const adopted = readAdoptedGoal(env.GELDAR_INSTINCT_WORKSPACE);
   const ctx: FxContext = {
     obs,
     sheet,
@@ -141,7 +143,7 @@ async function wake(
     cfg,
     lifeKey,
     tick,
-    goal: obs.intent?.goal ?? readAdoptedGoal(env.GELDAR_INSTINCT_WORKSPACE),
+    goal: obs.intent?.goal ?? adopted,
     knownText: readKnownText(env.GELDAR_INSTINCT_WORKSPACE),
     rolls,
     check(fx: string, score: Score, dc: number, prof = 0) {
@@ -183,6 +185,8 @@ async function wake(
       return value;
     },
   };
+  // Habits: a finished intent for the adopted goal is remembered once, before the decision reads them.
+  learnHabits(state, obs, adopted);
   const decided = decide(ctx, fxs);
   // The intent this waking saw is the one the next waking's failure fx reads, so it is stored after decide.
   if (obs.intent !== null) state.last_intent = obs.intent;
