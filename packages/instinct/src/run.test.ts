@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { actIntent } from './contract.ts';
 import type { Fx } from './decide.ts';
 import { failureFx, problemKey } from './fx/failure.ts';
 import { idleFx } from './fx/idle.ts';
@@ -23,6 +24,14 @@ const ACT_FX: Fx = () => ({
   fx: 'idle',
   why: 'habit for the top goal',
   act: { tool: 'act', arguments: { program: 'walk' } },
+});
+
+/** A fx that offers one intent act for a goal, with the real arguments the instinct step sends. */
+const INTENT_FX: Fx = () => ({
+  kind: 'act',
+  fx: 'idle',
+  why: 'a means that worked for the top goal',
+  act: actIntent('find food', 'mine', { item: 'wood' }),
 });
 
 /** A world whose wait returns waitText and whose act returns actText. `calls` records every tool name. */
@@ -194,6 +203,86 @@ describe('runInstinct with a world (injected connect and fx list)', () => {
     );
     expect(result).toMatchObject({ kind: 'settle', world: { accepted: true, line: OWN_ACT_LINE } });
     expect(loadState(stateDir).pending_acts).toEqual([OWN_ACT_LINE]);
+  });
+
+  it('an accepted intent act is recorded as submitted with its real arguments', async () => {
+    const { stateDir } = volume();
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    const { connect } = fakeWorld('{}', ACCEPTED);
+    await runInstinct({ GELDAR_INSTINCT_STATE: stateDir, ...WORLD_ENV }, 5, new Date(), connect, [
+      INTENT_FX,
+    ]);
+    expect(loadState(stateDir).submitted).toEqual({
+      goal: 'find food',
+      program: 'mine',
+      arguments: { item: 'wood' },
+    });
+  });
+
+  it('a rejected intent act is not recorded as submitted', async () => {
+    const { stateDir } = volume();
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    const { connect } = fakeWorld('{}', REJECTED);
+    const result = await runInstinct(
+      { GELDAR_INSTINCT_STATE: stateDir, ...WORLD_ENV },
+      5,
+      new Date(),
+      connect,
+      [INTENT_FX],
+    );
+    expect(result).toMatchObject({ kind: 'pass', reason: 'send_failed' });
+    expect(loadState(stateDir).submitted).toBeNull();
+  });
+
+  it('a different intent seen clears the submitted record', async () => {
+    const { stateDir } = volume();
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    writeState(stateDir, {
+      submitted: { goal: 'find food', program: 'mine', arguments: { item: 'wood' } },
+    });
+    const walking = JSON.stringify({
+      snapshot: { current_plan: { goal: 'find food', action: 'walk', status: 'running' } },
+    });
+    await runInstinct(
+      { GELDAR_INSTINCT_STATE: stateDir, ...WORLD_ENV },
+      6,
+      new Date(),
+      fakeWorld(walking, ACCEPTED).connect,
+      [],
+    );
+    expect(loadState(stateDir).last_intent?.program).toBe('walk');
+    expect(loadState(stateDir).submitted).toBeNull();
+  });
+
+  it('the submitted record of the running intent is kept while it runs', async () => {
+    const { stateDir } = volume();
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    writeState(stateDir, {
+      submitted: { goal: 'find food', program: 'mine', arguments: { item: 'wood' } },
+    });
+    const mining = JSON.stringify({
+      snapshot: { current_plan: { goal: 'find food', action: 'mine', status: 'running' } },
+    });
+    await runInstinct(
+      { GELDAR_INSTINCT_STATE: stateDir, ...WORLD_ENV },
+      6,
+      new Date(),
+      fakeWorld(mining, ACCEPTED).connect,
+      [],
+    );
+    expect(loadState(stateDir).submitted).toEqual({
+      goal: 'find food',
+      program: 'mine',
+      arguments: { item: 'wood' },
+    });
+  });
+
+  it('a state file from before the submitted field loads with it null', async () => {
+    const { stateDir } = volume();
+    const older = { ...emptyState() } as Partial<InstinctState>;
+    delete older.submitted;
+    writeFileSync(join(stateDir, 'state.json'), JSON.stringify(older));
+    expect(loadState(stateDir).submitted).toBeNull();
   });
 
   it('a wait with a death event gives pass dead and no act is sent', async () => {

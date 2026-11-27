@@ -1,8 +1,10 @@
-// The habits: the means that worked for the adopted goal. When the intent this agent ran for its exact adopted goal
-// finished (the plain line, never a failure), its program and arguments are remembered under that goal in state.habits.
+// The habits: the means that worked for the adopted goal. When the intent the instinct step submitted for its exact
+// adopted goal finished (the plain line, never a failure), its program and the arguments it sent are remembered under
+// that goal in state.habits. The running plan's arguments are not used: the world shows only its status there.
 // Only the agent's own record: nothing here reads the world beyond that one line, and nothing is shown to the model.
+import type { ActRecord } from '../contract.ts';
 import type { Observation } from '../observe.ts';
-import { HABITS_MAX, type InstinctState } from '../state.ts';
+import { HABITS_MAX, type InstinctState, type Submitted } from '../state.ts';
 import { modeOf } from './idle.ts';
 
 /** The goals kept at most. The least recently used goal is dropped first. */
@@ -50,15 +52,35 @@ function remember(
 }
 
 /**
- * Learns from one waking, before the decision. When the plain finished line came and the last intent was for the exact
- * adopted goal, that intent's means is remembered. A reworded goal misses, which is safe and weak. Flee and unknown
- * programs are never stored, because modeOf gives them no mode. A failed intent is never remembered.
+ * The record of an act the instinct step submits: its intent's goal, program and the arguments sent. Null when the act
+ * carries no goal, so nothing is recorded for it.
+ */
+export function submittedFrom(act: ActRecord): Submitted | null {
+  const intent: unknown = act.arguments.intent;
+  if (typeof intent !== 'object' || intent === null) return null;
+  const { goal, program, arguments: args } = intent as Record<string, unknown>;
+  if (typeof goal !== 'string' || typeof program !== 'string') return null;
+  if (typeof args !== 'object' || args === null || Array.isArray(args)) return null;
+  return { goal, program, arguments: args as Record<string, unknown> };
+}
+
+/**
+ * Learns from one waking, before the decision. When the plain finished line came for the last intent, and that intent
+ * is the one the instinct step submitted for the exact adopted goal, the submitted arguments are remembered. An intent
+ * the agent started itself is never stored, so the model's own intents keep their weak, argument-less record. A
+ * reworded goal misses, which is safe and weak. Flee and unknown programs are never stored, because modeOf gives them
+ * no mode. A failed intent is never remembered. Any intent that ends clears the submitted record.
  */
 export function learnHabits(state: InstinctState, obs: Observation, goal: string | null): void {
   const last = state.last_intent;
-  if (goal === null || last === null || last.goal !== goal) return;
+  const failed = obs.events.some((e) => e.kind === 'intent_failed');
   const finished = obs.events.some((e) => e.kind === 'intent_finished' && e.text === FINISHED_LINE);
-  if (!finished || obs.events.some((e) => e.kind === 'intent_failed')) return;
+  if (!failed && !finished) return;
+  const submitted = state.submitted;
+  state.submitted = null;
+  if (goal === null || last === null || last.goal !== goal || failed) return;
   if (modeOf(last.program) === null) return;
-  remember(state, goal, last.program, last.arguments);
+  if (submitted === null || submitted.goal !== last.goal || submitted.program !== last.program)
+    return;
+  remember(state, goal, last.program, submitted.arguments);
 }

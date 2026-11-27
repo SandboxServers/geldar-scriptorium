@@ -63,6 +63,22 @@ describe('state', () => {
     expect(existsSync(join(dir, 'state.json.bad'))).toBe(true);
   });
 
+  it('a submitted record of the wrong shape is corrupt (renamed .bad)', () => {
+    const bad = {
+      ...emptyState(),
+      submitted: { goal: 'find food', program: 'mine', arguments: [] },
+    };
+    writeFileSync(join(dir, 'state.json'), JSON.stringify(bad));
+    expect(loadState(dir)).toEqual(emptyState());
+    expect(existsSync(join(dir, 'state.json.bad'))).toBe(true);
+  });
+
+  it('a submitted record round-trips through save and load', () => {
+    const submitted = { goal: 'find food', program: 'mine', arguments: { item: 'wood' } };
+    saveState(dir, { ...emptyState(), submitted });
+    expect(loadState(dir).submitted).toEqual(submitted);
+  });
+
   it('attempts that are not integer counts are corrupt (renamed .bad)', () => {
     writeFileSync(
       join(dir, 'state.json'),
