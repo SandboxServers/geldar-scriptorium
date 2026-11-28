@@ -52,7 +52,7 @@ Full packets: [work-packets.md](work-packets.md). Waves: 1 = F-01a, F-02a, F-11;
 - D-FL-05: superseded by D-FL-NN (the socket proxy is dropped).
 - D-FL-NN (owner ruled): the runner may `sudo` exactly one root-owned wrapper (`/usr/local/sbin/geldar-fleet-run`) that validates id and verb and runs the launcher verb as `geldar`. The runner has no general sudo, no docker group and no read of the login, tokens or keys. The wrapper sets `DOCKER_HOST`, `PATH` and the state dir. The number is reserved from origin/main when written.
 - D-FL-06 (global cap value), D-FL-07 (pinned git and runner versions and checksums), D-FL-10 (runner self-update): open.
-- D-FL-08 (accepted risk): write access to this public repo can run a branch workflow on the runner without `environment: fleet`; the owner reviews the collaborator list.
+- D-FL-08 (accepted risk, owner ruling 2026-11-28): ACCEPT the risk and record it. Write access to this public repo can run a branch workflow on the runner without `environment: fleet`; the wrapper enforces no roster, so that job can run `remove` or `upgrade` on any `ag-` player. Compensating controls: id and argument validation, per-verb flags, `env -i`, sudoers `env_reset`, the confinement checks, the runner's repository registration scope, `workflow_dispatch`-only workflows with `environment: fleet`, and the owner's review of the collaborator list. The alternative (roster enforcement in the wrapper) was shown and declined; the wrapper must NOT gain roster or allow-list enforcement without a new owner ruling.
 - D-FL-09: `remove` leaves tokens, keys and roster; `host-remove` deletes them over ssh after the dispatch.
 
 ## Manual infra (not cards)
