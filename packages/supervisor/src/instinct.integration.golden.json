@@ -1,12 +1,7 @@
 {
   "child": [
     {
-      "argv": [
-        "geldar-instinct",
-        "run",
-        "--run",
-        "1"
-      ],
+      "argv": ["geldar-instinct", "run", "--run", "1"],
       "env": {
         "PATH": "/usr/bin",
         "HOME": "/tmp",
@@ -25,11 +20,7 @@
         "GELDAR_MCP_URL": "http://127.0.0.1:<PORT>/p/life1",
         "GELDAR_MCP_TOKEN": "test-token"
       },
-      "stdio": [
-        "ignore",
-        "<fd>",
-        "ignore"
-      ]
+      "stdio": ["ignore", "<fd>", "ignore"]
     }
   ],
   "instinct": {
