@@ -37,11 +37,15 @@ const UNIT_SNAPSHOT = [
   'WorkingDirectory=/opt/geldar-runner',
   'ExecStart=/opt/geldar-runner/run.sh',
   'Restart=always',
-  'KillMode=process',
   'Environment=PATH=/usr/local/bin:/usr/bin:/bin',
   'ProtectHome=read-only',
   'PrivateTmp=yes',
   'ProtectSystem=strict',
+  'ProtectKernelTunables=yes',
+  'ProtectKernelModules=yes',
+  'ProtectControlGroups=yes',
+  'RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6',
+  'LockPersonality=yes',
   'ReadWritePaths=-/etc/geldar/placement',
   'ReadWritePaths=-/var/log/geldar-hosts.log',
   'ReadWritePaths=-/run/geldar-fleet',
@@ -263,7 +267,40 @@ describeBash('runner install (F-05a)', () => {
     expect(installed).toBe(UNIT_SNAPSHOT);
     expect(readFileSync(join(runnerDir, 'geldar-runner.service'), 'utf8')).toBe(UNIT_SNAPSHOT);
     expect(installed).not.toMatch(/NoNewPrivileges/);
-    expect(calls(world)).toContain('systemctl enable --now geldar-runner.service');
+    expect(installed).not.toMatch(/RestrictSUIDSGID/);
+    expect(calls(world)).toContain('systemctl daemon-reload');
+  });
+
+  it('leaves the unit disabled and stopped: no enable, start, restart or now call', () => {
+    const world = makeWorld();
+    const r = run(world);
+    expect(r.status, r.out).toBe(0);
+    const systemctl = calls(world).filter((c) => c.startsWith('systemctl '));
+    expect(systemctl).toEqual(['systemctl daemon-reload']);
+    expect(systemctl.join('\n')).not.toMatch(/enable|start|restart|--now/);
+    expect(r.out).toContain('operator starts it');
+    expect(r.out).toContain('verify-confinement');
+  });
+
+  it('the unit has no KillMode=process, so a stop kills the job processes too', () => {
+    const installed = readFileSync(join(runnerDir, 'geldar-runner.service'), 'utf8');
+    expect(installed).not.toMatch(/^KillMode=/m);
+  });
+
+  it('the unit carries the hardening lines and none of the setuid-breaking ones', () => {
+    const installed = readFileSync(join(runnerDir, 'geldar-runner.service'), 'utf8');
+    for (const line of [
+      'PrivateTmp=yes',
+      'ProtectKernelTunables=yes',
+      'ProtectKernelModules=yes',
+      'ProtectControlGroups=yes',
+      'RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6',
+      'LockPersonality=yes',
+    ]) {
+      expect(installed).toContain(`\n${line}\n`);
+    }
+    expect(installed).not.toMatch(/NoNewPrivileges/);
+    expect(installed).not.toMatch(/RestrictSUIDSGID/);
   });
 
   it('checks the tarball against the pinned sha256 before it is unpacked', () => {

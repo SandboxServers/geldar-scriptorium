@@ -8,11 +8,15 @@ User=geldar-runner
 WorkingDirectory=/opt/geldar-runner
 ExecStart=/opt/geldar-runner/run.sh
 Restart=always
-KillMode=process
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 ProtectHome=read-only
 PrivateTmp=yes
 ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
 ReadWritePaths=-/etc/geldar/placement
 ReadWritePaths=-/var/log/geldar-hosts.log
 ReadWritePaths=-/run/geldar-fleet

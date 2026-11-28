@@ -120,13 +120,16 @@ configure() {
   ) || die 7 "config.sh failed"
 }
 
-# install_unit copies the unit snapshot into place, then enables and starts it.
+# install_unit copies the unit snapshot into place and reloads systemd. It never enables or starts
+# the unit: the unit stays disabled and stopped until the operator starts it by hand.
 install_unit() {
   mkdir -p "$(dirname "$unit")"
   cp "$here/geldar-runner.service" "$unit" || die 7 "copy of the unit failed"
   chmod 0644 "$unit" || die 7 "chmod of the unit failed"
   systemctl daemon-reload || die 7 "systemctl daemon-reload failed"
-  systemctl enable --now geldar-runner.service || die 7 "systemctl enable --now failed"
+  echo "install-runner: $unit is installed and daemon-reloaded; it stays disabled and stopped."
+  echo "install-runner: the operator starts it (systemctl enable --now geldar-runner.service) only"
+  echo "install-runner: after the wrapper is installed and verify-confinement passes."
 }
 
 url="" token_file="" token=""
