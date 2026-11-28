@@ -110,7 +110,9 @@ const FAKE_SYSTEMCTL = [
 
 // sudo -l -U lists the defaults only for the -U form the script uses. FAKE_NO_ENV_RESET drops
 // env_reset; FAKE_NEG_ENV_RESET lists it negated, as Defaults !env_reset does. FAKE_WRAPPED lists the
-// defaults over several lines, as sudo wraps them; FAKE_WRAPPED_NEG wraps them with a !env_reset last.
+// defaults over several lines, as sudo wraps them, with env_reset mid-line so a line-start match
+// fails; FAKE_WRAPPED_NEG wraps them with a !env_reset last; FAKE_BANG_THEN_PLAIN lists !env_reset
+// and then a plain env_reset, so the last token must win.
 const FAKE_SUDO = [
   'case "$*" in',
   '  *" -U "*)',
@@ -119,9 +121,13 @@ const FAKE_SUDO = [
   '      echo "    env_reset, mail_badpass,"',
   '      echo "    secure_path=/usr/local/bin:/usr/bin:/bin,"',
   '      echo "    !env_reset"',
+  '    elif [ -n "${FAKE_BANG_THEN_PLAIN:-}" ]; then',
+  '      echo "Matching Defaults entries for geldar-runner on host:"',
+  '      echo "    !env_reset, mail_badpass,"',
+  '      echo "    env_reset, secure_path=/usr/local/bin:/usr/bin:/bin"',
   '    elif [ -n "${FAKE_WRAPPED:-}" ]; then',
   '      echo "Matching Defaults entries for geldar-runner on host:"',
-  '      echo "    env_reset, mail_badpass,"',
+  '      echo "    mail_badpass, env_reset,"',
   '      echo "    secure_path=/usr/local/bin:/usr/bin:/bin"',
   '    elif [ -n "${FAKE_NEG_ENV_RESET:-}" ]; then echo "Matching Defaults entries: !env_reset, mail_badpass"',
   '    elif [ -z "${FAKE_NO_ENV_RESET:-}" ]; then echo "Matching Defaults entries: env_reset, mail_badpass"; fi',
@@ -383,7 +389,14 @@ describeBash('runner confinement check (F-05b)', () => {
   }
 
   it('prints ok for env_reset when sudo wraps a plain list over several lines', () => {
+    // env_reset is the second token of its line, so only a token split finds it.
     const r = runVerify({ FAKE_WRAPPED: '1' });
+    expect(r.status, r.out).toBe(0);
+    expect(r.lines).toContain(`ok ${ENV_RESET_PROBE}`);
+  });
+
+  it('prints ok for env_reset when a later plain env_reset follows !env_reset, the last token winning', () => {
+    const r = runVerify({ FAKE_BANG_THEN_PLAIN: '1' });
     expect(r.status, r.out).toBe(0);
     expect(r.lines).toContain(`ok ${ENV_RESET_PROBE}`);
   });
