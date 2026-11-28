@@ -67,11 +67,75 @@ EOT
     echo gt
   elif [ -z "$pb" ]; then
     echo lt
-  elif [[ $pa < $pb ]]; then
+  else
+    up_pre_cmp "$pa" "$pb"
+  fi
+}
+
+# up_id_cmp a b: lt, eq or gt for two prerelease identifiers. A trailing number splits off its name, so
+# rc10 is after rc9 (the template's tags are rc<N>); any other identifiers compare as text.
+up_id_cmp() {
+  local an=$1 bn=$2 anum="" bnum=""
+  if [[ $1 =~ ^(.*[^0-9])?([0-9]+)$ ]]; then
+    an=${BASH_REMATCH[1]}
+    anum=${BASH_REMATCH[2]}
+  fi
+  if [[ $2 =~ ^(.*[^0-9])?([0-9]+)$ ]]; then
+    bn=${BASH_REMATCH[1]}
+    bnum=${BASH_REMATCH[2]}
+  fi
+  if [ -n "$anum" ] && [ -n "$bnum" ] && [ "$an" = "$bn" ]; then
+    up_num_cmp "$anum" "$bnum"
+  elif [ "$1" = "$2" ]; then
+    echo eq
+  elif [[ $1 < $2 ]]; then
     echo lt
   else
     echo gt
   fi
+}
+
+# up_pre_cmp a b: lt, eq or gt for two prereleases (dot-separated identifiers, compared in turn; the
+# one with fewer identifiers that matches so far is lower).
+up_pre_cmp() {
+  local -a x y
+  local i r
+  IFS=. read -r -a x <<< "$1"
+  IFS=. read -r -a y <<< "$2"
+  for ((i = 0; i < ${#x[@]} && i < ${#y[@]}; i++)); do
+    r=$(up_id_cmp "${x[i]}" "${y[i]}")
+    if [ "$r" != eq ]; then
+      echo "$r"
+      return 0
+    fi
+  done
+  if [ "${#x[@]}" -eq "${#y[@]}" ]; then
+    echo eq
+  elif [ "${#x[@]}" -lt "${#y[@]}" ]; then
+    echo lt
+  else
+    echo gt
+  fi
+}
+
+# up_newest versions: the newest of the given versions, one per line. A stable release wins over every
+# prerelease; with no stable one the newest prerelease is used. Prints nothing when the list is empty.
+up_newest() {
+  local v best="" best_pre=""
+  while IFS= read -r v; do
+    [ -n "$v" ] || continue
+    case $v in
+      *-*)
+        if [ -z "$best_pre" ] || [ "$(up_cmp "$v" "$best_pre")" = gt ]; then best_pre=$v; fi
+        ;;
+      *)
+        if [ -z "$best" ] || [ "$(up_cmp "$v" "$best")" = gt ]; then best=$v; fi
+        ;;
+    esac
+  done << EOT
+$1
+EOT
+  echo "${best:-$best_pre}"
 }
 
 # The versions of the template's well-formed kit-v tags, one per line, in listed order.
@@ -203,6 +267,23 @@ EOT
   return 0
 }
 
+# up_commit clone: the upgrade commit, its message on stdin. With no user.name or no user.email in the
+# clone, the tip's author is used for this one commit (-c and the committer environment); no config is
+# written. With neither, the commit fails as it always did.
+up_commit() {
+  local clone=$1 n e
+  if [ -n "$(git_cmd -C "$clone" config user.name 2> /dev/null)" ] &&
+    [ -n "$(git_cmd -C "$clone" config user.email 2> /dev/null)" ]; then
+    git_cmd -C "$clone" commit -q -F - > /dev/null 2>&1
+    return
+  fi
+  n=$(git_cmd -C "$clone" log -1 --format=%an HEAD 2> /dev/null) || return 1
+  e=$(git_cmd -C "$clone" log -1 --format=%ae HEAD 2> /dev/null) || return 1
+  [ -n "$n" ] && [ -n "$e" ] || return 1
+  GIT_COMMITTER_NAME=$n GIT_COMMITTER_EMAIL=$e \
+    git_cmd -C "$clone" -c "user.name=$n" -c "user.email=$e" commit -q -F - > /dev/null 2>&1
+}
+
 verb_upgrade() {
   local id=$1 d to="" url ver cur cmp tags best v out rel hk name body url_out line tip
   shift
@@ -251,17 +332,7 @@ verb_upgrade() {
 $tags
 EOT
   else
-    best=""
-    while IFS= read -r v; do
-      [ -n "$v" ] || continue
-      case $v in *-*) continue ;; esac
-      if [ -z "$best" ] || [ "$(up_cmp "$v" "$best")" = gt ]; then
-        best=$v
-      fi
-    done << EOT
-$tags
-EOT
-    ver=$best
+    ver=$(up_newest "$tags")
   fi
   [ -n "$ver" ] || die 1 upgrade_no_release
   cmp=$(up_cmp "$ver" "$cur")
@@ -307,11 +378,16 @@ EOT
   up_set_keys "$PL_CLONE/player.json" "$ver" "$UP_NEW_IMAGE"
   git_cmd -C "$PL_CLONE" add -A > /dev/null 2>&1 || die 1 upgrade_bad_release "$ver"
   printf 'upgrade the kit to %s\n\nimage: %s\n' "$ver" "$UP_DIGEST" |
-    git_cmd -C "$PL_CLONE" commit -q -F - > /dev/null 2>&1 || die 1 upgrade_bad_release "$ver"
+    up_commit "$PL_CLONE" || die 1 upgrade_bad_release "$ver"
   up_selfcheck "$PL_CLONE" "$tip" || die 1 upgrade_bad_release "$ver"
 
-  # Push the branch (never forced, never the player branch) and ask for the pull request.
-  run_bounded 120 git_cmd -C "$PL_CLONE" push -q origin "$name" > /dev/null 2>&1 || die 1 upgrade_pr_failed "$name"
+  # Push the branch (never forced, never the player branch). A failed push changes nothing in memory.
+  run_bounded 120 git_cmd -C "$PL_CLONE" push -q origin "$name" > /dev/null 2>&1 || die 1 upgrade_push_failed "$name"
+  # Without gh the branch stays pushed and the pull request is opened by hand.
+  if ! tool_found gh; then
+    say upgrade_pushed "$name" "$ver"
+    return 0
+  fi
   body="Kit upgrade from ${cur:-none} to $ver.
 Image: $UP_DIGEST
 

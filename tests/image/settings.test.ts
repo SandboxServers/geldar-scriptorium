@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { repoRoot, SQUID_IMAGE } from './docker.ts';
 
 type Settings = {
+  enabledMcpjsonServers?: string[];
+  enableAllProjectMcpServers?: boolean;
   permissions?: {
     allow?: string[];
     deny?: string[];
@@ -18,12 +20,14 @@ function load(relative: string): Settings {
 const managed = load('image/settings/managed.json');
 const play = load('image/settings/play.json');
 const setup = load('image/settings/setup.json');
+const tidy = load('image/settings/tidy.json');
 const managedDeny = managed.permissions?.deny ?? [];
 const playDeny = play.permissions?.deny ?? [];
+const tidyDeny = tidy.permissions?.deny ?? [];
 
 describe('image managed and play settings', () => {
-  it('managed denies Read, Edit and Write of the CLI home, as a glob and as the directory', () => {
-    for (const tool of ['Read', 'Edit', 'Write']) {
+  it('managed denies Read and Edit of the CLI home, as a glob and as the directory', () => {
+    for (const tool of ['Read', 'Edit']) {
       expect(managedDeny).toContain(`${tool}(//cli-home/**)`);
       expect(managedDeny).toContain(`${tool}(//cli-home)`);
     }
@@ -36,16 +40,44 @@ describe('image managed and play settings', () => {
       'WebSearch',
       'Read(**/.credentials.json)',
       'Edit(**/.credentials.json)',
-      'Write(**/.credentials.json)',
     ]) {
       expect(managedDeny).toContain(rule);
     }
   }, 120_000);
 
-  it('play denies Edit and Write of identity.md, relative and absolute', () => {
-    for (const tool of ['Edit', 'Write']) {
-      expect(playDeny).toContain(`${tool}(/memory/identity.md)`);
-      expect(playDeny).toContain(`${tool}(//player/memory/identity.md)`);
+  it('play denies Edit of identity.md, relative and absolute', () => {
+    for (const rule of ['Edit(/memory/identity.md)', 'Edit(//player/memory/identity.md)']) {
+      expect(playDeny).toContain(rule);
+    }
+  }, 120_000);
+
+  it('managed, play and tidy deny Write wherever they deny Edit, with the same path', () => {
+    const all = [...managedDeny, ...playDeny, ...tidyDeny];
+    for (const rule of all) {
+      if (!rule.startsWith('Edit(')) continue;
+      expect(all, `${rule} has no Write twin`).toContain(`Write(${rule.slice('Edit('.length)}`);
+    }
+  }, 120_000);
+
+  it('tidy denies Write of identity.md, relative and absolute', () => {
+    for (const rule of ['Write(/memory/identity.md)', 'Write(//player/memory/identity.md)']) {
+      expect(tidyDeny).toContain(rule);
+    }
+  }, 120_000);
+
+  it('managed denies Write of the credentials file and the CLI home, as Edit does', () => {
+    for (const rule of [
+      'Write(**/.credentials.json)',
+      'Write(//cli-home/**)',
+      'Write(//cli-home)',
+    ]) {
+      expect(managedDeny).toContain(rule);
+    }
+  }, 120_000);
+
+  it('play denies Write of identity.md, relative and absolute', () => {
+    for (const rule of ['Write(/memory/identity.md)', 'Write(//player/memory/identity.md)']) {
+      expect(playDeny).toContain(rule);
     }
   }, 120_000);
 
@@ -58,6 +90,14 @@ describe('image managed and play settings', () => {
     const pattern = /^[A-Za-z_*]+(\(.+\))?$/;
     for (const rule of [...managedDeny, ...playDeny, ...(setup.permissions?.deny ?? [])]) {
       expect(rule, rule).toMatch(pattern);
+    }
+  }, 120_000);
+
+  it('play and setup pre-enable the three kit MCP servers, so no approval dialog opens', () => {
+    for (const settings of [play, setup]) {
+      expect(settings.enabledMcpjsonServers).toEqual(['geldar', 'geldar_memory', 'geldar_git']);
+      // Only the three are approved; a server added to .mcp.json later must not be.
+      expect(settings.enableAllProjectMcpServers).toBeUndefined();
     }
   }, 120_000);
 

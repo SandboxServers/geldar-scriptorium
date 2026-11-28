@@ -1,0 +1,7 @@
+chatgpt_no_login	ChatGPT is not connected. Run: geldar-play chatgpt-login %s
+chatgpt_wrong_harness	This player does not use ChatGPT. Set harness to chatgpt in the player's committed player.json first.
+chatgpt_failed	The ChatGPT operation failed. Check the login and connection, then retry.
+chatgpt_persistent	ChatGPT uses persistent players. Use geldar-play start, stop and restart; seed the persona before starting.
+chatgpt_persona	New ChatGPT players need --persona-dir. Seed their identity and goals before starting.
+chatgpt_created	Created %s with its persona. Next: geldar-play chatgpt-login %s, then chatgpt-models and choose a model before start.
+chatgpt_no_model	Choose a model for %s with chatgpt-models, then set declared_model in player.json and commit it (or set GELDAR_RUN_MODEL).

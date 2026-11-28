@@ -184,6 +184,18 @@ importers:
       vitest:
         specifier: 5.0.5
         version: 5.0.5(@types/node@22.20.5)(vite@8.3.6(@types/node@22.20.5)(yaml@2.9.1))
+      yaml:
+        specifier: 2.9.1
+        version: 2.9.1
+
+  packages/chatgpt:
+    dependencies:
+      '@geldar/scriptorium-mind-loop':
+        specifier: workspace:*
+        version: link:../mind-loop
+      jose:
+        specifier: 6.2.15
+        version: 6.2.15
 
   packages/git:
     dependencies:
@@ -197,6 +209,31 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
 
+  packages/instinct:
+    dependencies:
+      '@geldar/scriptorium-psyche':
+        specifier: workspace:*
+        version: link:../psyche
+      '@modelcontextprotocol/sdk':
+        specifier: 1.32.2
+        version: 1.32.2(zod@4.6.7)
+
+  packages/keeper:
+    dependencies:
+      '@geldar/scriptorium-verify':
+        specifier: workspace:*
+        version: link:../verify
+    devDependencies:
+      '@geldar/scriptorium-path-rule':
+        specifier: workspace:*
+        version: link:../path-rule
+
+  packages/local:
+    dependencies:
+      '@geldar/scriptorium-mind-loop':
+        specifier: workspace:*
+        version: link:../mind-loop
+
   packages/memory:
     dependencies:
       '@geldar/scriptorium-path-rule':
@@ -209,7 +246,24 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
 
+  packages/mind-loop:
+    dependencies:
+      '@geldar/scriptorium-path-rule':
+        specifier: workspace:*
+        version: link:../path-rule
+      '@geldar/scriptorium-psyche':
+        specifier: workspace:*
+        version: link:../psyche
+      '@modelcontextprotocol/sdk':
+        specifier: 1.32.2
+        version: 1.32.2(zod@4.6.7)
+      ajv:
+        specifier: 8.17.1
+        version: 8.17.1
+
   packages/path-rule: {}
+
+  packages/psyche: {}
 
   packages/stub-cli:
     dependencies:
@@ -226,6 +280,15 @@ importers:
       '@geldar/scriptorium-memory':
         specifier: workspace:*
         version: link:../memory
+
+  packages/supervisor:
+    dependencies:
+      '@geldar/scriptorium-instinct':
+        specifier: workspace:*
+        version: link:../instinct
+      '@geldar/scriptorium-verify':
+        specifier: workspace:*
+        version: link:../verify
 
   packages/verify:
     dependencies:
@@ -1568,7 +1631,7 @@ snapshots:
     dependencies:
       '@hono/node-server': 2.1.6(hono@4.13.17)
       ajv: 8.17.1
-      ajv-formats: 3.0.1
+      ajv-formats: 3.0.1(ajv@8.17.1)
       content-type: 1.0.5
       cors: 2.8.6
       cross-spawn: 7.0.6
@@ -1748,8 +1811,8 @@ snapshots:
       mime-types: 3.0.2
       negotiator: 1.1.0
 
-  ajv-formats@3.0.1:
-    dependencies:
+  ajv-formats@3.0.1(ajv@8.17.1):
+    optionalDependencies:
       ajv: 8.17.1
 
   ajv@8.17.1:

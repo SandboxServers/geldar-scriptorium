@@ -28,7 +28,7 @@ This is the threat model for the Geldar player kit and its launcher. Each contro
 | Container | Reads of the CLI home and credentials denied by managed settings (rules and CLI acceptance tested in CI; live deny check is local only) | H-20 | T-20 |
 | Egress proxy | Internal network, no DNS, allowlist-only egress (`image/README.md`; tests in `tests/image/`) | H-08 | T-08 |
 | Egress proxy | Developer seam `GELDAR_DEV_MCP_URL`: read from the environment only, exact `http://host.docker.internal:PORT/p/ID` shape, not checked against `mcp_base`, straight to the allowlist writer for one launch, never given to the session container; the token is clear text over http, so developers use a separate dev token | H-08 | `launcher/test/hostile/devworld.bash.test.ts`, `devworld.pwsh.test.ts` |
-| Egress proxy | Owner-set port: a non-default port is accepted only when it equals `mcp_port` in `world.conf` and the scheme and host equal those of `mcp_base`; the proxy reaches the world on that port only and refuses CONNECT to port 80 | H-08 | `launcher/test/hostile/mcpport.bash.test.ts`, `mcpport.pwsh.test.ts` |
+| Egress proxy | Owner-set port: the scheme and host must equal those of `mcp_base` on every port (a missing `mcp_base` refuses), and a non-default port is accepted only when it also equals `mcp_port` in `world.conf`; the proxy reaches the world on that port only and refuses CONNECT to port 80 | H-08 | `launcher/test/hostile/mcpport.bash.test.ts`, `mcpport.pwsh.test.ts` |
 | Bundle gate | Separate no-network bundle step, size cap, `geldar-verify` allow-list | H-09, H-10, H-11 | T-09, T-10, T-11 |
 | Bundle gate | Safe fetch, independent host re-check, fast-forward-only merge and push | H-12, H-13, H-14 | T-12, T-13, T-14 |
 | Bundle gate | In `geldar-verify`: replace objects ignored, attributes file off, 50 MiB and 2000-commit caps, per-commit and net `--no-renames` path checks, mode, identity and fast-forward checks (`packages/verify`) | H-10, H-11 | T-10, T-11 |
@@ -36,6 +36,12 @@ This is the threat model for the Geldar player kit and its launcher. Each contro
 | Bundle gate | Output sanitising, failure keeps state, crash recovery from stored START | H-15, H-16, H-17 | T-15, T-16, T-17 |
 | Workspace origin | Clean host clone, START held by the launcher, export from `git archive`, isolated clone | H-01 to H-05 | T-01 to T-05 |
 | Settings layers | Hooks inert without the kit marker; reads of the CLI home and credentials denied (managed settings) | H-18, H-20 | T-18, T-20 |
+| Session login | Account connectors off (`ENABLE_CLAUDEAI_MCP_SERVERS=false`): a claude.ai login must not load the account's connectors (mail, calendar, drive, docs) into the session, so signing in never widens what the player can reach | none yet (no H-NN item) | `tests/image/session-env.test.ts` |
+| Workspace origin (keeper) | A malicious workspace (hooks, config, symlinks, submodules) fetched by the keeper: fetched into a private clone with hardened git (no hooks, no fsmonitor, no `includeIf`), the gate runs before any push, the workspace is mounted read-only | H-22 | none yet (SC-164) |
+| Deploy key | A stolen deploy key pushes only to its one repository, and only as a fast-forward; `deploy-key <id> --rotate` makes a new key, and the old one is removed on GitHub | H-22 | none yet (SC-164) |
+| Upstream sync | The supervisor applies upstream changes as the `player` user, between runs only, with hardened git and fast-forward only; a change it cannot apply is held | H-22 | none yet (SC-164, SC-167) |
+| Keeper hold | `HELD` is the only signal of a rejection: a refused push writes it with a short reason, and the supervisor starts no new run until a person releases it | H-22 | none yet (SC-164) |
+| Supervisor capabilities | Ambient SETUID and SETGID, kept only to start each run as `player`; each run's child ends with an empty capability set and no new privileges | H-22 | a real container check is owed to SC-164 |
 
 ## Accepted risks
 
@@ -49,6 +55,7 @@ This is the threat model for the Geldar player kit and its launcher. Each contro
 | --- | --- | --- |
 | Symlink swap between the commit tool's path check and hashing | Closed by SC-60j (`O_NOFOLLOW`, `fstat`, dev/ino check); Linux cases run in CI | none |
 | Case-folded path collision with a START path | Closed by SC-60k (bash) and SC-60l (PowerShell) in the host re-check | none |
+| Decision 42: the player's server host was not bound to `mcp_base` on ports 80 and 443 | Closed by SC-80 (the scheme and host must equal `mcp_base` on every port; a missing `mcp_base` refuses) | none |
 | MB-05: a planted standing instruction the model recalls | Accepted risk (in-game manipulation, Principle 5); it can only become a memory commit that the gate checks | none |
 | H-04: `git archive` honours `export-ignore` and `export-subst` | Open, real | `launcher/lib/prepare.sh`, `prepare.ps1`; fix card not yet assigned |
 | H-10: no per-blob size cap | Open, real | `packages/verify/src`, `launcher/lib/recheck.*`; fix card not yet assigned |
@@ -57,6 +64,13 @@ This is the threat model for the Geldar player kit and its launcher. Each contro
 | Helper container (uid 1000) reading a 0700 session directory on a host with another uid | Open design question (follow-up 11) | SC-60o follow-up |
 | H-09, H-14 | Not reproduced; regression guards only | `launcher/lib/bundle.*`, `finish.*` if they ever fail |
 | H-14 hook control assertion removed | The case can pass vacuously (follow-up 1) | wave-end fix pass |
+| Stolen shared login token file | Accepted risk: one owner-only file (0600 in a 0700 folder) per machine; revoke with `claude setup-token` again, then `auth-clear` (H-21) | the human |
+| A fooled model leaks its environment | The character has no shell tool and the managed settings deny reading the CLI home, so it cannot read the token (H-20, H-21) | none |
+| One token shared by every player of the machine | Accepted risk: revoking it logs every player out at once (H-21) | the human |
+| A hostile text in the character's last words (a fake instruction, control bytes, a huge tail) | The next prompt holds it only as quoted, cleaned text cut to 1500 characters, never as an instruction line | `launcher/test/run.bash.test.ts` (last words fixture); the player can only act through the checked tools |
+| A runaway cost | The daily cost cap and the optional daily token cap (`GELDAR_RUN_DAILY_TOKEN_CAP`) sleep the supervisor to the next UTC day; backoff and the failure limit write an `auto:` STOP. The caps are cost controls, not a security boundary; the Claude token count excludes cache reads, so that cap is a loose bound | Costs are the API-equivalent figures in `run/costs.csv`; token counts are in `run/tokens.csv`; the owner sets the caps |
+| A stuck supervisor | The STOP file is checked before every cycle and the signals stop the loop after the current cycle; a held session writes an `auto:` STOP | `run-stop`, `run/supervisor.log`; a cycle already running is never cut short |
+| A stale lock | The lock holds a pid; a lock whose process is gone is cleared at the next start, a live one refuses a second supervisor | `run/lock`; an empty pid file waits 2 seconds before refusing |
 
 ### Corpus to hardening items
 

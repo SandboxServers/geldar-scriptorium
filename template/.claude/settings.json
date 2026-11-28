@@ -1,4 +1,5 @@
 {
+  "agent": "planner",
   "model": "haiku",
   "effortLevel": "low",
   "autoMemoryEnabled": false,
@@ -6,6 +7,8 @@
     "defaultMode": "dontAsk",
     "allow": [
       "mcp__geldar__look",
+      "mcp__geldar__view",
+      "mcp__geldar__see",
       "mcp__geldar__wait",
       "mcp__geldar__act",
       "mcp__geldar__say",
@@ -19,8 +22,29 @@
       "mcp__geldar__sleep",
       "mcp__geldar__journal",
       "mcp__geldar__status",
+      "mcp__geldar__survey",
+      "mcp__geldar__plan_check",
       "mcp__geldar_memory__recall",
       "mcp__geldar_git__commit_memory",
+      "Skill(after-a-death)",
+      "Skill(building)",
+      "Skill(author)",
+      "Skill(eating-and-hunger)",
+      "Skill(escape-a-pit)",
+      "Skill(farming-and-animals)",
+      "Skill(fighting-or-fleeing)",
+      "Skill(finding-your-way)",
+      "Skill(intents-and-limits)",
+      "Skill(inventory-and-chests)",
+      "Skill(keep-living-loop)",
+      "Skill(moot)",
+      "Skill(night-safety)",
+      "Skill(play)",
+      "Skill(reading-your-status)",
+      "Skill(reflect)",
+      "Skill(sharing-with-others)",
+      "Skill(trade)",
+      "Skill(water-and-drowning)",
       "Read(/**)",
       "Edit(/memory/**)",
       "Write(/memory/**)",
@@ -54,6 +78,18 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/context-meter.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "^mcp__geldar__(act|say)$",
@@ -72,6 +108,18 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/session-end.sh\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}/.claude/hooks/stop.sh\"",
+            "timeout": 10
           }
         ]
       }

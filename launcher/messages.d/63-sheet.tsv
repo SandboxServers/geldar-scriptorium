@@ -1,0 +1,4 @@
+sheet_stored	The sheet for %s is stored on this machine. It reaches the player at the next start.
+sheet_bad	The sheet file for %s was refused (%s). Nothing was changed.
+sheet_failed	The sheet for %s could not be put in place. Nothing was started.
+roster_failed	The roster for %s could not be put in place. Nothing was started.

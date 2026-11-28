@@ -15,12 +15,12 @@ describe('parseDenyRules', () => {
       paths: [
         { tool: 'Read', pattern: '**/.credentials.json' },
         { tool: 'Edit', pattern: '**/.credentials.json' },
-        { tool: 'Write', pattern: '**/.credentials.json' },
         { tool: 'Read', pattern: '//cli-home/**' },
         { tool: 'Edit', pattern: '//cli-home/**' },
-        { tool: 'Write', pattern: '//cli-home/**' },
         { tool: 'Read', pattern: '//cli-home' },
         { tool: 'Edit', pattern: '//cli-home' },
+        { tool: 'Write', pattern: '**/.credentials.json' },
+        { tool: 'Write', pattern: '//cli-home/**' },
         { tool: 'Write', pattern: '//cli-home' },
       ],
     });

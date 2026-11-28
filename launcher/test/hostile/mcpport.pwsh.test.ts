@@ -68,19 +68,49 @@ if (pwsh) {
       expectNoDockerCall(w);
     });
 
+    // SC-80: the host must equal mcp_base on the default ports too.
+    for (const [label, base, port] of [
+      ['a wrong host on 443', BASE, '18443'],
+      ['a missing mcp_base', '', ''],
+    ] as const)
+      it(`${label} is refused`, { timeout: T }, () => {
+        const w = makeWorld();
+        const p = makePlayer(w, { id: 'abc' });
+        setUrl(
+          w,
+          p.clone,
+          label === 'a missing mcp_base'
+            ? 'https://world.example.com:443/p/x'
+            : 'https://other.example.com:443/p/x',
+        );
+        const env = { ...w.envPwsh, GELDAR_SHARE: share(base, port) };
+        const r = run(pwsh, ['__prepare', 'abc', 'play'], { env, timeoutMs: T });
+        expectRefusal(r, 'bad_player_json', { status: 1 });
+        expectNoDockerCall(w);
+      });
+
+    it('the right host on 443 passes', { timeout: T }, () => {
+      const w = makeWorld();
+      const p = makePlayer(w, { id: 'abc' });
+      setUrl(w, p.clone, 'https://world.example.com:443/p/x');
+      const env = { ...w.envPwsh, GELDAR_SHARE: share(BASE, '18443') };
+      const r = run(pwsh, ['__prepare', 'abc', 'play'], { env, timeoutMs: T });
+      expect(r.status, r.stderr).toBe(0);
+    });
+
     for (const [url, base, port, want] of [
       [URL, BASE, '18443', '18443'],
-      ['https://mcp.registry.test/mcp', '', '', '443'],
-      ['http://mcp.registry.test/mcp', '', '', '80'],
-      ['https://world.example.com:/p/x', '', '', '443'],
-      ['http://world.test:/p/x', '', '', '80'],
+      ['https://mcp.registry.test/mcp', 'https://mcp.registry.test', '', '443'],
+      ['http://mcp.registry.test/mcp', 'http://mcp.registry.test', '', '80'],
+      ['https://world.example.com:/p/x', 'https://world.example.com', '', '443'],
+      ['http://world.test:/p/x', 'http://world.test', '', '80'],
     ] as const)
       it(`a session start for ${url} writes both allowlist files and exports GELDAR_WORLD_PORTS`, {
         timeout: T,
       }, () => {
         const w = makeWorld();
         const p = makePlayer(w, { id: 'abc' });
-        if (url !== 'https://mcp.registry.test/mcp') setUrl(w, p.clone, url);
+        setUrl(w, p.clone, url);
         const dump = join(w.root, 'dump.sh');
         writeFileSync(dump, 'env > "$FAKE_OUT"\n');
         const out = join(w.root, 'env-dump.txt');

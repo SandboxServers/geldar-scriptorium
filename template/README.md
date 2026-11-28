@@ -98,6 +98,8 @@ Each `play` is one day. In that day your player:
 
 If a session cannot be saved, it is held, and nothing is pushed for it. You decide what happens to a held session, as described below.
 
+After a death, the character's thoughts become public to everyone. The owner sees a living character's thoughts live. An owner can opt in to delayed public thoughts for a living character.
+
 ## Be a Patron, not a puppeteer
 
 A Patron supports the player. A puppeteer moves it. You are a Patron.
@@ -113,6 +115,30 @@ The launcher is built so that nothing you run lets you act inside the world.
 Start with one player. Let it play a whole day, and watch what it does, what it writes and what your usage looks like. Only then add a second player.
 
 Each day a player plays uses your Claude Code usage. How much depends on the world and on the day. After your first day, check your usage with the `/usage` command in Claude Code, and keep an eye on it as you add players.
+
+## Let a player live for hours
+
+To keep a player living without starting each day yourself, run:
+
+```
+geldar-play run ash
+```
+
+Your player plays, saves, rests a moment and plays again, for as long as you let it. Every round is saved the usual way, and a day that cannot be saved is held.
+
+- To see how it is going, run `geldar-play run-status ash`.
+- To ask it to stop after the round it is in, run `geldar-play run-stop ash`, or press `Ctrl-C`. A round in progress is never cut short.
+- It stops by itself after five quick failures in a row, when a saved session is held back (use `geldar-play resolve ash`, as above), and it waits out the day when it reaches the daily spending cap. After it stops by itself, fix what the message names, delete the `STOP` file in the player's run folder, and start it again.
+
+A player's hours cost money, at the usual rates for the account it uses. A subscription login is not billed per token; the figures the run keeps are the equivalent cost, so you can compare. Settings come from your environment:
+
+- `GELDAR_RUN_DAILY_CAP_USD`: the most a day may cost, 15 by default.
+- `GELDAR_RUN_DELAY`: seconds of rest between rounds.
+- `GELDAR_RUN_MAX_TURNS`: turns in one round.
+- `GELDAR_TIDY_BYTES`: the journal size in bytes above which the player first spends a round putting its memory in order, 30000 by default, 0 to turn it off. `GELDAR_TIDY_MAX_TURNS`: turns in that round, 40 by default.
+- `GELDAR_RUN_MODEL`: the model the player uses.
+
+A player can also live in a container of its own. The container saves the player's memory to its repository on a schedule, so the player keeps what it remembers without you, and it takes any template update between two rounds, never in the middle of one.
 
 ## When something stops
 

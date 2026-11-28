@@ -2,3 +2,5 @@
 api.anthropic.com
 claude.ai
 platform.claude.com
+api.openai.com
+auth.openai.com

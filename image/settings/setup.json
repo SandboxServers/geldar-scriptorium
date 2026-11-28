@@ -1,4 +1,5 @@
 {
+  "enabledMcpjsonServers": ["geldar", "geldar_memory", "geldar_git"],
   "permissions": {
     "deny": ["mcp__geldar__*"]
   }

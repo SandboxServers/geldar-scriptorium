@@ -1,9 +1,10 @@
 {
+  "enabledMcpjsonServers": ["geldar", "geldar_memory", "geldar_git"],
   "permissions": {
     "deny": [
       "Edit(/memory/identity.md)",
-      "Write(/memory/identity.md)",
       "Edit(//player/memory/identity.md)",
+      "Write(/memory/identity.md)",
       "Write(//player/memory/identity.md)"
     ]
   }

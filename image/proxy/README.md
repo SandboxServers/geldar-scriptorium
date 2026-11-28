@@ -4,7 +4,7 @@ The session container has no route out. Its only way to a remote host is this Sq
 
 Two allowlists decide what Squid forwards, both `dstdomain` (exact host names):
 
-- `allowlist-vendor.txt` (committed here): the hosts the Claude Code CLI needs, `api.anthropic.com`, `claude.ai` and `platform.claude.com`.
+- `allowlist-vendor.txt` (committed here): Claude Code uses `api.anthropic.com`, `claude.ai` and `platform.claude.com`; the direct ChatGPT provider uses `api.openai.com` and `auth.openai.com`. Entries are exact hosts.
 - `allowlist-world.txt` (not committed): the MCP host from the player's `player.json`. The launcher writes it per session and compose mounts it.
 - `allowlist-world-ports.txt` (the `world_port` ACL, not committed): the effective port of the MCP URL. The launcher writes it into the player's `pub/` folder and sets `GELDAR_WORLD_PORTS` to it. Compose mounts `world-ports-default.txt` (committed here, holds `443`) when `GELDAR_WORLD_PORTS` is unset.
 

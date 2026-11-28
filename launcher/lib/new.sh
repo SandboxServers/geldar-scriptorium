@@ -17,13 +17,19 @@ gp_sleep() {
 valid_base_url() {
   local re='^https?://[^/@?# ]+$'
   [[ ${1-} =~ $re ]] || return 1
-  valid_mcp_url "$1/p/x"
+  valid_mcp_url "$1/p/x" base
 }
 
 # Reads the token file: one line, trimmed, nothing after it. Sets NEW_TOKEN.
 read_token_file() {
-  local line="" re='^[A-Za-z0-9._~-]{16,200}$' extra
+  local line="" re='^[A-Za-z0-9._~-]{16,200}$' extra head sz1 sz2
   [ -f "$1" ] || die 1 bad_token
+  # A leading byte-order mark or any NUL byte (UTF-16 has them) is refused, as the PowerShell twin does.
+  head=$(head -c 3 "$1" | od -An -tx1 | tr -d ' \n')
+  [ "$head" != efbbbf ] || die 1 bad_token
+  sz1=$(wc -c < "$1" | tr -d ' ')
+  sz2=$(LC_ALL=C tr -d '\000' < "$1" | wc -c | tr -d ' ')
+  [ "$sz1" = "$sz2" ] || die 1 bad_token
   {
     IFS= read -r line || true
     while IFS= read -r extra || [ -n "$extra" ]; do
@@ -34,6 +40,8 @@ read_token_file() {
   line=${line%$'\r'}
   line=${line#"${line%%[![:space:]]*}"}
   line=${line%"${line##*[![:space:]]}"}
+  # A Geldar token file reads GELDAR_MCP_TOKEN=<value>; the bare value is accepted too.
+  line=${line#GELDAR_MCP_TOKEN=}
   [[ $line =~ $re ]] || die 1 bad_token
   NEW_TOKEN=$line
 }
@@ -124,6 +132,13 @@ persona_part() {
     [ -d "$p" ] || die 1 persona_bad "$id" type
   else
     [ -f "$p" ] || die 1 persona_bad "$id" type
+    # A second hard link could alias a file outside the persona folder: GNU stat, then BSD stat.
+    local n
+    n=$(stat -c %h -- "$p" 2>/dev/null) || n=$(stat -f %l "$p" 2>/dev/null) || n=
+    case $n in
+      '' | *[!0-9]*) die 1 persona_bad "$id" hardlink ;;
+    esac
+    [ "$n" -le 1 ] || die 1 persona_bad "$id" hardlink
   fi
 }
 
@@ -156,6 +171,12 @@ write_player_json() {
       '  "player_id": '*) line="  \"player_id\": \"$id\"," ;;
       '  "shard": '*) line="  \"shard\": \"$shard\"," ;;
       '  "mcp_url": '*) line="  \"mcp_url\": \"$url\"," ;;
+      '  "harness": '*) line="  \"harness\": \"${GP_CLI:-claude}\"," ;;
+      '  "declared_model": '*)
+        case ${GP_CLI:-claude} in
+          chatgpt) line='  "declared_model": "",' ;;
+        esac
+        ;;
     esac
     out="$out$line"$'\n'
   done < "$f"
@@ -183,10 +204,178 @@ check_visibility() {
   [ "$vis" != "private" ] || NEW_VIS=private
 }
 
+# Ends new after GitHub made the repository: removes the local clone, then prints the message and the
+# recovery line. Arguments: clone folder, player id, step, then the message key and its arguments.
+# For an adopted repository every failure says adopt_failed: the commit may already be on the remote.
+die_after_create() {
+  local clone=$1 id=$2 step=$3
+  shift 3
+  rm -rf "$clone"
+  if [ -n "${NEW_ADOPT-}" ]; then
+    say adopt_failed "$NEW_REPO" "$id" "$step"
+    exit 1
+  fi
+  say "$@"
+  say repo_on_github "$id"
+  exit 1
+}
+
+# Ends new on a refusal after the clone but before anything was committed: the local clone goes, and
+# so does the players folder if this run made it. Arguments: clone folder, then the message and arguments.
+adopt_refuse() {
+  local clone=$1
+  shift
+  rm -rf "$clone"
+  [ -z "${NEW_PLAYERS_MADE-}" ] || rmdir "$NEW_PLAYERS_DIR" 2> /dev/null || true
+  die 1 "$@"
+}
+
+# Checks the repository --repo names before anything is written: it exists, its visibility is the
+# requested one, and it holds nothing but README.md, LICENSE and .gitignore at the top level.
+# Arguments: gh, owner/name, wanted visibility.
+adopt_verify() {
+  local gh=$1 repo=$2 want=$3 out v n c
+  out=$(run_bounded 120 "$gh" repo view "$repo" --json visibility,isEmpty,name 2> /dev/null) ||
+    die 1 repo_missing "$repo"
+  v=$(printf '%s' "$out" | tr -d ' \r\n' | sed -n 's/.*"visibility":"\([A-Za-z]*\)".*/\1/p' |
+    tr 'A-Z' 'a-z')
+  [ "$v" = "$want" ] || die 1 repo_visibility "$repo" "${v:-unknown}" "$want"
+  out=$(run_bounded 120 "$gh" api "repos/$repo/contents" --jq 'map(.name)' 2> /dev/null) ||
+    die 1 repo_not_empty "$repo"
+  # The answer is a JSON array of names; the quoted strings are the names. An empty list is refused:
+  # a repository with no commit cannot be filled, and an answer that cannot be read is no answer.
+  c=0
+  while IFS= read -r n; do
+    case $n in
+      '"README.md"' | '"LICENSE"' | '".gitignore"') c=$((c + 1)) ;;
+      *) die 1 repo_not_empty "$repo" ;;
+    esac
+  done <<EOF
+$(printf '%s\n' "$out" | grep -o '"[^"]*"')
+EOF
+  [ "$c" -gt 0 ] || die 1 repo_not_empty "$repo"
+}
+
+# Checks the clone of an adopted repository: git must list nothing but plain files (mode 100644) named
+# README.md, LICENSE or .gitignore, so no link can carry the template copy out of the clone.
+# Arguments: clone folder. Status 1 on any other entry.
+adopt_check_clone() {
+  local rec mode p c=0
+  while IFS= read -r -d '' rec; do
+    mode=${rec%% *}
+    p=${rec#*$'\t'}
+    [ "$mode" = 100644 ] || return 1
+    case $p in
+      README.md | LICENSE | .gitignore) c=$((c + 1)) ;;
+      *) return 1 ;;
+    esac
+  done < <(git_cmd -C "$1" ls-tree -r -z HEAD 2> /dev/null)
+  [ "$c" -gt 0 ]
+}
+
+# Picks the template release the way upgrade does: the newest stable kit-v tag, or the newest prerelease
+# when no tag is stable, from GELDAR_TEMPLATE_URL (under GELDAR_INTERNAL=1) or the template repository.
+# Arguments: an exact version from --kit-version (optional), which must be a listed tag, else
+# kit_version_unknown. Sets ADOPT_URL and ADOPT_TAG; no tag at all is template_unpinned.
+adopt_template_tag() {
+  local url out best tags
+  url=$(gp_env GELDAR_TEMPLATE_URL)
+  [ -n "$url" ] || url=$UP_TEMPLATE_URL
+  out=$(mktemp "${TMPDIR:-/tmp}/gp-tags.XXXXXX") || die 1 template_unpinned
+  run_bounded 60 git_cmd ls-remote --tags --refs "$url" 'refs/tags/kit-v*' > "$out" 2> /dev/null || {
+    rm -f "$out"
+    die 1 template_unpinned
+  }
+  tags=$(up_tag_versions "$out")
+  rm -f "$out"
+  if [ -n "${1-}" ]; then
+    grep -qxF -- "$1" <<< "$tags" || die 1 kit_version_unknown "$1"
+    best=$1
+  else
+    best=$(up_newest "$tags")
+  fi
+  [ -n "$best" ] || die 1 template_unpinned
+  ADOPT_URL=$url
+  ADOPT_TAG="kit-v$best"
+}
+
+# Copies the template's files (a shallow, hardened, unchecked-out clone of the pinned tag) into the
+# clone. Nothing under .git crosses and a link in the template is refused. Sets ADOPT_EXEC to the paths
+# that git records as executable. Arguments: clone folder. Status 1 on a refusal, 2 when the template
+# holds more than 2000 files or 20 MB.
+adopt_fill() {
+  local clone=$1 tmp rec meta mode p list="" dir size n=0 total=0
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/gp-tpl.XXXXXX") || return 1
+  ADOPT_EXEC=""
+  if ! run_bounded 120 git_cmd -c fetch.fsckObjects=true -c transfer.fsckObjects=true -c core.autocrlf=false \
+    clone -q --no-checkout --depth 1 --branch "$ADOPT_TAG" -- "$ADOPT_URL" "$tmp/tpl" > /dev/null 2>&1; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  while IFS= read -r -d '' rec; do
+    meta=${rec%%$'\t'*}
+    mode=${meta%% *}
+    size=${meta##* }
+    p=${rec#*$'\t'}
+    case $mode in
+      100644) ;;
+      100755) ADOPT_EXEC="$ADOPT_EXEC$p"$'\n' ;;
+      *)
+        rm -rf "$tmp"
+        return 1
+        ;;
+    esac
+    n=$((n + 1))
+    case $size in
+      '' | *[!0-9]*)
+        rm -rf "$tmp"
+        return 1
+        ;;
+    esac
+    total=$((total + size))
+    if [ "$n" -gt 2000 ] || [ "$total" -gt 20971520 ]; then
+      rm -rf "$tmp"
+      return 2
+    fi
+    # Any letter case of .git is refused (no fork per entry: a template may list 2000 files).
+    case /$p/ in
+      */../* | */./* | */[.][Gg][Ii][Tt]/* | //* | *\\* | *$'\n'*)
+        rm -rf "$tmp"
+        return 1
+        ;;
+    esac
+    list="$list$p"$'\n'
+  done < <(git_cmd -C "$tmp/tpl" ls-tree -r -l -z HEAD 2> /dev/null)
+  [ -n "$list" ] || {
+    rm -rf "$tmp"
+    return 1
+  }
+  git_cmd -C "$tmp/tpl" -c core.autocrlf=false checkout -q HEAD -- . > /dev/null 2>&1 || {
+    rm -rf "$tmp"
+    return 1
+  }
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    if [ -L "$tmp/tpl/$p" ] || [ ! -f "$tmp/tpl/$p" ]; then
+      rm -rf "$tmp"
+      return 1
+    fi
+    dir=$(dirname -- "./$p")
+    # The destination goes first, so a link put there after the check is not written through.
+    mkdir -p "$clone/$dir" && rm -f "$clone/$p" && cp -- "$tmp/tpl/$p" "$clone/$p" || {
+      rm -rf "$tmp"
+      return 1
+    }
+  done <<EOF
+$list
+EOF
+  rm -rf "$tmp"
+}
 verb_new() {
   local id=$1 vis="" mock="" tokfile="" shard=commons base i a clone name url d persona=""
-  local have_persona=""
-  local shre='^[a-z][a-z0-9-]{0,30}$' gh players add=player.json
+  local have_persona="" repo="" repo_re='^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$' p
+  local kit="" kit_re='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.]+)?$'
+  local shre='^[a-z][a-z0-9-]{0,30}$' gh players add=player.json have_sheet="" sheet=""
   shift
   while [ $# -gt 0 ]; do
     case $1 in
@@ -210,9 +399,34 @@ verb_new() {
         persona=$2
         shift 2
         ;;
+      --repo)
+        [ $# -ge 2 ] || die 2 usage
+        [ -z "$repo" ] || die 1 repo_bad
+        repo=$2
+        [[ $repo =~ $repo_re ]] || die 1 repo_bad
+        case ${repo#*/} in . | ..) die 1 repo_bad ;; esac
+        shift 2
+        ;;
+      --kit-version)
+        [ $# -ge 2 ] || die 1 kit_version_bad
+        [ -z "$kit" ] || die 1 kit_version_bad
+        [[ $2 =~ $kit_re ]] || die 1 kit_version_bad
+        kit=$2
+        shift 2
+        ;;
+      --sheet)
+        [ $# -ge 2 ] || die 2 usage
+        [ -z "$have_sheet" ] || die 1 sheet_bad "$id" twice
+        have_sheet=1
+        sheet=$2
+        shift 2
+        ;;
       *) die 2 usage ;;
     esac
   done
+  # --kit-version only means something with --repo: it names the template release to copy.
+  if [ "${GP_CLI:-claude}" = chatgpt ] && [ -z "$have_persona" ]; then die 1 chatgpt_persona; fi
+  if [ -n "$kit" ] && [ -z "$repo" ]; then die 1 kit_version_bad; fi
   [[ $shard =~ $shre ]] || die 1 bad_shard
   if [ -n "$mock" ]; then
     valid_base_url "$mock" || die 1 bad_url
@@ -225,6 +439,8 @@ verb_new() {
   NEW_TOKEN=""
   [ -z "$tokfile" ] || read_token_file "$tokfile"
   [ -z "$have_persona" ] || persona_load "$persona" "$id"
+  # The sheet is checked before anything is created, as the persona is; sheet_store copies it later.
+  [ -z "$have_sheet" ] || sheet_check "$sheet" "$id"
   check_visibility "$shard" "$vis" "$mock"
   url="$base/p/$id"
 
@@ -235,46 +451,80 @@ verb_new() {
     die 1 repo_exists "$id"
   fi
   gh=${GELDAR_GH:-gh}
+  NEW_ADOPT=""
+  if [ -n "$repo" ]; then
+    NEW_ADOPT=1
+    NEW_REPO=$repo
+    adopt_verify "$gh" "$repo" "$NEW_VIS"
+    adopt_template_tag "$kit"
+  fi
   [ "$NEW_VIS" = "private" ] || say public_notice
+  [ -z "$mock" ] || say mock_note
 
   # The human's own clone and directory keep the user's normal modes.
   umask 022
+  NEW_PLAYERS_DIR=$players
+  NEW_PLAYERS_MADE=""
+  [ -d "$players" ] || NEW_PLAYERS_MADE=1
   mkdir -p "$players"
-  (cd "$players" && run_bounded 120 "$gh" repo create "$name" \
-    --template SandboxServers/geldar-player-template "--$NEW_VIS") > /dev/null 2>&1 ||
-    die 1 gh_failed "$id" 'create'
   clone="$players/$name"
+  if [ -z "$repo" ]; then
+    (cd "$players" && run_bounded 120 "$gh" repo create "$name" \
+      --template SandboxServers/geldar-player-template "--$NEW_VIS") > /dev/null 2>&1 ||
+      die 1 gh_failed "$id" 'create'
+  fi
   i=0
   while :; do
     i=$((i + 1))
-    if (cd "$players" && run_bounded 120 "$gh" repo clone "$name") > /dev/null 2>&1 &&
-      [ -d "$clone/.git" ]; then
+    # A clone counts only if it has a commit: GitHub can fill the template after repo create returns.
+    if (cd "$players" && run_bounded 120 "$gh" repo clone "${repo:-$name}" "$name") > /dev/null 2>&1 &&
+      [ -d "$clone/.git" ] && git_cmd -C "$clone" rev-parse --verify -q HEAD > /dev/null 2>&1; then
       break
     fi
     rm -rf "$clone"
-    [ "$i" -lt 5 ] || die 1 clone_timeout "$id"
+    [ "$i" -lt 5 ] || die_after_create "$clone" "$id" clone clone_timeout "$id"
     gp_sleep 3
   done
 
+  if [ -n "$repo" ]; then
+    # Only the three names git lists in the clone may be there; a link would carry the copy outside it.
+    adopt_check_clone "$clone" || adopt_refuse "$clone" repo_not_empty "$repo"
+    adopt_fill "$clone"
+    case $? in
+      0) ;;
+      2) adopt_refuse "$clone" template_too_big ;;
+      *) die_after_create "$clone" "$id" template gh_failed "$id" template ;;
+    esac
+    add=-A
+  fi
   write_player_json "$clone/player.json" "$id" "$shard" "$url"
   if [ -n "$have_persona" ]; then
     mkdir -p "$clone/memory"
     printf '%s' "$PERSONA_IDENTITY" > "$clone/memory/identity.md"
     printf '%s' "$PERSONA_GOALS" > "$clone/memory/goals.md"
-    add="player.json memory/identity.md memory/goals.md"
+    [ -n "$repo" ] || add="player.json memory/identity.md memory/goals.md"
   fi
   # shellcheck disable=SC2086
-  git_cmd -C "$clone" add $add > /dev/null 2>&1 || die 1 gh_failed "$id" 'add'
+  git_cmd -C "$clone" add $add > /dev/null 2>&1 ||
+    die_after_create "$clone" "$id" add gh_failed "$id" add
+  if [ -n "$repo" ]; then
+    while IFS= read -r p; do
+      [ -z "$p" ] || git_cmd -C "$clone" update-index --chmod=+x -- "$p" > /dev/null 2>&1
+    done <<EOF
+$ADOPT_EXEC
+EOF
+  fi
   a="player-$id@users.noreply.github.com"
   GIT_AUTHOR_NAME=$name GIT_AUTHOR_EMAIL=$a GIT_COMMITTER_NAME=$name GIT_COMMITTER_EMAIL=$a \
     git_cmd -C "$clone" -c "user.name=$name" -c "user.email=$a" -c commit.gpgsign=false \
     -c tag.gpgsign=false commit -q -m "player: $id" > /dev/null 2>&1 ||
-    die 1 gh_failed "$id" 'commit'
+    die_after_create "$clone" "$id" commit gh_failed "$id" commit
   run_bounded 120 git_cmd -C "$clone" push -q origin HEAD > /dev/null 2>&1 ||
-    die 1 gh_failed "$id" 'push'
+    die_after_create "$clone" "$id" push gh_failed "$id" push
 
   umask 077
   private_mkdir "$d"
+  [ -z "$have_sheet" ] || sheet_store "$id" "$sheet"
   printf '%s\n' "$clone" > "$d/clone"
   git_cmd -C "$clone" symbolic-ref --short HEAD > "$d/branch" 2> /dev/null || printf 'main\n' > "$d/branch"
   if [ -n "$NEW_TOKEN" ]; then
@@ -283,7 +533,9 @@ verb_new() {
       printf '%s\n' "$NEW_TOKEN" > "$d/token"
     )
   fi
-  if [ -n "$have_persona" ]; then
+  if [ "${GP_CLI:-claude}" = chatgpt ]; then
+    say chatgpt_created "$id" "$id"
+  elif [ -n "$have_persona" ]; then
     say created_seeded "$id" "$id"
   else
     say created "$id" "$id"

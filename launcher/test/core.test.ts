@@ -80,7 +80,9 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
     for (const args of [[], ['frobnicate']]) {
       const r = run(launcher, args, { env: envOf(launcher, w) });
       expect(r.status).toBe(2);
-      expect(r.stderr).toContain('Usage: geldar-play new|setup|play|resolve|archive|status');
+      expect(r.stderr).toContain(
+        'Usage: geldar-play new|setup|play|run|run-status|run-stop|resolve|archive|status|upgrade|start|stop|restart|player-status|logs|deploy-key|release-hold|sync|pull|auth-set|auth-status|auth-clear',
+      );
     }
     const caps = run(launcher, ['--capabilities'], { env: envOf(launcher, w) });
     expect(caps.stdout.split('\n')).toContain('core');
@@ -288,14 +290,18 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
 
   it('11. prerequisites per verb, with the hint text', () => {
     const w = makeWorld();
+    // PowerShell needs no perl; bash does (sanitize in lib/common.sh).
     const needs: Record<string, string[]> = {
-      new: ['docker', 'git', 'perl', 'gh'],
-      archive: ['docker', 'git', 'perl', 'gh'],
-      play: ['docker', 'git', 'tar', 'perl'],
-      setup: ['docker', 'git', 'tar', 'perl'],
-      resolve: ['docker', 'git', 'perl'],
+      new: ['docker', 'git', 'gh'],
+      archive: ['docker', 'git', 'gh'],
+      play: ['docker', 'git', 'tar'],
+      setup: ['docker', 'git', 'tar'],
+      resolve: ['docker', 'git'],
       status: ['git'],
     };
+    if (launcher.name === 'bash') {
+      for (const verb of ['new', 'archive', 'play', 'setup', 'resolve']) needs[verb]?.push('perl');
+    }
     const hints: Record<string, string> = {
       docker: 'Install Docker with Compose v2.',
       git: 'Install git 2.40 or newer.',
@@ -358,6 +364,14 @@ describe.each(forGroup('core'))('core ($name)', (launcher) => {
         expect(r.stderr, `${verb} without ${tool}`).toContain(
           `${tool} is needed and was not found. ${hints[tool]}`,
         );
+      }
+    }
+    // The PowerShell launcher must not need perl: with perl absent, no verb stops for it.
+    if (launcher.name !== 'bash') {
+      for (const verb of Object.keys(needs)) {
+        const env = base(shims(all.filter((t) => t !== 'perl')));
+        const r = run(launcher, args(verb), { env });
+        expect(r.stderr, `${verb} without perl`).not.toContain('perl is needed');
       }
     }
     const old = run(launcher, ['status'], { env: base(shims(all, '2.39.5')) });

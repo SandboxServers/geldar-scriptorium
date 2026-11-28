@@ -14,7 +14,7 @@ import { bashPath, launchers, repoRoot, run } from '../../launcher/test/harness.
 import { corpusReadScenario } from '../../packages/stub-cli/src/corpus-scenario.ts';
 import { manifest } from '../hostile/corpus/corpus.ts';
 import { buildKit, dockerReady, KIT_IMAGE } from '../image/docker.ts';
-import { cleanPlayer, docker, MOCK_IMAGE, writeExtraCompose } from './world.ts';
+import { cleanPlayer, docker, MOCK_IMAGE, mockWorldShare, writeExtraCompose } from './world.ts';
 
 const gate = process.env.GELDAR_E2E === '1' || Boolean(process.env.CI);
 const win = process.platform === 'win32';
@@ -107,6 +107,7 @@ describe.runIf(Boolean(launcher) || Boolean(process.env.CI))(
       ),
     );
     chmodSync(join(fakeDir, 'docker'), 0o755);
+    const share = mockWorldShare(root);
 
     describe.each(manifest.map((m) => m.id))('%s', (mbId) => {
       const id = `mw${mbId.slice(3)}p${process.pid}`;
@@ -118,6 +119,7 @@ describe.runIf(Boolean(launcher) || Boolean(process.env.CI))(
         const r = run(l, args, {
           timeoutMs,
           env: {
+            GELDAR_SHARE: bashPath(share),
             GELDAR_STATE_DIR: bashPath(state),
             GELDAR_PLAYERS_DIR: bashPath(players),
             GELDAR_DOCKER: bashPath(join(fakeDir, 'docker')),

@@ -1,19 +1,10 @@
 import { spawnSync } from 'node:child_process';
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { buildKit, dockerPath, dockerReady, KIT_IMAGE, repoRoot, run } from './docker.ts';
+import { openForContainer } from './open-for-container.ts';
 
 const ready = dockerReady();
 const linux = process.platform === 'linux';
@@ -35,20 +26,15 @@ function kit(script: string, extra: string[] = [], input?: string) {
   });
 }
 
+// gc.auto and maintenance.auto are off so the commit never spawns a detached `git maintenance`,
+// which holds objects/maintenance.lock while openForContainer walks the tree (#131).
 function git(cwd: string, args: string[]): string {
-  const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const result = spawnSync('git', ['-c', 'gc.auto=0', '-c', 'maintenance.auto=false', ...args], {
+    cwd,
+    encoding: 'utf8',
+  });
   if (result.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${result.stderr}`);
   return result.stdout;
-}
-
-// Directories 0755 and files 0644 so the container can read them; a no-op on Windows.
-function openForContainer(path: string): void {
-  if (statSync(path).isDirectory()) {
-    chmodSync(path, 0o755);
-    for (const entry of readdirSync(path)) openForContainer(join(path, entry));
-  } else {
-    chmodSync(path, 0o644);
-  }
 }
 
 // A temp workspace: player.json, memory/identity.md and one host commit on main.
@@ -75,7 +61,7 @@ function makeWorkspace(): string {
 
 function removeWorkspace(dir: string): void {
   openForContainer(dir);
-  rmSync(dir, { recursive: true, force: true });
+  rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }
 
 // Runs one hook script with the workspace at /player and the hooks read-only at /hooks.
@@ -110,6 +96,25 @@ describe.skipIf(!ready)('kit image contract', () => {
     );
     expect(r.status).toBe(0);
     expect(r.stdout.trim().split('\n')).toEqual(['root', 'unwritable']);
+  }, 120_000);
+
+  it('the entrypoint is the kit script that seeds workspace trust, and CMD stays node', () => {
+    const entrypoint = run([
+      'image',
+      'inspect',
+      '--format',
+      '{{json .Config.Entrypoint}}',
+      KIT_IMAGE,
+    ]);
+    expect(entrypoint.status).toBe(0);
+    expect(JSON.parse(entrypoint.stdout)).toEqual(['/usr/local/bin/geldar-entrypoint.sh']);
+    const cmd = run(['image', 'inspect', '--format', '{{json .Config.Cmd}}', KIT_IMAGE]);
+    expect(cmd.status).toBe(0);
+    expect(JSON.parse(cmd.stdout)).toEqual(['node']);
+    const script = kit(
+      'test -x /usr/local/bin/geldar-entrypoint.sh && grep -q hasTrustDialogAccepted /usr/local/bin/geldar-entrypoint.sh && echo ok',
+    );
+    expect(script.stdout.trim()).toBe('ok');
   }, 120_000);
 
   it('settings are in place, byte-equal to the repo and unwritable', () => {

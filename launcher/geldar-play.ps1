@@ -19,15 +19,19 @@ Import-Messages
 if (-not $IsWindows) { [void](Set-Umask 0x3F) }
 
 $GP_VERSION = '0.1.0'
+$script:GP_CLI = 'claude'
 
 # The tools each verb needs on the human's machine (decision 10).
 function Get-VerbNeeds([string]$Verb) {
   switch ($Verb) {
-    { $_ -in 'new', 'archive' } { return @('docker', 'git', 'perl', 'gh') }
-    { $_ -in 'setup', 'play', '__prepare', '__session', '__finish' } { return @('docker', 'git', 'tar', 'perl') }
-    'resolve' { return @('docker', 'git', 'perl') }
-    'status' { return @('git') }
-    'upgrade' { return @('git', 'gh') }
+    { $_ -in 'new', 'archive' } { return @('docker', 'git', 'gh') }
+    { $_ -in 'setup', 'play', 'run', '__prepare', '__session', '__finish' } { return @('docker', 'git', 'tar') }
+    'resolve' { return @('docker', 'git') }
+    { $_ -in 'status', 'run_status', 'pull' } { return @('git') }
+    'upgrade' { return @('git') }
+    { $_ -in 'chatgpt_login', 'chatgpt_models' } { return @('docker', 'git') }
+    'sheet_set' { return @('git') }
+    { $_ -in 'start', 'stop', 'restart', 'player_status', 'logs', 'deploy_key', 'release_hold', 'sync' } { return @('docker', 'git') }
   }
   return @()
 }
@@ -47,9 +51,12 @@ function Read-CliOption([string[]]$Rest) {
   }
   switch ($cli) {
     'claude' { }
+    'chatgpt' { if ($verb -cne 'new') { Die 1 chatgpt_persistent } }
+    'local' { Die 1 local_unavailable }
     'codex' { Die 1 cli_unsupported }
     default { Die 2 usage }
   }
+  $script:GP_CLI = $cli
   return , $out
 }
 
@@ -70,7 +77,11 @@ switch -CaseSensitive ($verb) {
   { $_ -in '__prepare', '__session', '__finish', '__bounded' } {
     if ((Get-GatedEnv 'GELDAR_INTERNAL') -ne '1') { Die 2 internal_only }
   }
-  { $_ -in 'new', 'setup', 'play', 'resolve', 'archive', 'status', 'upgrade' } { }
+  { $_ -in 'new', 'setup', 'play', 'run', 'run-status', 'run-stop', 'resolve', 'archive', 'status', 'upgrade' } { }
+  { $_ -in 'auth-set', 'auth-status', 'auth-clear' } { }
+  { $_ -in 'chatgpt-login', 'chatgpt-models' } { }
+  'sheet-set' { }
+  { $_ -in 'start', 'stop', 'restart', 'player-status', 'logs', 'deploy-key', 'release-hold', 'sync', 'pull' } { }
   default { Die 2 usage }
 }
 
@@ -81,16 +92,27 @@ if ($verb -ceq '__bounded') {
 }
 
 $gpArgs = $rest
-if ($verb -in 'new', 'setup', 'play') { $gpArgs = @((@(Read-CliOption $rest))[0]) }
+if ($verb -in 'new', 'setup', 'play', 'run') { $gpArgs = @((@(Read-CliOption $rest))[0]) }
 
-if ($verb -cne 'status' -and $gpArgs.Count -lt 1) { Die 2 usage }
-if ($gpArgs.Count -ge 1 -and -not (Test-PlayerId $gpArgs[0])) { Die 2 bad_player_id $gpArgs[0] }
+$isAuth = $verb.StartsWith('auth-', [StringComparison]::Ordinal)
+if ($verb -cne 'status' -and -not $isAuth -and $gpArgs.Count -lt 1) { Die 2 usage }
+# The auth verbs take no player id: their arguments are checked by the verb itself.
+if (-not $isAuth -and $gpArgs.Count -ge 1 -and -not (Test-PlayerId $gpArgs[0])) { Die 2 bad_player_id $gpArgs[0] }
 if ($verb -ceq 'play' -and $gpArgs.Count -ge 2) {
   foreach ($id in $gpArgs) {
     if (-not (Test-PlayerId $id)) { Die 2 bad_player_id $id }
   }
   $verb = 'play_many'
 }
+
+if ($verb -ceq 'run-status') { $verb = 'run_status' }
+if ($verb -ceq 'run-stop') { $verb = 'run_stop' }
+if ($verb -ceq 'player-status') { $verb = 'player_status' }
+if ($verb -ceq 'deploy-key') { $verb = 'deploy_key' }
+if ($verb -ceq 'release-hold') { $verb = 'release_hold' }
+if ($isAuth) { $verb = $verb.Replace('-', '_') }
+if ($verb -in 'chatgpt-login', 'chatgpt-models') { $verb = $verb.Replace('-', '_') }
+if ($verb -ceq 'sheet-set') { $verb = 'sheet_set' }
 
 $needs = @(Get-VerbNeeds $verb)
 Need @needs

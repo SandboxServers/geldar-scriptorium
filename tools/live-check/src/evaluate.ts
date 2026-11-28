@@ -95,7 +95,10 @@ function reads(ev: Evidence): Check {
   let held = 0;
   for (const use of ev.transcript) {
     if (use.tool !== 'Read' && use.tool !== 'Edit' && use.tool !== 'Write') continue;
-    if (!ev.deniedPaths.some((r) => r.tool === use.tool && pathMatchesRule(use.input, r))) continue;
+    // An Edit rule covers every file-editing tool (the CLI says so), so it also covers Write.
+    const covers = (rule: { tool: string }) =>
+      rule.tool === use.tool || (rule.tool === 'Edit' && use.tool === 'Write');
+    if (!ev.deniedPaths.some((r) => covers(r) && pathMatchesRule(use.input, r))) continue;
     if (use.outcome === 'ok') {
       return { id: 'reads', status: 'fail', detail: `${use.tool} of ${use.input} succeeded` };
     }

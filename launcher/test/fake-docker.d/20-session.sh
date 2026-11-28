@@ -35,6 +35,8 @@ fake_compose() {
       sh "$FAKE_SESSION"
       ;;
     down)
+      # The environment of the call is dumped when a test asks (the unset list is checked there).
+      [ -z "${FAKE_DOWN_OUT:-}" ] || env > "$FAKE_DOWN_OUT"
       return 0
       ;;
     *)

@@ -56,7 +56,8 @@ function Split-Kit([string]$V) {
   return @{ Core = $core; Pre = $pre }
 }
 
-# -1, 0 or 1. Core numbers first (numeric), then a release beats its prerelease, then ordinal.
+# -1, 0 or 1. Core numbers first (numeric), then a release beats its prerelease, then the prerelease
+# identifiers (Compare-KitPre).
 function Compare-Kit([string]$A, [string]$B) {
   $pa = Split-Kit $A
   $pb = Split-Kit $B
@@ -67,7 +68,46 @@ function Compare-Kit([string]$A, [string]$B) {
   if ($pa.Pre -ceq $pb.Pre) { return 0 }
   if ($pa.Pre -eq '') { return 1 }
   if ($pb.Pre -eq '') { return -1 }
-  return [Math]::Sign([string]::CompareOrdinal($pa.Pre, $pb.Pre))
+  return Compare-KitPre $pa.Pre $pb.Pre
+}
+
+# -1, 0 or 1 for two identifiers: a trailing number splits off its name, so rc10 is after rc9 (the
+# template's tags are rc<N>); any other identifiers compare ordinally.
+function Compare-KitId([string]$A, [string]$B) {
+  $ma = [regex]::Match($A, '^(.*[^0-9])?([0-9]+)$')
+  $mb = [regex]::Match($B, '^(.*[^0-9])?([0-9]+)$')
+  if ($ma.Success -and $mb.Success -and $ma.Groups[1].Value -ceq $mb.Groups[1].Value) {
+    return [Math]::Sign(([bigint]$ma.Groups[2].Value).CompareTo([bigint]$mb.Groups[2].Value))
+  }
+  return [Math]::Sign([string]::CompareOrdinal($A, $B))
+}
+
+# -1, 0 or 1 for two prereleases: their dot-separated identifiers in turn, then the count (fewer is lower).
+function Compare-KitPre([string]$A, [string]$B) {
+  if ($A -ceq $B) { return 0 }
+  $x = @($A.Split('.'))
+  $y = @($B.Split('.'))
+  for ($i = 0; $i -lt [Math]::Min($x.Count, $y.Count); $i++) {
+    $c = Compare-KitId $x[$i] $y[$i]
+    if ($c -ne 0) { return $c }
+  }
+  return [Math]::Sign($x.Count - $y.Count)
+}
+
+# The newest of the given versions: the newest stable one, or the newest prerelease when none is stable.
+# Returns '' for an empty list.
+function Get-NewestKit([string[]]$Versions) {
+  $best = ''
+  $bestPre = ''
+  foreach ($v in $Versions) {
+    if ($v.Contains('-')) {
+      if ($bestPre -eq '' -or (Compare-Kit $v $bestPre) -gt 0) { $bestPre = $v }
+    } elseif ($best -eq '' -or (Compare-Kit $v $best) -gt 0) {
+      $best = $v
+    }
+  }
+  if ($best) { return $best }
+  return $bestPre
 }
 
 function Get-TemplateUrl {
@@ -229,7 +269,23 @@ function Write-UpgradeBranch([string]$Clone, [string]$Branch, [string]$Version, 
       if ($k -ceq 'kit_version' -or $k -ceq 'kit_image') { continue }
       if ("$($a.PSObject.Properties[$k].Value)" -cne "$($b.PSObject.Properties[$k].Value)") { throw 'self-check' }
     }
-    Invoke-Git -C $Clone -c commit.gpgsign=false -c tag.gpgsign=false commit -q -m "upgrade the kit to $Version" -m "image: $($Rel.Digest)" *> $null
+    # With no user.name or user.email in the clone, the tip's author is used for this one commit.
+    $id = Get-UpgradeIdentity $Clone
+    if ($null -eq $id) { throw 'commit' }
+    # A flat list: an empty identity must add no argument at all.
+    $gitCfg = @('-c', 'commit.gpgsign=false', '-c', 'tag.gpgsign=false') + @($id.Args)
+    $savedName = $env:GIT_COMMITTER_NAME
+    $savedMail = $env:GIT_COMMITTER_EMAIL
+    if ($id.Args.Count -gt 0) {
+      $env:GIT_COMMITTER_NAME = $id.Name
+      $env:GIT_COMMITTER_EMAIL = $id.Email
+    }
+    try {
+      Invoke-Git -C $Clone @gitCfg commit -q -m "upgrade the kit to $Version" -m "image: $($Rel.Digest)" *> $null
+    } finally {
+      $env:GIT_COMMITTER_NAME = $savedName
+      $env:GIT_COMMITTER_EMAIL = $savedMail
+    }
     if ($LASTEXITCODE -ne 0) { throw 'commit' }
   } catch {
     $why = "$_"
@@ -242,6 +298,20 @@ function Write-UpgradeBranch([string]$Clone, [string]$Branch, [string]$Version, 
     Invoke-Git -C $Clone branch -q -D $branchName *> $null
   }
   return $why
+}
+
+# The identity of the upgrade commit: no -c arguments when the clone has user.name and user.email,
+# else the tip's author as -c arguments and committer. $null when there is no identity at all.
+function Get-UpgradeIdentity([string]$Clone) {
+  $n = Invoke-GitOut $Clone 60 @('config', 'user.name')
+  $e = Invoke-GitOut $Clone 60 @('config', 'user.email')
+  if ($n.Code -eq 0 -and $e.Code -eq 0 -and $n.Text.Trim() -and $e.Text.Trim()) {
+    return @{ Args = @(); Name = ''; Email = '' }
+  }
+  $tn = (Invoke-GitOut $Clone 60 @('log', '-1', '--format=%an', 'HEAD')).Text.Trim()
+  $te = (Invoke-GitOut $Clone 60 @('log', '-1', '--format=%ae', 'HEAD')).Text.Trim()
+  if (-not $tn -or -not $te) { return $null }
+  return @{ Args = @('-c', "user.name=$tn", '-c', "user.email=$te"); Name = $tn; Email = $te }
 }
 
 # Fetches and validates the release, then builds the branch. Returns the release and the changed
@@ -305,17 +375,14 @@ function Verb-upgrade {
   if ("$($br -join '')" -cne $branch) { Die 1 upgrade_dirty }
   if ((Invoke-GitQuiet $clone @('pull', '--ff-only')) -ne 0) { Die 1 upgrade_dirty }
 
-  # The target: --to, or the highest release that is not a prerelease.
+  # The target: --to, or the newest stable release (the newest prerelease only when there is none).
   $url = Get-TemplateUrl
   $all = @(Get-ReleaseVersions $url)
   $version = ''
   if ($to) {
     if ($all -contains $to) { $version = $to }
   } else {
-    foreach ($v in $all) {
-      if ($v.Contains('-')) { continue }
-      if ($version -eq '' -or (Compare-Kit $v $version) -gt 0) { $version = $v }
-    }
+    $version = Get-NewestKit $all
   }
   if (-not $version) { Die 1 upgrade_no_release }
   $cur = Get-HeadKitVersion $clone
@@ -337,10 +404,15 @@ function Verb-upgrade {
   $push = @(Get-GitWords -C $clone push -q origin "${ref}:${ref}")
   if ((Invoke-BoundedQuiet 120 @push) -ne 0) {
     Invoke-Git -C $clone branch -q -D $nb *> $null
-    Die 1 pull_failed $id 'the upgrade branch could not be pushed'
+    Die 1 upgrade_push_failed $nb
   }
   # The branch lives on the remote; the host clone keeps only its own branch.
   Invoke-Git -C $clone branch -q -D $nb *> $null
+  # Without gh the branch stays pushed and the pull request is opened by hand.
+  if (-not (Test-ToolFound 'gh')) {
+    Say upgrade_pushed $nb $version
+    return
+  }
   $verify = Format-Msg $script:GP_MSG['upgrade_verify'] @($rel.Digest)
   $body = "Moves the kit files from $cur to $version.`nImage: $($rel.Digest)`nFiles changed: $($up.Files)`n$verify`n"
   $bf = Join-Path ([IO.Path]::GetTempPath()) ('gp-body.' + [guid]::NewGuid().ToString('N').Substring(0, 12))

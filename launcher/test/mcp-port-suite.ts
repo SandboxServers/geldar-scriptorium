@@ -28,13 +28,16 @@ function makeShare(c: PortCase): string {
 
 const quote = (s: string) => s.replace(/'/g, "''");
 
-// The owner's real world (SC-72): the shipped launcher/config/world.conf must name it and accept
-// only its port on its host. Each row is [url, expected outcome].
+// The owner's real world: the shipped launcher/config/world.conf must name it and accept only HTTPS
+// on the default port, on its host. Each row is [url, expected outcome].
 const shippedConf = join(repoRoot, 'launcher', 'config', 'world.conf');
 const shippedRows: [string, 'ok' | 'no'][] = [
-  ['https://geldar.sandboxservers.games:18443/p/ag-jason-01', 'ok'],
-  ['https://geldar.sandboxservers.games:8443/p/ag-jason-01', 'no'],
-  ['https://other.sandboxservers.games:18443/p/ag-jason-01', 'no'],
+  ['https://mcp.geldar.sandboxservers.games/p/ag-jason-01', 'ok'],
+  ['https://mcp.geldar.sandboxservers.games:443/p/ag-jason-01', 'ok'],
+  ['https://mcp.geldar.sandboxservers.games:18443/p/ag-jason-01', 'no'],
+  ['https://geldar.sandboxservers.games/p/ag-jason-01', 'no'],
+  ['https://other.sandboxservers.games/p/ag-jason-01', 'no'],
+  ['http://mcp.geldar.sandboxservers.games/p/ag-jason-01', 'no'],
 ];
 
 // The value of a key in world.conf text, read as the launcher reads it: key=value lines only.
@@ -81,10 +84,10 @@ export function mcpPortSuite(launcher: Launcher): void {
       }
     });
 
-    it('the shipped world.conf names the real world and accepts only its port on its host', () => {
+    it('the shipped world.conf names the real world and accepts only HTTPS on its host', () => {
       const text = readFileSync(shippedConf, 'utf8');
-      expect(new URL(confValue(text, 'mcp_base')).hostname).toBe('geldar.sandboxservers.games');
-      expect(confValue(text, 'mcp_port')).toBe('18443');
+      expect(new URL(confValue(text, 'mcp_base')).hostname).toBe('mcp.geldar.sandboxservers.games');
+      expect(confValue(text, 'mcp_port')).toBe('');
       const dir = mkdtempSync(join(tmpdir(), 'geldar-mcp-shipped-'));
       try {
         mkdirSync(join(dir, 'config'));

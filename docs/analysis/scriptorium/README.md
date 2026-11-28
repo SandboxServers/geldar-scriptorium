@@ -18,12 +18,12 @@
 1. On a Windows and a Linux machine with the prerequisites (D-SC-09; a clean machine is not required, decision 49, and tester feedback covers the README-only claim), a person following only the template README:
    - installs and verifies the launcher;
    - runs `geldar-play new`, `setup` and `play`;
-   - ends with a player repo on GitHub that has a birth commit and **three reflect/commit cycles**, played against the mock world.
+   - ends with a player repo on GitHub that has a birth commit and **at least one played session saved as commits**, against the mock world (functional check only; day-long and multi-day runs wait for real play, decision 53).
 2. Every item in `docs/launcher-hardening.md` has a passing hostile test, and the host repo is unchanged after each hostile run.
 3. The malicious-book CI is green for the pinned Claude Code (spec 8.4b, Phase 2 gate 2), including the 0013 cases (another player's repo, web search, DNS, credential files).
 4. A tagged release publishes all three outputs with signatures and an SBOM. The template repo's commit names the image digest and launcher version it expects.
 5. `geldar-play upgrade` moves an existing player to the new release through a PR the owner merges.
-6. Measured and written in the README: turns and `/usage` per in-game day on Haiku-low, over three in-game days against the mock world (spec 5.15.7).
+6. Measured and written in the README: turns and `/usage` per in-game day on Haiku-low (spec 5.15.7). **Deferred to real play (decision 53):** the numbers come from the first real days, not from mock-world runs.
 
 Packets: [work-packets.md](work-packets.md). Resume card: [RESUME.md](RESUME.md). Process: the [campaign-packet skill](../../../.claude/skills/campaign-packet/SKILL.md) (from SC-03; until then the geldar repo's copy).
 
@@ -162,7 +162,7 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-70a | 7 | S | Template README in the Patron's voice, `docs/onboarding.md`, README test; `check.ts` exports `forbidden` | Sonnet (general-purpose) | Done | wave 6 |
 | SC-70b | 7 | S | Troubleshooting guide (a heading per message key with three non-empty parts, tested) | Sonnet (general-purpose) | Done | SC-70a, SC-74c, SC-75c, SC-76d |
 | SC-70d | 7 | S | Launcher README, onboarding additions, threat-model rows, troubleshooting guide in the launcher tarball; join | Sonnet (general-purpose) | Done | SC-70a, SC-70b, SC-76b |
-| SC-70c | 7 | S | The measured turns and usage per in-game day, into the README | packet-coder (Haiku) | BlockedDependency | SC-72a, SC-72b |
+| SC-70c | 7 | S | The measured turns and usage per in-game day, into the README | packet-coder (Haiku) | Deferred (real play, decision 53) | first real days of play |
 | SC-71 | 7 | S | Codex CLI support: umbrella for SC-71a to SC-71c (cards: [work-packets-wave7b.md](work-packets-wave7b.md)) | - | BlockedDecision (D-SC-08; SC-71c waits for owner calls C1 and C3) | SC-71a to SC-71c |
 | SC-71a | 7 | S | Codex checks that need no model (pinned binary in a throwaway container); owner permission D3 | main session + owner | BlockedDecision (owner permission D3; not in step 1) | wave 6, D3 |
 | SC-71b | 7 | S | Skills generator for `.agents/skills`, not wired into the template | packet-coder (Haiku) | Done | wave 6 |
@@ -189,6 +189,48 @@ Status: Ready / BlockedDependency / BlockedDecision / Writing / Review / Done. R
 | SC-77a | 7 | S | Repo check that fails when the bash and PowerShell launchers disagree on registered groups (plus `core`) or on private directories (`export` and `pub` exempt) | Sonnet (general-purpose) | Done | wave 6 |
 | SC-77b | 7 | S | Container recipe for the Linux-only tests, with a digest-consistency test | packet-coder (Haiku) | Done | wave 6 |
 | SC-78 | 7 | S | Template prompt: the knowledge boundary and no-audience rule (decision 40): add the three agreed lines to `template/AGENTS.md` under the voice rule, plus a template test; Sonnet | packet-coder | Done | wave 6 |
+| SC-79 | 10 | S | Template wording in-world: setup skill "your human", "Geldar tools", with test (decision 58) | Sonnet | Done | none |
+| SC-80 | 10 | S | Bind the player.json host to mcp_base on every port, bash and PowerShell (decision 42/58) | Sonnet | Done | none |
+| SC-81 | 10 | S | `--persona-dir` refuses hard links, bash and PowerShell (decision 43.3/58) | Sonnet | Done | none |
+| SC-100 | 10 | S | Spike: prove the Claude Code keys in the kit and on a plain host ([wave 10](work-packets-wave10.md)) | main session | Done (host and kit; wildcard, maxTurns and interactive initialPrompt still unproven) | none |
+| SC-101 | 10 | S | Template default identity: planner agent, sonnet, effort low | Haiku | Done | SC-100, SC-79 |
+| SC-102 | 10 | S | The planner's brief, in-world | Sonnet | Done | SC-79, SC-100 |
+| SC-103 | 10 | S | The worker agent: haiku, Geldar tools only | Haiku | Done | SC-100, SC-101 |
+| SC-104 | 10 | S | Context meter (PreToolUse, bash and jq) and compaction guard | Sonnet | Done | SC-100, SC-103 |
+| SC-105 | 10 | S | Auto-start of play | Haiku | Done | SC-100, SC-101 |
+| SC-106 | 10 | S | The token stays out of git | Haiku | Done | none |
+| SC-107 | 10 | S | Populate the Ranger repos from the new template (owner-run) | - | Ready (rc5 is out; owner-run) | SC-101 to SC-106, a candidate release |
+| SC-108 | 10 | S | Pin Claude Code at the proven version | Sonnet | Not needed (the kit CLI is 2.1.310, above the 2.1.296 the per-subagent window key needs, and that key is not used) | SC-100 |
+| SC-109 | 10 | S | DROPPED (decision 57): the planner compacts; only workers are restarted by the planner | - | Dropped | - |
+| SC-110 | 10 | S | The kit carries the 200k window and subagent env, the launchers pass `--autocompact 100000` | Sonnet | Done | SC-100, SC-104 |
+| SC-120 | 11 | S | `geldar-verify run-summary`: cost, turns, errors and last words from a headless stream ([wave 11](work-packets-wave11.md)) | Sonnet | Done | none |
+| SC-121 | 11 | S | Launcher support for one headless session (run mode, stream saved), both launchers | Sonnet | Done | none |
+| SC-122 | 11 | S | `geldar-play run`, `run-status`, `run-stop`, bash (decision 60) | Sonnet | Done | SC-120, SC-121 |
+| SC-123 | 11 | S | The PowerShell twin of SC-122 | Sonnet | Done | SC-120, SC-121, SC-122 |
+| SC-124 | 11 | S | Docs for the supervisor: Patron README section, hardening item, threat model, troubleshooting | Sonnet | Done | SC-122, SC-123 |
+| SC-125 | 11 | S | List the `unstick` verb in the play skill and guide | Haiku | Done | none |
+| SC-130 | 12 | S | `geldar-verify director-record` and the failure reasons in `run-summary` ([wave 12](work-packets-wave12.md)) | Sonnet | Planned | SC-120 |
+| SC-131 | 12 | S | The director call: its prompt, settings and throwaway container, both launchers | Sonnet | Planned | SC-130, SC-121 |
+| SC-132 | 12 | S | `geldar-verify director-check`: schema, banned words, echo rule | Sonnet | Planned | SC-120 |
+| SC-133 | 12 | S | Supervisor integration of the director, bash | Sonnet | Planned | SC-122, SC-131, SC-132 |
+| SC-134 | 12 | S | The PowerShell twin of SC-133 | Sonnet | Planned | SC-133 |
+| SC-135 | 12 | S | Director docs, hardening item, threat-model rows and the owner-run live check | Sonnet | Planned | SC-133, SC-134 |
+| SC-140 | 11 | S | One shared Claude login for every player container: `auth-set`, `auth-status`, `auth-clear` and the session environment, both launchers (owner request; PR #65) | Sonnet | Review (security review fixes in progress) | none |
+| SC-141 | 11 | S | `new --repo <owner/name>` fills an existing empty repo from the template; token files accept the `GELDAR_MCP_TOKEN=` prefix, both launchers (owner request; PR #66) | Sonnet | Review (review fixes in progress) | none |
+| SC-150 | 13 | S | Reading your results: the action and action_failed outcome events (geldar C5-02) ([wave 13](work-packets-wave13.md)) | Sonnet | Held (geldar 'landed') | none |
+| SC-151 | 13 | S | Waking after a death in the play and reflect skills; Patron note on thought visibility (C5-03) | Sonnet | Held (geldar 'landed') | none |
+| SC-152 | 13 | S | The give, note and follow verbs in the play skill and guide (C5-04) | Sonnet | Held (geldar 'landed') | none |
+| SC-153 | 13 | S | Craft and smelt guidance in the play skill, no recipe knowledge (C5-05, C5-06) | Sonnet | Held (geldar 'landed') | none |
+| SC-154 | 13 | S | author, moot, offer and write_sign: skills that wait on the Body (C5-07 to C5-10) | Sonnet | Held (geldar 'landed' and owner decisions) | none |
+| SC-155 | 13 | S | Patron README items: Kino, skins, thought-visibility opt-in | Haiku | Held (owner decisions and deploy) | none |
+| SC-160 | 14 | S | `geldar-supervisor`: the run loop in the kit, as a child-process supervisor with the keeper's HELD state ([wave 14](work-packets-wave14.md)) | Sonnet | Planned | SC-120, SC-122 |
+| SC-161 | 14 | S | `geldar-keeper`: hardened fetch of the workspace, the gate, fast-forward push with the deploy key | Sonnet | Planned | none |
+| SC-162 | 14 | S | The player compose project: four services, volumes, secrets, two proxies, hardening | Sonnet | Planned | none |
+| SC-163 | 14 | S | Launcher verbs start, stop, restart, status, logs, deploy-key, release-hold, sync (both launchers) | Sonnet | Planned | SC-162 |
+| SC-164 | 14 | S | Hostile integration tests of the persistent group in CI | Sonnet | Planned | SC-160 to SC-163, SC-167 |
+| SC-165 | 14 | S | Docs, threat model and the director hook point | Sonnet | Planned | SC-160 to SC-164 |
+| SC-166 | 14 | S | Kimberly's first start (owner-run) | - | Planned | SC-165, a release candidate |
+| SC-167 | 14 | S | Pulling upstream changes into the player (keeper fetch, supervisor fast-forward between runs) | Sonnet | Planned | SC-160, SC-161 |
 
 **Cross-campaign dependency:** wave 3 needs `@geldar/contract` from geldar Phase 0 packet P0-01. Waves 0–2 and 4 don't need wave 3. Only SC-55c (not SC-55b) needs wave 3.
 

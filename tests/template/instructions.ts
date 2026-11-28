@@ -14,12 +14,11 @@ const outputs: readonly { file: string; harness: Harness }[] = [
   { file: 'AGENTS.md', harness: 'codex' },
 ];
 
-const header = '<!-- Generated from template-src/instructions.md. Do not edit. -->';
-
-// The same body for every harness, under one generated-file comment. The harness
-// argument is kept so a future harness-specific line has one place to go.
+// The same body for every harness. The harness argument is kept so a future
+// harness-specific line has one place to go. The output is the player's text
+// only: template/ ships to every player, so no developer comment goes in it.
 export function render(_harness: Harness, body: string = readFileSync(sourcePath, 'utf8')): string {
-  return `${header}\n${body.endsWith('\n') ? body : `${body}\n`}`;
+  return body.endsWith('\n') ? body : `${body}\n`;
 }
 
 // Returns one message per out-of-date file; an empty array means the files match.

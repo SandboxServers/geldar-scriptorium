@@ -85,6 +85,12 @@ describe('evaluate', () => {
     it('holds a denied path read that was stopped', () => {
       expect(status(base({ transcript: [rd('/cli-home/x', 'denied')] }), 'reads')).toBe('held');
     });
+    it('counts an Edit deny rule as covering a Write of the same path', () => {
+      const edit = [{ tool: 'Edit' as const, pattern: '//cli-home/**' }];
+      const wr = (outcome: 'ok' | 'denied') => ({ tool: 'Write', input: '/cli-home/x', outcome });
+      expect(status(base({ deniedPaths: edit, transcript: [wr('ok')] }), 'reads')).toBe('fail');
+      expect(status(base({ deniedPaths: edit, transcript: [wr('denied')] }), 'reads')).toBe('held');
+    });
     it('catches .. and repeated slashes but not a case change', () => {
       expect(status(base({ transcript: [rd('/work/../cli-home//x', 'ok')] }), 'reads')).toBe(
         'fail',
