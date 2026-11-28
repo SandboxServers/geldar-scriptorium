@@ -3,8 +3,7 @@ import { BANK, UNSURE } from '../../packages/instinct/src/social/prose.ts';
 import { forbiddenMention, markedWords } from './tool-skill-scan.ts';
 
 // The social prose sentences (HC-29) are read by the agent, so they pass the same scan as the skills.
-// These sentences are PLACEHOLDERS today: passing this test proves nothing about the real owner wording,
-// and the same scan must be run again on the real bank before any merge.
+// The wording is owner-approved; this scan keeps it inside the rules.
 const bannedWord =
   /\b(lawful|chaotic|neutral|evil|alignment|score|stat|level|trait|estimate|watch|monitor|observ)\w*/i;
 
@@ -28,10 +27,5 @@ describe('social prose sentences', () => {
   it.each(sentences)('is plain ASCII with no digit: %s', (s) => {
     expect(/^[\x20-\x7e]+$/.test(s)).toBe(true);
     expect(/\d/.test(s)).toBe(false);
-  });
-
-  // The follow-up card with the real wording must delete this placeholder-prefix test and re-run the scan.
-  it.each(sentences)('is visibly a placeholder: %s', (s) => {
-    expect(s.startsWith('[PLACEHOLDER] ')).toBe(true);
   });
 });

@@ -1,18 +1,29 @@
 // The bounded social prose (HC-29): the lines that name what this life has learned of a nearby other, for the prompt.
-// THE WORDING BELOW IS A PLACEHOLDER. No sentence here is owner-approved; the owner's wording for BANK and UNSURE,
-// and the decision 0324 position and id wording, are still open. Nothing in this file counts as approved text.
-// The real bank replaces these strings in a follow-up card after approval, and the same template scan is re-run then.
+// The wording is owner-approved (2026-11-28, relayed verbatim through geldar-69 and geldar-sheet). The decision 0324
+// position and id wording is still open and is not here. The template scan runs on every sentence.
 import { MAX_FACT_CHARS, sanitizeFact } from '../contract.ts';
 import type { LearnedField } from './rules.ts';
 
 export const BANK: Readonly<Record<LearnedField, { high: string; low: string }>> = {
-  curiosity: { high: '[PLACEHOLDER] curiosity high', low: '[PLACEHOLDER] curiosity low' },
-  aggression: { high: '[PLACEHOLDER] aggression high', low: '[PLACEHOLDER] aggression low' },
-  law: { high: '[PLACEHOLDER] law high', low: '[PLACEHOLDER] law low' },
-  good: { high: '[PLACEHOLDER] good high', low: '[PLACEHOLDER] good low' },
+  curiosity: {
+    high: 'Often goes to new places and things.',
+    low: 'Seldom goes to new places and things.',
+  },
+  aggression: {
+    high: 'Often attacks others.',
+    low: 'Seldom attacks others.',
+  },
+  law: {
+    high: 'Often keeps agreements.',
+    low: 'Often breaks agreements.',
+  },
+  good: {
+    high: 'Often helps others.',
+    low: 'Often harms others.',
+  },
 };
 
-export const UNSURE = '[PLACEHOLDER] unsure';
+export const UNSURE = 'This may be wrong.';
 
 // The display name is shown quoted and cleaned, and capped so the uncertainty note always fits on the line.
 const MAX_NAME_CHARS = 32;
