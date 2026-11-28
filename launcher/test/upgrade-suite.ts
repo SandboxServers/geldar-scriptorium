@@ -46,6 +46,7 @@ interface Setup {
     release: { repo: string },
     args?: string[],
     extra?: Record<string, string>,
+    noIdentity?: boolean,
   ): Result;
   all(r: Result): string;
 }
@@ -82,20 +83,33 @@ function setup(l: Launcher, from = FROM): Setup {
     release: { repo: string },
     args: string[] = [],
     extra: Record<string, string> = {},
+    noIdentity = false,
   ) => {
     const bash = launcher.name === 'bash';
+    // noIdentity: the launcher sees no user.name, no user.email and no identity variables.
+    const identity = noIdentity
+      ? { GIT_CONFIG_GLOBAL: join(w.root, 'gitconfig-noid') }
+      : {
+          GIT_AUTHOR_NAME: HOST.name,
+          GIT_AUTHOR_EMAIL: HOST.email,
+          GIT_COMMITTER_NAME: HOST.name,
+          GIT_COMMITTER_EMAIL: HOST.email,
+        };
     const env = {
       ...(bash ? w.env : w.envPwsh),
       GELDAR_GH: bash ? bashPath(join(w.fakeDir, 'gh')) : join(w.fakeDir, win ? 'gh.cmd' : 'gh'),
       GELDAR_TEMPLATE_URL: bash ? bashPath(release.repo) : release.repo,
       GELDAR_SLEEP: '0',
       FAKE_GH_ROOT: bashPath(ghRoot),
-      GIT_AUTHOR_NAME: HOST.name,
-      GIT_AUTHOR_EMAIL: HOST.email,
-      GIT_COMMITTER_NAME: HOST.name,
-      GIT_COMMITTER_EMAIL: HOST.email,
+      ...identity,
       ...extra,
     };
+    if (noIdentity) {
+      delete (env as Record<string, string | undefined>).GIT_AUTHOR_NAME;
+      delete (env as Record<string, string | undefined>).GIT_AUTHOR_EMAIL;
+      delete (env as Record<string, string | undefined>).GIT_COMMITTER_NAME;
+      delete (env as Record<string, string | undefined>).GIT_COMMITTER_EMAIL;
+    }
     return run(launcher, ['upgrade', ID, ...args], { env, timeoutMs: 170_000 });
   };
   void l;
@@ -351,6 +365,31 @@ export function upgradeSuite(l: Launcher): void {
       expect(s.prs()).toHaveLength(0);
       expect(branchName(s.p.clone)).toBe('main');
       expect(git(s.p.clone, ['status', '--porcelain'])).toBe('');
+    });
+
+    it('10b. no identity in the clone: the upgrade commit takes the tip author and the clone config keeps no name', () => {
+      const s = setup(l);
+      const r = makeTemplateRelease(s.w, { versions: ['0.2.0'] });
+      // An empty tip commit by another player, pushed to origin main; the clone has no identity of its own.
+      const tipEnv = {
+        GIT_CONFIG_GLOBAL: join(s.w.root, 'gitconfig'),
+        GIT_AUTHOR_NAME: 'Tip Player',
+        GIT_AUTHOR_EMAIL: 'tip@example.test',
+        GIT_COMMITTER_NAME: 'Tip Player',
+        GIT_COMMITTER_EMAIL: 'tip@example.test',
+      };
+      git(s.p.clone, ['commit', '-q', '--allow-empty', '-m', 'tip'], tipEnv);
+      git(s.p.clone, ['push', '-q', 'origin', 'main'], tipEnv);
+      const res = s.upgrade(l, r, ['--to', '0.2.0'], {}, true);
+      expect(res.status, s.all(res)).toBe(0);
+      expect(git(s.p.origin, ['log', '-1', '--format=%an|%ae', 'kit-upgrade/0.2.0'])).toBe(
+        'Tip Player|tip@example.test',
+      );
+      expect(git(s.p.origin, ['log', '-1', '--format=%cn|%ce', 'kit-upgrade/0.2.0'])).toBe(
+        'Tip Player|tip@example.test',
+      );
+      expect(readFileSync(join(s.p.clone, '.git', 'config'), 'utf8')).not.toContain('Tip Player');
+      expect(readFileSync(join(s.p.clone, '.git', 'config'), 'utf8')).not.toContain('tip@example');
     });
 
     it('11. a failed push says upgrade_push_failed (never "was pushed") and changes nothing', () => {

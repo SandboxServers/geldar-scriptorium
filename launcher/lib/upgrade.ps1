@@ -269,7 +269,23 @@ function Write-UpgradeBranch([string]$Clone, [string]$Branch, [string]$Version, 
       if ($k -ceq 'kit_version' -or $k -ceq 'kit_image') { continue }
       if ("$($a.PSObject.Properties[$k].Value)" -cne "$($b.PSObject.Properties[$k].Value)") { throw 'self-check' }
     }
-    Invoke-Git -C $Clone -c commit.gpgsign=false -c tag.gpgsign=false commit -q -m "upgrade the kit to $Version" -m "image: $($Rel.Digest)" *> $null
+    # With no user.name or user.email in the clone, the tip's author is used for this one commit.
+    $id = Get-UpgradeIdentity $Clone
+    if ($null -eq $id) { throw 'commit' }
+    # A flat list: an empty identity must add no argument at all.
+    $gitCfg = @('-c', 'commit.gpgsign=false', '-c', 'tag.gpgsign=false') + @($id.Args)
+    $savedName = $env:GIT_COMMITTER_NAME
+    $savedMail = $env:GIT_COMMITTER_EMAIL
+    if ($id.Args.Count -gt 0) {
+      $env:GIT_COMMITTER_NAME = $id.Name
+      $env:GIT_COMMITTER_EMAIL = $id.Email
+    }
+    try {
+      Invoke-Git -C $Clone @gitCfg commit -q -m "upgrade the kit to $Version" -m "image: $($Rel.Digest)" *> $null
+    } finally {
+      $env:GIT_COMMITTER_NAME = $savedName
+      $env:GIT_COMMITTER_EMAIL = $savedMail
+    }
     if ($LASTEXITCODE -ne 0) { throw 'commit' }
   } catch {
     $why = "$_"
@@ -282,6 +298,20 @@ function Write-UpgradeBranch([string]$Clone, [string]$Branch, [string]$Version, 
     Invoke-Git -C $Clone branch -q -D $branchName *> $null
   }
   return $why
+}
+
+# The identity of the upgrade commit: no -c arguments when the clone has user.name and user.email,
+# else the tip's author as -c arguments and committer. $null when there is no identity at all.
+function Get-UpgradeIdentity([string]$Clone) {
+  $n = Invoke-GitOut $Clone 60 @('config', 'user.name')
+  $e = Invoke-GitOut $Clone 60 @('config', 'user.email')
+  if ($n.Code -eq 0 -and $e.Code -eq 0 -and $n.Text.Trim() -and $e.Text.Trim()) {
+    return @{ Args = @(); Name = ''; Email = '' }
+  }
+  $tn = (Invoke-GitOut $Clone 60 @('log', '-1', '--format=%an', 'HEAD')).Text.Trim()
+  $te = (Invoke-GitOut $Clone 60 @('log', '-1', '--format=%ae', 'HEAD')).Text.Trim()
+  if (-not $tn -or -not $te) { return $null }
+  return @{ Args = @('-c', "user.name=$tn", '-c', "user.email=$te"); Name = $tn; Email = $te }
 }
 
 # Fetches and validates the release, then builds the branch. Returns the release and the changed
