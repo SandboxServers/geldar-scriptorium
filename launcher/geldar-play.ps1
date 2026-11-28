@@ -27,8 +27,8 @@ function Get-VerbNeeds([string]$Verb) {
     { $_ -in 'new', 'archive' } { return @('docker', 'git', 'gh') }
     { $_ -in 'setup', 'play', 'run', '__prepare', '__session', '__finish' } { return @('docker', 'git', 'tar') }
     'resolve' { return @('docker', 'git') }
-    { $_ -in 'status', 'run_status' } { return @('git') }
-    'upgrade' { return @('git', 'gh') }
+    { $_ -in 'status', 'run_status', 'pull' } { return @('git') }
+    'upgrade' { return @('git') }
     { $_ -in 'chatgpt_login', 'chatgpt_models' } { return @('docker', 'git') }
     'sheet_set' { return @('git') }
     { $_ -in 'start', 'stop', 'restart', 'player_status', 'logs', 'deploy_key', 'release_hold', 'sync' } { return @('docker', 'git') }
@@ -81,7 +81,7 @@ switch -CaseSensitive ($verb) {
   { $_ -in 'auth-set', 'auth-status', 'auth-clear' } { }
   { $_ -in 'chatgpt-login', 'chatgpt-models' } { }
   'sheet-set' { }
-  { $_ -in 'start', 'stop', 'restart', 'player-status', 'logs', 'deploy-key', 'release-hold', 'sync' } { }
+  { $_ -in 'start', 'stop', 'restart', 'player-status', 'logs', 'deploy-key', 'release-hold', 'sync', 'pull' } { }
   default { Die 2 usage }
 }
 

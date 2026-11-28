@@ -595,6 +595,16 @@ What it means. The upgrade branch was pushed, but the pull request could not be 
 Why it is safe. Memory was not touched, and the branch is on GitHub for you to review.
 What to do. Open the pull request by hand from that branch.
 
+### upgrade_push_failed
+What it means. The upgrade branch could not be pushed to GitHub.
+Why it is safe. Nothing was changed in the player's memory, and the player's branch was not touched.
+What to do. Check the network and your GitHub access, then run the upgrade again.
+
+### upgrade_pushed
+What it means. The upgrade branch is pushed, but the GitHub CLI (gh) is not installed, so no pull request was made.
+Why it is safe. Memory was not touched. The branch only holds the new kit files on GitHub.
+What to do. Open the pull request by hand from that branch on GitHub, or install gh and run the upgrade again.
+
 ### upgrade_dirty
 What it means. The player's copy has unsaved changes, or could not be brought up to date.
 Why it is safe. The launcher stopped before it changed any branch.
@@ -728,6 +738,11 @@ What to do. Wait for the next run to start, then run player-status to see the up
 What it means. The sync request for the persistent player could not be written into the keeper's state, so the keeper was not asked to fetch.
 Why it is safe. Nothing changed: no fetch ran and the workspace is as it was.
 What to do. Check that Docker is running, then run sync again.
+
+### pull_done
+What it means. The clone of the player is up to date with its repository.
+Why it is safe. The pull only fast-forwards: it refuses a clone with changes or on another branch, and it never rewrites history.
+What to do. Nothing. Run player-status or start the player to continue.
 
 ### chatgpt_no_login
 What it means. This player's ChatGPT login is missing or unusable.

@@ -267,6 +267,23 @@ EOT
   return 0
 }
 
+# up_commit clone: the upgrade commit, its message on stdin. With no user.name or no user.email in the
+# clone, the tip's author is used for this one commit (-c and the committer environment); no config is
+# written. With neither, the commit fails as it always did.
+up_commit() {
+  local clone=$1 n e
+  if [ -n "$(git_cmd -C "$clone" config user.name 2> /dev/null)" ] &&
+    [ -n "$(git_cmd -C "$clone" config user.email 2> /dev/null)" ]; then
+    git_cmd -C "$clone" commit -q -F - > /dev/null 2>&1
+    return
+  fi
+  n=$(git_cmd -C "$clone" log -1 --format=%an HEAD 2> /dev/null) || return 1
+  e=$(git_cmd -C "$clone" log -1 --format=%ae HEAD 2> /dev/null) || return 1
+  [ -n "$n" ] && [ -n "$e" ] || return 1
+  GIT_COMMITTER_NAME=$n GIT_COMMITTER_EMAIL=$e \
+    git_cmd -C "$clone" -c "user.name=$n" -c "user.email=$e" commit -q -F - > /dev/null 2>&1
+}
+
 verb_upgrade() {
   local id=$1 d to="" url ver cur cmp tags best v out rel hk name body url_out line tip
   shift
@@ -361,11 +378,16 @@ EOT
   up_set_keys "$PL_CLONE/player.json" "$ver" "$UP_NEW_IMAGE"
   git_cmd -C "$PL_CLONE" add -A > /dev/null 2>&1 || die 1 upgrade_bad_release "$ver"
   printf 'upgrade the kit to %s\n\nimage: %s\n' "$ver" "$UP_DIGEST" |
-    git_cmd -C "$PL_CLONE" commit -q -F - > /dev/null 2>&1 || die 1 upgrade_bad_release "$ver"
+    up_commit "$PL_CLONE" || die 1 upgrade_bad_release "$ver"
   up_selfcheck "$PL_CLONE" "$tip" || die 1 upgrade_bad_release "$ver"
 
-  # Push the branch (never forced, never the player branch) and ask for the pull request.
-  run_bounded 120 git_cmd -C "$PL_CLONE" push -q origin "$name" > /dev/null 2>&1 || die 1 upgrade_pr_failed "$name"
+  # Push the branch (never forced, never the player branch). A failed push changes nothing in memory.
+  run_bounded 120 git_cmd -C "$PL_CLONE" push -q origin "$name" > /dev/null 2>&1 || die 1 upgrade_push_failed "$name"
+  # Without gh the branch stays pushed and the pull request is opened by hand.
+  if ! tool_found gh; then
+    say upgrade_pushed "$name" "$ver"
+    return 0
+  fi
   body="Kit upgrade from ${cur:-none} to $ver.
 Image: $UP_DIGEST
 
