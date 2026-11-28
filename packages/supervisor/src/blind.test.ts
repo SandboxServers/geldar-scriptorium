@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { childEnv } from './child.ts';
@@ -72,9 +72,31 @@ describe('the sheet never reaches the model child', () => {
     expect(seen).not.toContain(f.stateDir);
   });
 
-  // HC-23b: the chatgpt loop process and its descriptor 4 are built there. This case is the proof's last
-  // case and stays skipped until HC-23b merges.
-  it.skip('chatgpt with sanity on: the loop process receives exactly the five SanityParams keys on descriptor 4 and none of aggression, curiosity, cleverness, law, good, op_modes', () => {
-    // Skipped until HC-23b (the sanity descriptor) merges.
+  // HC-23b: the chatgpt loop process receives the five SanityParams keys on descriptor 4 and no sheet score.
+  it('chatgpt with sanity on: the loop process receives exactly the five SanityParams keys on descriptor 4 and none of aggression, curiosity, cleverness, law, good, op_modes', async () => {
+    const env = { GELDAR_HARNESS: 'chatgpt', GELDAR_INSTINCT: 'on', GELDAR_INSTINCT_SANITY: 'on' };
+    const f = makeFixture({ last: 'done', stopAt: 1 }, env, {
+      ...PROC_ENV,
+      GELDAR_MCP_URL: 'http://world.test/p/player-1',
+    });
+    roots.push(f.root);
+    mkdirSync(join(f.stateDir, 'instinct'), { recursive: true });
+    writeFileSync(join(f.stateDir, 'instinct', 'sheet.json'), VALID_SHEET, { mode: 0o600 });
+    onPoll(f, () => f.supervisor.requestStop());
+    expect(await f.supervisor.run()).toBe(0);
+    const paramsPath = f.runs()[0]?.paramsPath;
+    expect(paramsPath).toBeDefined();
+    const text = readFileSync(paramsPath ?? '', 'utf8');
+    expect(Object.keys(JSON.parse(text)).sort()).toEqual([
+      'arm',
+      'common_sense',
+      'life',
+      'rolls',
+      'v',
+    ]);
+    for (const name of ['aggression', 'curiosity', 'cleverness', 'law', 'good', 'op_modes']) {
+      expect(text).not.toContain(name);
+    }
+    expect(text).not.toContain(SENTINEL);
   });
 });

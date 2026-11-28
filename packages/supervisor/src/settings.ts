@@ -94,7 +94,7 @@ function instinctSettings(env: Env): InstinctSettings {
     maxPicks: num(env, 'GELDAR_INSTINCT_MAX_PICKS', 3, 1, 20),
     thinkP: Number(thinkText),
     rolls: onOff(env, 'GELDAR_INSTINCT_ROLLS', 'on'),
-    sanity: onOff(env, 'GELDAR_INSTINCT_SANITY', 'on'),
+    sanity: onOff(env, 'GELDAR_INSTINCT_SANITY', 'off'),
     timeoutSecs: num(env, 'GELDAR_INSTINCT_TIMEOUT', 60, 1, 600),
   };
 }

@@ -14,6 +14,8 @@ export interface ExecSpec {
   stdoutPath?: string;
   /** This file is the child's file descriptor 3 (the prompt, read by the sh wrapper). */
   promptPath?: string;
+  /** This file is the child's file descriptor 4 (the veto parameters, read by the loop; HC-23b). */
+  paramsPath?: string;
 }
 
 /**
@@ -131,11 +133,16 @@ export function createExec(spawnFn: SpawnFn): (spec: ExecSpec) => Promise<number
         if (typeof out === 'number') fds.push(out);
         const prompt = spec.promptPath === undefined ? 'ignore' : openSync(spec.promptPath, 'r');
         if (typeof prompt === 'number') fds.push(prompt);
+        // Descriptor 4 exists only when a params file is named: a spec without one has the stdio array it had before.
+        const params = spec.paramsPath === undefined ? null : openSync(spec.paramsPath, 'r');
+        if (typeof params === 'number') fds.push(params);
+        const stdio: Array<'ignore' | number> = ['ignore', out, 'ignore', prompt];
+        if (params !== null) stdio.push(params);
         const launch = launchCommand(spec);
         const child = spawnFn(launch.file, launch.args, {
           env: spec.env,
           cwd: spec.cwd,
-          stdio: ['ignore', out, 'ignore', prompt],
+          stdio,
         });
         child.once('error', () => finish(1));
         child.once('close', (code) => finish(code ?? 1));

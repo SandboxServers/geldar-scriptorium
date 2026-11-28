@@ -16,6 +16,7 @@ export { makeFact } from './facts.ts';
 export type { EventKind, EventLine, Observation, WorldCalls } from './observe.ts';
 export { classifyEvent, observe, parseObservation } from './observe.ts';
 export { DEFAULT_FXS, lifeKeyOf, readConfig, runInstinct } from './run.ts';
+export { readSheetFile } from './sheetfile.ts';
 export type { InstinctState } from './state.ts';
 export { emptyState, loadState, saveState } from './state.ts';
 export type { WorldLink } from './world.ts';

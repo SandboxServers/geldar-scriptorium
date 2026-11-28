@@ -22,6 +22,7 @@ import { readPromptBlocks } from './handoff.ts';
 import { runInstinct } from './instinct.ts';
 import { readStopReason, readTokenUsage, tokensToday } from './meter.ts';
 import { buildPrompt, buildTidyPrompt, cleanLastWords } from './prompt.ts';
+import { writeSanityParams } from './sanity.ts';
 import type { Settings } from './settings.ts';
 import { heldPath, statePath } from './settings.ts';
 import {
@@ -650,12 +651,15 @@ export class Supervisor {
       `prompt run=${n} goals=${Buffer.byteLength(goals, 'utf8')} handoff=${Buffer.byteLength(handoff, 'utf8')} words=${Array.from(words).length} identity=${Buffer.byteLength(identity, 'utf8')} cut=${cut ? 1 : 0}`,
     );
     writePrivate(promptPath, buildPrompt(n, words, note, handoff, goals, identity, facts));
+    // The veto parameters (HC-23b) go on descriptor 4 only when the sheet and the switches allow it.
+    const paramsPath = writeSanityParams(s, this.env, process.getuid?.());
     return this.deps.exec(
       this.asPlayer({
         file: 'sh',
         args: ['-c', wrapperLine(s)],
         stdoutPath: this.path(`session-${n}.jsonl`),
         promptPath,
+        ...(paramsPath === null ? {} : { paramsPath }),
       }),
     );
   }

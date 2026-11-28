@@ -237,7 +237,7 @@ describe('instinct step: environments and settings', () => {
       maxPicks: 3,
       thinkP: 0.25,
       rolls: true,
-      sanity: true,
+      sanity: false,
       timeoutSecs: 60,
     });
     const bad: Array<[string, string]> = [
