@@ -444,6 +444,16 @@ describeBash('runner confinement check (F-05b)', () => {
     expect(r.lines).toEqual([]);
   });
 
+  it('exits 2 with a message when the unit file has no User=, since systemd then runs it as root', () => {
+    const unit = readFileSync(join(runnerDir, 'geldar-runner.service'), 'utf8');
+    const noUser = unit.replace(/^User=.*\n/m, '');
+    expect(noUser).not.toMatch(/^User=/m);
+    const r = runInUnit(noUser);
+    expect(r.status, r.stderr).toBe(2);
+    expect(r.stderr).toContain('has no User=');
+    expect(r.lines).toEqual([]);
+  });
+
   it('prints FAIL for the drop-in probe when the drop-in directory cannot be listed, and exits 1', () => {
     // The directory exists (one file in it), and find cannot read it: the probe must not pass.
     const r = runVerify({ FAKE_DROPINS_UNREADABLE: '1' }, [], {

@@ -60,6 +60,11 @@ fi
 if [ "$#" -eq 1 ]; then
   [ -r "$CONF_UNIT" ] || { echo "verify-confinement: cannot read $CONF_UNIT" >&2; exit 2; }
   unit_user=$(sed -n 's/^User=//p' "$CONF_UNIT" | head -n 1)
+  # An empty User= (or none) makes systemd run the unit as root, so the printed commands would not test the runner.
+  [ -n "$unit_user" ] || {
+    echo "verify-confinement: $CONF_UNIT has no User=, so the unit would run as root" >&2
+    exit 2
+  }
   props=$(unit_props)
   echo "systemd-run --wait --pipe --collect -p 'User=$unit_user'$props -- sudo -n $CONF_WRAPPER check-secrets ag-probe-00"
   echo "systemd-run --wait --pipe --collect -p 'User=$launcher'$props -- sh -c 'mkdir -p $CONF_STATE && touch $CONF_STATE/.verify-write && rm -f $CONF_STATE/.verify-write'"
