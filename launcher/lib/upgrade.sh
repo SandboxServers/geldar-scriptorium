@@ -364,8 +364,13 @@ EOT
     git_cmd -C "$PL_CLONE" commit -q -F - > /dev/null 2>&1 || die 1 upgrade_bad_release "$ver"
   up_selfcheck "$PL_CLONE" "$tip" || die 1 upgrade_bad_release "$ver"
 
-  # Push the branch (never forced, never the player branch) and ask for the pull request.
-  run_bounded 120 git_cmd -C "$PL_CLONE" push -q origin "$name" > /dev/null 2>&1 || die 1 upgrade_pr_failed "$name"
+  # Push the branch (never forced, never the player branch). A failed push changes nothing in memory.
+  run_bounded 120 git_cmd -C "$PL_CLONE" push -q origin "$name" > /dev/null 2>&1 || die 1 upgrade_push_failed "$name"
+  # Without gh the branch stays pushed and the pull request is opened by hand.
+  if ! tool_found gh; then
+    say upgrade_pushed "$name" "$ver"
+    return 0
+  fi
   body="Kit upgrade from ${cur:-none} to $ver.
 Image: $UP_DIGEST
 

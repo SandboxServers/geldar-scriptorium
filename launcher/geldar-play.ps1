@@ -28,7 +28,7 @@ function Get-VerbNeeds([string]$Verb) {
     { $_ -in 'setup', 'play', 'run', '__prepare', '__session', '__finish' } { return @('docker', 'git', 'tar') }
     'resolve' { return @('docker', 'git') }
     { $_ -in 'status', 'run_status' } { return @('git') }
-    'upgrade' { return @('git', 'gh') }
+    'upgrade' { return @('git') }
     { $_ -in 'chatgpt_login', 'chatgpt_models' } { return @('docker', 'git') }
     'sheet_set' { return @('git') }
     { $_ -in 'start', 'stop', 'restart', 'player_status', 'logs', 'deploy_key', 'release_hold', 'sync' } { return @('docker', 'git') }

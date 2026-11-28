@@ -374,10 +374,15 @@ function Verb-upgrade {
   $push = @(Get-GitWords -C $clone push -q origin "${ref}:${ref}")
   if ((Invoke-BoundedQuiet 120 @push) -ne 0) {
     Invoke-Git -C $clone branch -q -D $nb *> $null
-    Die 1 pull_failed $id 'the upgrade branch could not be pushed'
+    Die 1 upgrade_push_failed $nb
   }
   # The branch lives on the remote; the host clone keeps only its own branch.
   Invoke-Git -C $clone branch -q -D $nb *> $null
+  # Without gh the branch stays pushed and the pull request is opened by hand.
+  if (-not (Test-ToolFound 'gh')) {
+    Say upgrade_pushed $nb $version
+    return
+  }
   $verify = Format-Msg $script:GP_MSG['upgrade_verify'] @($rel.Digest)
   $body = "Moves the kit files from $cur to $version.`nImage: $($rel.Digest)`nFiles changed: $($up.Files)`n$verify`n"
   $bf = Join-Path ([IO.Path]::GetTempPath()) ('gp-body.' + [guid]::NewGuid().ToString('N').Substring(0, 12))

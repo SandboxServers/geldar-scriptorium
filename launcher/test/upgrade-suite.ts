@@ -339,6 +339,48 @@ export function upgradeSuite(l: Launcher): void {
       expect(controls).toEqual([]);
     });
 
+    it('10. no gh: the branch is pushed, the verb ends 0 with upgrade_pushed and makes no pull request', () => {
+      const s = setup(l);
+      const r = makeTemplateRelease(s.w, { versions: ['0.2.0'] });
+      const res = s.upgrade(l, r, ['--to', '0.2.0'], { GELDAR_GH: join(s.w.root, 'no-gh') });
+      expect(res.status, s.all(res)).toBe(0);
+      expect(s.all(res)).toContain(message('upgrade_pushed'));
+      expect(s.all(res)).toContain('Open the pull request by hand');
+      expect(s.all(res)).not.toContain('https://github.test/pull/');
+      expect(git(s.p.origin, ['rev-list', '--count', 'main..kit-upgrade/0.2.0'])).toBe('1');
+      expect(s.prs()).toHaveLength(0);
+      expect(branchName(s.p.clone)).toBe('main');
+      expect(git(s.p.clone, ['status', '--porcelain'])).toBe('');
+    });
+
+    it('11. a failed push says upgrade_push_failed (never "was pushed") and changes nothing', () => {
+      const s = setup(l);
+      const r = makeTemplateRelease(s.w, { versions: ['0.2.0'] });
+      // The bare origin refuses every push.
+      const hook = join(s.p.origin, 'hooks', 'pre-receive');
+      writeFileSync(hook, '#!/bin/sh\nexit 1\n');
+      chmodSync(hook, 0o755);
+      const before = snap(s);
+      const res = s.upgrade(l, r, ['--to', '0.2.0']);
+      expect(res.status, s.all(res)).toBe(1);
+      expect(s.all(res)).toContain(message('upgrade_push_failed'));
+      expect(s.all(res)).toContain('could not be pushed. Nothing was changed');
+      expect(s.all(res)).not.toContain('was pushed');
+      expect(snap(s)).toEqual(before);
+      expect(s.prs()).toHaveLength(0);
+    });
+
+    it('12. a failed pull request after a good push says upgrade_pr_failed, not the push message', () => {
+      const s = setup(l);
+      const r = makeTemplateRelease(s.w, { versions: ['0.2.0'] });
+      const res = s.upgrade(l, r, ['--to', '0.2.0'], { FAKE_GH_PR_FAIL: '1' });
+      expect(res.status, s.all(res)).toBe(1);
+      expect(s.all(res)).toContain(message('upgrade_pr_failed'));
+      expect(s.all(res)).toContain('was pushed, but the pull request could not be made');
+      expect(s.all(res)).not.toContain('could not be pushed');
+      expect(git(s.p.origin, ['rev-list', '--count', 'main..kit-upgrade/0.2.0'])).toBe('1');
+    });
+
     timingIt(
       '8. a gh that hangs is bounded and the clone ends on its branch',
       () => {
