@@ -70,7 +70,13 @@ const FAKE_BODIES: Record<string, string> = {
     'echo "useradd $*" >> "$FAKE_STATE/calls.log"',
     'cat "$FAKE_STATE/passwd-line" >> "$FAKE_STATE/passwd"',
   ].join('\n'),
-  systemctl: 'echo "systemctl $*" >> "$FAKE_STATE/calls.log"',
+  systemctl: [
+    'echo "systemctl $*" >> "$FAKE_STATE/calls.log"',
+    'case $1 in',
+    '  is-enabled) [ -e "$FAKE_STATE/enabled" ] ;;',
+    '  is-active) [ -e "$FAKE_STATE/active" ] ;;',
+    'esac',
+  ].join('\n'),
   chown: 'echo "chown $*" >> "$FAKE_STATE/calls.log"',
   curl: [
     'echo "curl $*" >> "$FAKE_STATE/calls.log"',
@@ -126,6 +132,8 @@ interface Setup {
   hasConfig?: boolean; // the runner dir already holds config.sh (a re-run)
   hasRunner?: boolean; // the runner dir already holds .runner (registered)
   uid?: string; // what the fake id reports; default 0
+  enabled?: boolean; // the fake systemctl is-enabled exits 0; default disabled
+  active?: boolean; // the fake systemctl is-active exits 0; default inactive
 }
 
 interface World {
@@ -184,6 +192,8 @@ function makeWorld(setup: Setup = {}): World {
   writeFileSync(join(world.state, 'passwd-line'), DEFAULT_PASSWD);
   writeFileSync(join(world.state, 'runner-groups'), `${setup.runnerGroups ?? 'geldar-runner'}\n`);
   if (setup.shaBad) writeFileSync(join(world.state, 'sha-bad'), '');
+  if (setup.enabled) writeFileSync(join(world.state, 'enabled'), '');
+  if (setup.active) writeFileSync(join(world.state, 'active'), '');
   const tokenText = setup.token === undefined ? `${TOKEN}\n` : setup.token;
   if (tokenText !== null) writeFileSync(world.token, tokenText);
   const runnerHome = join(world.root, 'opt', 'geldar-runner');
@@ -276,10 +286,52 @@ describeBash('runner install (F-05a)', () => {
     const r = run(world);
     expect(r.status, r.out).toBe(0);
     const systemctl = calls(world).filter((c) => c.startsWith('systemctl '));
-    expect(systemctl).toEqual(['systemctl daemon-reload']);
-    expect(systemctl.join('\n')).not.toMatch(/enable|start|restart|--now/);
+    expect(systemctl.filter((c) => !c.startsWith('systemctl is-'))).toEqual([
+      'systemctl daemon-reload',
+    ]);
+    expect(systemctl.join('\n')).not.toMatch(/enable --now|start|restart|stop|disable|--now/);
     expect(r.out).toContain('operator starts it');
     expect(r.out).toContain('verify-confinement');
+  });
+
+  it('checks is-enabled and is-active after the reload, and only queries them', () => {
+    const world = makeWorld();
+    expect(run(world).status).toBe(0);
+    const systemctl = calls(world).filter((c) => c.startsWith('systemctl '));
+    expect(systemctl).toEqual([
+      'systemctl daemon-reload',
+      'systemctl is-enabled --quiet geldar-runner.service',
+      'systemctl is-active --quiet geldar-runner.service',
+    ]);
+  });
+
+  it.each([
+    ['enabled', { enabled: true }],
+    ['running', { active: true }],
+    ['enabled and running', { enabled: true, active: true }],
+  ])(
+    'warns when the unit is %s and changes nothing (no enable, start, stop or disable)',
+    (_, state) => {
+      const world = makeWorld(state);
+      const r = run(world);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toContain('WARNING: the runner is currently enabled or running');
+      expect(r.out).toContain('systemctl disable --now geldar-runner');
+      expect(r.out).not.toContain('operator starts it');
+      const mutating = calls(world).filter(
+        (c) => c.startsWith('systemctl ') && !c.startsWith('systemctl is-'),
+      );
+      expect(mutating).toEqual(['systemctl daemon-reload']);
+    },
+  );
+
+  it('prints the disabled message, and no warning, when the unit is disabled and stopped', () => {
+    const world = makeWorld();
+    const r = run(world);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('it stays disabled and stopped');
+    expect(r.out).toContain('operator starts it');
+    expect(r.out).not.toContain('WARNING');
   });
 
   it('the unit has no KillMode=process, so a stop kills the job processes too', () => {

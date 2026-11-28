@@ -120,16 +120,24 @@ configure() {
   ) || die 7 "config.sh failed"
 }
 
-# install_unit copies the unit snapshot into place and reloads systemd. It never enables or starts
-# the unit: the unit stays disabled and stopped until the operator starts it by hand.
+# install_unit copies the unit snapshot into place and reloads systemd. It never enables, starts,
+# stops or disables the unit. A host that the earlier script left enabled or running gets a warning
+# instead: the operator stops it by hand before the wrapper is verified.
 install_unit() {
   mkdir -p "$(dirname "$unit")"
   cp "$here/geldar-runner.service" "$unit" || die 7 "copy of the unit failed"
   chmod 0644 "$unit" || die 7 "chmod of the unit failed"
   systemctl daemon-reload || die 7 "systemctl daemon-reload failed"
-  echo "install-runner: $unit is installed and daemon-reloaded; it stays disabled and stopped."
-  echo "install-runner: the operator starts it (systemctl enable --now geldar-runner.service) only"
-  echo "install-runner: after the wrapper is installed and verify-confinement passes."
+  if systemctl is-enabled --quiet geldar-runner.service ||
+    systemctl is-active --quiet geldar-runner.service; then
+    echo "install-runner: WARNING: the runner is currently enabled or running on this host."
+    echo "install-runner: the operator must run systemctl disable --now geldar-runner before the"
+    echo "install-runner: wrapper is verified. The script does not change the unit's state."
+  else
+    echo "install-runner: $unit is installed and daemon-reloaded; it stays disabled and stopped."
+    echo "install-runner: the operator starts it (systemctl enable --now geldar-runner.service) only"
+    echo "install-runner: after the wrapper is installed and verify-confinement passes."
+  fi
 }
 
 url="" token_file="" token=""

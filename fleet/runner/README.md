@@ -32,6 +32,9 @@ What the script does, in order:
    does not enable, start or restart the unit: the unit stays disabled and stopped. The script
    prints that the operator starts it (`systemctl enable --now geldar-runner.service`) only after
    the root wrapper is installed and `verify-confinement.sh` passes (F-05b, F-08 step 1).
+   A host that an earlier run of the script left enabled or running gets a warning instead: the
+   script checks `systemctl is-enabled` and `systemctl is-active`, changes nothing, and the operator
+   runs `systemctl disable --now geldar-runner` before the wrapper is verified.
 
 Notes on a re-run:
 
