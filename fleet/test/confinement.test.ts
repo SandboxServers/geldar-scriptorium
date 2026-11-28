@@ -243,7 +243,11 @@ function runVerify(
   );
   if (knobs.FAKE_DROPINS_UNREADABLE) writeExe(join(fakes, 'find'), FAKE_FIND);
   const r = spawnSync(bashExe as string, [script, ...args], {
-    env: { PATH: `${fakes}:/usr/bin:/bin`, FAKE_WRAPPER: join(root, 'usr/local/sbin/geldar-fleet-run'), ...knobs },
+    env: {
+      PATH: `${fakes}:/usr/bin:/bin`,
+      FAKE_WRAPPER: join(root, 'usr/local/sbin/geldar-fleet-run'),
+      ...knobs,
+    },
     encoding: 'utf8',
     timeout: 60_000,
   });
@@ -255,7 +259,11 @@ function runVerify(
 function sandboxLines(unit: string): string[] {
   return unit
     .split('\n')
-    .filter((l) => /^(User=|Environment=PATH=|Protect|Private|Restrict|LockPersonality=|ReadWritePaths=)/.test(l));
+    .filter((l) =>
+      /^(User=|Environment=PATH=|Protect|Private|Restrict|LockPersonality=|ReadWritePaths=)/.test(
+        l,
+      ),
+    );
 }
 
 // Runs --in-unit of the copied script with CONF_UNIT pointing at a unit file holding unitText. A null
@@ -273,7 +281,11 @@ function runInUnit(unitText: string | null) {
     encoding: 'utf8',
     timeout: 60_000,
   });
-  return { status: r.status, lines: (r.stdout ?? '').split('\n').filter(Boolean), stderr: r.stderr ?? '' };
+  return {
+    status: r.status,
+    lines: (r.stdout ?? '').split('\n').filter(Boolean),
+    stderr: r.stderr ?? '',
+  };
 }
 
 // The fakes are extensionless scripts on PATH; win32 cannot exec them, so the suite skips there.
@@ -405,7 +417,8 @@ describeBash('runner confinement check (F-05b)', () => {
       expect(cmd).toContain("-p 'NoNewPrivileges=no'");
       for (const line of sandboxLines(unit)) {
         if (line.startsWith('ReadWritePaths=')) {
-          for (const path of line.slice('ReadWritePaths='.length).split(' ')) expect(cmd).toContain(path);
+          for (const path of line.slice('ReadWritePaths='.length).split(' '))
+            expect(cmd).toContain(path);
         } else if (!line.startsWith('User=')) {
           expect(cmd, line).toContain(`-p '${line}'`);
         }
@@ -418,7 +431,8 @@ describeBash('runner confinement check (F-05b)', () => {
   });
 
   it('carries a unit line it has never seen, so the command is built from the unit file', () => {
-    const unit = readFileSync(join(runnerDir, 'geldar-runner.service'), 'utf8') + 'ProtectKernelLogs=yes\n';
+    const unit =
+      readFileSync(join(runnerDir, 'geldar-runner.service'), 'utf8') + 'ProtectKernelLogs=yes\n';
     const r = runInUnit(unit);
     expect(r.status, r.stderr).toBe(0);
     expect(r.lines[0]).toContain("-p 'ProtectKernelLogs=yes'");

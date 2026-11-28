@@ -329,7 +329,10 @@ describeBash('root wrapper (F-05b)', () => {
     expect(r.status, r.out).toBe(0);
     const log = readOr(w.playLog).split('\n');
     for (const name of ['BASH_ENV', 'ENV', 'LD_PRELOAD']) {
-      expect(log.some((line) => line.startsWith(`${name}=`)), name).toBe(false);
+      expect(
+        log.some((line) => line.startsWith(`${name}=`)),
+        name,
+      ).toBe(false);
     }
     expect(log.join('\n')).not.toMatch(/HOSTILE_TOKEN|leak-me/);
     expect(existsSync(w.bashEnvRan)).toBe(false);
