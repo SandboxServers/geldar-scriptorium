@@ -201,6 +201,14 @@ describe('player compose: separation between the two sides', () => {
   });
 });
 
+describe('player compose: the sheet is mounted nowhere', () => {
+  it('neither the player nor the keeper service mentions the sheet; the keeper reads the supervisor state read-only', () => {
+    expect(block('player')).not.toMatch(/sheet/i);
+    expect(block('keeper')).not.toMatch(/sheet/i);
+    expect(items('keeper', 'volumes')).toContain('supervisor-state:/supervisor-state:ro');
+  });
+});
+
 describe('player compose: environment contract', () => {
   it('player gets the name-only secrets, the mode, the run names and the keeper state path', () => {
     const lines = items('player', 'environment');

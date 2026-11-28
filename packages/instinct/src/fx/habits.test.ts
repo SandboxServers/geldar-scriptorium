@@ -72,7 +72,7 @@ function volume(): { stateDir: string; workspace: string } {
   const workspace = join(root, 'ws');
   mkdirSync(join(workspace, 'memory'), { recursive: true });
   writeFileSync(join(workspace, 'memory', 'goals.md'), `- ${GOAL}\n`);
-  writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+  writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET, { mode: 0o600 });
   return { stateDir, workspace };
 }
 

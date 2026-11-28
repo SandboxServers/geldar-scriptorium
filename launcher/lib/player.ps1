@@ -356,6 +356,41 @@ function Initialize-PlayerWorkspace([string]$Id) {
   Die 1 player_ws_failed $Id
 }
 
+# Send-PlayerSheet id: when the player has a stored sheet.json or roster.json, one throwaway kit container
+# with no network checks them and moves them into the supervisor volume's instinct folder (0600, owner
+# 1001). The container sees a read-only copy of the two files only, never the player's folder or workspace.
+# With neither file nothing runs. A refused file stops the start before compose is called (HC-26b).
+function Send-PlayerSheet([string]$Id) {
+  $d = Get-PlayerDir $Id
+  $sheet = Join-Path $d 'sheet.json'
+  $roster = Join-Path $d 'roster.json'
+  $hasSheet = Test-Path -LiteralPath $sheet -PathType Leaf
+  $hasRoster = Test-Path -LiteralPath $roster -PathType Leaf
+  if (-not ($hasSheet -or $hasRoster)) { return }
+  $tmp = Join-Path $d 'deliver'
+  Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+  New-PrivateDir (Join-Path $d 'deliver')
+  $rc = 0
+  try {
+    if ($hasSheet) { [System.IO.File]::Copy($sheet, (Join-Path $tmp 'sheet.json'), $true) }
+    if ($hasRoster) { [System.IO.File]::Copy($roster, (Join-Path $tmp 'roster.json'), $true) }
+  } catch {
+    $rc = 1
+  }
+  if ($rc -eq 0) {
+    $r = Invoke-PlayerHelper 'sheet' "geldar-sheet-$Id" @('--network', 'none', '--user', '0:0', '--cap-add', 'CHOWN', '--cap-add', 'FOWNER', '-v', "${tmp}:/in:ro", '-v', "geldar-sup-${Id}:/vol:rw") $script:SHEET_DELIVER
+    $rc = $r.Code
+  }
+  Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+  switch ($rc) {
+    0 { return }
+    2 { Die 1 sheet_bad $Id 'check' }
+    3 { Die 1 sheet_bad $Id 'roster' }
+    4 { Die 1 roster_failed $Id }
+    default { Die 1 sheet_failed $Id }
+  }
+}
+
 # pl_ready id: the deploy key, the MCP token file and the shared login.
 function Assert-PlayerReady([string]$Id) {
   $d = Get-PlayerDir $Id
@@ -387,6 +422,7 @@ function Verb-start {
   Lock-Acquire $id
   Write-PlayerAllowlist $id
   Initialize-PlayerWorkspace $id
+  Send-PlayerSheet $id
   Invoke-PlayerCompose $id @('up', '-d')
   if ($LASTEXITCODE -ne 0) { Die 1 compose_failed }
   Say player_started $id
@@ -400,6 +436,7 @@ function Verb-restart {
   Assert-PlayerReady $id
   Lock-Acquire $id
   Write-PlayerAllowlist $id
+  Send-PlayerSheet $id
   Invoke-PlayerCompose $id @('up', '-d', '--force-recreate')
   if ($LASTEXITCODE -ne 0) { Die 1 compose_failed }
   Say player_restarted $id

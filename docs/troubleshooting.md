@@ -545,6 +545,16 @@ What it means. The sheet file was refused, and the reason is in brackets: link m
 Why it is safe. The file is checked before anything is written, so a refusal changes nothing. The sheet text is never printed.
 What to do. Fix the named problem in the sheet file, which must be a plain UTF-8 JSON file of at most 4096 bytes, then run the command again.
 
+### sheet_failed
+What it means. The stored sheet could not be put in place before the start, so the start was refused. The throwaway helper that copies it into the supervisor volume failed.
+Why it is safe. Compose was never called, so nothing started or changed on the player.
+What to do. Check that Docker is running and the kit image is present, then run the command again. If it repeats, run sheet-set with the sheet file again.
+
+### roster_failed
+What it means. The stored roster could not be put in place before the start, so the start was refused.
+Why it is safe. Compose was never called, so nothing started or changed on the player.
+What to do. Check that Docker is running, then run the command again. The roster file is a plain JSON file of at most 16 KiB.
+
 ### dev_world_bad
 What it means. GELDAR_DEV_MCP_URL is set, but it is not exactly `http://host.docker.internal:PORT/p/ID` with PORT from 1024 to 65535 and no leading zero.
 Why it is safe. The launcher refused before any lock, state or Docker call, so nothing ran.

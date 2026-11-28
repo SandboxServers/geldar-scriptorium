@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -72,5 +72,28 @@ describe('starting a child as the player', () => {
     expect(seen[0]?.options).not.toHaveProperty('gid');
     expect(seen[0]?.options.env).toEqual({ PATH: '/usr/bin' });
     expect(seen[0]?.options.cwd).toBe('/player');
+  });
+
+  it('gives the child descriptor 4 only when a params file is named (HC-23b)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'launch-params-'));
+    const params = join(dir, 'sanity.json');
+    writeFileSync(params, '{}\n');
+    const stdio: unknown[][] = [];
+    const fake = ((_file: string, _args: readonly string[], options: Record<string, unknown>) => {
+      stdio.push(options.stdio as unknown[]);
+      const child = new EventEmitter();
+      setImmediate(() => child.emit('close', 0));
+      return child;
+    }) as unknown as SpawnFn;
+    try {
+      const exec = createExec(fake);
+      await exec(spec);
+      await exec({ ...spec, paramsPath: params });
+      expect(stdio[0]).toHaveLength(4);
+      expect(stdio[1]).toHaveLength(5);
+      expect(typeof stdio[1]?.[4]).toBe('number');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

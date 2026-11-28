@@ -73,7 +73,7 @@ function volume(): { stateDir: string; audit: string } {
 describe('runInstinct last intent across wakings', () => {
   it('last_intent is stored after a run and the next run failure fx uses it', async () => {
     const { stateDir } = volume();
-    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET, { mode: 0o600 });
     const running = JSON.stringify({
       snapshot: { current_plan: { goal: 'find food', action: 'mine', status: 'running' } },
     });
@@ -109,7 +109,7 @@ describe('runInstinct early outcomes (no world, no fixture)', () => {
 
   it('a malformed sheet gives pass sheet_invalid and the sheet text never reaches the result', async () => {
     const { stateDir } = volume();
-    writeFileSync(join(stateDir, 'sheet.json'), '{"version":1,"secret_field":9}');
+    writeFileSync(join(stateDir, 'sheet.json'), '{"version":1,"secret_field":9}', { mode: 0o600 });
     const result = await runInstinct({ GELDAR_INSTINCT_STATE: stateDir }, 1);
     expect(result).toMatchObject({ kind: 'pass', reason: 'sheet_invalid' });
     expect(JSON.stringify(result)).not.toMatch(/secret_field/);
@@ -117,7 +117,7 @@ describe('runInstinct early outcomes (no world, no fixture)', () => {
 
   it('a world address that is not http or https gives pass no_world', async () => {
     const { stateDir } = volume();
-    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET, { mode: 0o600 });
     const result = await runInstinct(
       { GELDAR_INSTINCT_STATE: stateDir, GELDAR_MCP_URL: 'ftp://127.0.0.1/p/x' },
       2,
@@ -134,7 +134,7 @@ describe('runInstinct early outcomes (no world, no fixture)', () => {
 describe('runInstinct with a world (injected connect and fx list)', () => {
   it('a non-forced pass with pending own acts becomes pass-with-facts fx none and clears them', async () => {
     const { stateDir } = volume();
-    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET, { mode: 0o600 });
     writeState(stateDir, { pending_acts: [OWN_ACT_LINE] });
     const { connect } = fakeWorld('{}', ACCEPTED);
     const result = await runInstinct(
@@ -153,7 +153,7 @@ describe('runInstinct with a world (injected connect and fx list)', () => {
 
   it('a forced pass leaves pending own acts untouched for the next non-forced result', async () => {
     const { stateDir } = volume();
-    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET, { mode: 0o600 });
     writeState(stateDir, { pending_acts: [OWN_ACT_LINE] });
     const { connect } = fakeWorld(FIRST_SIGHTING, ACCEPTED);
     const result = await runInstinct(
@@ -168,7 +168,7 @@ describe('runInstinct with a world (injected connect and fx list)', () => {
 
   it('a rejected act gives send_failed, never settles as accepted, and keeps pending acts', async () => {
     const { stateDir, audit } = volume();
-    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET, { mode: 0o600 });
     writeState(stateDir, { pending_acts: [OWN_ACT_LINE] });
     const { connect, calls } = fakeWorld('{}', REJECTED);
     const result = await runInstinct(
@@ -192,7 +192,7 @@ describe('runInstinct with a world (injected connect and fx list)', () => {
 
   it('an accepted act settles with the fixed own-act line and stores it as pending', async () => {
     const { stateDir } = volume();
-    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET, { mode: 0o600 });
     const { connect } = fakeWorld('{}', ACCEPTED);
     const result = await runInstinct(
       { GELDAR_INSTINCT_STATE: stateDir, ...WORLD_ENV },
@@ -207,7 +207,7 @@ describe('runInstinct with a world (injected connect and fx list)', () => {
 
   it('an accepted intent act is recorded as submitted with its real arguments', async () => {
     const { stateDir } = volume();
-    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET, { mode: 0o600 });
     const { connect } = fakeWorld('{}', ACCEPTED);
     await runInstinct({ GELDAR_INSTINCT_STATE: stateDir, ...WORLD_ENV }, 5, new Date(), connect, [
       INTENT_FX,
@@ -221,7 +221,7 @@ describe('runInstinct with a world (injected connect and fx list)', () => {
 
   it('a rejected intent act is not recorded as submitted', async () => {
     const { stateDir } = volume();
-    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET, { mode: 0o600 });
     const { connect } = fakeWorld('{}', REJECTED);
     const result = await runInstinct(
       { GELDAR_INSTINCT_STATE: stateDir, ...WORLD_ENV },
@@ -236,7 +236,7 @@ describe('runInstinct with a world (injected connect and fx list)', () => {
 
   it('a different intent seen clears the submitted record', async () => {
     const { stateDir } = volume();
-    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET, { mode: 0o600 });
     writeState(stateDir, {
       submitted: { goal: 'find food', program: 'mine', arguments: { item: 'wood' } },
     });
@@ -256,7 +256,7 @@ describe('runInstinct with a world (injected connect and fx list)', () => {
 
   it('the submitted record of the running intent is kept while it runs', async () => {
     const { stateDir } = volume();
-    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET, { mode: 0o600 });
     writeState(stateDir, {
       submitted: { goal: 'find food', program: 'mine', arguments: { item: 'wood' } },
     });
@@ -287,7 +287,7 @@ describe('runInstinct with a world (injected connect and fx list)', () => {
 
   it('a wait with a death event gives pass dead and no act is sent', async () => {
     const { stateDir } = volume();
-    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET, { mode: 0o600 });
     const deathWait = JSON.stringify({
       events: [{ seq: 1, type: 'death', tick: 4, text: 'You died.' }],
     });
@@ -305,7 +305,7 @@ describe('runInstinct with a world (injected connect and fx list)', () => {
 
   it('the audit line of a run with a valid sheet holds no sheet field name', async () => {
     const { stateDir, audit } = volume();
-    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET, { mode: 0o600 });
     const { connect } = fakeWorld('{}', ACCEPTED);
     await runInstinct({ GELDAR_INSTINCT_STATE: stateDir, ...WORLD_ENV }, 6, new Date(), connect);
     expect(readFileSync(audit, 'utf8')).not.toMatch(SHEET_WORDS);
@@ -313,7 +313,7 @@ describe('runInstinct with a world (injected connect and fx list)', () => {
 
   it('after maxPicks accepted idle picks the next run escalates max_picks', async () => {
     const { stateDir } = volume();
-    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET);
+    writeFileSync(join(stateDir, 'sheet.json'), STANDARD_SHEET, { mode: 0o600 });
     const workspace = mkdtempSync(join(tmpdir(), 'instinct-ws-'));
     mkdirSync(join(workspace, 'memory'));
     writeFileSync(join(workspace, 'memory', 'goals.md'), '- find food\n');

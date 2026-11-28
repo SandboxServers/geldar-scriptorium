@@ -232,9 +232,14 @@ describe('observe calls wait only', () => {
   });
 });
 
-function surroundingsReply(self: unknown, notable: unknown[], entities: unknown[] = []): string {
+function surroundingsReply(
+  self: unknown,
+  notable: unknown[],
+  entities: unknown[] = [],
+  agents: unknown[] = [],
+): string {
   return JSON.stringify({
-    snapshot: { self, surroundings: { notable_blocks: notable, entities, agents: [] } },
+    snapshot: { self, surroundings: { notable_blocks: notable, entities, agents } },
     events: [],
   });
 }
@@ -272,5 +277,48 @@ describe('parseObservation keeps the positions the world sends (HC-46a)', () => 
       events: [],
     });
     expect(parseObservation(reply).notable).toEqual([]);
+  });
+});
+
+describe('parseObservation keeps an agent position when the world sends one (HC-46b)', () => {
+  const at = { position: { x: 0, y: 64, z: 0 } };
+
+  it('an agent with x, y, z parses a pos; an agent without parses as before', () => {
+    const obs = parseObservation(
+      surroundingsReply(
+        at,
+        [],
+        [],
+        [
+          { name: 'Ann', distance: 5, x: 3, y: 64, z: 4 },
+          { name: 'Bob', distance: 2 },
+        ],
+      ),
+    );
+    expect(obs.agents).toEqual([
+      { name: 'Ann', distance: 5, pos: { x: 3, y: 64, z: 4 } },
+      { name: 'Bob', distance: 2 },
+    ]);
+  });
+
+  it('an agent with a missing z has no pos', () => {
+    const obs = parseObservation(
+      surroundingsReply(at, [], [], [{ name: 'Ann', distance: 5, x: 3, y: 64 }]),
+    );
+    expect(obs.agents).toEqual([{ name: 'Ann', distance: 5 }]);
+    expect(obs.agents[0]).not.toHaveProperty('pos');
+  });
+
+  it('an observation never carries an id: a world reply with an id field on an agent yields no id string anywhere in the parsed result', () => {
+    const obs = parseObservation(
+      surroundingsReply(
+        at,
+        [],
+        [],
+        [{ name: 'Ann', distance: 5, id: 'life_ann_01', x: 3, y: 64, z: 4 }],
+      ),
+    );
+    expect(JSON.stringify(obs)).not.toContain('life_ann_01');
+    expect(obs.agents).toEqual([{ name: 'Ann', distance: 5, pos: { x: 3, y: 64, z: 4 } }]);
   });
 });
