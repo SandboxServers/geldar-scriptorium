@@ -58,6 +58,7 @@ const PROBES = [
   'systemctl show geldar-runner ReadWritePaths is the reviewed list',
   'no drop-ins under geldar-runner.service.d',
 ];
+const ENV_RESET_PROBE = 'sudo -l -U geldar-runner has env_reset';
 
 const FAKE_RUNUSER = [
   'shift 3',
@@ -70,12 +71,12 @@ const FAKE_RUNUSER = [
   '  "ls "*) [ -n "${FAKE_HOME:-}" ] ;;',
   '  *"sudo -n true"*) [ -n "${FAKE_SUDO_TRUE:-}" ] ;;',
   '  *"sudo -n -l"*)',
-  '    echo "    (root) NOPASSWD: /usr/local/sbin/geldar-fleet-run"',
+  '    echo "    (root) NOPASSWD: $FAKE_WRAPPER"',
   '    [ -z "${FAKE_SUDO_EXTRA:-}" ] || echo "    (root) NOPASSWD: /usr/bin/id"',
   '    [ -z "${FAKE_SUDO_PASSWD:-}" ] || echo "    (root) /usr/bin/id"',
   '    ;;',
   '  *"test -w "*) [ -n "${FAKE_WRITE:-}" ] ;;',
-  '  *"sudo -n /usr/local/sbin/geldar-fleet-run check-secrets ag-probe-00"*)',
+  '  *"geldar-fleet-run check-secrets ag-probe-00"*)',
   '    exit "${FAKE_POSITIVE:-0}" ;;',
   '  *"geldar-fleet-run"*)',
   '    [ -z "${FAKE_WRAPPER_ACCEPTS:-}" ] || exit 0',
@@ -105,12 +106,25 @@ const FAKE_SYSTEMCTL = [
   'echo "User=${FAKE_USER:-geldar-runner}"',
 ].join('\n');
 
-// sudo -l -U lists the defaults only for the -U form the script uses; FAKE_NO_ENV_RESET drops env_reset.
+// sudo -l -U lists the defaults only for the -U form the script uses. FAKE_NO_ENV_RESET drops
+// env_reset; FAKE_NEG_ENV_RESET lists it negated, as Defaults !env_reset does.
 const FAKE_SUDO = [
   'case "$*" in',
-  '  *" -U "*) [ -n "${FAKE_NO_ENV_RESET:-}" ] || echo "Matching Defaults entries: env_reset, mail_badpass" ;;',
+  '  *" -U "*)',
+  '    if [ -n "${FAKE_NEG_ENV_RESET:-}" ]; then echo "Matching Defaults entries: !env_reset, mail_badpass"',
+  '    elif [ -z "${FAKE_NO_ENV_RESET:-}" ]; then echo "Matching Defaults entries: env_reset, mail_badpass"; fi',
+  '    ;;',
   '  *) exit 1 ;;',
   'esac',
+].join('\n');
+
+// find lists nothing under the drop-in directory when FAKE_DROPINS_UNREADABLE is set: it fails the
+// way find does on a directory it cannot read. Every other find runs the real one.
+const FAKE_FIND = [
+  'case "$*" in',
+  '  *geldar-runner.service.d*) echo "find: Permission denied" >&2; exit 1 ;;',
+  'esac',
+  'exec /usr/bin/find "$@"',
 ].join('\n');
 
 // stat -c %G names the token and key owner group (FAKE_OWNER_GROUP); stat -c '%u %a' gives the
@@ -215,8 +229,9 @@ function runVerify(
     }),
     { mode: 0o755 },
   );
+  if (knobs.FAKE_DROPINS_UNREADABLE) writeExe(join(fakes, 'find'), FAKE_FIND);
   const r = spawnSync(bashExe as string, [script, ...args], {
-    env: { PATH: `${fakes}:/usr/bin:/bin`, ...knobs },
+    env: { PATH: `${fakes}:/usr/bin:/bin`, FAKE_WRAPPER: join(root, 'usr/local/sbin/geldar-fleet-run'), ...knobs },
     encoding: 'utf8',
     timeout: 60_000,
   });
@@ -284,7 +299,8 @@ describeBash('runner confinement check (F-05b)', () => {
     ['sudo -n true', { FAKE_SUDO_TRUE: '1' }],
     ['sudo -n -l', { FAKE_SUDO_EXTRA: '1' }],
     ['sudo -n -l', { FAKE_SUDO_PASSWD: '1' }],
-    ['sudo -l -U geldar-runner has env_reset', { FAKE_NO_ENV_RESET: '1' }],
+    [ENV_RESET_PROBE, { FAKE_NO_ENV_RESET: '1' }],
+    [ENV_RESET_PROBE, { FAKE_NEG_ENV_RESET: '1' }],
     ['test -w /etc/geldar/keys', { FAKE_WRITE: '1' }],
     ['test -w /etc/sudoers.d/geldar-fleet', { FAKE_WRITE: '1' }],
     ['test -r /etc/geldar/tokens/<any file>', { FAKE_LEAK: 'token' }],
@@ -335,11 +351,27 @@ describeBash('runner confinement check (F-05b)', () => {
   });
 
   it('prints the one in-unit systemd-run command and exits 0 without root', () => {
-    const r = runVerify({ FAKE_UID: '1000' }, [], {}, ['--in-unit']);
-    expect(r.status, r.out).toBe(0);
-    expect(r.lines).toEqual([
+    // The unmodified script, not a rewritten copy: --in-unit exits before any probe runs, and the
+    // wrapper path it prints must be the real CONF_WRAPPER.
+    const r = spawnSync(bashExe as string, [join(runnerDir, 'verify-confinement.sh'), '--in-unit'], {
+      env: { PATH: '/usr/bin:/bin', FAKE_UID: '1000' },
+      encoding: 'utf8',
+      timeout: 60_000,
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect((r.stdout ?? '').split('\n').filter(Boolean)).toEqual([
       'systemd-run --wait --pipe --collect -p User=geldar-runner -p NoNewPrivileges=no -p ProtectSystem=strict -p ProtectHome=read-only -p PrivateTmp=yes -- sudo -n /usr/local/sbin/geldar-fleet-run check-secrets ag-probe-00',
     ]);
+  });
+
+  it('prints FAIL for the drop-in probe when the drop-in directory cannot be listed, and exits 1', () => {
+    // The directory exists (one file in it), and find cannot read it: the probe must not pass.
+    const r = runVerify({ FAKE_DROPINS_UNREADABLE: '1' }, [], {
+      'etc/systemd/system/geldar-runner.service.d/override.conf': '[Service]\nUser=root\n',
+    });
+    expect(r.status, r.out).toBe(1);
+    expect(r.lines, r.out).toContain('FAIL no drop-ins under geldar-runner.service.d');
+    expect(r.lines.filter((l) => l.startsWith('ok'))).toHaveLength(PROBES.length - 1);
   });
 
   it('refuses any other argument with exit 2 and no probe output', () => {

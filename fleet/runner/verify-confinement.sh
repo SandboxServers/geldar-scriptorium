@@ -2,15 +2,15 @@
 # Proves the runner account is confined (F-05b). Run as root on the VM, after install-wrapper.sh.
 # Each probe runs as geldar-runner through runuser and prints "ok <probe>" or "FAIL <probe>". A
 # probe that must be refused is ok only when the runner is refused, and only when its target exists
-# (checked as root first, so a missing target cannot pass the probe by accident). F-08 step 1 runs
-# this on the VM.
-# Usage: verify-confinement.sh
-# Exit codes: 0 every probe is ok, 1 a probe is FAIL, 2 not root.
+# (checked as root first, so a missing target cannot pass the probe by accident). The root-side file
+# probes use GNU stat: off Linux they print "SKIP <probe>" with the reason, which is neither ok nor
+# FAIL. F-08 step 1 runs this on the VM; "--in-unit" only prints the command for the in-unit probe.
+# Usage: verify-confinement.sh [--in-unit]
+# Exit codes: 0 every probe is ok or skipped, 1 a probe is FAIL, 2 not root or a bad argument.
 set -euo pipefail
 umask 022
 
 runner=geldar-runner
-wrapper=/usr/local/sbin/geldar-fleet-run
 # The paths the probes aim at. The test rewrites these lines to a temp world; on the VM they are real.
 readonly CONF_SHADOW=/etc/shadow
 readonly CONF_HOMES=/home
@@ -18,7 +18,26 @@ readonly CONF_TOKEN_DIR=/etc/geldar/tokens
 readonly CONF_KEY_DIR=/etc/geldar/keys
 readonly CONF_LOGIN=/home/geldar/.claude/.credentials.json
 readonly CONF_LOG=/var/log/geldar-hosts.log
+readonly CONF_SBIN=/usr/local/sbin
+readonly CONF_WRAPPER=/usr/local/sbin/geldar-fleet-run
+readonly CONF_SUDOERS=/etc/sudoers.d/geldar-fleet
+readonly CONF_DROPINS=/etc/systemd/system/geldar-runner.service.d
+# The unit's ReadWritePaths as reviewed; a systemd leading - is ignored. A unit change changes this too.
+readonly UNIT_RW_PATHS="/etc/geldar/placement /var/log/geldar-hosts.log /run/geldar-fleet /opt/geldar-runner /run/sudo /home/geldar/scriptorium /home/geldar/.local/state /srv/geldar"
+# Drop-in files allowed under the unit's drop-in directory, by file name. None today.
+readonly UNIT_DROPINS_OK=""
 fails=0
+
+# --in-unit prints the in-unit probe command and exits. It only prints: nothing runs, so it needs no
+# root. The transient unit takes the unit's user and sandbox settings and runs one read-only verb.
+if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != --in-unit ]; }; then
+  echo "verify-confinement: usage: verify-confinement.sh [--in-unit]" >&2
+  exit 2
+fi
+if [ "$#" -eq 1 ]; then
+  echo "systemd-run --wait --pipe --collect -p User=$runner -p NoNewPrivileges=no -p ProtectSystem=strict -p ProtectHome=read-only -p PrivateTmp=yes -- sudo -n $CONF_WRAPPER check-secrets ag-probe-00"
+  exit 0
+fi
 
 [ "$(id -u)" -eq 0 ] || { echo "verify-confinement: must run as root" >&2; exit 2; }
 id -u "$runner" >/dev/null 2>&1 || { echo "FAIL runner account $runner is missing"; exit 1; }
@@ -78,7 +97,7 @@ allowed() {
 wrapper_refused() {
   local probe=$1 rc=0 err
   shift
-  err=$(as_runner sudo -n "$wrapper" "$@" 2>&1 >/dev/null) || rc=$?
+  err=$(as_runner sudo -n "$CONF_WRAPPER" "$@" 2>&1 >/dev/null) || rc=$?
   if [ "$rc" -eq 2 ] && printf '%s\n' "$err" | grep -q '^geldar-fleet-run: '; then
     report ok "$probe"
   else
@@ -90,7 +109,7 @@ wrapper_refused() {
 # that refused everything would pass every negative probe; this keeps the negatives honest.
 positive_control() {
   local rc=0
-  as_runner sudo -n "$wrapper" check-secrets ag-probe-00 >/dev/null 2>&1 || rc=$?
+  as_runner sudo -n "$CONF_WRAPPER" check-secrets ag-probe-00 >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 0 ] || [ "$rc" -eq 6 ]; then report ok "$1"; else report FAIL "$1"; fi
 }
 
@@ -101,27 +120,66 @@ sudo_lists_wrapper_only() {
   out=$(as_runner sudo -n -l 2>/dev/null || true)
   cmds=$(printf '%s\n' "$out" | grep -c '^ *(.*) ' || true)
   if [ "$cmds" -eq 1 ] &&
-    printf '%s\n' "$out" | grep -q "^ *(.*) NOPASSWD: $wrapper\$"; then
+    printf '%s\n' "$out" | grep -q "^ *(.*) NOPASSWD: $CONF_WRAPPER\$"; then
     report ok "sudo -n -l"
   else
     report FAIL "sudo -n -l"
   fi
 }
 
-# groups_clean: the runner is in none of docker, sudo or wheel.
+# env_reset_kept: sudo's policy for the runner keeps env_reset, so the caller's environment (BASH_ENV
+# and the like) is dropped before the wrapper runs. Read as root with sudo's own listing.
+env_reset_kept() {
+  local out
+  out=$(sudo -n -l -U "$runner" 2>/dev/null || true)
+  # A negated entry (Defaults !env_reset) is a FAIL even on a line that also names env_reset.
+  if printf '%s\n' "$out" | grep -E '(^|[ ,])env_reset([ ,]|$)' | grep -qv '!env_reset'; then
+    report ok "sudo -l -U $runner has env_reset"
+  else
+    report FAIL "sudo -l -U $runner has env_reset"
+  fi
+}
+
+# root_owned PROBE PATH: PATH is owned by root and has no group or world write bits. GNU stat is
+# Linux-only: elsewhere the probe is a SKIP with its reason, and it is neither ok nor FAIL.
+root_owned() {
+  local probe=$1 path=$2 out uid mode
+  if [ "$(uname -s)" != Linux ]; then
+    echo "SKIP $probe (needs Linux GNU stat)"
+    return 0
+  fi
+  if [ ! -e "$path" ]; then
+    report FAIL "$probe (precondition: $path missing)"
+    return 0
+  fi
+  out=$(stat -c '%u %a' "$path" 2>/dev/null || true)
+  uid=${out%% *}
+  mode=${out#* }
+  if [ "$uid" = 0 ] && [ -n "$mode" ] && [ $((8#$mode & 022)) -eq 0 ]; then
+    report ok "$probe"
+  else
+    report FAIL "$probe"
+  fi
+}
+
+# groups_clean: the runner is in none of docker, sudo, wheel or geldar, nor in a group that owns the
+# token or key directory (root:geldar on the VM).
 groups_clean() {
-  local names g bad=""
+  local names owners g bad="" denied
   names=$(as_runner id -nG 2>/dev/null || true)
+  owners=$(stat -c %G "$CONF_TOKEN_DIR" "$CONF_KEY_DIR" 2>/dev/null | tr '\n' ' ' || true)
+  denied="docker sudo wheel geldar $owners"
   [ -n "$names" ] || bad=1
+  [ -n "$owners" ] || bad=1
   for g in $names; do
-    case $g in
-      docker | sudo | wheel) bad=1 ;;
+    case " $denied " in
+      *" $g "*) bad=1 ;;
     esac
   done
   if [ -z "$bad" ]; then
-    report ok "id -nG has no docker, sudo or wheel"
+    report ok "id -nG has no docker, sudo, wheel, geldar or secret-owner group"
   else
-    report FAIL "id -nG has no docker, sudo or wheel"
+    report FAIL "id -nG has no docker, sudo, wheel, geldar or secret-owner group"
   fi
 }
 
@@ -136,6 +194,55 @@ unit_confinement() {
     report ok "$probe"
   else
     report FAIL "$probe"
+  fi
+}
+
+# unit_user: the unit runs as geldar-runner.
+unit_user() {
+  local out
+  out=$(systemctl show geldar-runner -p User 2>/dev/null || true)
+  if printf '%s\n' "$out" | grep -qx 'User=geldar-runner'; then
+    report ok "systemctl show geldar-runner -p User"
+  else
+    report FAIL "systemctl show geldar-runner -p User"
+  fi
+}
+
+# unit_rw_paths: the unit's ReadWritePaths are exactly the reviewed list, in any order.
+unit_rw_paths() {
+  local out got want
+  out=$(systemctl show geldar-runner -p ReadWritePaths 2>/dev/null || true)
+  got=$(printf '%s\n' "$out" | sed -n 's/^ReadWritePaths=//p' | tr ' ' '\n' | sed 's/^-//' | sort)
+  want=$(echo "$UNIT_RW_PATHS" | tr ' ' '\n' | sort)
+  if [ -n "$got" ] && [ "$got" = "$want" ]; then
+    report ok "systemctl show geldar-runner ReadWritePaths is the reviewed list"
+  else
+    report FAIL "systemctl show geldar-runner ReadWritePaths is the reviewed list"
+  fi
+}
+
+# unit_dropins: no drop-in file sits under the unit's drop-in directory, except the names listed in
+# UNIT_DROPINS_OK. A missing directory has no drop-ins; a directory that exists but cannot be listed
+# is a FAIL, never a silent pass.
+unit_dropins() {
+  local f bad="" list rc=0
+  if [ -e "$CONF_DROPINS" ]; then
+    list=$(find "$CONF_DROPINS" -mindepth 1 2>/dev/null) || rc=$?
+    [ "$rc" -eq 0 ] || bad=1
+  else
+    list=""
+  fi
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    case " $UNIT_DROPINS_OK " in
+      *" $(basename "$f") "*) ;;
+      *) bad=1 ;;
+    esac
+  done <<< "$list"
+  if [ -z "$bad" ]; then
+    report ok "no drop-ins under geldar-runner.service.d"
+  else
+    report FAIL "no drop-ins under geldar-runner.service.d"
   fi
 }
 
@@ -163,6 +270,7 @@ if [ "$homes" -eq 0 ]; then
 fi
 refused "sudo -n true" "" sudo -n true
 sudo_lists_wrapper_only
+env_reset_kept
 refused "test -w /etc/geldar/keys" "$CONF_KEY_DIR" test -w "$CONF_KEY_DIR"
 refused "test -r /etc/geldar/tokens/<any file>" "${token:-$CONF_TOKEN_DIR/<any file>}" \
   test -r "$token"
@@ -171,6 +279,14 @@ refused "test -r <shared login>" "$CONF_LOGIN" test -r "$CONF_LOGIN"
 allowed "append /var/log/geldar-hosts.log" sh -c ": >> $CONF_LOG"
 groups_clean
 docker_refused
+# The installed wrapper, its directory and the sudoers rule are root's, and the runner cannot write
+# to any of them.
+root_owned "root-owned, no group or world write: /usr/local/sbin/geldar-fleet-run" "$CONF_WRAPPER"
+root_owned "root-owned, no group or world write: /usr/local/sbin" "$CONF_SBIN"
+root_owned "root-owned, no group or world write: /etc/sudoers.d/geldar-fleet" "$CONF_SUDOERS"
+refused "test -w /usr/local/sbin/geldar-fleet-run" "$CONF_WRAPPER" test -w "$CONF_WRAPPER"
+refused "test -w /usr/local/sbin" "$CONF_SBIN" test -w "$CONF_SBIN"
+refused "test -w /etc/sudoers.d/geldar-fleet" "$CONF_SUDOERS" test -w "$CONF_SUDOERS"
 
 # The wrapper refuses every bad id, verb and flag with exit 2, before anything runs.
 wrapper_refused "wrapper AG-x" check-secrets AG-x
@@ -186,6 +302,9 @@ wrapper_refused "wrapper verb start;id" 'start;id' ag-probe-00
 wrapper_refused "wrapper flag --rm" start ag-probe-00 --rm
 positive_control "wrapper positive control: check-secrets ag-probe-00"
 unit_confinement
+unit_user
+unit_rw_paths
+unit_dropins
 
 if [ "$fails" -eq 0 ]; then
   exit 0

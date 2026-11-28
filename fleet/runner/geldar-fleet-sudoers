@@ -1,1 +1,2 @@
+Defaults:geldar-runner env_reset,secure_path=/usr/local/bin:/usr/bin:/bin
 geldar-runner ALL=(root) NOPASSWD: /usr/local/sbin/geldar-fleet-run
