@@ -36,7 +36,7 @@ import {
   writePrivate,
 } from './state.ts';
 import type { SyncResult } from './upstream.ts';
-import { GIT_ENV, hardenedArgs, syncUpstream } from './upstream.ts';
+import { GIT_ENV, hardenedArgs, syncUpstream, UPSTREAM_ERR } from './upstream.ts';
 
 /** The reason written to STOP when the keeper's HELD marker is present. */
 export const HELD_REASON = 'the keeper held the history';
@@ -233,6 +233,7 @@ export class Supervisor {
         args: [...hardenedArgs(this.path('no-hooks')), ...args],
         env: { ...childEnv(this.settings, this.env), ...GIT_ENV, ...env },
         ...(capture ? { stdoutPath: out } : {}),
+        stderrPath: this.path(UPSTREAM_ERR),
       }),
     );
     return { code, out: capture && existsSync(out) ? readFileSync(out, 'utf8') : '' };
@@ -248,6 +249,7 @@ export class Supervisor {
       this.settings,
       (args, capture, env) => this.git(args, capture, env),
       (text) => this.log(text),
+      (seconds) => this.deps.sleep(seconds, () => this.shouldStop()),
     );
     if (report.head !== null) this.upstreamHead = report.head;
     this.upstreamResult = report.result;

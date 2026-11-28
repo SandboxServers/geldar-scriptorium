@@ -108,14 +108,16 @@ function publish(keeperDir: string, s: Scene): string {
 function realGit(spec: ExecSpec): Promise<number> {
   return new Promise((resolve) => {
     const out = spec.stdoutPath === undefined ? 'ignore' : openSync(spec.stdoutPath, 'w');
+    const err = spec.stderrPath === undefined ? 'ignore' : openSync(spec.stderrPath, 'w');
     const child = spawn('git', spec.args, {
       cwd: spec.cwd,
       env: { ...process.env, ...spec.env },
-      stdio: ['ignore', out, 'ignore'],
+      stdio: ['ignore', out, err],
     });
     child.once('error', () => resolve(1));
     child.once('close', (code) => {
       if (typeof out === 'number') closeSync(out);
+      if (typeof err === 'number') closeSync(err);
       resolve(code ?? 1);
     });
   });
@@ -128,6 +130,40 @@ function withRealGit(f: ReturnType<typeof makeFixture>): void {
     if (spec.file !== 'git') return fake(spec);
     await fake(spec);
     return realGit(spec);
+  };
+}
+
+/**
+ * Makes the first `times` rebases refuse: each writes `text` to its stderr file and exits 1 without
+ * running git. Every rebase is noted in `events`, in order, with the sleeps (see recordSleeps).
+ */
+function failRebase(
+  f: ReturnType<typeof makeFixture>,
+  times: number,
+  text: string,
+  events: string[],
+): void {
+  const real = f.deps.exec;
+  let refusals = 0;
+  f.deps.exec = async (spec) => {
+    const rebase =
+      spec.file === 'git' && spec.args.includes('rebase') && !spec.args.includes('--abort');
+    if (!rebase) return real(spec);
+    events.push('rebase');
+    if (refusals >= times) return real(spec);
+    refusals++;
+    f.specs.push(spec);
+    writeFileSync(spec.stderrPath ?? '', text);
+    return 1;
+  };
+}
+
+/** Notes each sleep of the fixture in `events`, as `sleep <seconds>`. */
+function recordSleeps(f: ReturnType<typeof makeFixture>, events: string[]): void {
+  const real = f.deps.sleep;
+  f.deps.sleep = async (seconds, wake) => {
+    events.push(`sleep ${seconds}`);
+    return real(seconds, wake);
   };
 }
 
@@ -365,5 +401,121 @@ describe('applying upstream between runs', { timeout: 60_000 }, () => {
     expect(git(s.ws, 'rev-parse', 'HEAD')).toBe(s.base);
     expect(f.read('STOP')).toBe('auto: upstream sync: bundle\n');
     expect(f.read('status.json')).toContain('"upstream_result":"failed: bundle"');
+  });
+
+  it('retries a refused rebase once: the second apply lands, with no STOP and git stderr logged', async () => {
+    const f = makeFixture({ stopAt: 1 }, {}, ENV);
+    const s = scene(f.root);
+    playerCommit(s.ws, 'memory/2026-01-10.md', 'a note\n', 'memory: a note', PLAYER);
+    const head = commit(s.origin, 'template.md', 'new template\n', 'template change');
+    publish(f.keeperDir, s);
+    const events: string[] = [];
+    withRealGit(f);
+    failRebase(f, 1, 'fatal: simulated refusal\n', events);
+    recordSleeps(f, events);
+    expect(await f.supervisor.run()).toBe(0);
+    expect(git(s.ws, 'rev-parse', 'HEAD^')).toBe(head);
+    expect(f.read('status.json')).toContain('"upstream_result":"applied"');
+    // The fixture's STOP is the only one: the upstream wrote none, so the run went ahead.
+    expect(f.read('STOP')).toBe('x\n');
+    expect(f.said.join('\n')).not.toContain('stopped itself');
+    expect(f.read('supervisor.log')).toContain('upstream git: fatal: simulated refusal');
+    expect(events.slice(0, 3)).toEqual(['rebase', 'sleep 20', 'rebase']);
+  });
+
+  it('writes the auto STOP only when the retry refuses too, naming the same step', async () => {
+    const f = makeFixture({ stopAt: 1 }, {}, ENV);
+    const s = scene(f.root);
+    const memory = playerCommit(s.ws, 'memory/2026-01-10.md', 'a note\n', 'memory: a note', PLAYER);
+    commit(s.origin, 'template.md', 'new template\n', 'template change');
+    publish(f.keeperDir, s);
+    const events: string[] = [];
+    withRealGit(f);
+    failRebase(f, 2, '', events);
+    recordSleeps(f, events);
+    expect(await f.supervisor.run()).toBe(0);
+    expect(git(s.ws, 'rev-parse', 'HEAD')).toBe(memory);
+    expect(f.read('STOP')).toBe('auto: upstream sync: rebase\n');
+    expect(f.said.join('\n')).toContain('stopped itself: upstream sync: rebase');
+    expect(f.read('status.json')).toContain('"upstream_result":"failed: rebase"');
+    expect(events.filter((e) => e === 'rebase')).toHaveLength(2);
+    expect(events.filter((e) => e === 'sleep 20')).toHaveLength(1);
+    expect(f.read('supervisor.log').match(/upstream git: \(no output\)/g)).toHaveLength(2);
+  });
+
+  it('logs git stderr as one line: control characters gone, newlines as spaces, capped at 1024', async () => {
+    const f = makeFixture({ stopAt: 1 }, {}, ENV);
+    const s = scene(f.root);
+    playerCommit(s.ws, 'memory/2026-01-10.md', 'a note\n', 'memory: a note', PLAYER);
+    commit(s.origin, 'template.md', 'new template\n', 'template change');
+    publish(f.keeperDir, s);
+    withRealGit(f);
+    failRebase(f, 2, `ab\x01cd\x1b\r\nef${'g'.repeat(2000)}`, []);
+    expect(await f.supervisor.run()).toBe(0);
+    const line = f
+      .read('supervisor.log')
+      .split('\n')
+      .find((l) => l.includes('upstream git: '));
+    expect(line?.slice(line.indexOf('upstream git: '))).toBe(
+      `upstream git: abcd ef${'g'.repeat(1024 - 'abcd ef'.length)}`,
+    );
+  });
+
+  it('defers when the workspace turns dirty during the wait, after one refused rebase', async () => {
+    const f = makeFixture({ stopAt: 1 }, {}, ENV);
+    const s = scene(f.root);
+    const memory = playerCommit(s.ws, 'memory/2026-01-10.md', 'a note\n', 'memory: a note', PLAYER);
+    commit(s.origin, 'template.md', 'new template\n', 'template change');
+    publish(f.keeperDir, s);
+    const events: string[] = [];
+    withRealGit(f);
+    failRebase(f, 1, 'fatal: simulated refusal\n', events);
+    const sleep = f.deps.sleep;
+    f.deps.sleep = async (seconds, wake) => {
+      events.push(`sleep ${seconds}`);
+      if (seconds === 20) writeFileSync(join(s.ws, 'scratch.txt'), 'typed\n');
+      return sleep(seconds, wake);
+    };
+    expect(await f.supervisor.run()).toBe(0);
+    expect(git(s.ws, 'rev-parse', 'HEAD')).toBe(memory);
+    expect(events.filter((e) => e === 'rebase')).toHaveLength(1);
+    expect(f.read('status.json')).toContain('"upstream_result":"none"');
+    expect(f.read('supervisor.log')).toContain(
+      'upstream deferred: the workspace has uncommitted changes',
+    );
+    expect(f.said.join('\n')).not.toContain('stopped itself');
+  });
+
+  it('does not retry a refused identity', async () => {
+    const f = makeFixture({ stopAt: 1 }, {}, ENV);
+    const s = scene(f.root);
+    commit(s.ws, 'memory/2026-01-10.md', 'a note\n', 'memory: a note');
+    commit(s.origin, 'template.md', 'new template\n', 'template change');
+    publish(f.keeperDir, s);
+    const events: string[] = [];
+    withRealGit(f);
+    recordSleeps(f, events);
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.read('STOP')).toBe('auto: upstream sync: identity\n');
+    expect(events).not.toContain('rebase');
+    expect(f.read('supervisor.log')).not.toContain('upstream git:');
+    expect(events).not.toContain('sleep 20');
+  });
+
+  it('does not retry a refused base', async () => {
+    const f = makeFixture({ stopAt: 1 }, {}, ENV);
+    const s = scene(f.root);
+    playerCommit(s.ws, 'memory/2026-01-10.md', 'a note\n', 'memory: a note', PLAYER);
+    const head = commit(s.origin, 'template.md', 'new template\n', 'template change');
+    publish(f.keeperDir, s);
+    // A base the workspace HEAD does not contain: refused as `base`, before any apply step.
+    writeManifest(f.keeperDir, head, head);
+    const events: string[] = [];
+    withRealGit(f);
+    recordSleeps(f, events);
+    expect(await f.supervisor.run()).toBe(0);
+    expect(f.read('STOP')).toBe('auto: upstream sync: base\n');
+    expect(events).not.toContain('rebase');
+    expect(events).not.toContain('sleep 20');
   });
 });
