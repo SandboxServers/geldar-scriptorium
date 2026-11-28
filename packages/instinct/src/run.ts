@@ -1,8 +1,8 @@
 // One waking of the instinct step: read the sheet, connect, observe, decide, send the act, save the store, audit.
 // Every outcome is one audit line and one result; an exception becomes pass error with no message or stack.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { check, parseSheet, rngFor, type Score, type Sheet } from '@geldar/scriptorium-psyche';
+import { check, rngFor, type Score, type Sheet } from '@geldar/scriptorium-psyche';
 import { appendAudit, buildAuditLine } from './audit.ts';
 import {
   FORCED,
@@ -17,6 +17,7 @@ import { readAdoptedGoal } from './fx/goal.ts';
 import { learnHabits, submittedFrom } from './fx/habits.ts';
 import { readKnownText } from './fx/known.ts';
 import { observe } from './observe.ts';
+import { readSheetFile } from './sheetfile.ts';
 import { loadState, PENDING_MAX, saveState } from './state.ts';
 import { connectWorld, type WorldLink } from './world.ts';
 
@@ -95,7 +96,8 @@ export async function runInstinct(
   try {
     const sheetFile = join(stateDir, 'sheet.json');
     if (!existsSync(sheetFile)) return audit(pass('no_sheet'), 0);
-    const sheet: Sheet | null = parseSheet(readFileSync(sheetFile, 'utf8'));
+    // The sheet lives in GELDAR_INSTINCT_STATE (the supervisor's <state>/instinct); the owner must be this uid.
+    const sheet: Sheet | null = readSheetFile(stateDir, process.getuid?.());
     if (sheet === null) return audit(pass('sheet_invalid'), 0);
     try {
       world = await connect(env);
