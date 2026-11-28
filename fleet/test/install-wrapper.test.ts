@@ -43,12 +43,21 @@ interface InstallOpts {
   mvFails?: boolean;
   owner?: number; // the uid the fake stat reports for both sources; 0 when unset
   mode?: string; // the octal mode the fake stat reports for both sources; 644 when unset
+  dirOwner?: number; // the uid the fake stat reports for the source directory; 0 when unset
+  dirMode?: string; // the octal mode the fake stat reports for the source directory; 755 when unset
 }
 
 // Installer world: copies of the installer, the wrapper and the sudoers rule in a temp runner dir,
 // fake commands, and a temp root for GEL_ROOT.
 function installWorld(opts: InstallOpts = {}) {
-  const { visudoFails = false, mvFails = false, owner = 0, mode = '644' } = opts;
+  const {
+    visudoFails = false,
+    mvFails = false,
+    owner = 0,
+    mode = '644',
+    dirOwner = 0,
+    dirMode = '755',
+  } = opts;
   const dir = mkdtempSync(join(tmpdir(), 'fleet-f05b-inst-'));
   made.push(dir);
   const src = join(dir, 'runner');
@@ -60,8 +69,12 @@ function installWorld(opts: InstallOpts = {}) {
     copyFileSync(join(runnerDir, f), join(src, f));
   }
   writeExe(join(fakes, 'id'), 'echo 0');
-  // stat answers the owner and mode of each source, as the installer reads them with stat -c.
-  writeExe(join(fakes, 'stat'), `echo "${owner} ${mode}"`);
+  // stat answers the owner and mode of each source, as the installer reads them with stat -c. The
+  // last argument is the path: the source directory gets its own answer.
+  writeExe(
+    join(fakes, 'stat'),
+    `case "$*" in\n  *" ${src}") echo "${dirOwner} ${dirMode}" ;;\n  *) echo "${owner} ${mode}" ;;\nesac`,
+  );
   writeExe(join(fakes, 'visudo'), `echo "visudo $*" >> '${calls}'\nexit ${visudoFails ? 1 : 0}`);
   // mkdir and install only act under GEL_ROOT: a real install path is refused, so a seam that is
   // ignored shows up as exit 7 with the real path in the log, and nothing is written outside.
@@ -189,4 +202,29 @@ describeBash('root installer (F-05b)', () => {
       expect(existsSync(join(iw.root, 'etc'))).toBe(false);
     });
   }
+
+  // A source directory the runner account could write to, even with root-owned files in it: the
+  // files could be swapped out, so the same refusal applies.
+  const UNSAFE_DIR: [number, string][] = [
+    [1001, '755'],
+    [0, '775'],
+    [0, '757'],
+  ];
+  for (const [dirOwner, dirMode] of UNSAFE_DIR) {
+    it(`refuses a source directory owned by ${dirOwner} with mode ${dirMode}: exit 2, nothing installed`, () => {
+      const iw = installWorld({ dirOwner, dirMode });
+      const r = runInstall(iw);
+      expect(r.status, r.out).toBe(2);
+      expect(r.out).toContain('the directory');
+      expect(r.out).toContain('run the installer from a root-owned copy');
+      expect(readOr(iw.calls)).toBe('');
+      expect(existsSync(join(iw.root, 'usr'))).toBe(false);
+    });
+  }
+
+  it('installs from a root-owned source directory with no group or world write bit', () => {
+    const iw = installWorld({ dirOwner: 0, dirMode: '750' });
+    const r = runInstall(iw);
+    expect(r.status, r.out).toBe(0);
+  });
 });

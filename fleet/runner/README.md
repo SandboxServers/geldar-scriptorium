@@ -82,7 +82,7 @@ install-wrapper.sh
 verify-confinement.sh
 ```
 
-`install-wrapper.sh` checks the sudoers rule with `visudo -cf` before it lands. `verify-confinement.sh` runs the probes as `geldar-runner` through `runuser` and prints `ok <probe>` or `FAIL <probe>`; it exits 1 on any FAIL. The probes cover the reads that must be refused, the sudo list (exactly the wrapper), the groups, `docker ps`, the wrapper's refusals of bad ids, verbs and flags, a positive control (`check-secrets ag-probe-00` exits 0 or 6, never 2, so a wrapper that refuses everything cannot pass), and the unit's `NoNewPrivileges=no`.
+`install-wrapper.sh` checks the sudoers rule with `visudo -cf` before it lands. It must run from a root-owned copy of this directory: it refuses the sources unless they and the directory holding them are owned by root and not group or world writable (exit 2). `verify-confinement.sh` runs the probes as `geldar-runner` through `runuser` and prints `ok <probe>` or `FAIL <probe>`; it exits 1 on any FAIL. The probes cover the reads that must be refused, the sudo list (exactly the wrapper), the groups, `docker ps`, the wrapper's refusals of bad ids, verbs and flags, a positive control (`check-secrets ag-probe-00` exits 0 or 6, never 2, so a wrapper that refuses everything cannot pass), and the unit's `NoNewPrivileges=no`.
 
 The wrapper validates every id, verb and flag before it runs anything; a refused input exits 2 with nothing started. It starts the launcher verb as `geldar` with a fixed environment (`HOME`, `PATH`, `DOCKER_HOST` and the state directory only); the caller's environment is never passed on.
 
