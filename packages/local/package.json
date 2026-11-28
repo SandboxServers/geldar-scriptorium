@@ -1,0 +1,16 @@
+{
+  "name": "@geldar/scriptorium-local",
+  "version": "0.1.0",
+  "private": true,
+  "description": "geldar-local: the Geldar Mind on a local model behind an OpenAI-style chat completions server",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "dependencies": {
+    "@geldar/scriptorium-mind-loop": "workspace:*"
+  },
+  "bin": {
+    "geldar-local": "./src/cli.ts"
+  }
+}

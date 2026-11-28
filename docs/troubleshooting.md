@@ -535,6 +535,26 @@ What it means. The persona files were refused. The reason is in brackets: size m
 Why it is safe. The files are checked before anything is written, so nothing was created.
 What to do. Fix the named problem in the persona files, then run the command again.
 
+### sheet_stored
+What it means. The character sheet was copied into the private state folder of this player on this machine, as sheet.json with owner-only access.
+Why it is safe. The sheet is not in the player repository, and nothing has been delivered to the player yet.
+What to do. Nothing is needed. Run sheet-set again with a new file to replace the stored sheet.
+
+### sheet_bad
+What it means. The sheet file was refused, and the reason is in brackets: link means a symbolic link; type means not a plain file; size means empty or over 4096 bytes; text means not UTF-8 text whose first character is {; write means the copy into the state folder failed; twice means --sheet was given twice.
+Why it is safe. The file is checked before anything is written, so a refusal changes nothing. The sheet text is never printed.
+What to do. Fix the named problem in the sheet file, which must be a plain UTF-8 JSON file of at most 4096 bytes, then run the command again.
+
+### sheet_failed
+What it means. The stored sheet could not be put in place before the start, so the start was refused. The throwaway helper that copies it into the supervisor volume failed.
+Why it is safe. Compose was never called, so nothing started or changed on the player.
+What to do. Check that Docker is running and the kit image is present, then run the command again. If it repeats, run sheet-set with the sheet file again.
+
+### roster_failed
+What it means. The stored roster could not be put in place before the start, so the start was refused.
+Why it is safe. Compose was never called, so nothing started or changed on the player.
+What to do. Check that Docker is running, then run the command again. The roster file is a plain JSON file of at most 16 KiB.
+
 ### dev_world_bad
 What it means. GELDAR_DEV_MCP_URL is set, but it is not exactly `http://host.docker.internal:PORT/p/ID` with PORT from 1024 to 65535 and no leading zero.
 Why it is safe. The launcher refused before any lock, state or Docker call, so nothing ran.
@@ -574,6 +594,16 @@ What to do. Run resolve for the player, then run the upgrade again.
 What it means. The upgrade branch was pushed, but the pull request could not be made.
 Why it is safe. Memory was not touched, and the branch is on GitHub for you to review.
 What to do. Open the pull request by hand from that branch.
+
+### upgrade_push_failed
+What it means. The upgrade branch could not be pushed to GitHub.
+Why it is safe. Nothing was changed in the player's memory, and the player's branch was not touched.
+What to do. Check the network and your GitHub access, then run the upgrade again.
+
+### upgrade_pushed
+What it means. The upgrade branch is pushed, but the GitHub CLI (gh) is not installed, so no pull request was made.
+Why it is safe. Memory was not touched. The branch only holds the new kit files on GitHub.
+What to do. Open the pull request by hand from that branch on GitHub, or install gh and run the upgrade again.
 
 ### upgrade_dirty
 What it means. The player's copy has unsaved changes, or could not be brought up to date.
@@ -674,6 +704,11 @@ What it means. The deploy key for the persistent player could not be made.
 Why it is safe. The new key was made in its own folder and was not moved into place, so an old key, if there is one, is kept.
 What to do. Check that ssh-keygen works on this machine or that Docker is running, then run deploy-key again.
 
+### player_key_chown_failed
+What it means. The new deploy key for the persistent player was made, but it could not be handed to the keeper, which must be able to read it.
+Why it is safe. The key was removed and not moved into place, so an old key, if there is one, is kept, and nothing was pushed with the new key.
+What to do. Check that Docker can run the kit image on this machine, then run deploy-key again.
+
 ### player_key_rotated
 What it means. A new deploy key was made for the persistent player, and the public key is printed above this line.
 Why it is safe. Nothing was pushed with the new key yet. The old key no longer works for the keeper once the new one is in place.
@@ -704,6 +739,11 @@ What it means. The sync request for the persistent player could not be written i
 Why it is safe. Nothing changed: no fetch ran and the workspace is as it was.
 What to do. Check that Docker is running, then run sync again.
 
+### pull_done
+What it means. The clone of the player is up to date with its repository.
+Why it is safe. The pull only fast-forwards: it refuses a clone with changes or on another branch, and it never rewrites history.
+What to do. Nothing. Run player-status or start the player to continue.
+
 ### chatgpt_no_login
 What it means. This player's ChatGPT login is missing or unusable.
 Why it is safe. The launcher refused before starting the persistent player, and no credentials were printed.
@@ -733,3 +773,28 @@ What to do. Supply `--persona-dir` with the player's identity and goals. ChatGPT
 What it means. No usable ChatGPT model has been selected for this player.
 Why it is safe. The persistent player was not started, and no Claude model or API billing fallback was substituted.
 What to do. Run `chatgpt-models <id>`, then commit a returned slug as `declared_model` in `player.json`, or set `GELDAR_RUN_MODEL` before starting it.
+
+### local_unavailable
+What it means. The local harness was requested with `--cli local`. This release does not offer it.
+Why it is safe. Nothing was created, started or changed, and no remote call was made.
+What to do. Create the player without `--cli local`. Nothing in this release sets up a local player for you.
+
+### local_persistent
+What it means. A local player was asked to run `play` or `run`. Local players are persistent.
+Why it is safe. No local mind was launched through the Claude-only session path.
+What to do. Seed the persona first, set the model and the model server, then use `start`, `stop` and `restart`.
+
+### local_no_model
+What it means. No usable model name is set for this local player.
+Why it is safe. The persistent player was not started, and no other model was substituted.
+What to do. Set `declared_model` in `player.json` to the model name your server serves and commit it, or set `GELDAR_RUN_MODEL` before starting it.
+
+### local_no_endpoint
+What it means. No model server is stored for this local player: its `local/base-url` file in the player's state folder is missing, empty or a link.
+Why it is safe. The launcher refused before starting the persistent player. The server's address is kept outside the repository, so nothing was written to it.
+What to do. Put the model server's base URL in `local/base-url` in the player's state folder, as a single line, then retry `start`. Nothing in this release writes that file for you.
+
+### local_no_context
+What it means. This local player has no usable `context_tokens` setting in its committed `player.json`.
+Why it is safe. The persistent player was not started, and no default context size was assumed.
+What to do. Set `context_tokens` to the context size your model server serves, a whole number from 1024 to 2000000, and commit it.

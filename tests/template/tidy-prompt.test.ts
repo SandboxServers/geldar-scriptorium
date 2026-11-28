@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { TIDY_PROMPT } from '../../packages/supervisor/src/prompt.ts';
 import { forbiddenMention, markedWords } from './tool-skill-scan.ts';
@@ -27,5 +28,29 @@ describe('the memory tidy prompt', () => {
     ]) {
       expect(TIDY_PROMPT).toContain(part);
     }
+  });
+
+  // SC-186: the tidy keeps places, people, debts and open promises.
+  it('asks to keep places, debts and open promises, and sets the 100-line limit', () => {
+    for (const part of [
+      'what you owe them and what they owe you',
+      'Keep every promise and debt that is still open',
+      'the newer one is true',
+      'under 100 lines',
+      'with its coordinates exactly as the journal gives them',
+      'what you owe and to whom',
+    ]) {
+      expect(TIDY_PROMPT).toContain(part);
+    }
+    expect(TIDY_PROMPT).not.toContain('under 60 lines');
+  });
+
+  it('the reflect skill keeps the same summary size as the tidy prompt (SC-187)', () => {
+    const reflect = readFileSync(
+      new URL('../../template/.claude/skills/reflect/SKILL.md', import.meta.url),
+      'utf8',
+    );
+    expect(reflect).toContain('so it fits on one page, under 100 lines');
+    expect(reflect).not.toContain('60 lines');
   });
 });

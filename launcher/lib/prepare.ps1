@@ -138,6 +138,7 @@ function Invoke-PrepareBody([string]$Id, [string]$Mode, [string]$d, [string]$sd)
   }
   # The validated values belong to the exported commit (N4).
   Read-Player $Id $start
+  if ($script:PL_HARNESS -ceq 'local') { Die 1 local_persistent }
   if ($script:PL_HARNESS -cne 'claude') { Die 1 chatgpt_persistent }
   Say start_recorded $start.Substring(0, 12)
 

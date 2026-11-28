@@ -1,0 +1,5 @@
+local_persistent	Local models use persistent players. Use geldar-play start, stop and restart; seed the persona first.
+local_unavailable	The local harness is not available in this release. Nothing was created or started.
+local_no_model	Set declared_model for %s in player.json and commit it (or set GELDAR_RUN_MODEL).
+local_no_endpoint	No model server is set for %s: its local/base-url file in the player's state folder is missing, empty or a link. Nothing was started.
+local_no_context	Set context_tokens for %s in player.json and commit it.

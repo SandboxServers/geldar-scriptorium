@@ -29,8 +29,8 @@ const FROM = '0.1.0';
 
 type Result = ReturnType<typeof run>;
 
-function message(key: string): string {
-  const rows = readFileSync(join(repoRoot, 'launcher', 'messages.d', '90-upgrade.tsv'), 'utf8');
+function message(key: string, table = '90-upgrade.tsv'): string {
+  const rows = readFileSync(join(repoRoot, 'launcher', 'messages.d', table), 'utf8');
   const row = rows.split('\n').find((l) => l.startsWith(`${key}\t`));
   if (!row) throw new Error(`no message ${key}`);
   // The fixed text before the first placeholder.
@@ -46,6 +46,7 @@ interface Setup {
     release: { repo: string },
     args?: string[],
     extra?: Record<string, string>,
+    noIdentity?: boolean,
   ): Result;
   all(r: Result): string;
 }
@@ -82,20 +83,33 @@ function setup(l: Launcher, from = FROM): Setup {
     release: { repo: string },
     args: string[] = [],
     extra: Record<string, string> = {},
+    noIdentity = false,
   ) => {
     const bash = launcher.name === 'bash';
+    // noIdentity: the launcher sees no user.name, no user.email and no identity variables.
+    const identity = noIdentity
+      ? { GIT_CONFIG_GLOBAL: join(w.root, 'gitconfig-noid') }
+      : {
+          GIT_AUTHOR_NAME: HOST.name,
+          GIT_AUTHOR_EMAIL: HOST.email,
+          GIT_COMMITTER_NAME: HOST.name,
+          GIT_COMMITTER_EMAIL: HOST.email,
+        };
     const env = {
       ...(bash ? w.env : w.envPwsh),
       GELDAR_GH: bash ? bashPath(join(w.fakeDir, 'gh')) : join(w.fakeDir, win ? 'gh.cmd' : 'gh'),
       GELDAR_TEMPLATE_URL: bash ? bashPath(release.repo) : release.repo,
       GELDAR_SLEEP: '0',
       FAKE_GH_ROOT: bashPath(ghRoot),
-      GIT_AUTHOR_NAME: HOST.name,
-      GIT_AUTHOR_EMAIL: HOST.email,
-      GIT_COMMITTER_NAME: HOST.name,
-      GIT_COMMITTER_EMAIL: HOST.email,
+      ...identity,
       ...extra,
     };
+    if (noIdentity) {
+      delete (env as Record<string, string | undefined>).GIT_AUTHOR_NAME;
+      delete (env as Record<string, string | undefined>).GIT_AUTHOR_EMAIL;
+      delete (env as Record<string, string | undefined>).GIT_COMMITTER_NAME;
+      delete (env as Record<string, string | undefined>).GIT_COMMITTER_EMAIL;
+    }
     return run(launcher, ['upgrade', ID, ...args], { env, timeoutMs: 170_000 });
   };
   void l;
@@ -133,6 +147,12 @@ const HOSTILE: Hostile[] = [
 ];
 
 const branchName = (c: string) => git(c, ['rev-parse', '--abbrev-ref', 'HEAD']);
+
+// geldar-play pull <id>: the same launcher, the same environment as an upgrade.
+function pull(s: Setup, l: Launcher): Result {
+  const env = l.name === 'bash' ? s.w.env : s.w.envPwsh;
+  return run(l, ['pull', ID], { env, timeoutMs: 170_000 });
+}
 
 export function upgradeSuite(l: Launcher): void {
   describe(`upgrade (${l.name})`, () => {
@@ -339,6 +359,73 @@ export function upgradeSuite(l: Launcher): void {
       expect(controls).toEqual([]);
     });
 
+    it('10. no gh: the branch is pushed, the verb ends 0 with upgrade_pushed and makes no pull request', () => {
+      const s = setup(l);
+      const r = makeTemplateRelease(s.w, { versions: ['0.2.0'] });
+      const res = s.upgrade(l, r, ['--to', '0.2.0'], { GELDAR_GH: join(s.w.root, 'no-gh') });
+      expect(res.status, s.all(res)).toBe(0);
+      expect(s.all(res)).toContain(message('upgrade_pushed'));
+      expect(s.all(res)).toContain('Open the pull request by hand');
+      expect(s.all(res)).not.toContain('https://github.test/pull/');
+      expect(git(s.p.origin, ['rev-list', '--count', 'main..kit-upgrade/0.2.0'])).toBe('1');
+      expect(s.prs()).toHaveLength(0);
+      expect(branchName(s.p.clone)).toBe('main');
+      expect(git(s.p.clone, ['status', '--porcelain'])).toBe('');
+    });
+
+    it('10b. no identity in the clone: the upgrade commit takes the tip author and the clone config keeps no name', () => {
+      const s = setup(l);
+      const r = makeTemplateRelease(s.w, { versions: ['0.2.0'] });
+      // An empty tip commit by another player, pushed to origin main; the clone has no identity of its own.
+      const tipEnv = {
+        GIT_CONFIG_GLOBAL: join(s.w.root, 'gitconfig'),
+        GIT_AUTHOR_NAME: 'Tip Player',
+        GIT_AUTHOR_EMAIL: 'tip@example.test',
+        GIT_COMMITTER_NAME: 'Tip Player',
+        GIT_COMMITTER_EMAIL: 'tip@example.test',
+      };
+      git(s.p.clone, ['commit', '-q', '--allow-empty', '-m', 'tip'], tipEnv);
+      git(s.p.clone, ['push', '-q', 'origin', 'main'], tipEnv);
+      const res = s.upgrade(l, r, ['--to', '0.2.0'], {}, true);
+      expect(res.status, s.all(res)).toBe(0);
+      expect(git(s.p.origin, ['log', '-1', '--format=%an|%ae', 'kit-upgrade/0.2.0'])).toBe(
+        'Tip Player|tip@example.test',
+      );
+      expect(git(s.p.origin, ['log', '-1', '--format=%cn|%ce', 'kit-upgrade/0.2.0'])).toBe(
+        'Tip Player|tip@example.test',
+      );
+      expect(readFileSync(join(s.p.clone, '.git', 'config'), 'utf8')).not.toContain('Tip Player');
+      expect(readFileSync(join(s.p.clone, '.git', 'config'), 'utf8')).not.toContain('tip@example');
+    });
+
+    it('11. a failed push says upgrade_push_failed (never "was pushed") and changes nothing', () => {
+      const s = setup(l);
+      const r = makeTemplateRelease(s.w, { versions: ['0.2.0'] });
+      // The bare origin refuses every push.
+      const hook = join(s.p.origin, 'hooks', 'pre-receive');
+      writeFileSync(hook, '#!/bin/sh\nexit 1\n');
+      chmodSync(hook, 0o755);
+      const before = snap(s);
+      const res = s.upgrade(l, r, ['--to', '0.2.0']);
+      expect(res.status, s.all(res)).toBe(1);
+      expect(s.all(res)).toContain(message('upgrade_push_failed'));
+      expect(s.all(res)).toContain('could not be pushed. Nothing was changed');
+      expect(s.all(res)).not.toContain('was pushed');
+      expect(snap(s)).toEqual(before);
+      expect(s.prs()).toHaveLength(0);
+    });
+
+    it('12. a failed pull request after a good push says upgrade_pr_failed, not the push message', () => {
+      const s = setup(l);
+      const r = makeTemplateRelease(s.w, { versions: ['0.2.0'] });
+      const res = s.upgrade(l, r, ['--to', '0.2.0'], { FAKE_GH_PR_FAIL: '1' });
+      expect(res.status, s.all(res)).toBe(1);
+      expect(s.all(res)).toContain(message('upgrade_pr_failed'));
+      expect(s.all(res)).toContain('was pushed, but the pull request could not be made');
+      expect(s.all(res)).not.toContain('could not be pushed');
+      expect(git(s.p.origin, ['rev-list', '--count', 'main..kit-upgrade/0.2.0'])).toBe('1');
+    });
+
     timingIt(
       '8. a gh that hangs is bounded and the clone ends on its branch',
       () => {
@@ -367,5 +454,45 @@ export function upgradeSuite(l: Launcher): void {
       },
       200_000,
     );
+
+    it('13. pull brings a clone that is behind origin up to date and says pull_done', () => {
+      const s = setup(l);
+      const id = { GIT_CONFIG_GLOBAL: join(s.w.root, 'gitconfig') };
+      const ahead = join(s.w.root, 'ahead-clone');
+      git(s.w.root, ['clone', '-q', s.p.origin, ahead], id);
+      writeFileSync(join(ahead, 'NEW.md'), 'new\n');
+      git(ahead, ['add', 'NEW.md'], id);
+      git(ahead, ['commit', '-q', '-m', 'ahead'], id);
+      git(ahead, ['push', '-q', 'origin', 'main'], id);
+      const tip = git(ahead, ['rev-parse', 'HEAD']);
+      expect(git(s.p.clone, ['rev-parse', 'HEAD'])).not.toBe(tip);
+      const res = pull(s, l);
+      expect(res.status, s.all(res)).toBe(0);
+      expect(s.all(res)).toContain(message('pull_done', '61-player-pull.tsv'));
+      expect(git(s.p.clone, ['rev-parse', 'HEAD'])).toBe(tip);
+      expect(branchName(s.p.clone)).toBe('main');
+      expect(git(s.p.clone, ['status', '--porcelain'])).toBe('');
+    });
+
+    it('14. pull refuses a dirty clone with upgrade_dirty and changes nothing', () => {
+      const s = setup(l);
+      writeFileSync(join(s.p.clone, 'AGENTS.md'), 'edited by hand\n');
+      const before = snap(s);
+      const res = pull(s, l);
+      expect(res.status, s.all(res)).not.toBe(0);
+      expect(s.all(res)).toContain(message('upgrade_dirty'));
+      expect(snap(s)).toEqual(before);
+    });
+
+    it('15. pull while a session runs says locked and changes nothing', () => {
+      const s = setup(l);
+      mkdirSync(join(s.p.stateDir, 'session'), { recursive: true });
+      writeFileSync(join(s.p.stateDir, 'session', 'running'), 'start=x\n');
+      const before = snap(s);
+      const res = pull(s, l);
+      expect(res.status, s.all(res)).not.toBe(0);
+      expect(s.all(res)).toContain(message('locked', '00-core.tsv'));
+      expect(snap(s)).toEqual(before);
+    });
   });
 }

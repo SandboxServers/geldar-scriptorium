@@ -201,6 +201,14 @@ describe('player compose: separation between the two sides', () => {
   });
 });
 
+describe('player compose: the sheet is mounted nowhere', () => {
+  it('neither the player nor the keeper service mentions the sheet; the keeper reads the supervisor state read-only', () => {
+    expect(block('player')).not.toMatch(/sheet/i);
+    expect(block('keeper')).not.toMatch(/sheet/i);
+    expect(items('keeper', 'volumes')).toContain('supervisor-state:/supervisor-state:ro');
+  });
+});
+
 describe('player compose: environment contract', () => {
   it('player gets the name-only secrets, the mode, the run names and the keeper state path', () => {
     const lines = items('player', 'environment');
@@ -214,6 +222,7 @@ describe('player compose: environment contract', () => {
     expect(run).toEqual(
       [
         'DAILY_CAP_USD',
+        'DAILY_TOKEN_CAP',
         'DELAY',
         'FAST_SEC',
         'MAX_DELAY',
@@ -261,6 +270,32 @@ describe('player compose: environment contract', () => {
   });
 });
 
+describe('player entrypoint: the journal directory is writable by the supervisor', () => {
+  const script = read('image/geldar-player-entrypoint.sh');
+  const at = (needle: string) => script.indexOf(needle);
+
+  it('chmods only the real journal directory, guarded against symlinks, after the chown loop', () => {
+    const guard =
+      'if [ ! -L /player/memory ] && [ -d /player/memory/journal ] && [ ! -L /player/memory/journal ]; then';
+    const chmod = 'chmod 0777 /player/memory/journal ||';
+    expect(script).toContain(guard);
+    expect(script).toContain(chmod);
+    expect(at(guard)).toBeGreaterThan(at('for dir in'));
+    expect(at(chmod)).toBeGreaterThan(at(guard));
+    expect(at(chmod)).toBeLessThan(at('as_user 1000'));
+    expect(at(chmod)).toBeLessThan(at('exec setpriv'));
+  });
+
+  it('never changes the mode of /player itself or recursively', () => {
+    expect(script).not.toMatch(/chmod\s+(-\S+\s+)*\S*\/player(\s|$)/m);
+    expect(script).not.toMatch(/chmod\s+-R/);
+  });
+
+  it('never creates the journal directory', () => {
+    expect(script).not.toMatch(/mkdir[^\n]*journal/);
+  });
+});
+
 describe('player compose: the proxies', () => {
   const active = (text: string) =>
     text
@@ -299,5 +334,46 @@ describe('player compose: the proxies', () => {
       '../proxy/squid-keeper.conf:/etc/squid/squid.conf:ro',
       '../proxy/allowlist-keeper.txt:/etc/squid/allowlist-keeper.txt:ro',
     ]);
+  });
+});
+
+describe('player compose: the local harness names', () => {
+  it('passes the four GELDAR_LOCAL names into player only, by name and never with a value', () => {
+    const names = [
+      'GELDAR_LOCAL_API_KEY',
+      'GELDAR_LOCAL_BASE_URL',
+      'GELDAR_LOCAL_CONTEXT_TOKENS',
+      'GELDAR_LOCAL_IMAGES',
+    ];
+    for (const name of names) {
+      expect(envNames('player')).toContain(name);
+      for (const other of services.filter((s) => s !== 'player')) {
+        expect(envNames(other)).not.toContain(name);
+      }
+    }
+    expect(compose).not.toMatch(/GELDAR_LOCAL_API_KEY=/);
+  });
+});
+
+describe('player compose: the instinct names', () => {
+  it('compose: the player service lists the eight names and the keeper none', () => {
+    const names = [
+      'GELDAR_INSTINCT',
+      'GELDAR_INSTINCT_ARM',
+      'GELDAR_INSTINCT_FAILURE_CAP',
+      'GELDAR_INSTINCT_MAX_PICKS',
+      'GELDAR_INSTINCT_THINK_P',
+      'GELDAR_INSTINCT_ROLLS',
+      'GELDAR_INSTINCT_SANITY',
+      'GELDAR_INSTINCT_TIMEOUT',
+    ];
+    const player = envNames('player');
+    for (const name of names) expect(player).toContain(name);
+    expect(player.filter((e) => e.startsWith('GELDAR_INSTINCT'))).toHaveLength(names.length);
+    for (const other of services.filter((s) => s !== 'player')) {
+      expect(envNames(other).filter((e) => e.startsWith('GELDAR_INSTINCT'))).toEqual([]);
+    }
+    // Name-only entries: no value follows any instinct name in the file.
+    expect(compose).not.toMatch(/GELDAR_INSTINCT[A-Z_]*=/);
   });
 });

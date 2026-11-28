@@ -58,8 +58,10 @@ describe('agent skills from the template source', () => {
     expect(names(generated.skills)).toEqual([
       'after-a-death',
       'author',
+      'building',
       'eating-and-hunger',
       'escape-a-pit',
+      'farming-and-animals',
       'fighting-or-fleeing',
       'finding-your-way',
       'intents-and-limits',

@@ -5,7 +5,6 @@ import { repoRoot } from './check.ts';
 
 const boundary =
   'You know only what you have seen, tried, or been told by people here. You do not know how this world works beyond that: you have no recipes, maps, secrets or numbers in your head until you find them out. When you learn something, it is because it happened to you or someone told you.';
-const bedLine = '- At night, find a bed and sleep in it.';
 const intentLine =
   '- If you have no current intent, choose one now rather than repeating a greeting.';
 // The persona lines, as they stand on main; SC-102 adds a section and leaves these alone.
@@ -17,8 +16,10 @@ const personaLines = [
 const errandLines = [
   'Send the legwork to the one who does it, one clear errand at a time, and expect a line or two back.',
   'Before you rest, be sheltered, with no errand half-done and out of danger. If you are not, get safe',
-  'first, then put a short note in `memory/journal/handoff.md`: use Edit with that path and an empty old_string to create it, or replace its text if it exists, and go on after.',
+  'first, then put a short note in `memory/journal/handoff.md` with Write (Write makes the file, or replaces the whole file if it exists), and go on after.',
 ];
+const toolBullet =
+  '- Write makes a file or replaces the whole file. Edit changes part of a file: give text that is in the file as old_string; an empty old_string only makes a new file. There is no append: Read the file and Edit it, or Write the whole file.';
 const audienceWords =
   /watch(ed|ing)\s+humans|humans?\s+(watch|read)|watch(ed|ing)|observer|audience|spectator/i;
 // Decision 40: no meta terms ("and the like") in the prompt text SC-78 added.
@@ -49,8 +50,8 @@ describe('player instructions: knowledge boundary', () => {
       expect(paragraphs.filter((p) => p === boundary)).toHaveLength(1);
     });
 
-    it(`${file} tells the player to sleep in a bed at night`, () => {
-      expect(text.split('\n')).toContain(bedLine);
+    it(`${file} does not tell the player when to sleep`, () => {
+      expect(text.split('\n')).not.toContain('- At night, find a bed and sleep in it.');
     });
 
     it(`${file} keeps the persona lines unchanged`, () => {
@@ -69,11 +70,20 @@ describe('player instructions: knowledge boundary', () => {
     it(`${file} tells the player to choose an intent instead of repeating a greeting`, () => {
       expect(text.split('\n')).toContain(intentLine);
     });
+
+    it(`${file} says which tool writes a file, in one bullet, without meta words`, () => {
+      expect(text.split('\n')).toContain(toolBullet);
+      expect(toolBullet).not.toMatch(metaTerms);
+      expect(toolBullet).not.toMatch(audienceWords);
+    });
   }
 
-  it('the ChatGPT wake-up tells the player to put the handoff note in with its write tool (SC-176)', () => {
-    const cli = readFileSync(path.join(repoRoot, 'packages/chatgpt/src/cli.ts'), 'utf8');
-    expect(cli).toContain(
+  it('the shared wake-up text (ChatGPT and local) tells the player to put the handoff note in with its write tool (SC-176)', () => {
+    const instructions = readFileSync(
+      path.join(repoRoot, 'packages/mind-loop/src/instructions.ts'),
+      'utf8',
+    );
+    expect(instructions).toContain(
       'When this waking is nearly over, use your write tool to put a short note in memory/journal/handoff.md, then save before resting.',
     );
   });
@@ -102,7 +112,7 @@ describe('player instructions: knowledge boundary', () => {
   });
 
   it('the three SC-78 lines use no meta term (decision 40)', () => {
-    for (const line of [boundary, bedLine, intentLine]) expect(line).not.toMatch(metaTerms);
+    for (const line of [boundary, intentLine]) expect(line).not.toMatch(metaTerms);
   });
 
   it.each([

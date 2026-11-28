@@ -96,7 +96,7 @@ describe.skipIf(shell === undefined)('context-meter.sh', () => {
   function writeWorker(agent: string, lines: string[]): void {
     const dir = path.join(root, 'session', 'subagents');
     mkdirSync(dir, { recursive: true });
-    writeFileSync(path.join(dir, `agent-${agent}.jsonl`), lines.join('\n') + '\n');
+    writeFileSync(path.join(dir, `agent-${agent}.jsonl`), `${lines.join('\n')}\n`);
   }
 
   function call(payload: Record<string, unknown>, env: NodeJS.ProcessEnv = {}, raw?: string) {
@@ -178,35 +178,36 @@ describe.skipIf(shell === undefined)('context-meter.sh', () => {
   });
 
   it('denies the Sonnet planner once at its line', () => {
-    writeFileSync(main, assistantLine('claude-sonnet-5-5', size(85000)) + '\n');
+    writeFileSync(main, `${assistantLine('claude-sonnet-5-5', size(85000))}\n`);
 
     const first = call({ session_id: 'p1' });
     const text = reason(first.stdout);
     expectClean(text);
     expect(text).toContain('memory/journal/handoff.md');
     expect(text).toContain(
-      'put your resume note in memory/journal/handoff.md: use Edit with that path and an empty old_string to create it, or replace its text if it exists',
+      'put your resume note in memory/journal/handoff.md with Write (Write makes the file, or replaces the whole file if it exists)',
     );
+    expect(text).not.toContain('empty old_string');
     expectAllowed(call({ session_id: 'p1' }));
   });
 
   it('allows a Sonnet planner under its line', () => {
-    writeFileSync(main, assistantLine('claude-sonnet-5-5', size(60000)) + '\n');
+    writeFileSync(main, `${assistantLine('claude-sonnet-5-5', size(60000))}\n`);
     expectAllowed(call({ session_id: 'p1' }));
   });
 
   it('allows other models and other callers', () => {
-    writeFileSync(main, assistantLine('claude-opus-5-5', size(150000)) + '\n');
+    writeFileSync(main, `${assistantLine('claude-opus-5-5', size(150000))}\n`);
     expectAllowed(call({ session_id: 'p1' }));
     writeWorker('w1', [assistantLine('claude-sonnet-5-5', size(150000))]);
     expectAllowed(call(worker()));
   });
 
   it('denies a Haiku planner once at its line, like a Sonnet one', () => {
-    writeFileSync(main, assistantLine('claude-haiku-5-5', size(85000)) + '\n');
+    writeFileSync(main, `${assistantLine('claude-haiku-5-5', size(85000))}\n`);
     expectClean(reason(call({ session_id: 'h1' }).stdout));
     expectAllowed(call({ session_id: 'h1' }));
-    writeFileSync(main, assistantLine('claude-haiku-5-5', size(60000)) + '\n');
+    writeFileSync(main, `${assistantLine('claude-haiku-5-5', size(60000))}\n`);
     expectAllowed(call({ session_id: 'h2' }));
   });
 
@@ -233,7 +234,7 @@ describe.skipIf(shell === undefined)('context-meter.sh', () => {
   });
 
   it('says nothing of restarting, and asks for the action again', () => {
-    writeFileSync(main, assistantLine('claude-sonnet-5-5', size(85000)) + '\n');
+    writeFileSync(main, `${assistantLine('claude-sonnet-5-5', size(85000))}\n`);
     const text = reason(call({ session_id: 'p1' }).stdout);
     expect(text).not.toContain('fresh');
     expect(text).toContain('go on with what you were doing');
@@ -241,14 +242,14 @@ describe.skipIf(shell === undefined)('context-meter.sh', () => {
   });
 
   it('allows a planner one under its line and denies it at the line', () => {
-    writeFileSync(main, assistantLine('claude-sonnet-5-5', size(79999)) + '\n');
+    writeFileSync(main, `${assistantLine('claude-sonnet-5-5', size(79999))}\n`);
     expectAllowed(call({ session_id: 'b1' }));
-    writeFileSync(main, assistantLine('claude-sonnet-5-5', size(80000)) + '\n');
+    writeFileSync(main, `${assistantLine('claude-sonnet-5-5', size(80000))}\n`);
     expectClean(reason(call({ session_id: 'b2' }).stdout));
   });
 
   it('warns the planner again at the line after a compact session start', () => {
-    writeFileSync(main, assistantLine('claude-sonnet-5-5', size(85000)) + '\n');
+    writeFileSync(main, `${assistantLine('claude-sonnet-5-5', size(85000))}\n`);
     expectClean(reason(call({ session_id: 'c1' }).stdout));
     expectAllowed(call({ session_id: 'c1' }));
 
@@ -307,8 +308,8 @@ describe.skipIf(shell === undefined)('context-meter.sh', () => {
     const stub = path.join(root, 'stub.sh').replaceAll('\\', '/');
     writeFileSync(stub, `tail() { printf '%s\\n' "$*" >> '${log}'; command tail "$@"; }\n`);
     const filler = JSON.stringify({ type: 'user', message: { content: 'x'.repeat(1000) } });
-    const big = Array(4000).fill(filler).join('\n') + '\n'; // about 4 MB
-    writeFileSync(main, big + assistantLine('claude-sonnet-5-5', size(85000)) + '\n');
+    const big = `${Array(4000).fill(filler).join('\n')}\n`; // about 4 MB
+    writeFileSync(main, `${big + assistantLine('claude-sonnet-5-5', size(85000))}\n`);
     const started = Date.now();
 
     const r = call({ session_id: 't1' }, { BASH_ENV: stub });

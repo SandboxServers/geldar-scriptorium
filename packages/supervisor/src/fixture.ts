@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Deps, ExecSpec } from './deps.ts';
+import type { Deps, ExecSpec, SelfSpec } from './deps.ts';
 import type { Settings } from './settings.ts';
 import { readSettings } from './settings.ts';
 import { Supervisor } from './supervisor.ts';
@@ -28,6 +28,15 @@ export interface Behaviour {
   during?: () => void;
   /** A rejected usage-limit event first in the stream (resetsAt in epoch seconds, or absent). */
   limit?: { resetsAt?: number };
+  /** The usage object on the fake result line (the shape the harness reports). */
+  usage?: Record<string, number>;
+  /** The stop_reason on the fake result line (a value the owned loops record). */
+  stopReason?: string;
+  /**
+   * The fake `geldar-instinct` child: its exit code (124 is a timeout) and the text it writes to
+   * last.json (an object is written as JSON; by default a plain pass).
+   */
+  instinct?: { rc?: number; out?: string | object };
 }
 
 /**
@@ -63,6 +72,7 @@ export function makeFixture(
   let clock = START;
   const sleeps: number[] = [];
   const specs: ExecSpec[] = [];
+  const selfSpecs: SelfSpec[] = [];
   const said: string[] = [];
   const beats: Array<() => void> = [];
   // How many heartbeat timers the supervisor has stopped (its cancel function was called).
@@ -118,6 +128,8 @@ export function makeFixture(
           total_cost_usd: behaviour.cost ?? 1,
           num_turns: 5,
           is_error: behaviour.err ?? false,
+          usage: behaviour.usage,
+          stop_reason: behaviour.stopReason,
         } as never);
       }
       writeFileSync(spec.stdoutPath ?? '', `${lines.map((l) => JSON.stringify(l)).join('\n')}\n`);
@@ -125,6 +137,19 @@ export function makeFixture(
       if (behaviour.stopAt === n) writeFileSync(join(stateDir, 'STOP'), 'x\n');
       if (behaviour.heldAt === n) writeFileSync(join(keeperDir, 'HELD'), 'rejected\n');
       return behaviour.rc ?? 0;
+    },
+    execSelf: async (spec) => {
+      selfSpecs.push(spec);
+      const inst = behaviour.instinct ?? {};
+      const out = inst.out ?? {
+        v: 1,
+        kind: 'pass',
+        reason: 'nothing_to_do',
+        forced: false,
+        rolls: [],
+      };
+      writeFileSync(spec.stdoutPath, typeof out === 'string' ? out : JSON.stringify(out));
+      return inst.rc ?? 0;
     },
     every: (_ms, fn) => {
       beats.push(fn);
@@ -154,6 +179,7 @@ export function makeFixture(
     supervisor,
     sleeps,
     specs,
+    selfSpecs,
     said,
     beats,
     /** Heartbeat timers started and how many were stopped again. */

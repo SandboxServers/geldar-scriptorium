@@ -23,6 +23,8 @@ export const ID = 'player-test-01';
 export const MCP = 'mcp-token-VALUE-0123456789';
 export const LOGIN = 'sk-ant-oat01-LOGIN-0123456789abcdef';
 export const KEY = 'PRIVATE-KEY-SENTINEL-0123456789';
+// The model server's key (local harness): it may reach a compose environment only as GELDAR_LOCAL_API_KEY.
+export const ENDPOINT_KEY = 'ENDPOINT-KEY-SENTINEL-0123456789';
 export const REMOTE = 'ssh://git@ssh.github.com:443/acme/player-one.git';
 export const GITHUB = 'https://github.com/acme/player-one.git';
 export const PLAYER_YML = bashPath(join(repoRoot, 'image', 'compose', 'player.yml'));
@@ -52,7 +54,7 @@ export const DOCKER_STUB = [
   '  printf "%s\\n" "$line" >> "$FAKE_DOCKER_ROOT/calls.log"',
   '}',
   'player_run() {',
-  '  vin="" vpl="" vvol=""',
+  '  vin="" vpl="" vvol="" vout=""',
   '  shift',
   '  while [ $# -gt 0 ]; do',
   '    case $1 in',
@@ -61,8 +63,9 @@ export const DOCKER_STUB = [
   '        case $m in *:ro | *:rw) m=${m%:*} ;; esac',
   '        dst=${m##*:}',
   '        src=${m%:*}',
+  '        case $src in *\\\\*) src=$(printf "%s" "$src" | tr "\\\\" "/") ;; esac',
   '        case $src in */*) ;; *) src="$FAKE_DOCKER_ROOT/vol/$src"; mkdir -p "$src" ;; esac',
-  '        case $dst in /in) vin=$src ;; /player) vpl=$src ;; /vol) vvol=$src ;; esac',
+  '        case $dst in /in) vin=$src ;; /player) vpl=$src ;; /vol) vvol=$src ;; /out) vout=$src ;; esac',
   '        shift 2',
   '        ;;',
   '      --rm | --init | --read-only) shift ;;',
@@ -71,8 +74,8 @@ export const DOCKER_STUB = [
   '    esac',
   '  done',
   '  shift',
-  '  script=$(printf "%s" "$3" | VIN="$vin" VPL="$vpl" VVOL="$vvol" perl -pe \'s{/(in|player|vol)\\b}{$1 eq "in" ? $ENV{VIN} : $1 eq "player" ? $ENV{VPL} : $ENV{VVOL}}ge\')',
-  '  sh -c "$script"',
+  '  script=$(printf "%s" "$3" | VIN="$vin" VPL="$vpl" VVOL="$vvol" VOUT="$vout" perl -pe \'s{/(in|player|vol|out)\\b}{$1 eq "in" ? $ENV{VIN} : $1 eq "player" ? $ENV{VPL} : $1 eq "out" ? $ENV{VOUT} : $ENV{VVOL}}ge\')',
+  '  PATH="$FAKE_CHOWN_BIN:$PATH" sh -c "$script"',
   '}',
   'case ${1:-} in',
   '  compose)',
@@ -105,6 +108,14 @@ export const KEYGEN_STUB = [
   'done',
   'printf "%s\\n" "-----BEGIN OPENSSH PRIVATE KEY-----" "STUBPRIVATE$n" > "$out"',
   'printf "ssh-ed25519 AAAAC3STUB%s %s\\n" "$n" "$comment" > "$out.pub"',
+].join('\n');
+
+// A stand-in for chown in the key helper: logs its arguments, and fails while $FAKE_DOCKER_ROOT/chown-fail
+// exists. The real chown needs root, and the test must not change its own files' owner.
+export const CHOWN_STUB = [
+  '#!/bin/sh',
+  'echo "$*" >> "$FAKE_DOCKER_ROOT/chown-calls.log"',
+  '[ ! -e "$FAKE_DOCKER_ROOT/chown-fail" ] || exit 1',
 ].join('\n');
 
 // Whether this launcher can run the tests that pass a double quote in a docker argument: the
@@ -167,6 +178,11 @@ export function setup(l: Launcher, opts: Opts = {}) {
   mkdirSync(stubs, { recursive: true });
   const docker = stub(stubs, 'docker-player', DOCKER_STUB, l);
   const keygen = stub(stubs, 'ssh-keygen', KEYGEN_STUB, l);
+  // The chown stand-in is a plain shell file in its own folder, put first on PATH by the docker stand-in.
+  const chownBin = join(w.root, 'chown-bin');
+  mkdirSync(chownBin, { recursive: true });
+  writeFileSync(join(chownBin, 'chown'), `${CHOWN_STUB}\n`);
+  chmodSync(join(chownBin, 'chown'), 0o755);
   // pwsh starts the stubs with native paths; the shell stubs read the bash form of their folders.
   const base = l.name === 'bash' ? w.env : w.envPwsh;
   const env = {
@@ -174,6 +190,7 @@ export function setup(l: Launcher, opts: Opts = {}) {
     GELDAR_DOCKER: l.name === 'bash' ? bashPath(docker) : docker,
     GELDAR_SSH_KEYGEN: l.name === 'bash' ? bashPath(keygen) : keygen,
     FAKE_KEYGEN_COUNT: bashPath(join(w.root, 'keygen-count')),
+    FAKE_CHOWN_BIN: bashPath(chownBin),
   };
   const go = (...args: string[]) => run(l, args, { env });
   return { w, p, env, go };
@@ -209,7 +226,7 @@ export function composeEnvs(w: World): Record<string, string>[] {
 // No secret in stdout, stderr or a docker argument list. The token and the login may reach a compose
 // environment only under their own names; the key text never does.
 export function expectClean(w: World, r: { stdout: string; stderr: string }) {
-  for (const s of [MCP, LOGIN, KEY]) {
+  for (const s of [MCP, LOGIN, KEY, ENDPOINT_KEY]) {
     expect(r.stdout + r.stderr).not.toContain(s);
     for (const c of w.calls()) expect(c.join(' ')).not.toContain(s);
   }
@@ -218,6 +235,7 @@ export function expectClean(w: World, r: { stdout: string; stderr: string }) {
       expect(value).not.toContain(KEY);
       if (value.includes(MCP)) expect(name).toBe('GELDAR_MCP_TOKEN');
       if (value.includes(LOGIN)) expect(name).toBe('CLAUDE_CODE_OAUTH_TOKEN');
+      if (value.includes(ENDPOINT_KEY)) expect(name).toBe('GELDAR_LOCAL_API_KEY');
     }
   }
 }

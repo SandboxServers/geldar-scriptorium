@@ -205,6 +205,7 @@ function Verb-archive {
   # A player may have switched providers; archive removes both vendor homes.
   Invoke-Docker volume rm "geldar-cli-$id-claude" *> $null
   Invoke-Docker volume rm "geldar-cli-$id-chatgpt" *> $null
+  Invoke-Docker volume rm "geldar-cli-$id-local" *> $null
   Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction SilentlyContinue
   Say archived $id
 }

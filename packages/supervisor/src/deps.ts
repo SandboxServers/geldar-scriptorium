@@ -12,8 +12,25 @@ export interface ExecSpec {
   cwd: string;
   /** The child's stdout goes to this file (created 0600); otherwise it is discarded. */
   stdoutPath?: string;
+  /** The child's stderr goes to this file (created 0600); otherwise it is discarded. */
+  stderrPath?: string;
   /** This file is the child's file descriptor 3 (the prompt, read by the sh wrapper). */
   promptPath?: string;
+  /** This file is the child's file descriptor 4 (the veto parameters, read by the loop; HC-23b). */
+  paramsPath?: string;
+}
+
+/**
+ * One process of the supervisor's own user (the instinct step's `geldar-instinct`): no setpriv, its
+ * stdout goes to `stdoutPath` (0600) and nothing else is inherited.
+ */
+export interface SelfSpec {
+  file: string;
+  args: string[];
+  env: Record<string, string>;
+  cwd: string;
+  stdoutPath: string;
+  timeoutMs: number;
 }
 
 /** The director hook (wave 12 plugs in): may return a note for the prompt, or null. */
@@ -30,6 +47,8 @@ export interface Deps {
   sleep(seconds: number, wake: () => boolean): Promise<void>;
   /** Runs one child to the end and returns its exit code (1 when it cannot start). */
   exec(spec: ExecSpec): Promise<number>;
+  /** Runs one of the supervisor's own children to the end (see SelfSpec); 124 when it was killed for the timeout. */
+  execSelf(spec: SelfSpec): Promise<number>;
   /** Calls `fn` every `ms` until the returned function is called. */
   every(ms: number, fn: () => void): () => void;
   /** True when a process with this pid exists. */
@@ -114,13 +133,22 @@ export function createExec(spawnFn: SpawnFn): (spec: ExecSpec) => Promise<number
         const out =
           spec.stdoutPath === undefined ? 'ignore' : openSync(spec.stdoutPath, 'w', 0o600);
         if (typeof out === 'number') fds.push(out);
+        // Stderr is a file only when a stderr path is named: a spec without one keeps the stdio array it had before.
+        const err =
+          spec.stderrPath === undefined ? 'ignore' : openSync(spec.stderrPath, 'w', 0o600);
+        if (typeof err === 'number') fds.push(err);
         const prompt = spec.promptPath === undefined ? 'ignore' : openSync(spec.promptPath, 'r');
         if (typeof prompt === 'number') fds.push(prompt);
+        // Descriptor 4 exists only when a params file is named: a spec without one has the stdio array it had before.
+        const params = spec.paramsPath === undefined ? null : openSync(spec.paramsPath, 'r');
+        if (typeof params === 'number') fds.push(params);
+        const stdio: Array<'ignore' | number> = ['ignore', out, err, prompt];
+        if (params !== null) stdio.push(params);
         const launch = launchCommand(spec);
         const child = spawnFn(launch.file, launch.args, {
           env: spec.env,
           cwd: spec.cwd,
-          stdio: ['ignore', out, 'ignore', prompt],
+          stdio,
         });
         child.once('error', () => finish(1));
         child.once('close', (code) => finish(code ?? 1));
@@ -130,7 +158,40 @@ export function createExec(spawnFn: SpawnFn): (spec: ExecSpec) => Promise<number
     });
 }
 
+/** Builds the execSelf dependency over a spawn function: no setpriv, SIGKILL at the timeout. */
+export function createExecSelf(spawnFn: SpawnFn): (spec: SelfSpec) => Promise<number> {
+  return (spec) =>
+    new Promise((resolve) => {
+      let out: number | null = null;
+      let timer: NodeJS.Timeout | undefined;
+      let killed = false;
+      const finish = (code: number): void => {
+        clearTimeout(timer);
+        if (out !== null) closeSync(out);
+        out = null;
+        resolve(code);
+      };
+      try {
+        out = openSync(spec.stdoutPath, 'w', 0o600);
+        const child = spawnFn(spec.file, spec.args, {
+          env: spec.env,
+          cwd: spec.cwd,
+          stdio: ['ignore', out, 'ignore'],
+        });
+        timer = setTimeout(() => {
+          killed = true;
+          child.kill('SIGKILL');
+        }, spec.timeoutMs);
+        child.once('error', () => finish(1));
+        child.once('close', (code) => finish(killed ? 124 : (code ?? 1)));
+      } catch {
+        finish(1);
+      }
+    });
+}
+
 const realExec = createExec(spawn);
+const realExecSelf = createExecSelf(spawn);
 
 /** The real dependencies. */
 export function realDeps(): Deps {
@@ -138,6 +199,7 @@ export function realDeps(): Deps {
     now: () => Math.floor(Date.now() / 1000),
     sleep: realSleep,
     exec: realExec,
+    execSelf: realExecSelf,
     every: (ms, fn) => {
       const timer = setInterval(fn, ms);
       timer.unref();

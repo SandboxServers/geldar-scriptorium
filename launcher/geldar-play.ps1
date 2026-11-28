@@ -27,9 +27,10 @@ function Get-VerbNeeds([string]$Verb) {
     { $_ -in 'new', 'archive' } { return @('docker', 'git', 'gh') }
     { $_ -in 'setup', 'play', 'run', '__prepare', '__session', '__finish' } { return @('docker', 'git', 'tar') }
     'resolve' { return @('docker', 'git') }
-    { $_ -in 'status', 'run_status' } { return @('git') }
-    'upgrade' { return @('git', 'gh') }
+    { $_ -in 'status', 'run_status', 'pull' } { return @('git') }
+    'upgrade' { return @('git') }
     { $_ -in 'chatgpt_login', 'chatgpt_models' } { return @('docker', 'git') }
+    'sheet_set' { return @('git') }
     { $_ -in 'start', 'stop', 'restart', 'player_status', 'logs', 'deploy_key', 'release_hold', 'sync' } { return @('docker', 'git') }
   }
   return @()
@@ -51,6 +52,7 @@ function Read-CliOption([string[]]$Rest) {
   switch ($cli) {
     'claude' { }
     'chatgpt' { if ($verb -cne 'new') { Die 1 chatgpt_persistent } }
+    'local' { Die 1 local_unavailable }
     'codex' { Die 1 cli_unsupported }
     default { Die 2 usage }
   }
@@ -78,7 +80,8 @@ switch -CaseSensitive ($verb) {
   { $_ -in 'new', 'setup', 'play', 'run', 'run-status', 'run-stop', 'resolve', 'archive', 'status', 'upgrade' } { }
   { $_ -in 'auth-set', 'auth-status', 'auth-clear' } { }
   { $_ -in 'chatgpt-login', 'chatgpt-models' } { }
-  { $_ -in 'start', 'stop', 'restart', 'player-status', 'logs', 'deploy-key', 'release-hold', 'sync' } { }
+  'sheet-set' { }
+  { $_ -in 'start', 'stop', 'restart', 'player-status', 'logs', 'deploy-key', 'release-hold', 'sync', 'pull' } { }
   default { Die 2 usage }
 }
 
@@ -109,6 +112,7 @@ if ($verb -ceq 'deploy-key') { $verb = 'deploy_key' }
 if ($verb -ceq 'release-hold') { $verb = 'release_hold' }
 if ($isAuth) { $verb = $verb.Replace('-', '_') }
 if ($verb -in 'chatgpt-login', 'chatgpt-models') { $verb = $verb.Replace('-', '_') }
+if ($verb -ceq 'sheet-set') { $verb = 'sheet_set' }
 
 $needs = @(Get-VerbNeeds $verb)
 Need @needs

@@ -23,13 +23,24 @@ function stripControls(text: string): string {
   return out;
 }
 
-/** Strips control characters, trims, and cuts to LAST_TEXT_MAX characters without splitting a surrogate pair. */
+// A lone low surrogate: one UTF-16 unit in the DC00..DFFF range (a pair would be two units).
+function isLoneLowSurrogate(ch: string): boolean {
+  const code = ch.charCodeAt(0);
+  return ch.length === 1 && code >= 0xdc00 && code <= 0xdfff;
+}
+
+/**
+ * Strips control characters, trims, and keeps the last LAST_TEXT_MAX code points (the end of the
+ * message is where a handoff note sits). A surrogate pair is never split; a lone low surrogate at the
+ * new start is dropped.
+ */
 export function cleanText(text: string): string {
   const clean = stripControls(text).trim();
-  if (clean.length <= LAST_TEXT_MAX) return clean;
-  const end = clean.charCodeAt(LAST_TEXT_MAX - 1);
-  const splits = end >= 0xd800 && end <= 0xdbff;
-  return clean.slice(0, splits ? LAST_TEXT_MAX - 1 : LAST_TEXT_MAX);
+  const points = Array.from(clean);
+  if (points.length <= LAST_TEXT_MAX) return clean;
+  const kept = points.slice(-LAST_TEXT_MAX);
+  if (isLoneLowSurrogate(kept[0] ?? '')) kept.shift();
+  return kept.join('');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

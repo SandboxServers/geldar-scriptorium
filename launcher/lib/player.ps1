@@ -10,6 +10,8 @@ $script:PL_NAME = ''
 $script:PL_SHARD = ''
 $script:PL_MODEL = ''
 $script:PL_KIT_IMAGE = ''
+# The keeper's uid: its image runs as it with every capability dropped, so its deploy key must be owned by it.
+$script:PL_KEEPER_UID = 1002
 
 function Read-FirstLine([string]$Path) {
   $t = [System.IO.File]::ReadAllText($Path, [System.Text.UTF8Encoding]::new($false))
@@ -174,9 +176,13 @@ function Read-Player([string]$Id, [string]$Rev = 'HEAD') {
   switch -CaseSensitive ($v['harness']) {
     'claude' { }
     'chatgpt' { }
+    'local' { }
     'codex' { Die 1 harness_unsupported $Id }
     default { Fail-PlayerJson $Id 'harness' }
   }
+  $script:PL_CTX = ''
+  $script:PL_IMAGES = ''
+  if ($v['harness'] -ceq 'local') { Read-LocalFields $Id $text $j }
   if (-not $env:GELDAR_KIT_IMAGE -and -not (Test-KitImage $v['kit_image'])) { Fail-PlayerJson $Id 'kit_image' }
   $script:PL_KIT_IMAGE = Resolve-KitImage $v['kit_image']
   $script:PL_MCP_URL = $v['mcp_url']
@@ -214,10 +220,12 @@ function Set-PlayerRemote([string]$Id) {
 function Set-PlayerSecrets([string]$Id) {
   $script:PL_SECRET_MCP = ''
   $script:PL_SECRET_LOGIN = ''
+  $script:PL_SECRET_KEY = ''
   $f = Join-Path (Get-PlayerDir $Id) 'token'
   $i = Get-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
   if ($i -and -not $i.PSIsContainer -and -not $i.LinkType) { $script:PL_SECRET_MCP = Read-FirstLine $f }
   if ($script:PL_HARNESS -ceq 'claude' -and (Test-AuthUsable)) { $script:PL_SECRET_LOGIN = [string](Get-AuthToken) }
+  if ($script:PL_HARNESS -ceq 'local') { Set-LocalSecretKey $Id }
 }
 
 # pl_mask: the stored secrets and token-like text replaced by [masked]; the same rules as the perl filter.
@@ -225,6 +233,7 @@ function Hide-PlayerText([string]$Text) {
   $t = $Text
   if ($script:PL_SECRET_MCP) { $t = $t.Replace($script:PL_SECRET_MCP, '[masked]') }
   if ($script:PL_SECRET_LOGIN) { $t = $t.Replace($script:PL_SECRET_LOGIN, '[masked]') }
+  if ($script:PL_SECRET_KEY) { $t = $t.Replace($script:PL_SECRET_KEY, '[masked]') }
   $t = [regex]::Replace($t, 'GELDAR_MCP_TOKEN=\S*', 'GELDAR_MCP_TOKEN=[masked]')
   $t = [regex]::Replace($t, 'sk-ant-[A-Za-z0-9_-]*', '[masked]')
   return [regex]::Replace($t, '(CLAUDE_CODE_OAUTH_TOKEN|oauth[_-]?token)[ :=]+\S+', '$1 [masked]', 'IgnoreCase')
@@ -245,6 +254,7 @@ function Invoke-PlayerCompose([string]$Id, [string[]]$ComposeArgs) {
   Set-PlayerSecrets $Id
   $sd = Get-ShareDir
   $unset = 'GH_TOKEN', 'GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'GELDAR_DEV_MCP_URL', 'GELDAR_MCP_URL', 'GELDAR_MCP_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'
+  $unset += 'GELDAR_LOCAL_BASE_URL', 'GELDAR_LOCAL_API_KEY', 'GELDAR_LOCAL_CONTEXT_TOKENS', 'GELDAR_LOCAL_IMAGES'
   $set = @{
     KIT_IMAGE = $script:PL_KIT_IMAGE
     GELDAR_ID = $Id
@@ -258,14 +268,25 @@ function Invoke-PlayerCompose([string]$Id, [string[]]$ComposeArgs) {
   if ($script:PL_SECRET_MCP) { $set['GELDAR_MCP_TOKEN'] = $script:PL_SECRET_MCP }
   if ($script:PL_HARNESS -ceq 'chatgpt' -and -not $env:GELDAR_RUN_MODEL) { $set['GELDAR_RUN_MODEL'] = $script:PL_MODEL }
   if ($script:PL_SECRET_LOGIN) { $set['CLAUDE_CODE_OAUTH_TOKEN'] = $script:PL_SECRET_LOGIN }
+  if ($script:PL_HARNESS -ceq 'local') {
+    $set['GELDAR_LOCAL_BASE_URL'] = Get-LocalBaseUrl $Id
+    $set['GELDAR_LOCAL_CONTEXT_TOKENS'] = $script:PL_CTX
+    $set['GELDAR_LOCAL_IMAGES'] = $script:PL_IMAGES
+    if ($script:PL_SECRET_KEY) { $set['GELDAR_LOCAL_API_KEY'] = $script:PL_SECRET_KEY }
+    if (-not $env:GELDAR_RUN_MODEL) { $set['GELDAR_RUN_MODEL'] = $script:PL_MODEL }
+  }
   $saved = @{}
   foreach ($n in @($unset + @($set.Keys))) { $saved[$n] = [Environment]::GetEnvironmentVariable($n) }
   try {
-    foreach ($n in $unset) { [Environment]::SetEnvironmentVariable($n, $null) }
+    # Remove-Item drops the variable; SetEnvironmentVariable($n, $null) leaves an empty one for a child process.
+    foreach ($n in $unset) { Remove-Item -LiteralPath "Env:$n" -ErrorAction SilentlyContinue }
     foreach ($k in $set.Keys) { [Environment]::SetEnvironmentVariable($k, [string]$set[$k]) }
     return @(Invoke-Docker compose -p "geldar-player-$Id" -f "$sd/compose/player.yml" @ComposeArgs 2> $null)
   } finally {
-    foreach ($n in $saved.Keys) { [Environment]::SetEnvironmentVariable($n, $saved[$n]) }
+    foreach ($n in $saved.Keys) {
+      if ($null -eq $saved[$n]) { Remove-Item -LiteralPath "Env:$n" -ErrorAction SilentlyContinue }
+      else { [Environment]::SetEnvironmentVariable($n, $saved[$n]) }
+    }
   }
 }
 
@@ -335,6 +356,41 @@ function Initialize-PlayerWorkspace([string]$Id) {
   Die 1 player_ws_failed $Id
 }
 
+# Send-PlayerSheet id: when the player has a stored sheet.json or roster.json, one throwaway kit container
+# with no network checks them and moves them into the supervisor volume's instinct folder (0600, owner
+# 1001). The container sees a read-only copy of the two files only, never the player's folder or workspace.
+# With neither file nothing runs. A refused file stops the start before compose is called (HC-26b).
+function Send-PlayerSheet([string]$Id) {
+  $d = Get-PlayerDir $Id
+  $sheet = Join-Path $d 'sheet.json'
+  $roster = Join-Path $d 'roster.json'
+  $hasSheet = Test-Path -LiteralPath $sheet -PathType Leaf
+  $hasRoster = Test-Path -LiteralPath $roster -PathType Leaf
+  if (-not ($hasSheet -or $hasRoster)) { return }
+  $tmp = Join-Path $d 'deliver'
+  Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+  New-PrivateDir (Join-Path $d 'deliver')
+  $rc = 0
+  try {
+    if ($hasSheet) { [System.IO.File]::Copy($sheet, (Join-Path $tmp 'sheet.json'), $true) }
+    if ($hasRoster) { [System.IO.File]::Copy($roster, (Join-Path $tmp 'roster.json'), $true) }
+  } catch {
+    $rc = 1
+  }
+  if ($rc -eq 0) {
+    $r = Invoke-PlayerHelper 'sheet' "geldar-sheet-$Id" @('--network', 'none', '--user', '0:0', '--cap-add', 'CHOWN', '--cap-add', 'FOWNER', '-v', "${tmp}:/in:ro", '-v', "geldar-sup-${Id}:/vol:rw") $script:SHEET_DELIVER
+    $rc = $r.Code
+  }
+  Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+  switch ($rc) {
+    0 { return }
+    2 { Die 1 sheet_bad $Id 'check' }
+    3 { Die 1 sheet_bad $Id 'roster' }
+    4 { Die 1 roster_failed $Id }
+    default { Die 1 sheet_failed $Id }
+  }
+}
+
 # pl_ready id: the deploy key, the MCP token file and the shared login.
 function Assert-PlayerReady([string]$Id) {
   $d = Get-PlayerDir $Id
@@ -345,7 +401,16 @@ function Assert-PlayerReady([string]$Id) {
     if (-not $model) { $model = $script:PL_MODEL }
     if ($model -cnotmatch '^[A-Za-z0-9._:/-]+\z') { Die 1 chatgpt_no_model $Id }
     if (-not (Test-ChatGPTReady $Id)) { Die 1 chatgpt_no_login $Id }
-  } elseif (-not (Test-AuthUsable)) { Die 1 player_no_login }
+  } elseif ($script:PL_HARNESS -ceq 'local') {
+    $model = $env:GELDAR_RUN_MODEL
+    if (-not $model) { $model = $script:PL_MODEL }
+    if ($model -cnotmatch '^[A-Za-z0-9._:/-]+\z') { Die 1 local_no_model $Id }
+    # The base URL must be a regular, non-empty file, not a link.
+    $u = Get-Item -LiteralPath (Join-Path (Join-Path $d 'local') 'base-url') -Force -ErrorAction SilentlyContinue
+    if (-not ($u -and -not $u.PSIsContainer -and -not $u.LinkType -and $u.Length -gt 0)) { Die 1 local_no_endpoint $Id }
+    # Defensive: Read-LocalFields refuses a missing context_tokens first.
+    if (-not $script:PL_CTX) { Die 1 local_no_context $Id }
+  } elseif ($script:PL_HARNESS -ceq 'claude' -and -not (Test-AuthUsable)) { Die 1 player_no_login }
 }
 
 # start <id>: the checks, the workspace once, then compose up -d (idempotent).
@@ -357,6 +422,7 @@ function Verb-start {
   Lock-Acquire $id
   Write-PlayerAllowlist $id
   Initialize-PlayerWorkspace $id
+  Send-PlayerSheet $id
   Invoke-PlayerCompose $id @('up', '-d')
   if ($LASTEXITCODE -ne 0) { Die 1 compose_failed }
   Say player_started $id
@@ -370,6 +436,7 @@ function Verb-restart {
   Assert-PlayerReady $id
   Lock-Acquire $id
   Write-PlayerAllowlist $id
+  Send-PlayerSheet $id
   Invoke-PlayerCompose $id @('up', '-d', '--force-recreate')
   if ($LASTEXITCODE -ne 0) { Die 1 compose_failed }
   Say player_restarted $id
@@ -404,8 +471,8 @@ function Verb-player_status {
   [Console]::Out.Write("supervisor status:`n")
   Write-PlayerStatusPart $id 'supervisor' "geldar-sup-$id" 1001 'cat /vol/status.json'
   [Console]::Out.Write("keeper status:`n")
-  Write-PlayerStatusPart $id 'keeper' "geldar-keep-$id" 1002 'grep -E "\"(last_pushed_head|last_run_utc|upstream_head|upstream_result)\"" /vol/status.json'
-  $held = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" 1002 'ro' 'cat /vol/HELD'
+  Write-PlayerStatusPart $id 'keeper' "geldar-keep-$id" $script:PL_KEEPER_UID 'grep -E "\"(last_pushed_head|last_run_utc|upstream_head|upstream_result)\"" /vol/status.json'
+  $held = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" $script:PL_KEEPER_UID 'ro' 'cat /vol/HELD'
   if ($held.Code -eq 0) { Say player_held (Sanitize ($held.Text.TrimEnd("`r", "`n"))) }
 }
 
@@ -452,6 +519,15 @@ function New-PlayerKey([string]$Id, [string]$Dir) {
   }
   Set-PlayerOwnerOnly $keyPath '(F)'
   Set-PlayerOwnerOnly "$keyPath.pub" '(F)'
+  # The keeper reads the key as its own uid with no capability: a root helper that adds only CHOWN and
+  # FOWNER hands the private key to it. It sees only this folder, opened to traversal (POSIX; Windows has no uid).
+  if (-not $IsWindows) { & chmod 711 $tmp }
+  $keeper = $script:PL_KEEPER_UID
+  $r = Invoke-PlayerHelper 'key' "geldar-keychown-$Id" @('--user', '0:0', '--cap-add', 'CHOWN', '--cap-add', 'FOWNER', '-v', "${tmp}:/out") "chown ${keeper}:${keeper} /out/deploy-key && chmod 0600 /out/deploy-key"
+  if ($r.Code -ne 0) {
+    Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    Die 1 player_key_chown_failed $Id
+  }
   Move-Item -LiteralPath $keyPath -Destination (Join-Path $Dir 'deploy-key') -Force
   Move-Item -LiteralPath "$keyPath.pub" -Destination (Join-Path $Dir 'deploy-key.pub') -Force
   Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
@@ -485,10 +561,10 @@ function Verb-release_hold {
   $id = [string]$args[0]
   Read-Player $id
   $cleared = $false
-  $held = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" 1002 'ro' 'cat /vol/HELD'
+  $held = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" $script:PL_KEEPER_UID 'ro' 'cat /vol/HELD'
   if ($held.Code -eq 0) {
     Say player_held (Sanitize ($held.Text.TrimEnd("`r", "`n")))
-    $rm = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" 1002 'rw' 'rm -f /vol/HELD'
+    $rm = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" $script:PL_KEEPER_UID 'rw' 'rm -f /vol/HELD'
     if ($rm.Code -ne 0) { Die 1 player_release_failed $id }
     $cleared = $true
   }
@@ -517,7 +593,26 @@ function Verb-sync {
   $id = [string]$args[0]
   Read-Player $id
   if (-not (Test-PlayerRunning $id)) { Die 1 player_not_running $id }
-  $r = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" 1002 'rw' 'touch /vol/sync-request'
+  $r = Invoke-PlayerVolHelper $id 'keeper' "geldar-keep-$id" $script:PL_KEEPER_UID 'rw' 'touch /vol/sync-request'
   if ($r.Code -ne 0) { Die 1 player_sync_failed $id }
   Say player_sync_requested $id
+}
+
+# pull <id>: brings the host's clone up to date with its repository (fast-forward only). Refused while a
+# session runs, and when the clone has changes or is not on the player branch; nothing changes then.
+function Verb-pull {
+  if ($args.Count -ne 1) { Die 2 usage }
+  $id = [string]$args[0]
+  Read-Player $id
+  $clone = $script:PL_CLONE
+  $branch = $script:PL_BRANCH
+  Lock-Acquire $id
+  $d = Get-PlayerDir $id
+  if (Test-Path -LiteralPath (Join-Path $d 'session/running') -PathType Leaf) { Die 1 locked $id }
+  $st = @(Invoke-Git -C $clone status --porcelain --untracked-files=all 2> $null)
+  if ($LASTEXITCODE -ne 0 -or "$($st -join '')" -ne '') { Die 1 upgrade_dirty }
+  $br = @(Invoke-Git -C $clone symbolic-ref -q --short HEAD 2> $null)
+  if ("$($br -join '')" -cne $branch) { Die 1 upgrade_dirty }
+  if ((Invoke-GitQuiet $clone @('pull', '--ff-only')) -ne 0) { Die 1 upgrade_dirty }
+  Say pull_done $id
 }

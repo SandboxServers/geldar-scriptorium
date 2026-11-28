@@ -87,7 +87,7 @@ Recorded 2026-11-10. **Status:** CHOSEN (owner: "D1 is fine as you suggest"). Th
 
 ## 45. D2: the real world's address (owner, 2026-11-10)
 
-**Status:** CHOSEN. The shipped `launcher/config/world.conf` sets the real world host `geldar.sandboxservers.games` and `mcp_port=18443` over TLS (the exact `mcp_base` form is in the world-conf change). `private_only_shards` stays blank: all shards are watched, so no shard is private-only for now; revisit later. Owner words: "all shards are watched, private only can be for later."
+**Status:** CHOSEN. The shipped `launcher/config/world.conf` sets the real world host `geldar.sandboxservers.games` and `mcp_port=18443` over TLS (the exact `mcp_base` form is in the world-conf change). `private_only_shards` stays blank: no shard is private-only for now; revisit later (owner decision).
 
 ## 46. Codex is on hold (owner, 2026-11-10)
 
@@ -138,6 +138,13 @@ Recorded 2026-11-10. **Status:** CHOSEN (owner: "D1 is fine as you suggest"). Th
 - CHOSEN: SC-72a/b need install, `new`, `setup` and one `play` session that saves commits, plus the host-clone and `upgrade` checks. The three-in-game-days run and the turns and `/usage` per day (SC-70c) move to the first real days of play. The planner's design for unattended days (bounded in-container driver, day-end marker the `day NNN:` commit; tmux supervisor rejected: screen scraping, a host actor typing into the session, no Windows path) is kept as a design record, not built now; it returns when longevity is tested. Open owner questions kept: caps, next-day scheduling, one login or six, whether a decision record is needed.
 - Consequence: the mock run on 2026-11-10 already met the functional bar for `setup` and one `play` apart from the known findings; remaining functional items are the host-clone check and `upgrade`, on the next candidate.
 
+## 54. rc3 released; the Patron path works
+
+- `kit-v0.1.0-rc3` (run 42901845560): every job passed, including the new step that creates the launcher release in the template repo (decision 52). Template repo: pre-release with exactly `geldar-play-0.1.0-rc3.tar.gz` and `SHA256SUMS` (one line); GHCR `geldar-kit` has tag `0.1.0-rc3`; the template's `CLAUDE.md` has no developer header and no mention of a human.
+- Checked as a Patron would, on the owner's PC with Git's perl removed from PATH: download from the template repo, checksum matches, unpack, the launcher runs. `--version` still prints `0.1.0` (review finding 6, still open).
+- Owner approved the in-world wording (decision 53 era; PR #37).
+- Next: create `ag-jason-01` from rc3 against the local MCP; needs the owner for the player's Claude login and a terminal for a watched day.
+
 ## 55. Model names stay out of template prose (agreed with geldar-93; owner confirmation pending)
 
 Recorded 2026-11-11. **Status:** CONFIRMED by the owner (relayed by geldar-93, 2026-11-11): model names appear only in settings and agent frontmatter, nowhere else. The meter lines (worker 70k soft and 90k hard, planner 80k) and the `--autocompact` flag are accepted too. Model names (`sonnet`, `haiku`) appear only in `template/.claude/settings.json` and agent frontmatter; prose in anything a player reads uses in-world role words and none of "orchestrator", "subagent", "model", "context". **Owner clarification (2026-11-11):** this is not a claim that the character cannot tell it is a program; training data and system prompts already say so. Persona and identity drive how the character deals with the server, from its nature and what it learns about its surroundings and other players. The rule keeps the knowledge boundary honest and the voice coherent; it does not try to hide what the base model is.
@@ -177,7 +184,7 @@ Recorded 2026-11-11. SC-120 `geldar-verify run-summary` (5707df4), SC-121 the he
 
 ## 63. Geldar wave C5 is carded as wave 13, every card held until geldar says "landed" (geldar-93, 2026-11-11)
 
-**Status:** CHOSEN. Geldar's wave C5 ("Goldar learnings", from a review of Jorsh's server-side NeoForge re-implementation of the geldar MCP contract; it has no kit and says nothing about the template or launcher) changes what the character can do and read. Cards SC-150 to SC-155 in [work-packets-wave13.md](../work-packets-wave13.md); each is held until geldar-93 sends "landed" for its geldar packet, together with the exact event names and fixed texts. Until then no template, skill, guide or README text makes an availability or deploy claim. Not to be documented as intended: credits spent on rejected or failed acts (owner ruling pending on the geldar side). There is no report from Clara's (owner jorsh's) first runs: she has never connected to the Colo (her host shows hibernating since provisioning); geldar-93 suspects she has so far been run against Jorsh's own server. If the owner learns how Jorsh connected (host `claude mcp add` per geldar `docs/players/README.md`, or a launcher), any template or launcher finding becomes a card.
+**Status:** CHOSEN. Geldar's wave C5 ("Goldar learnings", from a review of a community server author's server-side NeoForge re-implementation of the geldar MCP contract; it has no kit and says nothing about the template or launcher) changes what the character can do and read. Cards SC-150 to SC-155 in [work-packets-wave13.md](../work-packets-wave13.md); each is held until geldar-93 sends "landed" for its geldar packet, together with the exact event names and fixed texts. Until then no template, skill, guide or README text makes an availability or deploy claim. Not to be documented as intended: credits spent on rejected or failed acts (owner ruling pending on the geldar side). There is no report from Clara's (owner a community server author's) first runs: she has never connected to the Colo (her host shows hibernating since provisioning); geldar-93 suspects she has so far been run against a community server author's own server. If the owner learns how a community server author connected (host `claude mcp add` per geldar `docs/players/README.md`, or a launcher), any template or launcher finding becomes a card.
 
 ## 64. The persistent player container, with the push credential (a deploy key) in the container (owner, 2026-11-11)
 

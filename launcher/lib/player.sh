@@ -3,6 +3,9 @@
 
 GP_GROUPS="$GP_GROUPS pre"
 
+# The keeper's uid: its image runs as it with every capability dropped, so its deploy key must be owned by it.
+PL_KEEPER_UID=1002
+
 # The reason text of held/info (only the reason= line, found with case, never sourced).
 held_reason() {
   local line reason=""
@@ -155,9 +158,13 @@ TEXT
   case $PLV_harness in
     claude) ;;
     chatgpt) ;;
+    local) ;;
     codex) die 1 harness_unsupported "$id" ;;
     *) pj_fail "$id" 'harness' ;;
   esac
+  PL_CTX=""
+  PL_IMAGES=""
+  if [ "$PLV_harness" = local ]; then read_local_fields "$id" "$text"; fi
   if [ -z "${GELDAR_KIT_IMAGE:-}" ]; then
     valid_kit_image "$PLV_kit_image" || pj_fail "$id" 'kit_image'
   fi
@@ -194,12 +201,14 @@ pl_secrets() {
   d=$(player_dir "$1")
   PL_SECRET_MCP=""
   PL_SECRET_LOGIN=""
+  PL_SECRET_KEY=""
   if [ -f "$d/token" ] && [ ! -L "$d/token" ]; then
     IFS= read -r PL_SECRET_MCP < "$d/token" || true
   fi
   if [ "$PL_HARNESS" = claude ] && auth_usable; then
     PL_SECRET_LOGIN=$(auth_load) || PL_SECRET_LOGIN=""
   fi
+  if [ "$PL_HARNESS" = local ]; then local_key_read "$1"; fi
 }
 
 # pl_compose id args...: docker compose for the player's project. The values are passed in the
@@ -215,12 +224,14 @@ pl_compose() {
   pl_keeper_remote "$id"
   (
     unset GH_TOKEN GITHUB_TOKEN ANTHROPIC_API_KEY GELDAR_DEV_MCP_URL GELDAR_MCP_URL GELDAR_MCP_TOKEN CLAUDE_CODE_OAUTH_TOKEN
+    unset GELDAR_LOCAL_BASE_URL GELDAR_LOCAL_API_KEY GELDAR_LOCAL_CONTEXT_TOKENS GELDAR_LOCAL_IMAGES
     pl_secrets "$id"
     if [ -n "$PL_SECRET_MCP" ]; then export GELDAR_MCP_TOKEN="$PL_SECRET_MCP"; fi
     if [ -n "$PL_SECRET_LOGIN" ]; then export CLAUDE_CODE_OAUTH_TOKEN="$PL_SECRET_LOGIN"; fi
     export KIT_IMAGE="$PL_KIT_IMAGE" GELDAR_ID="$id" GELDAR_KEEPER_REMOTE="$PL_REMOTE" GELDAR_MCP_URL="$PL_MCP_URL"
     export GELDAR_HARNESS="$PL_HARNESS"
     if [ "$PL_HARNESS" = chatgpt ] && [ -z "${GELDAR_RUN_MODEL:-}" ]; then export GELDAR_RUN_MODEL="$PL_MODEL"; fi
+    if [ "$PL_HARNESS" = local ]; then local_export "$id"; fi
     export GELDAR_DEPLOY_KEY_FILE="$d/deploy-key" GELDAR_WORLD_ALLOWLIST="$d/pub/allowlist-world.txt"
     export GELDAR_WORLD_PORTS="$d/pub/allowlist-world-ports.txt"
     docker_cmd compose -p "geldar-player-$id" -f "$share/compose/player.yml" "$@"
@@ -229,10 +240,11 @@ pl_compose() {
 
 # pl_mask: stdin to stdout with the stored secrets and token-like text replaced by [masked].
 pl_mask() {
-  PL_MASK_A=${PL_SECRET_MCP:-} PL_MASK_B=${PL_SECRET_LOGIN:-} perl -pe '
-    BEGIN { $a = $ENV{PL_MASK_A}; $b = $ENV{PL_MASK_B} }
+  PL_MASK_A=${PL_SECRET_MCP:-} PL_MASK_B=${PL_SECRET_LOGIN:-} PL_MASK_C=${PL_SECRET_KEY:-} perl -pe '
+    BEGIN { $a = $ENV{PL_MASK_A}; $b = $ENV{PL_MASK_B}; $c = $ENV{PL_MASK_C} }
     s/\Q$a\E/[masked]/g if length $a;
     s/\Q$b\E/[masked]/g if length $b;
+    s/\Q$c\E/[masked]/g if length $c;
     s/GELDAR_MCP_TOKEN=\S*/GELDAR_MCP_TOKEN=[masked]/g;
     s/sk-ant-[A-Za-z0-9_-]*/[masked]/g;
     s/(CLAUDE_CODE_OAUTH_TOKEN|oauth[_-]?token)[ :=]+\S+/$1 [masked]/gi;
@@ -268,6 +280,34 @@ pl_prepare_ws() {
   die 1 player_ws_failed "$id"
 }
 
+# pl_deliver_sheet id: when the player has a stored sheet.json or roster.json, one throwaway kit container
+# with no network checks them and moves them into the supervisor volume's instinct folder (0600, owner
+# 1001). The container sees a read-only copy of the two files only, never the player's folder or workspace.
+# With neither file nothing runs. A refused file stops the start before compose is called (HC-26b).
+pl_deliver_sheet() {
+  local id=$1 d tmp rc=0
+  d=$(player_dir "$id")
+  [ -f "$d/sheet.json" ] || [ -f "$d/roster.json" ] || return 0
+  tmp="$d/deliver"
+  rm -rf "$tmp"
+  private_mkdir "$d/deliver"
+  [ ! -f "$d/sheet.json" ] || cp -- "$d/sheet.json" "$tmp/sheet.json" || rc=1
+  [ ! -f "$d/roster.json" ] || cp -- "$d/roster.json" "$tmp/roster.json" || rc=1
+  if [ "$rc" -eq 0 ]; then
+    helper_run player-sheet "geldar-sheet-$id" "$PL_KIT_IMAGE" --network none --user 0:0 \
+      --cap-add CHOWN --cap-add FOWNER -v "$tmp:/in:ro" -v "geldar-sup-$id:/vol:rw" -- "$SHEET_DELIVER" \
+      > /dev/null 2>&1 || rc=$?
+  fi
+  rm -rf "$tmp"
+  case $rc in
+    0) return 0 ;;
+    2) die 1 sheet_bad "$id" check ;;
+    3) die 1 sheet_bad "$id" roster ;;
+    4) die 1 roster_failed "$id" ;;
+    *) die 1 sheet_failed "$id" ;;
+  esac
+}
+
 # pl_ready id: what a start needs: the deploy key, the MCP token file and the shared login.
 pl_ready() {
   local d
@@ -277,7 +317,14 @@ pl_ready() {
   if [ "$PL_HARNESS" = chatgpt ]; then
     [[ ${GELDAR_RUN_MODEL:-$PL_MODEL} =~ ^[A-Za-z0-9._:/-]+$ ]] || die 1 chatgpt_no_model "$1"
     chatgpt_ready "$1" || die 1 chatgpt_no_login "$1"
-  else
+  elif [ "$PL_HARNESS" = local ]; then
+    [[ ${GELDAR_RUN_MODEL:-$PL_MODEL} =~ ^[A-Za-z0-9._:/-]+$ ]] || die 1 local_no_model "$1"
+    # The base URL must be a regular, non-empty file, not a link.
+    { [ -f "$d/local/base-url" ] && [ ! -L "$d/local/base-url" ] && [ -s "$d/local/base-url" ]; } ||
+      die 1 local_no_endpoint "$1"
+    # Defensive: read_local_fields refuses a missing context_tokens first.
+    [ -n "$PL_CTX" ] || die 1 local_no_context "$1"
+  elif [ "$PL_HARNESS" = claude ]; then
     auth_usable || die 1 player_no_login
   fi
 }
@@ -290,6 +337,7 @@ verb_start() {
   lock_acquire "$1"
   pl_allowlist "$1"
   pl_prepare_ws "$1"
+  pl_deliver_sheet "$1"
   pl_compose "$1" up -d || die 1 compose_failed
   say player_started "$1"
 }
@@ -301,6 +349,7 @@ verb_restart() {
   pl_ready "$1"
   lock_acquire "$1"
   pl_allowlist "$1"
+  pl_deliver_sheet "$1"
   pl_compose "$1" up -d --force-recreate || die 1 compose_failed
   say player_restarted "$1"
 }
@@ -337,8 +386,8 @@ verb_player_status() {
   printf 'supervisor status:\n'
   pl_status_part "$id" supervisor "geldar-sup-$id" 1001 'cat /vol/status.json'
   printf 'keeper status:\n'
-  pl_status_part "$id" keeper "geldar-keep-$id" 1002 'grep -E "\"(last_pushed_head|last_run_utc|upstream_head|upstream_result)\"" /vol/status.json'
-  if reason=$(pl_helper "$id" keeper "geldar-keep-$id" 1002 ro 'cat /vol/HELD' 2> /dev/null); then
+  pl_status_part "$id" keeper "geldar-keep-$id" "$PL_KEEPER_UID" 'grep -E "\"(last_pushed_head|last_run_utc|upstream_head|upstream_result)\"" /vol/status.json'
+  if reason=$(pl_helper "$id" keeper "geldar-keep-$id" "$PL_KEEPER_UID" ro 'cat /vol/HELD' 2> /dev/null); then
     say player_held "$(printf '%s' "$reason" | sanitize)"
   fi
 }
@@ -382,6 +431,15 @@ pl_make_key() {
   fi
   [ -f "$tmp/deploy-key" ] && [ -f "$tmp/deploy-key.pub" ] || die 1 player_key_failed "$id"
   chmod 600 "$tmp/deploy-key" "$tmp/deploy-key.pub"
+  # The keeper reads the key as its own uid with no capability: a root helper that adds only CHOWN and
+  # FOWNER hands the private key to it. It sees only this folder, opened to traversal (the parent is 0700).
+  chmod 711 "$tmp"
+  if ! helper_run player-key "geldar-keychown-$id" "$PL_KIT_IMAGE" --user 0:0 --cap-add CHOWN --cap-add FOWNER \
+    -v "$tmp:/out" -- "chown $PL_KEEPER_UID:$PL_KEEPER_UID /out/deploy-key && chmod 0600 /out/deploy-key" \
+    > /dev/null 2>&1; then
+    rm -rf "$tmp"
+    die 1 player_key_chown_failed "$id"
+  fi
   mv -f "$tmp/deploy-key" "$d/deploy-key"
   mv -f "$tmp/deploy-key.pub" "$d/deploy-key.pub"
   rm -rf "$tmp"
@@ -417,9 +475,9 @@ verb_release_hold() {
   [ $# -eq 1 ] || die 2 usage
   local id=$1 reason stop cleared=0
   read_player "$id"
-  if reason=$(pl_helper "$id" keeper "geldar-keep-$id" 1002 ro 'cat /vol/HELD' 2> /dev/null); then
+  if reason=$(pl_helper "$id" keeper "geldar-keep-$id" "$PL_KEEPER_UID" ro 'cat /vol/HELD' 2> /dev/null); then
     say player_held "$(printf '%s' "$reason" | sanitize)"
-    pl_helper "$id" keeper "geldar-keep-$id" 1002 rw 'rm -f /vol/HELD' > /dev/null 2>&1 ||
+    pl_helper "$id" keeper "geldar-keep-$id" "$PL_KEEPER_UID" rw 'rm -f /vol/HELD' > /dev/null 2>&1 ||
       die 1 player_release_failed "$id"
     cleared=1
   fi
@@ -451,7 +509,23 @@ verb_sync() {
   [ $# -eq 1 ] || die 2 usage
   read_player "$1"
   pl_running "$1" || die 1 player_not_running "$1"
-  pl_helper "$1" keeper "geldar-keep-$1" 1002 rw 'touch /vol/sync-request' > /dev/null 2>&1 ||
+  pl_helper "$1" keeper "geldar-keep-$1" "$PL_KEEPER_UID" rw 'touch /vol/sync-request' > /dev/null 2>&1 ||
     die 1 player_sync_failed "$1"
   say player_sync_requested "$1"
+}
+
+# pull <id>: brings the host's clone up to date with its repository (fast-forward only). Refused while a
+# session runs, and when the clone has changes or is not on the player branch; nothing changes then.
+verb_pull() {
+  local out
+  [ $# -eq 1 ] || die 2 usage
+  read_player "$1"
+  lock_acquire "$1"
+  [ ! -f "$(player_dir "$1")/session/running" ] || die 1 locked "$1"
+  out=$(git_cmd -C "$PL_CLONE" status --porcelain --untracked-files=all 2> /dev/null) || die 1 upgrade_dirty
+  [ -z "$out" ] || die 1 upgrade_dirty
+  out=$(git_cmd -C "$PL_CLONE" symbolic-ref -q --short HEAD 2> /dev/null)
+  [ "$out" = "$PL_BRANCH" ] || die 1 upgrade_dirty
+  run_bounded 120 git_cmd -C "$PL_CLONE" pull --ff-only > /dev/null 2>&1 || die 1 upgrade_dirty
+  say pull_done "$1"
 }

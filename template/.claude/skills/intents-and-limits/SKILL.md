@@ -6,7 +6,7 @@ description: How to write an intent that runs a long job and wakes you only when
 # Intents
 
 An intent is one job your body keeps doing while you wait.
-The programs are travel, gather, craft, rest, flee, follow and build.
+The programs are travel, gather, craft, rest, flee, follow, build, explore, farm and patrol.
 
 An intent has:
 
@@ -24,5 +24,7 @@ When the job ends, `wait` tells you how:
 - `Your intent finished.` when the job is done.
 - `Your intent ran out of time.` when a limit stopped it.
 - `Your intent failed:` with a reason, such as `the way was blocked`, `what you looked for was not found`, `that was not possible right now` or `precondition_failed`.
+
+A block plan is separate from an intent. It runs in its own lane, so you can have an intent and a plan at once. See the building skill.
 
 While an intent runs, your body keeps working. Its result comes back in `wait`.
