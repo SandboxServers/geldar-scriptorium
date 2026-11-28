@@ -12,6 +12,8 @@ export interface ExecSpec {
   cwd: string;
   /** The child's stdout goes to this file (created 0600); otherwise it is discarded. */
   stdoutPath?: string;
+  /** The child's stderr goes to this file (created 0600); otherwise it is discarded. */
+  stderrPath?: string;
   /** This file is the child's file descriptor 3 (the prompt, read by the sh wrapper). */
   promptPath?: string;
   /** This file is the child's file descriptor 4 (the veto parameters, read by the loop; HC-23b). */
@@ -131,12 +133,16 @@ export function createExec(spawnFn: SpawnFn): (spec: ExecSpec) => Promise<number
         const out =
           spec.stdoutPath === undefined ? 'ignore' : openSync(spec.stdoutPath, 'w', 0o600);
         if (typeof out === 'number') fds.push(out);
+        // Stderr is a file only when a stderr path is named: a spec without one keeps the stdio array it had before.
+        const err =
+          spec.stderrPath === undefined ? 'ignore' : openSync(spec.stderrPath, 'w', 0o600);
+        if (typeof err === 'number') fds.push(err);
         const prompt = spec.promptPath === undefined ? 'ignore' : openSync(spec.promptPath, 'r');
         if (typeof prompt === 'number') fds.push(prompt);
         // Descriptor 4 exists only when a params file is named: a spec without one has the stdio array it had before.
         const params = spec.paramsPath === undefined ? null : openSync(spec.paramsPath, 'r');
         if (typeof params === 'number') fds.push(params);
-        const stdio: Array<'ignore' | number> = ['ignore', out, 'ignore', prompt];
+        const stdio: Array<'ignore' | number> = ['ignore', out, err, prompt];
         if (params !== null) stdio.push(params);
         const launch = launchCommand(spec);
         const child = spawnFn(launch.file, launch.args, {
