@@ -12,17 +12,32 @@ install-runner.sh --url https://github.com/<org>/<repo> --token-file <file>
 
 What the script does, in order:
 
-1. Checks the arguments (exit 2), then the pins in `versions.env`: `RUNNER_VERSION` and `RUNNER_SHA256` must be set, not `FILL_ME`, and well formed (exit 5).
-2. Reads the token file. The token reaches `config.sh` only through the environment of `runuser` (`ACTIONS_RUNNER_INPUT_TOKEN`); it is never an argument, never printed, never logged.
-3. Creates `geldar-runner` when absent (a system user, no login shell). Refuses the account when it is in `docker`, `sudo` or `wheel` (exit 6).
-4. Downloads the pinned linux-x64 tarball, checks its sha256 before anything is unpacked (a mismatch is exit 5), and unpacks it into `/opt/geldar-runner`, owned by `geldar-runner`. Skipped when `config.sh` is already there.
-5. Registers the runner as `geldar-runner` through `runuser` with `--unattended --replace`. The custom label is `geldar-hosts`; the default labels `self-hosted`, `Linux` and `X64` are kept. Skipped when `.runner` is already there.
-6. Copies `geldar-runner.service` to `/etc/systemd/system/`, then runs `systemctl enable --now`.
+1. Checks the arguments (exit 2), then the pins in `versions.env`: `RUNNER_VERSION` and
+   `RUNNER_SHA256` must be set, not `FILL_ME`, and well formed (exit 5).
+2. Reads the token file. The token reaches `config.sh` only through the environment of `runuser`
+   (`ACTIONS_RUNNER_INPUT_TOKEN`); it is never an argument, never printed, never logged.
+3. Creates `geldar-runner` when absent (a system user, no login shell). Refuses the account when it
+   is in `docker`, `sudo` or `wheel` (exit 6).
+4. Downloads the pinned linux-x64 tarball, checks its sha256 before anything is unpacked (a mismatch
+   is exit 5), and unpacks it into `/opt/geldar-runner`, owned by `geldar-runner`. Skipped when
+   `config.sh` is already there.
+5. Registers the runner as `geldar-runner` through `runuser` with `--unattended --replace`. The
+   custom label is `geldar-hosts`; the default labels `self-hosted`, `Linux` and `X64` are kept.
+   Skipped when `.runner` is already there.
+6. Copies `geldar-runner.service` to `/etc/systemd/system/` and runs `systemctl daemon-reload`. It
+   does not enable, start or restart the unit: the unit stays disabled and stopped. The script
+   prints that the operator starts it (`systemctl enable --now geldar-runner.service`) only after
+   the root wrapper is installed and `verify-confinement.sh` passes (F-05b, F-08 step 1).
+   A host that an earlier run of the script left enabled or running gets a warning instead: the
+   script checks `systemctl is-enabled` and `systemctl is-active`, changes nothing, and the operator
+   runs `systemctl disable --now geldar-runner` before the wrapper is verified.
 
 Notes on a re-run:
 
-- A re-run does not restart a unit that is already running. After a change to the unit, restart it by hand (`systemctl restart geldar-runner.service`).
-- The script does not run `bin/installdependencies.sh` of the runner, so it does not install libicu. F-08 step 1 verifies libicu on the VM.
+- The script never starts, restarts or enables the unit. After a change to the unit, the operator
+  runs `systemctl daemon-reload` and restarts it by hand (`systemctl restart geldar-runner.service`).
+- The script does not run `bin/installdependencies.sh` of the runner, so it does not install the
+  runner's dependencies (libicu). F-08 step 1 verifies libicu on the VM.
 
 ### Self-update
 
@@ -30,7 +45,15 @@ The runner updates itself. This is the owner's choice (D-FL-10): runner binaries
 
 ### Why the unit has no NoNewPrivileges
 
-`geldar-runner.service` must not set `NoNewPrivileges=yes`: the runner reaches the wrapper through the setuid `sudo` binary, which `NoNewPrivileges` stops from raising privileges. The snapshot test asserts the line is absent.
+`geldar-runner.service` must not set `NoNewPrivileges=yes`, and must not set `RestrictSUIDSGID=yes`
+either. The runner reaches the wrapper through the setuid `sudo` binary, and both settings stop a
+setuid binary from raising privileges, which breaks that path. The snapshot test asserts both lines
+are absent.
+
+The unit also carries `KillMode` at its default (no `KillMode=process`), so a stop or restart kills
+the job processes with the unit, and the kernel, cgroup and personality protections
+(`ProtectKernelTunables`, `ProtectKernelModules`, `ProtectControlGroups`, `LockPersonality`) plus
+`RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6`. None of them touches setuid.
 
 The setuid `sudo` child inherits the unit's mount namespace, so the wrapper and the launcher run inside it. `ProtectHome=read-only` keeps `/home/geldar` readable, and `ReadWritePaths` names the only places they write. This is reasoned, not verified: running one wrapper verb through the real unit on the VM (F-08 step 1) is mandatory before the unit is enabled for real work. If it fails, the orchestrator adjusts `ReadWritePaths` and the snapshot together.
 
