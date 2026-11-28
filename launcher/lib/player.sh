@@ -513,3 +513,19 @@ verb_sync() {
     die 1 player_sync_failed "$1"
   say player_sync_requested "$1"
 }
+
+# pull <id>: brings the host's clone up to date with its repository (fast-forward only). Refused while a
+# session runs, and when the clone has changes or is not on the player branch; nothing changes then.
+verb_pull() {
+  local out
+  [ $# -eq 1 ] || die 2 usage
+  read_player "$1"
+  lock_acquire "$1"
+  [ ! -f "$(player_dir "$1")/session/running" ] || die 1 locked "$1"
+  out=$(git_cmd -C "$PL_CLONE" status --porcelain --untracked-files=all 2> /dev/null) || die 1 upgrade_dirty
+  [ -z "$out" ] || die 1 upgrade_dirty
+  out=$(git_cmd -C "$PL_CLONE" symbolic-ref -q --short HEAD 2> /dev/null)
+  [ "$out" = "$PL_BRANCH" ] || die 1 upgrade_dirty
+  run_bounded 120 git_cmd -C "$PL_CLONE" pull --ff-only > /dev/null 2>&1 || die 1 upgrade_dirty
+  say pull_done "$1"
+}

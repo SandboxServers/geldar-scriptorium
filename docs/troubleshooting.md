@@ -739,6 +739,11 @@ What it means. The sync request for the persistent player could not be written i
 Why it is safe. Nothing changed: no fetch ran and the workspace is as it was.
 What to do. Check that Docker is running, then run sync again.
 
+### pull_done
+What it means. The clone of the player is up to date with its repository.
+Why it is safe. The pull only fast-forwards: it refuses a clone with changes or on another branch, and it never rewrites history.
+What to do. Nothing. Run player-status or start the player to continue.
+
 ### chatgpt_no_login
 What it means. This player's ChatGPT login is missing or unusable.
 Why it is safe. The launcher refused before starting the persistent player, and no credentials were printed.

@@ -29,8 +29,8 @@ const FROM = '0.1.0';
 
 type Result = ReturnType<typeof run>;
 
-function message(key: string): string {
-  const rows = readFileSync(join(repoRoot, 'launcher', 'messages.d', '90-upgrade.tsv'), 'utf8');
+function message(key: string, table = '90-upgrade.tsv'): string {
+  const rows = readFileSync(join(repoRoot, 'launcher', 'messages.d', table), 'utf8');
   const row = rows.split('\n').find((l) => l.startsWith(`${key}\t`));
   if (!row) throw new Error(`no message ${key}`);
   // The fixed text before the first placeholder.
@@ -147,6 +147,12 @@ const HOSTILE: Hostile[] = [
 ];
 
 const branchName = (c: string) => git(c, ['rev-parse', '--abbrev-ref', 'HEAD']);
+
+// geldar-play pull <id>: the same launcher, the same environment as an upgrade.
+function pull(s: Setup, l: Launcher): Result {
+  const env = l.name === 'bash' ? s.w.env : s.w.envPwsh;
+  return run(l, ['pull', ID], { env, timeoutMs: 170_000 });
+}
 
 export function upgradeSuite(l: Launcher): void {
   describe(`upgrade (${l.name})`, () => {
@@ -448,5 +454,45 @@ export function upgradeSuite(l: Launcher): void {
       },
       200_000,
     );
+
+    it('13. pull brings a clone that is behind origin up to date and says pull_done', () => {
+      const s = setup(l);
+      const id = { GIT_CONFIG_GLOBAL: join(s.w.root, 'gitconfig') };
+      const ahead = join(s.w.root, 'ahead-clone');
+      git(s.w.root, ['clone', '-q', s.p.origin, ahead], id);
+      writeFileSync(join(ahead, 'NEW.md'), 'new\n');
+      git(ahead, ['add', 'NEW.md'], id);
+      git(ahead, ['commit', '-q', '-m', 'ahead'], id);
+      git(ahead, ['push', '-q', 'origin', 'main'], id);
+      const tip = git(ahead, ['rev-parse', 'HEAD']);
+      expect(git(s.p.clone, ['rev-parse', 'HEAD'])).not.toBe(tip);
+      const res = pull(s, l);
+      expect(res.status, s.all(res)).toBe(0);
+      expect(s.all(res)).toContain(message('pull_done', '61-player-pull.tsv'));
+      expect(git(s.p.clone, ['rev-parse', 'HEAD'])).toBe(tip);
+      expect(branchName(s.p.clone)).toBe('main');
+      expect(git(s.p.clone, ['status', '--porcelain'])).toBe('');
+    });
+
+    it('14. pull refuses a dirty clone with upgrade_dirty and changes nothing', () => {
+      const s = setup(l);
+      writeFileSync(join(s.p.clone, 'AGENTS.md'), 'edited by hand\n');
+      const before = snap(s);
+      const res = pull(s, l);
+      expect(res.status, s.all(res)).not.toBe(0);
+      expect(s.all(res)).toContain(message('upgrade_dirty'));
+      expect(snap(s)).toEqual(before);
+    });
+
+    it('15. pull while a session runs says locked and changes nothing', () => {
+      const s = setup(l);
+      mkdirSync(join(s.p.stateDir, 'session'), { recursive: true });
+      writeFileSync(join(s.p.stateDir, 'session', 'running'), 'start=x\n');
+      const before = snap(s);
+      const res = pull(s, l);
+      expect(res.status, s.all(res)).not.toBe(0);
+      expect(s.all(res)).toContain(message('locked', '00-core.tsv'));
+      expect(snap(s)).toEqual(before);
+    });
   });
 }

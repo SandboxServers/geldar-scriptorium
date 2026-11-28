@@ -597,3 +597,22 @@ function Verb-sync {
   if ($r.Code -ne 0) { Die 1 player_sync_failed $id }
   Say player_sync_requested $id
 }
+
+# pull <id>: brings the host's clone up to date with its repository (fast-forward only). Refused while a
+# session runs, and when the clone has changes or is not on the player branch; nothing changes then.
+function Verb-pull {
+  if ($args.Count -ne 1) { Die 2 usage }
+  $id = [string]$args[0]
+  Read-Player $id
+  $clone = $script:PL_CLONE
+  $branch = $script:PL_BRANCH
+  Lock-Acquire $id
+  $d = Get-PlayerDir $id
+  if (Test-Path -LiteralPath (Join-Path $d 'session/running') -PathType Leaf) { Die 1 locked $id }
+  $st = @(Invoke-Git -C $clone status --porcelain --untracked-files=all 2> $null)
+  if ($LASTEXITCODE -ne 0 -or "$($st -join '')" -ne '') { Die 1 upgrade_dirty }
+  $br = @(Invoke-Git -C $clone symbolic-ref -q --short HEAD 2> $null)
+  if ("$($br -join '')" -cne $branch) { Die 1 upgrade_dirty }
+  if ((Invoke-GitQuiet $clone @('pull', '--ff-only')) -ne 0) { Die 1 upgrade_dirty }
+  Say pull_done $id
+}
