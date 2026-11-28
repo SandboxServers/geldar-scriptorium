@@ -35,7 +35,7 @@ export interface Observation {
   inventory: Record<string, number>;
   foodCarried: boolean | null;
   inventoryFull: boolean | null;
-  agents: { name: string; distance: number | null }[];
+  agents: { name: string; distance: number | null; pos?: { x: number; y: number; z: number } }[];
   entities: {
     kind: string;
     hostile: boolean;
@@ -119,11 +119,11 @@ function eventsOf(w: Obj | null, waitText: string, speaker: string | null): Even
 
 function agentsOf(value: unknown): Observation['agents'] {
   if (!Array.isArray(value)) return [];
-  return value.flatMap((a) =>
-    isObj(a) && str(a.name) !== null
-      ? [{ name: str(a.name) as string, distance: num(a.distance) }]
-      : [],
-  );
+  return value.flatMap((a) => {
+    if (!isObj(a) || str(a.name) === null) return [];
+    const pos = posOf(a);
+    return [{ name: str(a.name) as string, distance: num(a.distance), ...(pos ? { pos } : {}) }];
+  });
 }
 
 /** The position x, y, z when all three are finite numbers, else undefined (the key is then omitted). */
