@@ -34,10 +34,17 @@ sheet_store() {
   say sheet_stored "$id"
 }
 
-# verb_sheet_set id file: replaces the stored sheet of a player that already exists.
+# The script the delivery helper runs (HC-26b). It checks the staged files before it copies either one:
+# exit 2 a refused sheet, 3 a refused roster (not a regular file, or over 16 KiB), 1 or 4 a failed copy.
+# It holds no double quote: the pwsh twin passes it through a cmd shim as one argument.
+SHEET_DELIVER='umask 077; mkdir -p /vol/instinct && chown 1001:1001 /vol/instinct || exit 1; if [ -e /in/sheet.json ]; then geldar-instinct check-sheet /in/sheet.json || exit 2; fi; if [ -e /in/roster.json ]; then [ -f /in/roster.json ] && [ $(wc -c < /in/roster.json) -le 16384 ] || exit 3; fi; if [ -e /in/sheet.json ]; then cp /in/sheet.json /vol/instinct/.sheet.tmp && chown 1001:1001 /vol/instinct/.sheet.tmp && chmod 0600 /vol/instinct/.sheet.tmp && mv -f /vol/instinct/.sheet.tmp /vol/instinct/sheet.json || exit 1; fi; if [ -e /in/roster.json ]; then cp /in/roster.json /vol/instinct/.roster.tmp && chown 1001:1001 /vol/instinct/.roster.tmp && chmod 0600 /vol/instinct/.roster.tmp && mv -f /vol/instinct/.roster.tmp /vol/instinct/roster.json || exit 4; fi'
+
+# verb_sheet_set id file: replaces the stored sheet of a player that already exists, then delivers it
+# (and the roster, when one is stored) to the supervisor volume.
 verb_sheet_set() {
   [ $# -eq 2 ] || die 2 usage
   read_player "$1"
   lock_acquire "$1"
   sheet_store "$1" "$2"
+  pl_deliver_sheet "$1"
 }

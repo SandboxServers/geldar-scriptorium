@@ -280,6 +280,34 @@ pl_prepare_ws() {
   die 1 player_ws_failed "$id"
 }
 
+# pl_deliver_sheet id: when the player has a stored sheet.json or roster.json, one throwaway kit container
+# with no network checks them and moves them into the supervisor volume's instinct folder (0600, owner
+# 1001). The container sees a read-only copy of the two files only, never the player's folder or workspace.
+# With neither file nothing runs. A refused file stops the start before compose is called (HC-26b).
+pl_deliver_sheet() {
+  local id=$1 d tmp rc=0
+  d=$(player_dir "$id")
+  [ -f "$d/sheet.json" ] || [ -f "$d/roster.json" ] || return 0
+  tmp="$d/deliver"
+  rm -rf "$tmp"
+  private_mkdir "$d/deliver"
+  [ ! -f "$d/sheet.json" ] || cp -- "$d/sheet.json" "$tmp/sheet.json" || rc=1
+  [ ! -f "$d/roster.json" ] || cp -- "$d/roster.json" "$tmp/roster.json" || rc=1
+  if [ "$rc" -eq 0 ]; then
+    helper_run player-sheet "geldar-sheet-$id" "$PL_KIT_IMAGE" --network none --user 0:0 \
+      --cap-add CHOWN --cap-add FOWNER -v "$tmp:/in:ro" -v "geldar-sup-$id:/vol:rw" -- "$SHEET_DELIVER" \
+      > /dev/null 2>&1 || rc=$?
+  fi
+  rm -rf "$tmp"
+  case $rc in
+    0) return 0 ;;
+    2) die 1 sheet_bad "$id" check ;;
+    3) die 1 sheet_bad "$id" roster ;;
+    4) die 1 roster_failed "$id" ;;
+    *) die 1 sheet_failed "$id" ;;
+  esac
+}
+
 # pl_ready id: what a start needs: the deploy key, the MCP token file and the shared login.
 pl_ready() {
   local d
@@ -309,6 +337,7 @@ verb_start() {
   lock_acquire "$1"
   pl_allowlist "$1"
   pl_prepare_ws "$1"
+  pl_deliver_sheet "$1"
   pl_compose "$1" up -d || die 1 compose_failed
   say player_started "$1"
 }
@@ -320,6 +349,7 @@ verb_restart() {
   pl_ready "$1"
   lock_acquire "$1"
   pl_allowlist "$1"
+  pl_deliver_sheet "$1"
   pl_compose "$1" up -d --force-recreate || die 1 compose_failed
   say player_restarted "$1"
 }
