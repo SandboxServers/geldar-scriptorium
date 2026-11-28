@@ -51,7 +51,12 @@ player_dir() {
 
 valid_player_id() {
   local re='^[a-z][a-z0-9-]{1,38}$'
-  [[ ${1-} =~ $re ]]
+  [[ ${1-} =~ $re ]] || return 1
+  # Names of folders the launcher keeps under the state directory (the shared login lives in auth).
+  case $1 in
+    auth | run | players) return 1 ;;
+  esac
+  return 0
 }
 
 # Verify's rule for a branch name.
@@ -87,10 +92,23 @@ resolve_kit_image() {
 
 # The one function that builds the harness command words (one per line); SC-71 changes it.
 harness_command() {
-  local cli=$1 mode=$2
+  local cli=$1 mode=$2 line
   case $cli in
     claude)
-      printf '%s\n' claude --settings "/etc/geldar/settings/$mode.json" "/$mode"
+      if [ "$mode" = run ]; then
+        # SC-121: one headless run. The prompt is read inside the container from the read-only
+        # mounted file, so it never shows on a host command line; the turn cap and the optional
+        # model come from the container's environment (the override sets them).
+        line='exec claude --autocompact 100000 --settings /etc/geldar/settings/play.json'
+        line="$line -p \"\$(cat /run-input/prompt.txt)\" --max-turns \"\$GELDAR_RUN_MAX_TURNS\""
+        if [ -n "${GELDAR_RUN_MODEL:-}" ]; then
+          line="$line --model \"\$GELDAR_RUN_MODEL\""
+        fi
+        line="$line --output-format stream-json --verbose"
+        printf '%s\n' sh -c "$line"
+        return 0
+      fi
+      printf '%s\n' claude --autocompact 100000 --settings "/etc/geldar/settings/$mode.json" "/$mode"
       ;;
     *) return 1 ;;
   esac

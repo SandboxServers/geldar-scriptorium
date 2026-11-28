@@ -1,0 +1,6 @@
+# Waiver (decision 65), the twin of .trivyignore. Grype has no expiry field: re-judge by 2027-02-11 and
+# remove as soon as Debian ships a fix for openssh-client.
+ignore:
+  - vulnerability: CVE-2026-60002
+    package:
+      name: openssh-client

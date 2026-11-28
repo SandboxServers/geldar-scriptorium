@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 import {
   bashExe,
   bashPath,
+  FIXTURE_MCP_URL,
   forGroup,
   git,
   type Launcher,
@@ -261,7 +262,7 @@ describe.each(forGroup('pre'))('pre ($name)', (launcher) => {
     const wd = makeWorld();
     const d = makePlayer(wd, { id: 'dupkey' });
     const pj = text(join(d.clone, 'player.json'));
-    const dupLine = '  "mcp_url": "https://mcp.registry.test/mcp",';
+    const dupLine = `  "mcp_url": "${FIXTURE_MCP_URL}",`;
     expect(pj).toContain(dupLine);
     commitFile(wd, d.clone, 'player.json', pj.replace(dupLine, `${dupLine}\n${dupLine}`), false);
     const dup = prep(launcher, wd, d);

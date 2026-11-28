@@ -9,7 +9,9 @@ Every message geldar-play prints has a section below, named by its key in `launc
 | `usage` | The command line was not in a form the launcher accepts. It prints the usage line and exits, and nothing ran. |
 | `created` | The player's repository was made. The message names the next command, `setup`. |
 | `created_seeded` | The player was made from the persona you gave. It is already born, so `setup` is not needed; the next command is `play`. |
+| `chatgpt_created` | The seeded ChatGPT player was made. Connect it with `chatgpt-login`, list its models with `chatgpt-models`, then select a model before `start`. |
 | `public_notice` | The player's repository is public, memory included. This is information, not a failure. |
+| `mock_note` | The player was made with --mock. A mock player plays only through the dev-world setting (GELDAR_DEV_MCP_URL) or a world.conf whose `mcp_base` is the mock's address. This is information, not a failure. |
 | `many_players` | More than three players were started together. Each one uses your plan's limits, so start with one and watch. |
 | `dev_world_active` | GELDAR_DEV_MCP_URL is set and valid, so this launch uses a world on your machine. The message repeats the URL. See the testing section. |
 | `session_start` | A session is starting. Closing it saves the player's memory. |
@@ -24,10 +26,15 @@ Every message geldar-play prints has a section below, named by its key in `launc
 | `verify_ok` | The check of the session passed, and saving carries on. |
 | `upgrade_current` | The kit in the player is already this version, so nothing was changed. |
 | `upgrade_done` | The kit upgrade is ready as a pull request. Memory was not touched. Review the pull request before you merge it. |
+| `player_started` | The persistent player's containers are started. They run until you stop them. |
+| `player_restarted` | The persistent player's containers were recreated. Its workspace and memory are kept. |
+| `player_stopped` | The persistent player's containers are stopped. Its volumes are kept. |
+| `player_not_held` | The player is not held, so release-hold had nothing to remove. |
+| `player_released` | The hold on the persistent player is removed. The next launch may go ahead. |
 
 ## The world address and port
 
-`mcp_port` in `launcher/config/world.conf` is the port of the world's MCP, set by the owner. It holds digits only, from 1024 to 65535, with no leading zero. Blank means only ports 80 and 443 are ever accepted. When it is set, `mcp_base` carries the same port, for example `https://world.example:18443`.
+`mcp_port` in `launcher/config/world.conf` is the port of the world's MCP, set by the owner. It holds digits only, from 1024 to 65535, with no leading zero. On every port, the host of a player's server address must equal the host of `mcp_base`. Ports 80 and 443 are accepted only on that host, and any other port must also equal `mcp_port`. Blank means only ports 80 and 443 are accepted, and still only on the `mcp_base` host. When it is set, `mcp_base` carries the same port, for example `https://world.example:18443`.
 
 A refused port is a refusal on purpose. The launcher sends a session only to the address and port the owner named, so a world URL with any other port is refused as `bad_url`, and nothing is created or contacted.
 
@@ -85,8 +92,8 @@ What to do. Use the verbs the README lists.
 
 ### cli_unsupported
 What it means. You asked for the Codex CLI, which is not available yet.
-Why it is safe. The launcher refuses the option before it starts anything. Only Claude Code runs in this version.
-What to do. Run with Claude Code.
+Why it is safe. The launcher refuses the unsupported CLI option before it starts anything.
+What to do. Use Claude Code, or select `chatgpt` for a persistent player as described in [ChatGPT setup](chatgpt.md).
 
 ### image_unsafe
 What it means. The test switch GELDAR_UNSAFE_IMAGE is set, so the launcher is using a kit image that is not pinned by digest.
@@ -160,8 +167,8 @@ What to do. Correct the file to the format the README describes, or create the p
 
 ### harness_unsupported
 What it means. The player asks for a program this version cannot run.
-Why it is safe. The launcher refuses before it starts a container. Only Claude Code runs in this version.
-What to do. Set the player to use Claude Code.
+Why it is safe. The launcher refuses before it starts a container for the unsupported program.
+What to do. Select `claude`, or `chatgpt` for the persistent-player flow, in the player's committed configuration.
 
 ### host_path_in_workspace
 What it means. The workspace was not isolated from the host, because a host path appeared in it.
@@ -182,6 +189,66 @@ What to do. Report the file name to the kit maintainers.
 What it means. The container did not start.
 Why it is safe. Nothing was saved. The launcher does not retry for you.
 What to do. Check that Docker is running, then start the session again.
+
+### run_setting_bad
+What it means. A setting for the headless run is not valid. The message names the variable: GELDAR_RUN_PROMPT_FILE, GELDAR_RUN_MAX_TURNS or GELDAR_RUN_MODEL.
+Why it is safe. The launcher refused before it started, so nothing was mounted and nothing ran.
+What to do. Set that variable again: a full path to the prompt file, a whole number of turns, or a plain model name.
+
+### run_start
+What it means. The supervisor started for the player and will keep playing full cycles until it is stopped. A STOP file made by run-stop is cleared at the start; one the supervisor wrote itself (see run_stopped_auto) is not.
+Why it is safe. Every cycle is a normal play cycle: the same checks, the same container, the same save step. Nothing is skipped.
+What to do. Nothing. Run run-status to see how it is going, or run-stop to end it.
+
+### run_stop_requested
+What it means. A STOP file (first line manual) was written in the player's run folder. Nothing says a supervisor is running.
+Why it is safe. A running cycle is never cut short. A running supervisor finishes the round, saves it, then stops. With none running the file is cleared at the next start.
+What to do. Wait for the supervisor to print that it stopped.
+
+### run_cap_reached
+What it means. Today's cost (UTC) reached the daily cap, so the supervisor waits for the next day.
+Why it is safe. Nothing runs while it waits. It resumes by itself and can still be stopped.
+What to do. Nothing, or raise the cap with GELDAR_RUN_DAILY_CAP_USD and start again.
+
+### run_backoff
+What it means. The last cycle failed or ended too quickly, so the supervisor waits longer before the next one. The wait doubles each time, up to a limit.
+Why it is safe. Waiting costs nothing, and a good cycle resets the wait.
+What to do. Nothing. If it keeps happening, look at run/supervisor.log in the player's state folder.
+
+### run_too_many_failures
+What it means. Too many cycles in a row failed, so the supervisor wrote a STOP file (first line auto) and stopped. It will not start again until that file is deleted.
+Why it is safe. Nothing more is run, and nothing was lost: each cycle still went through the normal save step.
+What to do. Find the cause in run/supervisor.log, fix it, delete the STOP file in the run folder and start again.
+
+### run_already_running
+What it means. Another supervisor holds the lock for this player. The message names the lock folder and the process number.
+Why it is safe. Two supervisors would run the same player twice, so the second one refused before doing anything.
+What to do. Use run-stop to end the first one, or wait for it to finish. If that process is not a supervisor, delete the lock folder named in the message and start again.
+
+### run_status_none
+What it means. The player has no run folder, so no supervisor has ever run for it.
+Why it is safe. Nothing was changed.
+What to do. Start one with run, then ask again.
+
+### run_held
+What it means. A cycle ended with the saved session held back (a failed check, or a hold left from before). The supervisor wrote a STOP file (first line auto) and stopped at once.
+Why it is safe. Retrying cannot fix a held session, so nothing more is run, and the held bundle and workspace are kept.
+What to do. Run geldar-play resolve for the player, then start the run again. Delete the STOP file in the run folder if it is still there.
+
+### run_stopped_auto
+What it means. The last run stopped itself (too many failed cycles, or a held session) and left a STOP file whose first line says why.
+Why it is safe. The supervisor refused before doing anything.
+What to do. Look at the file named in the message and at run/supervisor.log, fix the cause, delete that file and start again.
+
+### run_stopping
+What it means. A stop signal arrived (Ctrl-C, a closed terminal or a kill). The supervisor ends after the current round.
+Why it is safe. A running cycle is never cut short: its save step finishes and its cost is recorded.
+What to do. Wait for the stopped message.
+
+### run_stopped
+What it means. The supervisor ended.
+Why it is safe. It only ends between cycles, never in the middle of one.
+What to do. Nothing. Start it again with run when you want the player to live on.
 
 ### bundle_too_large
 What it means. The session saved far too much to be packed, so it is kept.
@@ -334,14 +401,64 @@ Why it is safe. Nothing was created, and the existing player is untouched.
 What to do. Choose another name, or use the existing player.
 
 ### gh_failed
-What it means. GitHub did not finish a step of making the repository. The message names the step: create, add, commit or push.
-Why it is safe. The launcher kept nothing from the attempt.
-What to do. Check that gh is signed in and has access, then check GitHub for a half-made repository before you try again.
+What it means. GitHub did not finish a step of making the repository. The message names the step: create, template, add, commit or push.
+Why it is safe. Nothing was kept on this machine: the launcher removed its local folder for the attempt.
+What to do. Check that gh is signed in and has access. If the step was add, commit or push, the repository was already made on GitHub, so read the message after this one before you try again.
 
 ### clone_timeout
 What it means. GitHub did not finish making the repository in time.
-Why it is safe. The launcher stopped waiting after five checks and kept nothing from the attempt.
-What to do. Check the repository on GitHub, then try again later.
+Why it is safe. The launcher stopped waiting after five checks and removed its local folder, so no half-made clone is left here.
+What to do. Check the repository on GitHub. If it is there, follow repo_on_github before you run new again.
+
+### repo_on_github
+What it means. The repository player-<id> was made on GitHub, but a later step failed, so the local folder was removed.
+Why it is safe. The launcher did not write the player's state, so no half-made player is left on this machine.
+What to do. Delete the repository player-<id> on GitHub, then run new for the same id again. While the repository is still there, the next new stops at the create step.
+
+### repo_bad
+What it means. The value given to --repo is not owner/name. The owner has letters, digits and dashes (up to 39); the name has letters, digits and . _ - (up to 100); the name is not . or .., and --repo is given once.
+Why it is safe. The launcher refused the option before it called GitHub, so nothing was created.
+What to do. Give the value as owner/name, for example SandboxServers/player-mmpr-pink.
+
+### repo_missing
+What it means. The repository given to --repo was not found, or gh cannot see it. The message names it.
+Why it is safe. The launcher stopped before it cloned or changed anything.
+What to do. Check the spelling and that gh is signed in with access to that repository, then run new again.
+
+### repo_visibility
+What it means. The repository given to --repo has a different visibility from the one asked for. The message names the repository, its visibility and the requested one.
+Why it is safe. The launcher stopped before it cloned or changed anything.
+What to do. Pass --public or --private to match the repository, or change the repository's visibility on GitHub first.
+
+### repo_not_empty
+What it means. The repository given to --repo must hold at least one of README.md, LICENSE and .gitignore, and nothing else, at the top level. It holds other files, or a link in place of one of those names, or it has no commit yet, or gh could not list its files.
+Why it is safe. The launcher fills only a repository it has verified as nearly empty. It stopped before it changed anything on GitHub (a local clone it made is removed), and it never force-pushes.
+What to do. Give the repository its first commit with one initial README (GitHub offers this when you create it), or remove the extra files on GitHub, then run new again.
+
+### adopt_failed
+What it means. A step failed after new cloned the repository given to --repo (the message names it: clone, template, add, commit or push). The repository may already hold the first commit for the player, for example when a push was cut off by the time limit.
+Why it is safe. The launcher removed its local folder and wrote no state, and it never force-pushes. It does not delete a repository that was there before.
+What to do. Look at the repository on GitHub. If it holds the player's files, clear it (delete the files and commit, or recreate the repository with its initial README), then run new again. If it holds only the README, run new again.
+
+### template_unpinned
+What it means. The template repository has no kit-v tag at all (a tag kit-v followed by a version), so new --repo has nothing fixed to copy from. When it has a stable kit-v tag, new and upgrade use the newest stable one; when it has only prereleases (for example 0.1.0-rc7), they use the newest prerelease.
+Why it is safe. The launcher stopped before it cloned or changed anything.
+What to do. Ask the owner to release the template, or try again later.
+
+### kit_version_bad
+What it means. The --kit-version value is not an exact version (MAJOR.MINOR.PATCH, with an optional -prerelease such as -rc7), it is given more than once, or it is given without --repo.
+Why it is safe. The launcher refused the option before it called GitHub, so nothing was created.
+What to do. Give --kit-version once, together with --repo, as a version such as 0.1.0 or 0.1.0-rc7. Leave it out to take the newest stable kit version.
+
+### kit_version_unknown
+What it means. The template repository has no kit-v tag with the version given to --kit-version. The message names the version.
+Why it is safe. The launcher checked the template's tags before it cloned or changed anything.
+What to do. Check the version against the template's tags (kit-v<version>), or leave --kit-version out to take the newest kit version.
+
+### template_too_big
+What it means. The template holds more than 2000 files or more than 20 MB, so new --repo refused to copy it.
+Why it is safe. The launcher removed its local clone and changed nothing on GitHub.
+What to do. Tell the owner: the template release is not the size the launcher expects.
 
 ### bad_shard
 What it means. The shard name is not allowed.
@@ -354,7 +471,7 @@ Why it is safe. The launcher refused the address before it created anything.
 What to do. The owner corrects the address in `launcher/config/world.conf`. A port is allowed only when it is the `mcp_port`.
 
 ### bad_token
-What it means. The token file is not valid. It needs one line of 16 to 200 letters, digits, or . _ ~ -
+What it means. The token file is not valid. It needs one line of 16 to 200 letters, digits, or `. _ ~ -`. The line may start with `GELDAR_MCP_TOKEN=` (the form Geldar writes); any other prefix is refused.
 Why it is safe. The launcher refused the file before it created anything.
 What to do. Replace the file with a token in that form. Never paste a token into a chat or a commit.
 
@@ -414,9 +531,29 @@ Why it is safe. Nothing was created.
 What to do. Give a directory that holds both files, then run the command again.
 
 ### persona_bad
-What it means. The persona files were refused. The reason is in brackets: size means over the byte cap (8192 bytes for identity.md, 4096 for goals.md); control means a control character; utf8 means not valid UTF-8; invisible means an invisible code point; link means a symbolic link; type means not a plain file or folder; empty means an empty file; twice means the option was given twice.
+What it means. The persona files were refused. The reason is in brackets: size means over the byte cap (8192 bytes for identity.md, 4096 for goals.md); control means a control character; utf8 means not valid UTF-8; invisible means an invisible code point; link means a symbolic link; hardlink means a file with more than one hard link; type means not a plain file or folder; empty means an empty file; twice means the option was given twice.
 Why it is safe. The files are checked before anything is written, so nothing was created.
 What to do. Fix the named problem in the persona files, then run the command again.
+
+### sheet_stored
+What it means. The character sheet was copied into the private state folder of this player on this machine, as sheet.json with owner-only access.
+Why it is safe. The sheet is not in the player repository, and nothing has been delivered to the player yet.
+What to do. Nothing is needed. Run sheet-set again with a new file to replace the stored sheet.
+
+### sheet_bad
+What it means. The sheet file was refused, and the reason is in brackets: link means a symbolic link; type means not a plain file; size means empty or over 4096 bytes; text means not UTF-8 text whose first character is {; write means the copy into the state folder failed; twice means --sheet was given twice.
+Why it is safe. The file is checked before anything is written, so a refusal changes nothing. The sheet text is never printed.
+What to do. Fix the named problem in the sheet file, which must be a plain UTF-8 JSON file of at most 4096 bytes, then run the command again.
+
+### sheet_failed
+What it means. The stored sheet could not be put in place before the start, so the start was refused. The throwaway helper that copies it into the supervisor volume failed.
+Why it is safe. Compose was never called, so nothing started or changed on the player.
+What to do. Check that Docker is running and the kit image is present, then run the command again. If it repeats, run sheet-set with the sheet file again.
+
+### roster_failed
+What it means. The stored roster could not be put in place before the start, so the start was refused.
+Why it is safe. Compose was never called, so nothing started or changed on the player.
+What to do. Check that Docker is running, then run the command again. The roster file is a plain JSON file of at most 16 KiB.
 
 ### dev_world_bad
 What it means. GELDAR_DEV_MCP_URL is set, but it is not exactly `http://host.docker.internal:PORT/p/ID` with PORT from 1024 to 65535 and no leading zero.
@@ -458,6 +595,16 @@ What it means. The upgrade branch was pushed, but the pull request could not be 
 Why it is safe. Memory was not touched, and the branch is on GitHub for you to review.
 What to do. Open the pull request by hand from that branch.
 
+### upgrade_push_failed
+What it means. The upgrade branch could not be pushed to GitHub.
+Why it is safe. Nothing was changed in the player's memory, and the player's branch was not touched.
+What to do. Check the network and your GitHub access, then run the upgrade again.
+
+### upgrade_pushed
+What it means. The upgrade branch is pushed, but the GitHub CLI (gh) is not installed, so no pull request was made.
+Why it is safe. Memory was not touched. The branch only holds the new kit files on GitHub.
+What to do. Open the pull request by hand from that branch on GitHub, or install gh and run the upgrade again.
+
 ### upgrade_dirty
 What it means. The player's copy has unsaved changes, or could not be brought up to date.
 Why it is safe. The launcher stopped before it changed any branch.
@@ -467,3 +614,187 @@ What to do. Commit or discard the changes, make sure the copy is up to date, the
 What it means. The launcher prints a cosign command that checks the signature of the kit image.
 Why it is safe. The launcher does not merge anything. The command lets you check the image first.
 What to do. Run the command, which needs cosign installed. Merge the pull request only if the check passes.
+
+### auth_set_prompt
+What it means. The launcher is asking you to paste the shared login token. Nothing you type is shown on screen.
+Why it is safe. The token is read without echo, is never written to the screen or to a log, and is stored in one file that only your account can read.
+What to do. If you have no token yet, run `claude setup-token` once, copy what it prints, and paste it here. You can also pipe it in or give a file with `--token-file`, but the hidden prompt is safer: a piped token or a token file can stay in shell history or on disk, so delete the token file after use and avoid `bash -x`.
+
+### auth_set_done
+What it means. The shared login token is stored in one private file on this machine. Every player started from now on uses it, so no player needs to sign in again.
+Why it is safe. The file is readable by your account only. The token reaches a player's container only as an environment variable of the compose process, never on a command line.
+What to do. Nothing. Run `auth-status` to check it, or `auth-clear` to remove it.
+
+### auth_status_set
+What it means. A shared login token is stored and its file and folder are owner only. Players use it instead of a login of their own.
+Why it is safe. The command never shows the token or any part of it.
+What to do. Nothing. Run `auth-clear` if you want players to sign in on their own again.
+
+### auth_status_not_set
+What it means. No shared login token is stored (or the stored file is not valid). Each player signs in on their own, as before.
+Why it is safe. Nothing is shared, so nothing is at risk.
+What to do. Run `claude setup-token` once, then `auth-set`, if you want one login for every player on this machine.
+
+### auth_status_open_mode
+What it means. A shared login token is stored, but its file or folder can be read by other accounts on this machine.
+Why it is safe. The command did not change anything and did not show the token.
+What to do. Run `auth-set` again with the token: it writes a fresh owner-only file. If other accounts could have read the old file, replace the token as well by running `claude setup-token` again.
+
+### auth_status_invalid
+What it means. A shared login file is present but it is not a valid token (two lines, a trailing space, a byte order mark, a NUL byte, or over 400 characters), so it is not used.
+Why it is safe. The command did not change anything and did not show the file's content.
+What to do. Run `claude setup-token`, then `geldar-play auth-set`. Or run `auth-clear` so each player signs in on their own.
+
+### auth_stored_invalid
+What it means. A session start found a shared login file that is not valid, or whose file or folder can be read by others. It was not passed to the player, which then asks for a login of its own.
+Why it is safe. Nothing is sent to the container from a file that is not valid or not private.
+What to do. Run `claude setup-token`, then `geldar-play auth-set`. If a session fails to sign in with a stored token, the token may be revoked or expired: run `claude setup-token` again, then `geldar-play auth-set`. Run `auth-clear` to fall back to a login for each player.
+### auth_cleared
+What it means. The stored shared login token file was removed (or there was none).
+Why it is safe. Players that already signed in on their own keep their own login. A removed file does not revoke the token itself.
+What to do. To revoke the token itself, run `claude setup-token` again or use the account's settings. Run `auth-set` to store a new one.
+
+### auth_bad_token
+What it means. What was given is not a usable token. It must be exactly one line of 20 to 400 letters, digits and the characters `.`, `_`, `~` and `-`. Spaces, an equals sign or a second line are refused.
+Why it is safe. Nothing was stored and the old token, if any, is unchanged. The refused text is not shown.
+What to do. Run `claude setup-token`, copy only the token it prints, and run `auth-set` again.
+
+### player_remote_bad
+What it means. The keeper of the persistent player cannot push its work, because the clone's origin is not a GitHub repository this launcher can use. Only github.com addresses are accepted.
+Why it is safe. The launcher checks the address before it starts any container, so nothing was pushed and nothing was started.
+What to do. Point the clone's origin at the player's GitHub repository, then start the player again.
+
+### player_ws_failed
+What it means. The workspace volume for the persistent player could not be made from the host clone.
+Why it is safe. The launcher removed the half-made volume, so nothing was started and the clone was not changed.
+What to do. Check that Docker is running and that the clone is readable, then start the player again.
+
+### player_no_key
+What it means. The persistent player has no deploy key yet, so the keeper cannot push.
+Why it is safe. The launcher refused before any container started, so nothing was pushed or changed.
+What to do. Run deploy-key for the player, add the printed public key to its repository with write access, then start again.
+
+### player_no_token
+What it means. The persistent player has no MCP token file, so it cannot reach its world.
+Why it is safe. The launcher refused before any container started. No token was read or printed.
+What to do. Store the player's token, then start the player again.
+
+### player_no_login
+What it means. No shared Claude login is stored, so the player cannot run its harness.
+Why it is safe. The launcher refused before any container started. The stored login, if any, was not printed.
+What to do. Run auth-set to store the login, then start the player again.
+
+### player_no_status
+What it means. One part of player-status could not be read. The message names the part: supervisor or keeper. The player may not have started yet, or its volume may be missing.
+Why it is safe. player-status only reads files and prints nothing secret. The other parts are still shown.
+What to do. Start the player, then run player-status again. If it stays the same, look at the player's logs.
+
+### player_held
+What it means. The persistent player is held, and the reason is printed after it. A hold stops every launch until it is released.
+Why it is safe. A held player runs no session, so nothing new was saved or pushed. Its supervisor waits and starts sessions again once the hold is released.
+What to do. Read the reason, fix what it names, then run release-hold to clear the hold.
+
+### player_stop_upstream
+What it means. The supervisor of the persistent player stopped after its upstream sync failed, and the reason is printed after it. It idles until the stop is cleared, and it starts again once the stop is removed.
+Why it is safe. The stopped supervisor runs no session, so nothing new was saved or pushed. The player's workspace and memory are kept.
+What to do. Read the reason, fix what it names, then run release-hold to clear the stop.
+
+### player_key_failed
+What it means. The deploy key for the persistent player could not be made.
+Why it is safe. The new key was made in its own folder and was not moved into place, so an old key, if there is one, is kept.
+What to do. Check that ssh-keygen works on this machine or that Docker is running, then run deploy-key again.
+
+### player_key_chown_failed
+What it means. The new deploy key for the persistent player was made, but it could not be handed to the keeper, which must be able to read it.
+Why it is safe. The key was removed and not moved into place, so an old key, if there is one, is kept, and nothing was pushed with the new key.
+What to do. Check that Docker can run the kit image on this machine, then run deploy-key again.
+
+### player_key_rotated
+What it means. A new deploy key was made for the persistent player, and the public key is printed above this line.
+Why it is safe. Nothing was pushed with the new key yet. The old key no longer works for the keeper once the new one is in place.
+What to do. Add the new public key to the player's repository with write access, and remove the old one there.
+
+### player_key_add
+What it means. The public key printed above is the deploy key of the persistent player. This message only tells you what to do with it.
+Why it is safe. Printing the public key shows no secret: the private key stays in the player's folder.
+What to do. Add the public key to the player's repository as a deploy key with write access.
+
+### player_release_failed
+What it means. The hold on the persistent player could not be removed, so it is still set.
+Why it is safe. The hold stays in place, so no launch goes ahead.
+What to do. Check that Docker is running, then run release-hold again.
+
+### player_not_running
+What it means. The persistent player is not running: its keeper or its supervisor is stopped, so there is no one to take a sync request. Nothing was asked of it.
+Why it is safe. The launcher refused before it touched the player's volumes, so nothing changed.
+What to do. Start the player, wait until both containers run, then run sync again.
+
+### player_sync_requested
+What it means. The sync request was left for the keeper of the persistent player. The keeper fetches the upstream changes at its next wake-up, and the supervisor applies them between runs.
+Why it is safe. A sync never changes the workspace during a run. A change that cannot be applied is held with its reason, as any hold is.
+What to do. Wait for the next run to start, then run player-status to see the upstream result of the keeper and the supervisor.
+
+### player_sync_failed
+What it means. The sync request for the persistent player could not be written into the keeper's state, so the keeper was not asked to fetch.
+Why it is safe. Nothing changed: no fetch ran and the workspace is as it was.
+What to do. Check that Docker is running, then run sync again.
+
+### pull_done
+What it means. The clone of the player is up to date with its repository.
+Why it is safe. The pull only fast-forwards: it refuses a clone with changes or on another branch, and it never rewrites history.
+What to do. Nothing. Run player-status or start the player to continue.
+
+### chatgpt_no_login
+What it means. This player's ChatGPT login is missing or unusable.
+Why it is safe. The launcher refused before starting the persistent player, and no credentials were printed.
+What to do. Run `geldar-play chatgpt-login <id>` on the Docker host and approve plan usage in the browser, then retry `start`.
+
+### chatgpt_wrong_harness
+What it means. A ChatGPT account command was used for a player whose committed harness is not `chatgpt`.
+Why it is safe. No login container started and no stored account was changed.
+What to do. Use the player's existing provider, or commit `"harness": "chatgpt"` and select an account model before starting it. See [ChatGPT setup](chatgpt.md).
+
+### chatgpt_failed
+What it means. ChatGPT sign-in or model listing failed, for example because access was declined or the connection failed.
+Why it is safe. An unverified account cannot replace valid credentials, and a failed model listing starts no world session.
+What to do. Check Docker, the network and ChatGPT account eligibility. Retry the account command; stop the player before reconnecting its account.
+
+### chatgpt_persistent
+What it means. The ChatGPT provider was requested through a birth, single-day or host run command it does not support.
+Why it is safe. No ChatGPT mind is launched through the Claude-only session path.
+What to do. Seed the persona first, connect its account, select a model and use `start`, `stop` and `restart`.
+
+### chatgpt_persona
+What it means. A new ChatGPT player was requested without a seeded persona.
+Why it is safe. No remote player repository was created for this incomplete request.
+What to do. Supply `--persona-dir` with the player's identity and goals. ChatGPT players use the persistent-player flow rather than interactive `setup`.
+
+### chatgpt_no_model
+What it means. No usable ChatGPT model has been selected for this player.
+Why it is safe. The persistent player was not started, and no Claude model or API billing fallback was substituted.
+What to do. Run `chatgpt-models <id>`, then commit a returned slug as `declared_model` in `player.json`, or set `GELDAR_RUN_MODEL` before starting it.
+
+### local_unavailable
+What it means. The local harness was requested with `--cli local`. This release does not offer it.
+Why it is safe. Nothing was created, started or changed, and no remote call was made.
+What to do. Create the player without `--cli local`. Nothing in this release sets up a local player for you.
+
+### local_persistent
+What it means. A local player was asked to run `play` or `run`. Local players are persistent.
+Why it is safe. No local mind was launched through the Claude-only session path.
+What to do. Seed the persona first, set the model and the model server, then use `start`, `stop` and `restart`.
+
+### local_no_model
+What it means. No usable model name is set for this local player.
+Why it is safe. The persistent player was not started, and no other model was substituted.
+What to do. Set `declared_model` in `player.json` to the model name your server serves and commit it, or set `GELDAR_RUN_MODEL` before starting it.
+
+### local_no_endpoint
+What it means. No model server is stored for this local player: its `local/base-url` file in the player's state folder is missing, empty or a link.
+Why it is safe. The launcher refused before starting the persistent player. The server's address is kept outside the repository, so nothing was written to it.
+What to do. Put the model server's base URL in `local/base-url` in the player's state folder, as a single line, then retry `start`. Nothing in this release writes that file for you.
+
+### local_no_context
+What it means. This local player has no usable `context_tokens` setting in its committed `player.json`.
+Why it is safe. The persistent player was not started, and no default context size was assumed.
+What to do. Set `context_tokens` to the context size your model server serves, a whole number from 1024 to 2000000, and commit it.

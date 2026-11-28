@@ -6,6 +6,8 @@ A kit release is one tag, `kit-vX.Y.Z`. The tag names three things that must agr
 - the kit image digest (`sha256:...`) that the template expects;
 - the launcher version, the `geldar-play` build that goes with the kit.
 
+Which tag a player gets: `upgrade` and `new --repo` take the newest stable tag (no hyphen), so a stable release is never replaced by a prerelease. Only when the template has no stable tag do they take the newest prerelease (`kit-vX.Y.Z-rcN`, with `rc10` after `rc9`). `new --repo --kit-version <version>` copies one exact tag, prerelease or not.
+
 ## What the release workflow does
 
 The workflow is `.github/workflows/release.yml` (added in SC-63). It runs only on `kit-v*` tags, and a failed scan stops the release. Its steps, in order:

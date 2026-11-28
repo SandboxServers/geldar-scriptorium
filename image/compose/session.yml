@@ -36,6 +36,15 @@ services:
       https_proxy: http://proxy:3128
       NO_PROXY: ""
       GELDAR_MODE: ${GELDAR_MODE:-play}
+      # No account connectors (a claude.ai login would add Gmail, Calendar, Drive and Docs) and no
+      # deferred tool search: the kit's own MCP tools load up front.
+      ENABLE_CLAUDEAI_MCP_SERVERS: "false"
+      ENABLE_TOOL_SEARCH: "false"
+      # A 200k window: compaction and the meter lines assume it.
+      CLAUDE_CODE_DISABLE_1M_CONTEXT: "1"
+      # Workers always run the small model.
+      CLAUDE_CODE_SUBAGENT_MODEL: "haiku"
+      CLAUDE_CODE_SUBAGENT_MODEL_FORCE: "1"
     networks: [inside]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

@@ -1,0 +1,11 @@
+run_start	Keeping %s living. Each cycle is a full play cycle. Stop it with run-stop.
+run_stop_requested	A stop was requested for %s. A running supervisor stops after the current round.
+run_cap_reached	The daily cost cap (%s USD) is reached. Waiting until the next day (UTC).
+run_backoff	Cycle %s failed or was short. Waiting %s seconds before the next one.
+run_too_many_failures	%s cycles in a row failed. The run stopped itself and will not start again until run/STOP is deleted.
+run_already_running	A supervisor is already running for %s (lock %s, process %s). If that process is not a supervisor, delete the lock folder and start again.
+run_status_none	No run folder for %s yet. Nothing has been run.
+run_stopped	Stopped after run %s.
+run_held	The saved session for %s was held back. Nothing more will run until it is resolved: use geldar-play resolve %s, then start again.
+run_stopped_auto	The last run stopped itself: %s. Look at %s, fix the cause, delete that file and start again.
+run_stopping	Stopping after this round. The saved session finishes first.

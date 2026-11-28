@@ -12,12 +12,12 @@ RUN npm install -g pnpm@12.15.0
 WORKDIR /opt/geldar
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages ./packages
-RUN pnpm install --frozen-lockfile --prod --filter "./packages/{path-rule,memory,git,verify}"
+RUN pnpm install --frozen-lockfile --prod --filter "./packages/{path-rule,memory,git,verify,keeper,supervisor,chatgpt,mind-loop,local,psyche,instinct}"
 
 FROM node:22.23.4-trixie-slim@sha256:be1e2a3dc2c4fd68cdfadad2a696a280e0d2749098bee509230174d72fb768c6 AS kit
 ARG CLAUDE_CODE_VERSION=2.1.310
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git jq bash ca-certificates \
+ && apt-get install -y --no-install-recommends git jq bash ca-certificates openssh-client \
  && rm -rf /var/lib/apt/lists/* \
  && git --version | awk '{split($3,v,"."); exit !(v[1]>2 || (v[1]==2 && v[2]>=40))}' \
  && dpkg --purge --force-depends libcurl3t64-gnutls \
@@ -28,17 +28,47 @@ COPY --from=deps /opt/geldar /opt/geldar
 RUN for b in memory git verify; do \
       printf '#!/bin/sh\nexec node /opt/geldar/packages/%s/src/cli.ts "$@"\n' "$b" > /usr/local/bin/geldar-$b; \
       chmod 0755 /usr/local/bin/geldar-$b; done
+# geldar-supervisor (SC-160): the in-container run loop.
+RUN printf '#!/bin/sh\nexec node /opt/geldar/packages/supervisor/src/cli.ts "$@"\n' > /usr/local/bin/geldar-supervisor \
+ && chmod 0755 /usr/local/bin/geldar-supervisor
+RUN printf '#!/bin/sh\nexec node --use-env-proxy /opt/geldar/packages/chatgpt/src/cli.ts "$@"\n' > /usr/local/bin/geldar-chatgpt \
+ && chmod 0755 /usr/local/bin/geldar-chatgpt
+RUN printf '#!/bin/sh\nexec node --use-env-proxy /opt/geldar/packages/local/src/cli.ts "$@"\n' > /usr/local/bin/geldar-local \
+ && chmod 0755 /usr/local/bin/geldar-local
+RUN printf '#!/bin/sh\nexec node --use-env-proxy /opt/geldar/packages/instinct/src/cli.ts "$@"\n' > /usr/local/bin/geldar-instinct \
+  && chmod 0755 /usr/local/bin/geldar-instinct
+# The keeper (SC-161): the gate-and-push binary, its CONNECT helper and the pinned GitHub host keys.
+RUN printf '#!/bin/sh\nexec node /opt/geldar/packages/keeper/src/cli.ts "$@"\n' > /usr/local/bin/geldar-keeper \
+ && printf '#!/bin/sh\nexec node /opt/geldar/packages/keeper/src/connect-cli.ts "$@"\n' > /usr/local/bin/geldar-keeper-connect \
+ && chmod 0755 /usr/local/bin/geldar-keeper /usr/local/bin/geldar-keeper-connect
+COPY packages/keeper/data/known_hosts /etc/geldar/keeper-known-hosts
 COPY image/geldar-entrypoint.sh /usr/local/bin/geldar-entrypoint.sh
 RUN chmod 0755 /usr/local/bin/geldar-entrypoint.sh
 COPY image/settings/managed.json /etc/claude-code/managed-settings.json
-COPY image/settings/play.json image/settings/setup.json /etc/geldar/settings/
+COPY image/settings/play.json image/settings/setup.json image/settings/tidy.json /etc/geldar/settings/
 RUN printf 'geldar kit\n' > /etc/geldar-kit \
  && find /etc/geldar /etc/claude-code -type f -exec chmod 0444 {} + \
  && find /etc/geldar /etc/claude-code -type d -exec chmod 0555 {} + \
  && chmod 0444 /etc/geldar-kit \
  && mkdir -p /player /cli-home && chown player:player /player /cli-home
+
+# The persistent player group (decision 64, SC-162): the `supervisor` (1001) and `keeper` (1002) users beside
+# `player` (1000), the mount points of the state volumes, and the two service entrypoints. The compose services
+# start these entrypoints as root with a minimal capability set; each one fixes ownership, then drops to its user.
+# State directories: /state/supervisor is supervisor:keeper 2750 (the player user cannot read it), /keeper-state
+# is keeper:supervisor 2750, /clone is keeper-only. /workspace and /supervisor-state are read-only mounts in `keeper`.
+RUN groupadd -g 1001 supervisor && useradd -u 1001 -g 1001 -M -d /nonexistent -s /usr/sbin/nologin supervisor \
+ && groupadd -g 1002 keeper && useradd -u 1002 -g 1002 -M -d /nonexistent -s /usr/sbin/nologin keeper \
+ && mkdir -p /state/supervisor /keeper-state /supervisor-state /workspace /clone \
+ && chown 1001:1002 /state/supervisor && chmod 2750 /state/supervisor \
+ && chown 1002:1001 /keeper-state && chmod 2750 /keeper-state \
+ && chown 1002:1002 /clone && chmod 0700 /clone
+COPY image/geldar-player-entrypoint.sh /usr/local/bin/geldar-player-entrypoint
+COPY image/geldar-keeper-entrypoint.sh /usr/local/bin/geldar-keeper-entrypoint
+RUN chmod 0755 /usr/local/bin/geldar-player-entrypoint /usr/local/bin/geldar-keeper-entrypoint
+# End of the persistent player group block.
 LABEL org.opencontainers.image.source="https://github.com/SandboxServers/geldar-scriptorium"
-ENV CLAUDE_CONFIG_DIR=/cli-home DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+ENV CLAUDE_CONFIG_DIR=/cli-home DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 ENABLE_CLAUDEAI_MCP_SERVERS=false ENABLE_TOOL_SEARCH=false CLAUDE_CODE_DISABLE_1M_CONTEXT=1 CLAUDE_CODE_SUBAGENT_MODEL=haiku CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1
 # The kit entrypoint seeds the player's workspace trust, then runs the base image's
 # docker-entrypoint.sh. CMD is repeated because an ENTRYPOINT here resets the base image's CMD.
 ENTRYPOINT ["/usr/local/bin/geldar-entrypoint.sh"]

@@ -1,0 +1,19 @@
+{
+  "name": "@geldar/scriptorium-mind-loop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The shared mind loop: tools, files, instructions and records for every harness",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p . --noEmit"
+  },
+  "dependencies": {
+    "@geldar/scriptorium-path-rule": "workspace:*",
+    "@geldar/scriptorium-psyche": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "ajv": "8.17.1"
+  }
+}

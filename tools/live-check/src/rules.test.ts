@@ -19,6 +19,9 @@ describe('parseDenyRules', () => {
         { tool: 'Edit', pattern: '//cli-home/**' },
         { tool: 'Read', pattern: '//cli-home' },
         { tool: 'Edit', pattern: '//cli-home' },
+        { tool: 'Write', pattern: '**/.credentials.json' },
+        { tool: 'Write', pattern: '//cli-home/**' },
+        { tool: 'Write', pattern: '//cli-home' },
       ],
     });
   });

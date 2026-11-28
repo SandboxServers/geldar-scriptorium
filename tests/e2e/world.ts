@@ -1,11 +1,25 @@
 // The in-test world as a container (SC-55b), and the generated compose file that adds it to the
 // launcher's own session project. Test code only: nothing here ships.
 import { spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { repoRoot } from '../../launcher/test/harness.ts';
 
 // Docker and compose take forward slashes on every OS.
 const fwd = (p: string): string => p.split('\\').join('/');
+
+// SC-80: `play` needs the mock URL's host to equal mcp_base of the launcher's world.conf, so the
+// e2e launcher runs with a copy of the image share whose world.conf names the stub world
+// (http://world.test on port 80, hence an empty mcp_port). Returns the share directory (GELDAR_SHARE).
+export function mockWorldShare(dir: string): string {
+  const share = join(dir, 'share');
+  mkdirSync(join(share, 'config'), { recursive: true });
+  for (const d of ['compose', 'proxy', 'settings']) {
+    cpSync(join(repoRoot, 'image', d), join(share, d), { recursive: true });
+  }
+  writeFileSync(join(share, 'config', 'world.conf'), 'mcp_base=http://world.test\nmcp_port=\n');
+  return share;
+}
 
 // SC-55c: the mock world of the geldar repo (Wave 3). Our own image, pinned by digest; decision 27
 // exempts it from the two-week age rule (never apply that to a third-party image).

@@ -1,0 +1,3 @@
+player_not_running	%s is not running, so there is nothing to sync. Start the player, then run sync again.
+player_sync_requested	A sync is requested for %s. The keeper fetches upstream changes now, and the workspace takes them between runs, never during one.
+player_sync_failed	The sync for %s could not be requested. Nothing changed.

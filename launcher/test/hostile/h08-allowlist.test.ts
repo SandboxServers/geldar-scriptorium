@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { forGroup, git, makePlayer, makeWorld, run } from '../harness.ts';
+import { FIXTURE_MCP_HOST, forGroup, git, makePlayer, makeWorld, run } from '../harness.ts';
 import { attack, benign, expectNoDockerCall, expectRefusal } from './world.ts';
 
 // H-08 (T-08): an mcp_url host that would widen the Squid allowlist is refused before any file is
@@ -59,6 +59,6 @@ describe.each(forGroup('hostile'))('H-08 allowlist ($name)', (launcher) => {
     expect(a.allowlistPath.endsWith('allowlist-world.txt')).toBe(true);
     expect(a.allowlistSeen).toBe(true);
     const content = readFileSync(join(a.world.dockerRoot, 'allowlist.mark.content'), 'utf8');
-    expect(content).toBe('mcp.registry.test\n');
+    expect(content).toBe(`${FIXTURE_MCP_HOST}\n`);
   });
 });

@@ -1,6 +1,7 @@
 import {
   chmodSync,
   existsSync,
+  linkSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -16,7 +17,7 @@ import { bashExe, bashPath, git, type Launcher, makeWorld, repoRoot, run } from 
 // through personaSuite, so a refusal that one twin forgets fails there.
 
 type Content = { text: string } | { hex: string } | { fill: number };
-type FileSpec = 'ok' | 'missing' | 'link' | Content;
+type FileSpec = 'ok' | 'missing' | 'link' | 'hardlink' | Content;
 
 export interface PersonaCase {
   name: string;
@@ -162,7 +163,14 @@ export function personaSuite(l: Launcher): void {
               const s = spec ?? 'ok';
               if (s === 'missing') continue;
               if (s === 'link') skip = link(join(outside, 'real.md'), at, 'file');
-              else writeFileSync(at, s === 'ok' ? good : bytesOf(s));
+              else if (s === 'hardlink') {
+                writeFileSync(at, good);
+                try {
+                  linkSync(at, join(outside, `${file}.second`));
+                } catch (e) {
+                  skip = String(e);
+                }
+              } else writeFileSync(at, s === 'ok' ? good : bytesOf(s));
             }
             if (c.files.extras) {
               writeFileSync(join(mem, 'notes.md'), 'never read\n');

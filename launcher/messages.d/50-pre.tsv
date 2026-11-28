@@ -10,7 +10,7 @@ unfinished	The last session for %s did not finish. Run: geldar-play resolve %s
 workspace_exists	A workspace for %s was left behind. Run: geldar-play resolve %s --discard
 workspace_failed	Could not prepare the workspace for %s (%s). Nothing was started.
 bad_player_json	player.json for %s is not valid (%s).
-harness_unsupported	%s asks for a program this version cannot run. Only Claude Code works in this version.
+harness_unsupported	%s asks for a program this version cannot run. Use Claude Code, or chatgpt for persistent players.
 host_path_in_workspace	The workspace for %s was not isolated, so nothing was started.
 start_recorded	Starting from %s.
 branch_changed	%s is not on its usual branch. Switch back, then try again.

@@ -1,0 +1,9 @@
+auth_set_prompt	If you have no token yet, run claude setup-token first and copy what it prints. Paste the token (nothing is shown). Prefer this hidden prompt: piping the token or using --token-file can leave it in shell history or a file, so delete the token file after use and avoid bash -x:
+auth_set_done	The shared login is stored. Every player on this machine now uses it.
+auth_status_set	Shared login: set. The file is private (owner only).
+auth_status_not_set	Shared login: not set. Each player signs in on their own.
+auth_status_open_mode	Shared login: set, but its file or folder can be read by others. Run auth-set again to store it with owner-only access.
+auth_cleared	The shared login is removed. Each player signs in on their own again.
+auth_bad_token	That is not a usable login token. It must be one line of 20 to 400 letters, digits and . _ ~ - characters. Run claude setup-token and copy what it prints.
+auth_status_invalid	A shared login file is present but not valid. Run: claude setup-token, then geldar-play auth-set.
+auth_stored_invalid	Warning: the shared login file is not valid or can be read by others, so it is not passed to the player. Run: claude setup-token, then geldar-play auth-set.

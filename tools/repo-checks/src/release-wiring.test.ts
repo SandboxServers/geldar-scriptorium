@@ -145,7 +145,7 @@ describe('release.yml wiring (SC-63f)', () => {
     expect(r[tagCheck]).toContain('exit 1');
     expect(r[create]).toContain('--verify-tag');
     expect(r[create]).toContain('--prerelease');
-    expect(r[create]).toContain('"$TAG" == *-*');
+    expect(r[create]).toContain('"$VERSION" == *-*');
     expect(r[create]).toContain('cosign verify $IMAGE');
     expect(r[create]).toContain('cosign verify-blob');
     const step = (jobs().release.steps as Obj[])[create];

@@ -1,0 +1,119 @@
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { fileTools, textOutput } from './files.ts';
+import { record } from './record.ts';
+import type { Block } from './transport.ts';
+import type { Tool } from './types.ts';
+
+/** Preserve world images without fetching model-supplied URLs or treating tool text as instructions. */
+export function toolOutput(answer: unknown): Block[] {
+  if (!record(answer) || !Array.isArray(answer.content)) return textOutput('No result.');
+  const blocks: Block[] = [];
+  for (const c of answer.content) {
+    if (!record(c)) continue;
+    if (c.type === 'text' && typeof c.text === 'string')
+      blocks.push({ type: 'text', text: c.text });
+    if (
+      c.type === 'image' &&
+      typeof c.data === 'string' &&
+      c.data.length <= 8 * 1024 * 1024 &&
+      ['image/png', 'image/jpeg', 'image/webp'].includes(String(c.mimeType)) &&
+      /^[A-Za-z0-9+/=\r\n]+$/.test(c.data)
+    ) {
+      blocks.push({ type: 'image', mimeType: String(c.mimeType), data: c.data });
+    }
+  }
+  return blocks.length ? blocks : textOutput('No result.');
+}
+
+/**
+ * The headers of the world connection: the bearer token, and the harness and model stamp when each
+ * value is well formed (an absent or bad value sends no header).
+ */
+export function worldHeaders(env: NodeJS.ProcessEnv): Record<string, string> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${env.GELDAR_MCP_TOKEN ?? ''}`,
+  };
+  const harness = env.GELDAR_HARNESS ?? '';
+  if (/^(claude|chatgpt|local)$/.test(harness)) headers['X-Geldar-Harness'] = harness;
+  const model = env.GELDAR_RUN_MODEL ?? '';
+  if (/^[A-Za-z0-9._:/-]{1,64}$/.test(model)) headers['X-Geldar-Model'] = model;
+  return headers;
+}
+
+export async function connectTools(
+  root: string,
+  env: NodeJS.ProcessEnv,
+): Promise<{ tools: Tool[]; close(): Promise<void> }> {
+  const clients: Client[] = [];
+  const tools = fileTools(root);
+  const close = async (): Promise<void> => {
+    await Promise.allSettled(clients.map((c) => c.close()));
+  };
+  const add = async (client: Client, prefix: string): Promise<void> => {
+    let cursor: string | undefined;
+    do {
+      const page = await client.listTools(cursor ? { cursor } : {});
+      for (const t of page.tools) {
+        const name = `${prefix}${t.name}`;
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(name) || tools.some((other) => other.name === name))
+          throw new Error('duplicate tool');
+        tools.push({
+          name,
+          description: t.description ?? t.name,
+          parameters: t.inputSchema,
+          async call(args) {
+            return toolOutput(
+              await client.callTool({ name: t.name, arguments: args }, undefined, {
+                timeout: 300_000,
+              }),
+            );
+          },
+        });
+      }
+      cursor = page.nextCursor;
+    } while (cursor);
+  };
+  try {
+    const world = new Client({ name: 'geldar-chatgpt', version: '0.1.0' });
+    clients.push(world);
+    const url = new URL(env.GELDAR_MCP_URL ?? '');
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password)
+      throw new Error('world address');
+    await world.connect(
+      new StreamableHTTPClientTransport(url, {
+        requestInit: {
+          headers: worldHeaders(env),
+          redirect: 'error',
+        },
+      }),
+    );
+    await add(world, '');
+    for (const [command, prefix, args] of [
+      ['geldar-memory', 'memory_', ['--root', root]],
+      ['geldar-git', 'git_', ['mcp', '--root', root]],
+    ] as const) {
+      const client = new Client({ name: 'geldar-chatgpt', version: '0.1.0' });
+      clients.push(client);
+      // Fixed executables and a fresh environment: these servers never receive ChatGPT credentials.
+      await client.connect(
+        new StdioClientTransport({
+          command,
+          args: [...args],
+          stderr: 'ignore',
+          env: {
+            PATH: env.PATH ?? '/usr/local/bin:/usr/bin:/bin',
+            HOME: '/tmp',
+            GELDAR_MODE: 'play',
+          },
+        }),
+      );
+      await add(client, prefix);
+    }
+    return { tools, close };
+  } catch (err) {
+    await close();
+    throw err;
+  }
+}

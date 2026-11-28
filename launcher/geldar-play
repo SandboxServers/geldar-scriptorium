@@ -27,10 +27,13 @@ GP_VERSION="0.1.0"
 verb_needs() {
   case $1 in
     new | archive) printf '%s' 'docker git perl gh' ;;
-    setup | play | __prepare | __session | __finish) printf '%s' 'docker git tar perl' ;;
+    setup | play | run | __prepare | __session | __finish) printf '%s' 'docker git tar perl' ;;
     resolve) printf '%s' 'docker git perl' ;;
-    upgrade) printf '%s' 'git perl gh' ;;
-    status) printf '%s' 'git' ;;
+    upgrade) printf '%s' 'git perl' ;;
+    status | run_status | pull) printf '%s' 'git' ;;
+    start | stop | restart | player_status | logs | deploy_key | release_hold | sync) printf '%s' 'docker git perl' ;;
+    chatgpt_login | chatgpt_models) printf '%s' 'docker git' ;;
+    sheet_set) printf '%s' 'git perl' ;;
   esac
 }
 
@@ -53,6 +56,8 @@ parse_cli() {
   done
   case $GP_CLI in
     claude) ;;
+    chatgpt) [ "$verb" = new ] || die 1 chatgpt_persistent ;;
+    local) die 1 local_unavailable ;;
     codex) die 1 cli_unsupported ;;
     *) die 2 usage ;;
   esac
@@ -106,7 +111,11 @@ case $verb in
   __prepare | __session | __finish | __bounded)
     [ "${GELDAR_INTERNAL:-}" = "1" ] || die 2 internal_only
     ;;
-  new | setup | play | resolve | archive | status | upgrade) ;;
+  new | setup | play | run | run-status | run-stop | resolve | archive | status | upgrade) ;;
+  start | stop | restart | player-status | logs | deploy-key | release-hold | sync | pull) ;;
+  auth-set | auth-status | auth-clear) ;;
+  chatgpt-login | chatgpt-models) ;;
+  sheet-set) ;;
   *) die 2 usage ;;
 esac
 
@@ -118,14 +127,16 @@ fi
 
 GP_ARGS=()
 case $verb in
-  new | setup | play) parse_cli "$@" ;;
+  new | setup | play | run) parse_cli "$@" ;;
   *) GP_ARGS=("$@") ;;
 esac
 
-if [ "$verb" != "status" ]; then
-  [ ${#GP_ARGS[@]} -ge 1 ] || die 2 usage
-fi
-if [ ${#GP_ARGS[@]} -ge 1 ]; then
+case $verb in
+  status | auth-*) ;;
+  *) [ ${#GP_ARGS[@]} -ge 1 ] || die 2 usage ;;
+esac
+# The auth verbs take no player id: their arguments are checked by the verb itself.
+if [ ${#GP_ARGS[@]} -ge 1 ] && [ "${verb#auth-}" = "$verb" ]; then
   valid_player_id "${GP_ARGS[0]}" || die 2 bad_player_id "${GP_ARGS[0]}"
 fi
 if [ "$verb" = "play" ] && [ ${#GP_ARGS[@]} -ge 2 ]; then
@@ -134,6 +145,20 @@ if [ "$verb" = "play" ] && [ ${#GP_ARGS[@]} -ge 2 ]; then
   done
   verb=play_many
 fi
+
+case $verb in
+  run-status) verb=run_status ;;
+  run-stop) verb=run_stop ;;
+  player-status) verb=player_status ;;
+  deploy-key) verb=deploy_key ;;
+  release-hold) verb=release_hold ;;
+  auth-set) verb=auth_set ;;
+  auth-status) verb=auth_status ;;
+  auth-clear) verb=auth_clear ;;
+  chatgpt-login) verb=chatgpt_login ;;
+  chatgpt-models) verb=chatgpt_models ;;
+  sheet-set) verb=sheet_set ;;
+esac
 
 # shellcheck disable=SC2046
 need $(verb_needs "$verb")

@@ -6,6 +6,9 @@
 $GP_GROUPS = @()
 $script:GP_MSG = @{}
 $script:GP_LOCK_ID = ''
+$script:GP_DIE_THROWS = $false
+$script:GP_DIE_CODE = 1
+$script:GP_SHIELD = $false
 
 # Test-only variables are read only through this function (decision 9): the value when
 # GELDAR_INTERNAL=1, else the empty string.
@@ -56,6 +59,11 @@ function Die {
   $code = [int]$args[0]
   $rest = @($args | Select-Object -Skip 1)
   Say @rest
+  # The run supervisor ends one cycle on a refusal, not the launcher (lib/run.ps1).
+  if ($script:GP_DIE_THROWS) {
+    $script:GP_DIE_CODE = $code
+    throw 'geldar-die'
+  }
   exit $code
 }
 
@@ -78,7 +86,9 @@ function Get-PlayerDir([string]$Id) {
 }
 
 function Test-PlayerId([string]$Id) {
-  return [regex]::IsMatch($Id, '^[a-z][a-z0-9-]{1,38}\z')
+  if (-not [regex]::IsMatch($Id, '^[a-z][a-z0-9-]{1,38}\z')) { return $false }
+  # Names of folders the launcher keeps under the state directory (the shared login lives in auth).
+  return $Id -cnotin @('auth', 'run', 'players')
 }
 
 # Is the tool there? Its seam variable wins; under GELDAR_TOOL_PATH only those directories count.
@@ -223,10 +233,21 @@ function ConvertTo-CmdArgument([string]$Arg) {
 
 # The start info for an executable and its arguments. A .cmd or .bat goes through
 # cmd.exe /d /s /c "<shim> <args>" built on psi.Arguments (ArgumentList would re-escape the quotes).
+function Get-ShieldedWords([string]$Exe, [string[]]$ArgList) {
+  return @('-c', 'trap "" INT TERM HUP; exec "$@"', 'sh', $Exe) + @($ArgList)
+}
+
 function New-CmdShimStartInfo([string]$Exe, [string[]]$ArgList) {
   $psi = [System.Diagnostics.ProcessStartInfo]::new()
   $psi.UseShellExecute = $false
-  if ($Exe -match '\.(cmd|bat)\z') {
+  # The run supervisor's children must not see Ctrl-C (GP_SHIELD, set by lib/run.ps1). Windows:
+  # the console ignores it for a moment, and the child inherits that. POSIX: sh ignores the
+  # signals, then execs the command (an ignored disposition survives the exec).
+  if ($script:GP_SHIELD -and $IsWindows) { [GeldarRunStop]::ShieldFor(1500) }
+  if ($script:GP_SHIELD -and -not $IsWindows) {
+    $psi.FileName = '/bin/sh'
+    foreach ($a in (Get-ShieldedWords $Exe $ArgList)) { $psi.ArgumentList.Add([string]$a) }
+  } elseif ($Exe -match '\.(cmd|bat)\z') {
     $parts = @(ConvertTo-CmdArgument $Exe) + @($ArgList | ForEach-Object { ConvertTo-CmdArgument ([string]$_) })
     $psi.FileName = 'cmd.exe'
     $psi.Arguments = '/d /s /c "' + ($parts -join ' ') + '"'

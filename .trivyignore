@@ -1,0 +1,4 @@
+# Waiver (decision 65): openssh-client use-after-free in host handling, no fixed Debian version yet.
+# Used only by the keeper container, only toward the pinned GitHub host through the egress proxy.
+# Expires so it is re-judged: remove as soon as Debian ships a fix.
+CVE-2026-60002 exp:2027-02-11

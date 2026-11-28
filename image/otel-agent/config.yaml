@@ -1,0 +1,48 @@
+extensions:
+  health_check:
+    endpoint: 127.0.0.1:13133
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318            # reachable only on the internal geldar-otel network (TM-31)
+        max_request_body_size: 4194304     # 4 MiB: stays under the route's 8 MiB limit
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 200                         # container limit is 256 MiB
+    spike_limit_mib: 40
+  transform/scrub:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - delete_key(attributes, "user.email")
+          - delete_matching_keys(attributes, "^(enduser|http\\.request\\.header\\.(authorization|cookie)).*")
+    log_statements:
+      - context: log
+        statements:
+          - delete_key(attributes, "user.email")
+          - delete_matching_keys(attributes, "^(enduser|http\\.request\\.header\\.(authorization|cookie)).*")
+  batch:
+    send_batch_size: 512
+    send_batch_max_size: 1024
+    timeout: 5s
+exporters:
+  otlphttp:
+    endpoint: https://${env:GELDAR_INGEST_HOST}
+    headers:
+      Authorization: "Bearer ${env:GELDAR_INGEST_TOKEN}"
+    compression: gzip
+    timeout: 10s
+    retry_on_failure: { enabled: true, initial_interval: 5s, max_interval: 60s, max_elapsed_time: 300s }
+    sending_queue: { enabled: true, num_consumers: 2, queue_size: 200 }   # in memory, bounded, drops when full
+service:
+  extensions: [health_check]
+  telemetry:
+    logs: { level: warn }
+    metrics: { level: none }
+  pipelines:
+    traces:  { receivers: [otlp], processors: [memory_limiter, transform/scrub, batch], exporters: [otlphttp] }
+    logs:    { receivers: [otlp], processors: [memory_limiter, transform/scrub, batch], exporters: [otlphttp] }
+    metrics: { receivers: [otlp], processors: [memory_limiter, batch], exporters: [otlphttp] }
