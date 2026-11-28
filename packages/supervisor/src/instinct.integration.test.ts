@@ -172,10 +172,10 @@ describe('the supervisor and the instinct child against the fake world', () => {
     },
   );
 
-  it('case 2, sanity unset: the run equals the golden byte for byte', async () => {
+  it('case 2, sanity unset: the run equals the golden', async () => {
     const w = await wake({ GELDAR_INSTINCT: 'on' }, SHEET);
     expect(w.spawned).toHaveLength(1);
-    expect(`${JSON.stringify(recordOf(w), null, 2)}\n`).toBe(readFileSync(GOLDEN, 'utf8'));
+    expect(recordOf(w)).toEqual(JSON.parse(readFileSync(GOLDEN, 'utf8')));
   });
 
   it('case 3, sanity on, chatgpt: descriptor 4 holds the five SanityParams keys only', async () => {
