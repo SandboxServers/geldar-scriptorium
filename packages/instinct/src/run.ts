@@ -13,16 +13,19 @@ import {
 } from './contract.ts';
 import { decide, type Fx, type FxContext, type InstinctConfig } from './decide.ts';
 import { makeFact } from './facts.ts';
+import { failureFx } from './fx/failure.ts';
 import { readAdoptedGoal } from './fx/goal.ts';
 import { learnHabits, submittedFrom } from './fx/habits.ts';
+import { idleFx } from './fx/idle.ts';
 import { readKnownText } from './fx/known.ts';
+import { noveltyFx } from './fx/novelty.ts';
 import { observe } from './observe.ts';
 import { readSheetFile } from './sheetfile.ts';
 import { loadState, PENDING_MAX, saveState } from './state.ts';
 import { connectWorld, type WorldLink } from './world.ts';
 
-/** The fx list. HC-19 and later cards add theirs here; HC-18 has none, so only the guards and facts run. */
-export const DEFAULT_FXS: readonly Fx[] = [];
+/** The fx list, in the order decide runs them: a failing intent first, then a new thing, then the idle choice. */
+export const DEFAULT_FXS: readonly Fx[] = [failureFx, noveltyFx, idleFx];
 
 export type Env = Record<string, string | undefined>;
 
