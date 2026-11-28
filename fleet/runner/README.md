@@ -1,6 +1,6 @@
 # Runner
 
-The self-hosted GitHub Actions runner of the fleet: the account `geldar-runner`, its directory `/opt/geldar-runner`, the label `geldar-hosts` and the systemd unit `geldar-runner.service`. The runner executes the `deploy-player` workflow on the VM; the root wrapper and its sudo rule come with F-05b.
+The self-hosted GitHub Actions runner of the fleet: the account `geldar-runner`, its directory `/opt/geldar-runner`, the label `geldar-hosts` and the systemd unit `geldar-runner.service`. The runner executes the `deploy-player` workflow on the VM; the root wrapper and its sudo rule are in this branch (F-05b).
 
 ## Install
 
@@ -93,7 +93,7 @@ Policy:
 - tokens are read from root-owned files by `geldar` at run time, never in inputs or logs;
 - a workflow change needs the owner's PR approval;
 - fork approval and the `fleet` environment's `main` restriction are required (M-3);
-- write access to this repo can still run a branch workflow on the runner (D-FL-08), reaching only the wrapper's verbs, so the collaborator list is reviewed by the owner;
+- write access to this repo can still run a branch workflow on the runner (D-FL-08, accepted risk by owner ruling 2026-11-28), and the wrapper enforces no roster, so that job can run `remove` or `upgrade` on any `ag-` player; the owner reviews the collaborator list;
 - the runner has no route to the owner's desktop.
 
 ## F-08 step 1
@@ -104,4 +104,4 @@ The runner stays disabled until the wrapper is installed and `verify-confinement
 2. As root, run `verify-confinement.sh`. Every line starts with `ok` or `SKIP` and the exit code is 0. Any `FAIL` line stops the step.
 3. Run `verify-confinement.sh --in-unit`. It prints two `systemd-run` commands, built from the installed unit file, and runs nothing. Run both as root on the VM. The setuid `sudo` child inherits the unit's mount namespace, so one wrapper verb must run inside the real unit; the probes in step 2 run outside it. The second command writes the launcher's state folder as `geldar` inside the same sandbox.
 4. Check the output of step 3. The first command must exit 0 or 6, never 2; the second must exit 0. An exit 2 with `geldar-fleet-run:` on stderr is a wrapper refusal. A `Permission denied` or `Read-only file system` error names a path the unit blocks. On either, stop and report the output.
-5. Only when steps 2 to 4 pass, start the runner: `systemctl enable --now geldar-runner.service`.
+5. Only when steps 2 to 4 pass and the owner says so, start the runner: `systemctl enable --now geldar-runner.service`.
