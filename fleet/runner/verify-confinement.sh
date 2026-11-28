@@ -212,13 +212,14 @@ groups_clean() {
   fi
 }
 
-# unit_confinement: the unit's own settings, as systemd reports them. NoNewPrivileges must be no,
-# because the runner reaches the wrapper through setuid sudo.
+# unit_confinement: the unit's own settings, as systemd reports them. NoNewPrivileges and
+# RestrictSUIDSGID must be no, because the runner reaches the wrapper through setuid sudo.
 unit_confinement() {
-  local out probe="systemctl show geldar-runner -p ProtectSystem,ReadWritePaths,NoNewPrivileges"
-  out=$(systemctl show geldar-runner -p ProtectSystem,ReadWritePaths,NoNewPrivileges 2>/dev/null ||
-    true)
+  local out probe props="ProtectSystem,ReadWritePaths,NoNewPrivileges,RestrictSUIDSGID"
+  out=$(systemctl show geldar-runner -p "$props" 2>/dev/null || true)
+  probe="systemctl show geldar-runner -p $props"
   if printf '%s\n' "$out" | grep -qx 'NoNewPrivileges=no' &&
+    printf '%s\n' "$out" | grep -qx 'RestrictSUIDSGID=no' &&
     printf '%s\n' "$out" | grep -qx 'ProtectSystem=strict'; then
     report ok "$probe"
   else

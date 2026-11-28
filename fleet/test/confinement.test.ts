@@ -10,13 +10,14 @@ import { ciRequiresShells } from './bootstrap-helpers.ts';
 // verify-confinement.sh (F-05b) run against fakes. The fake runuser stands in for the runner
 // account: it answers each probe as a confined VM does, and the environment knobs below flip one
 // answer at a time (a leak, a second sudo command, a wrapper that accepts a bad id, a failed
-// positive control, NoNewPrivileges=yes, a dropped env_reset, a writable wrapper, a drop-in, a wrong
+// positive control, NoNewPrivileges=yes, RestrictSUIDSGID=yes, a dropped env_reset, a writable wrapper, a drop-in, a wrong
 // unit User, a drifted ReadWritePaths and each refused probe allowed). The script's target paths
 // are rewritten to a temp world, so nothing here reads the host's real /etc, sudo or units. The
 // root-side stat, sudo -l -U and uname calls are faked too, so the suite does not need root.
 const here = dirname(fileURLToPath(import.meta.url));
 const runnerDir = resolve(here, '..', 'runner');
-const UNIT_PROBE = 'systemctl show geldar-runner -p ProtectSystem,ReadWritePaths,NoNewPrivileges';
+const UNIT_PROBE =
+  'systemctl show geldar-runner -p ProtectSystem,ReadWritePaths,NoNewPrivileges,RestrictSUIDSGID';
 const RW_PATHS =
   '/etc/geldar/placement /var/log/geldar-hosts.log /run/geldar-fleet /opt/geldar-runner /run/sudo /home/geldar/scriptorium /home/geldar/.local/state /srv/geldar';
 const ROOT_OWNED = 'root-owned, no group or world write: ';
@@ -103,6 +104,7 @@ const FAKE_SYSTEMCTL = [
   'echo ProtectSystem=strict',
   `echo "ReadWritePaths=-${RW_PATHS}\${FAKE_RW_EXTRA:+ $FAKE_RW_EXTRA}"`,
   'echo "NoNewPrivileges=${FAKE_NNP:-no}"',
+  'echo "RestrictSUIDSGID=${FAKE_RSS:-no}"',
   'echo "User=${FAKE_USER:-geldar-runner}"',
 ].join('\n');
 
@@ -358,6 +360,7 @@ describeBash('runner confinement check (F-05b)', () => {
     ['wrapper ../x', { FAKE_WRAPPER_BARE: '1' }],
     ['wrapper positive control: check-secrets ag-probe-00', { FAKE_POSITIVE: '2' }],
     [UNIT_PROBE, { FAKE_NNP: 'yes' }],
+    [UNIT_PROBE, { FAKE_RSS: 'yes' }],
   ];
   for (const [probe, knobs] of CASES) {
     it(`prints FAIL for "${probe}" when ${JSON.stringify(knobs)}, and exits 1`, () => {
