@@ -1,13 +1,13 @@
 import { spawnSync } from 'node:child_process';
 import {
   chmodSync,
-  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -21,10 +21,13 @@ import { ciRequiresShells } from './bootstrap-helpers.ts';
 // The root wrapper (F-05b) run against fakes: a fake runuser that runs its command as this user, a
 // fake geldar-play that logs its argv and the environment it sees, and a fake chown that logs. The
 // wrapper's header constants are rewritten to the temp world; the repo's files are never edited.
+// The installer's tests live in install-wrapper.test.ts.
 const here = dirname(fileURLToPath(import.meta.url));
 const runnerDir = resolve(here, '..', 'runner');
 const ID = 'ag-probe-00';
-const SUDOERS_RULE = 'geldar-runner ALL=(root) NOPASSWD: /usr/local/sbin/geldar-fleet-run\n';
+const SUDOERS_TEXT =
+  'Defaults:geldar-runner env_reset,secure_path=/usr/local/bin:/usr/bin:/bin\n' +
+  'geldar-runner ALL=(root) NOPASSWD: /usr/local/sbin/geldar-fleet-run\n';
 const DOCKER_SOCKET = 'unix:///run/fleet-test.sock';
 
 // Caller environment that must never reach the launcher: a fleet root seam, a token, a socket and a
@@ -238,59 +241,18 @@ function placeKey(w: World): void {
 
 // Runs the wrapper as sudo does: the hostile environment, a caller PATH whose first folder holds an
 // env that must never run, a caller umask of 077 and a caller directory away from the clone. The
-// wrapper runs under bash -p, the flag its shebang carries, so BASH_ENV is not read.
-function runWrapper(w: World, args: string[]) {
+// wrapper runs under bash -p, the flag its shebang carries, so BASH_ENV is not read. `extra` adds
+// variables to the caller's environment.
+function runWrapper(w: World, args: string[], extra: Record<string, string> = {}) {
   const argv = ['-p', '-c', 'umask 0077; exec "$0" "$@"', w.wrapper, ...args];
   const r = spawnSync(bashExe as string, argv, {
     cwd: w.state,
-    env: { ...HOSTILE, PATH: `${w.hostile}:/nonexistent:/usr/bin:/bin`, BASH_ENV: w.bashEnv },
-    encoding: 'utf8',
-    timeout: 60_000,
-  });
-  return { status: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
-}
-
-// Installer world: copies of the installer, the wrapper and the sudoers rule in a temp runner dir,
-// a fake visudo, id and install, and a temp root for GEL_ROOT.
-function installWorld(opts: { visudoFails?: boolean; mvFails?: boolean } = {}) {
-  const { visudoFails = false, mvFails = false } = opts;
-  const dir = mkdtempSync(join(tmpdir(), 'fleet-f05b-inst-'));
-  made.push(dir);
-  const src = join(dir, 'runner');
-  const fakes = join(dir, 'fakes');
-  const root = join(dir, 'root');
-  const calls = join(dir, 'calls.log');
-  for (const d of [src, fakes, root]) mkdirSync(d);
-  for (const f of ['install-wrapper.sh', 'geldar-fleet-run', 'geldar-fleet-sudoers']) {
-    copyFileSync(join(runnerDir, f), join(src, f));
-  }
-  writeExe(join(fakes, 'id'), 'echo 0');
-  writeExe(join(fakes, 'visudo'), `echo "visudo $*" >> '${calls}'\nexit ${visudoFails ? 1 : 0}`);
-  // mkdir and install only act under GEL_ROOT: a real install path is refused, so a seam that is
-  // ignored shows up as exit 7 with the real path in the log, and nothing is written outside.
-  writeExe(
-    join(fakes, 'mkdir'),
-    `echo "mkdir $*" >> '${calls}'\nfor a in "$@"; do\n  case "$a" in\n    -p | "$GEL_ROOT"/*) ;;\n    *) exit 1 ;;\n  esac\ndone\ncommand -p mkdir "$@"`,
-  );
-  // mv logs its arguments. With mvFails set it fails at once; otherwise it is the real mv.
-  writeExe(
-    join(fakes, 'mv'),
-    `echo "mv $*" >> '${calls}'\n${mvFails ? 'exit 1' : 'command -p mv "$@"'}`,
-  );
-  // install -o root -g root -m MODE SRC DST: the source is argument 7, the destination 8.
-  writeExe(
-    join(fakes, 'install'),
-    `echo "install $*" >> '${calls}'\ncase "$8" in\n  "$GEL_ROOT"/*) cp "$7" "$8" ;;\n  *) exit 1 ;;\nesac`,
-  );
-  return { src, fakes, root, calls, script: join(src, 'install-wrapper.sh') };
-}
-
-// Runs the installer. The GEL_ROOT seam is set only when `internal` is true, so the test of a
-// seam that must be ignored can run without GELDAR_INTERNAL=1.
-function runInstall(iw: ReturnType<typeof installWorld>, internal = true) {
-  const seam = internal ? { GELDAR_INTERNAL: '1' } : {};
-  const r = spawnSync(bashExe as string, [iw.script], {
-    env: { PATH: `${iw.fakes}:/usr/bin:/bin`, GEL_ROOT: iw.root, ...seam },
+    env: {
+      ...HOSTILE,
+      PATH: `${w.hostile}:/nonexistent:/usr/bin:/bin`,
+      BASH_ENV: w.bashEnv,
+      ...extra,
+    },
     encoding: 'utf8',
     timeout: 60_000,
   });
@@ -311,6 +273,17 @@ if (skipReason) {
   console.warn(`SKIPPED: ${skipReason}; root wrapper tests did not run`);
 }
 const describeBash = skipReason ? describe.skip : describe;
+
+// The deploy-key chown on a real tree needs Linux, and chown to uid 1002 needs root. Each reason is
+// printed when the test is skipped.
+const chownSkip =
+  process.platform !== 'linux'
+    ? 'the real chown needs Linux (win32 has no POSIX owners)'
+    : process.getuid?.() !== 0
+      ? 'chown to uid 1002 needs root'
+      : '';
+if (chownSkip) console.warn(`SKIPPED: ${chownSkip}; the real deploy-key chown did not run`);
+const itChown = chownSkip ? it.skip : it;
 
 describeBash('root wrapper (F-05b)', () => {
   it('refuses every bad id with exit 2 and starts nothing', () => {
@@ -344,6 +317,21 @@ describeBash('root wrapper (F-05b)', () => {
     expect(log).toContain(`XDG_STATE_HOME=${w.state}`);
     expect(log).toContain(`HOME=${w.home}`);
     expect(log.join('\n')).not.toMatch(/HOSTILE_TOKEN|GEL_ROOT|GELDAR_INTERNAL|evil/);
+    expect(existsSync(w.bashEnvRan)).toBe(false);
+  });
+
+  it('keeps BASH_ENV, ENV, LD_PRELOAD and the caller variables away from the launcher', () => {
+    const w = makeWorld();
+    const r = runWrapper(w, ['start', ID], {
+      ENV: w.bashEnv,
+      LD_PRELOAD: join(w.hostile, 'preload.so'),
+    });
+    expect(r.status, r.out).toBe(0);
+    const log = readOr(w.playLog).split('\n');
+    for (const name of ['BASH_ENV', 'ENV', 'LD_PRELOAD']) {
+      expect(log.some((line) => line.startsWith(`${name}=`)), name).toBe(false);
+    }
+    expect(log.join('\n')).not.toMatch(/HOSTILE_TOKEN|leak-me/);
     expect(existsSync(w.bashEnvRan)).toBe(false);
   });
 
@@ -411,6 +399,20 @@ describeBash('root wrapper (F-05b)', () => {
     expect(readOr(w.runuserLog)).not.toContain('chown');
   });
 
+  itChown('the deploy-key chown changes the key on a temp tree to uid 1002', () => {
+    const w = makeWorld();
+    // The real chown, with its --from filter dropped: the test's key is owned by root, not by
+    // geldar. The wrapper's stat still reports 1001, so the wrapper runs the chown.
+    writeExe(
+      join(w.fakes, 'chown'),
+      'for last; do :; done\nexec /usr/bin/chown -h 1002:1002 -- "$last"',
+    );
+    placeKey(w);
+    const r = runWrapper(w, ['deploy-key', ID]);
+    expect(r.status, r.out).toBe(0);
+    expect(statSync(keyPath(w)).uid).toBe(1002);
+  });
+
   it('refuses a symlink on the deploy-key path with exit 7 and chowns nothing', () => {
     for (const link of ['id-dir', 'key-file']) {
       const w = makeWorld();
@@ -426,17 +428,6 @@ describeBash('root wrapper (F-05b)', () => {
       expect(r.status, `${link}: ${r.out}`).toBe(7);
       expect(readOr(w.runuserLog), link).not.toContain('chown');
     }
-  });
-
-  it('keeps the interim chown line in the wrapper, marked for deletion with R-4', () => {
-    const text = readFileSync(join(runnerDir, 'geldar-fleet-run'), 'utf8');
-    expect(text).toContain('"$WRAP_CHOWN" -h --from=geldar:geldar 1002:1002 -- "$key"');
-    expect(text).toMatch(/Delete with R-4\./);
-  });
-
-  it('runs under bash -p, the shebang the sudoers rule relies on', () => {
-    const text = readFileSync(join(runnerDir, 'geldar-fleet-run'), 'utf8');
-    expect(text.split('\n')[0]).toBe('#!/bin/bash -p');
   });
 
   it('accepts a 39-character id, the longest the launcher allows', () => {
@@ -462,70 +453,9 @@ describeBash('root wrapper (F-05b)', () => {
     expect(runWrapper(makeWorld({ loginMode: 0o600 }), ['check-login']).status).toBe(0);
   });
 
-  it('keeps the sudoers file to exactly one rule for the runner account', () => {
+  it('keeps the sudoers file to the env_reset default and one rule for the runner account', () => {
     const text = readFileSync(join(runnerDir, 'geldar-fleet-sudoers'), 'utf8');
-    expect(text).toBe(SUDOERS_RULE);
-  });
-
-  it('checks the sudoers rule with visudo under a temp name, then renames both files', () => {
-    const iw = installWorld();
-    const r = runInstall(iw);
-    expect(r.status, r.out).toBe(0);
-    const srcRun = join(iw.src, 'geldar-fleet-run');
-    const srcSudoers = join(iw.src, 'geldar-fleet-sudoers');
-    const dstRun = join(iw.root, 'usr', 'local', 'sbin', 'geldar-fleet-run');
-    const dstSudoers = join(iw.root, 'etc', 'sudoers.d', 'geldar-fleet');
-    const tmpRun = `${dstRun}.new`;
-    const tmp = `${dstSudoers}.new`;
-    expect(readOr(iw.calls).split('\n').filter(Boolean)).toEqual([
-      `mkdir -p ${dirname(dstRun)} ${dirname(dstSudoers)}`,
-      `install -o root -g root -m 0755 ${srcRun} ${tmpRun}`,
-      `install -o root -g root -m 0440 ${srcSudoers} ${tmp}`,
-      `visudo -cf ${tmp}`,
-      `mv -f ${tmpRun} ${dstRun}`,
-      `mv -f ${tmp} ${dstSudoers}`,
-    ]);
-    expect(readOr(dstRun)).toBe(readOr(srcRun));
-    expect(readOr(dstSudoers)).toBe(SUDOERS_RULE);
-    expect(existsSync(tmpRun)).toBe(false);
-    expect(existsSync(tmp)).toBe(false);
-  });
-
-  it('installs neither file when visudo refuses the rule, and removes both temp files', () => {
-    const iw = installWorld({ visudoFails: true });
-    const r = runInstall(iw);
-    expect(r.status).toBe(7);
-    const dstRun = join(iw.root, 'usr', 'local', 'sbin', 'geldar-fleet-run');
-    const dstSudoers = join(iw.root, 'etc', 'sudoers.d', 'geldar-fleet');
-    expect(existsSync(dstSudoers)).toBe(false);
-    expect(existsSync(`${dstSudoers}.new`)).toBe(false);
-    expect(existsSync(dstRun)).toBe(false);
-    expect(existsSync(`${dstRun}.new`)).toBe(false);
-    expect(readOr(iw.calls)).toContain(`visudo -cf ${dstSudoers}.new`);
-    expect(readOr(iw.calls)).not.toContain('mv -f');
-  });
-
-  it('removes both temp files when a step fails after they are made, through the ERR trap', () => {
-    const iw = installWorld({ mvFails: true });
-    const r = runInstall(iw);
-    expect(r.status, r.out).toBe(7);
-    expect(r.out).toContain('step failed at line');
-    const dstRun = join(iw.root, 'usr', 'local', 'sbin', 'geldar-fleet-run');
-    const dstSudoers = join(iw.root, 'etc', 'sudoers.d', 'geldar-fleet');
-    expect(existsSync(`${dstRun}.new`)).toBe(false);
-    expect(existsSync(`${dstSudoers}.new`)).toBe(false);
-    expect(existsSync(dstRun)).toBe(false);
-    expect(existsSync(dstSudoers)).toBe(false);
-  });
-
-  it('ignores GEL_ROOT when GELDAR_INTERNAL is not 1, and writes nothing under it', () => {
-    const iw = installWorld();
-    const r = runInstall(iw, false);
-    // The fake mkdir refuses the real path; the exit code is not what this test pins, the log is.
-    expect(r.status).not.toBe(0);
-    expect(readOr(iw.calls)).toContain('mkdir -p /usr/local/sbin');
-    expect(readOr(iw.calls)).not.toContain(iw.root);
-    expect(existsSync(join(iw.root, 'usr'))).toBe(false);
+    expect(text).toBe(SUDOERS_TEXT);
   });
 });
 
