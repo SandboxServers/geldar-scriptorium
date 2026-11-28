@@ -1,0 +1,69 @@
+{
+  "child": [
+    {
+      "argv": [
+        "geldar-instinct",
+        "run",
+        "--run",
+        "1"
+      ],
+      "env": {
+        "PATH": "/usr/bin",
+        "HOME": "/tmp",
+        "NODE_USE_ENV_PROXY": "1",
+        "GELDAR_WORKSPACE": "<ROOT>/ws",
+        "GELDAR_INSTINCT_STATE": "<ROOT>/state/instinct",
+        "GELDAR_HARNESS": "claude",
+        "GELDAR_INSTINCT": "on",
+        "GELDAR_INSTINCT_ARM": "instinct",
+        "GELDAR_INSTINCT_FAILURE_CAP": "4",
+        "GELDAR_INSTINCT_MAX_PICKS": "3",
+        "GELDAR_INSTINCT_THINK_P": "0.25",
+        "GELDAR_INSTINCT_ROLLS": "on",
+        "GELDAR_INSTINCT_SANITY": "off",
+        "GELDAR_INSTINCT_TIMEOUT": "60",
+        "GELDAR_MCP_URL": "http://127.0.0.1:<PORT>/p/life1",
+        "GELDAR_MCP_TOKEN": "test-token"
+      },
+      "stdio": [
+        "ignore",
+        "<fd>",
+        "ignore"
+      ]
+    }
+  ],
+  "instinct": {
+    "last.json": "{\"v\":1,\"kind\":\"pass\",\"reason\":\"first_sighting\",\"forced\":true,\"rolls\":[]}\n",
+    "sheet.json": "{\"version\":1,\"attributes\":{\"curiosity\":3,\"common_sense\":3,\"cleverness\":3,\"aggression\":3},\"alignment\":{\"law\":3,\"good\":3},\"op_modes\":{\"explorer\":3,\"farmer\":3,\"miner\":3,\"builder\":3,\"crafter\":3,\"warrior\":3,\"nitwit\":3}}",
+    "state.json": "{\"v\":1,\"waking\":1,\"picks_in_a_row\":0,\"attempts\":{},\"tried\":{},\"seen\":[\"agent:ann\"],\"last_intent\":null,\"submitted\":null,\"habits\":{},\"pending_acts\":[],\"cursor\":null}\n"
+  },
+  "audit": [
+    {
+      "v": 1,
+      "waking": 1,
+      "run": 1,
+      "arm": "instinct",
+      "source": "instinct",
+      "harness": "claude",
+      "model": null,
+      "kind": "pass",
+      "fx": "none",
+      "reason": "first_sighting",
+      "forced": true,
+      "why": null,
+      "act": null,
+      "world": null,
+      "facts": [],
+      "rolls": [],
+      "model_called": true
+    }
+  ],
+  "world": [
+    {
+      "name": "wait",
+      "args": {
+        "max_seconds": 5
+      }
+    }
+  ]
+}
