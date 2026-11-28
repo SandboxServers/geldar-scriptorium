@@ -249,6 +249,31 @@ function runVerify(
   return { status: r.status, lines: (r.stdout ?? '').split('\n').filter(Boolean), out };
 }
 
+// The unit lines the in-unit commands must carry: the sandbox, the PATH and the User.
+function sandboxLines(unit: string): string[] {
+  return unit
+    .split('\n')
+    .filter((l) => /^(User=|Environment=PATH=|Protect|Private|Restrict|LockPersonality=|ReadWritePaths=)/.test(l));
+}
+
+// Runs --in-unit of the copied script with CONF_UNIT pointing at a unit file holding unitText. A null
+// unitText leaves the file missing. The script exits before any probe, so no fake is needed.
+function runInUnit(unitText: string | null) {
+  const dir = mkdtempSync(join(tmpdir(), 'fleet-f05b-inunit-'));
+  made.push(dir);
+  const unitPath = join(dir, 'geldar-runner.service');
+  if (unitText !== null) writeFileSync(unitPath, unitText);
+  const script = join(dir, 'verify-confinement.sh');
+  const text = readFileSync(join(runnerDir, 'verify-confinement.sh'), 'utf8');
+  writeFileSync(script, rewriteConsts(text, { CONF_UNIT: unitPath }), { mode: 0o755 });
+  const r = spawnSync(bashExe as string, [script, '--in-unit'], {
+    env: { PATH: '/usr/bin:/bin' },
+    encoding: 'utf8',
+    timeout: 60_000,
+  });
+  return { status: r.status, lines: (r.stdout ?? '').split('\n').filter(Boolean), stderr: r.stderr ?? '' };
+}
+
 // The fakes are extensionless scripts on PATH; win32 cannot exec them, so the suite skips there.
 const win = process.platform === 'win32';
 const skipReason = win
@@ -367,18 +392,39 @@ describeBash('runner confinement check (F-05b)', () => {
     );
   });
 
-  it('prints the one in-unit systemd-run command and exits 0 without root', () => {
-    // The unmodified script, not a rewritten copy: --in-unit exits before any probe runs, and the
-    // wrapper path it prints must be the real CONF_WRAPPER.
-    const r = spawnSync(bashExe as string, [join(runnerDir, 'verify-confinement.sh'), '--in-unit'], {
-      env: { PATH: '/usr/bin:/bin', FAKE_UID: '1000' },
-      encoding: 'utf8',
-      timeout: 60_000,
-    });
+  it('prints two in-unit commands carrying every sandbox line of the unit file, and exits 0 without root', () => {
+    const unit = readFileSync(join(runnerDir, 'geldar-runner.service'), 'utf8');
+    const r = runInUnit(unit);
     expect(r.status, r.stderr).toBe(0);
-    expect((r.stdout ?? '').split('\n').filter(Boolean)).toEqual([
-      'systemd-run --wait --pipe --collect -p User=geldar-runner -p NoNewPrivileges=no -p ProtectSystem=strict -p ProtectHome=read-only -p PrivateTmp=yes -- sudo -n /usr/local/sbin/geldar-fleet-run check-secrets ag-probe-00',
-    ]);
+    expect(r.lines).toHaveLength(2);
+    const [read, write] = r.lines;
+    for (const cmd of [read, write]) {
+      expect(cmd).toContain("-p 'NoNewPrivileges=no'");
+      for (const line of sandboxLines(unit)) {
+        if (line.startsWith('ReadWritePaths=')) {
+          for (const path of line.slice('ReadWritePaths='.length).split(' ')) expect(cmd).toContain(path);
+        } else if (!line.startsWith('User=')) {
+          expect(cmd, line).toContain(`-p '${line}'`);
+        }
+      }
+    }
+    expect(read).toContain("-p 'User=geldar-runner'");
+    expect(read).toContain('-- sudo -n /usr/local/sbin/geldar-fleet-run check-secrets ag-probe-00');
+    expect(write).toContain("-p 'User=geldar'");
+    expect(write).toContain('touch /home/geldar/.local/state/geldar/.verify-write');
+  });
+
+  it('carries a unit line it has never seen, so the command is built from the unit file', () => {
+    const unit = readFileSync(join(runnerDir, 'geldar-runner.service'), 'utf8') + 'ProtectKernelLogs=yes\n';
+    const r = runInUnit(unit);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.lines[0]).toContain("-p 'ProtectKernelLogs=yes'");
+  });
+
+  it('exits 2 when the unit file cannot be read', () => {
+    const r = runInUnit(null);
+    expect(r.status).toBe(2);
+    expect(r.lines).toEqual([]);
   });
 
   it('prints FAIL for the drop-in probe when the drop-in directory cannot be listed, and exits 1', () => {

@@ -102,6 +102,6 @@ The runner stays disabled until the wrapper is installed and `verify-confinement
 
 1. As root on the VM, run `install-wrapper.sh`.
 2. As root, run `verify-confinement.sh`. Every line starts with `ok` or `SKIP` and the exit code is 0. Any `FAIL` line stops the step.
-3. Run `verify-confinement.sh --in-unit`. It prints one `systemd-run` command and runs nothing. Run that printed command as root on the VM. The setuid `sudo` child inherits the unit's mount namespace, so one wrapper verb must run inside the real unit; the probes in step 2 run outside it.
-4. Check the output of step 3. The command must exit 0 or 6, never 2. An exit 2 with `geldar-fleet-run:` on stderr is a wrapper refusal. A `Permission denied` or `Read-only file system` error names a path the unit blocks. On either, stop and report the output.
+3. Run `verify-confinement.sh --in-unit`. It prints two `systemd-run` commands, built from the installed unit file, and runs nothing. Run both as root on the VM. The setuid `sudo` child inherits the unit's mount namespace, so one wrapper verb must run inside the real unit; the probes in step 2 run outside it. The second command writes the launcher's state folder as `geldar` inside the same sandbox.
+4. Check the output of step 3. The first command must exit 0 or 6, never 2; the second must exit 0. An exit 2 with `geldar-fleet-run:` on stderr is a wrapper refusal. A `Permission denied` or `Read-only file system` error names a path the unit blocks. On either, stop and report the output.
 5. Only when steps 2 to 4 pass, start the runner: `systemctl enable --now geldar-runner.service`.

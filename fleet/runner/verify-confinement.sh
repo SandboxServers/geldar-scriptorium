@@ -22,20 +22,47 @@ readonly CONF_SBIN=/usr/local/sbin
 readonly CONF_WRAPPER=/usr/local/sbin/geldar-fleet-run
 readonly CONF_SUDOERS=/etc/sudoers.d/geldar-fleet
 readonly CONF_DROPINS=/etc/systemd/system/geldar-runner.service.d
+readonly CONF_UNIT=/etc/systemd/system/geldar-runner.service
+# The launcher account and the state folder its verbs write (XDG_STATE_HOME/geldar).
+readonly CONF_STATE=/home/geldar/.local/state/geldar
+launcher=geldar
 # The unit's ReadWritePaths as reviewed; a systemd leading - is ignored. A unit change changes this too.
 readonly UNIT_RW_PATHS="/etc/geldar/placement /var/log/geldar-hosts.log /run/geldar-fleet /opt/geldar-runner /run/sudo /home/geldar/scriptorium /home/geldar/.local/state /srv/geldar"
 # Drop-in files allowed under the unit's drop-in directory, by file name. None today.
 readonly UNIT_DROPINS_OK=""
 fails=0
 
-# --in-unit prints the in-unit probe command and exits. It only prints: nothing runs, so it needs no
-# root. The transient unit takes the unit's user and sandbox settings and runs one read-only verb.
+# unit_props prints the -p arguments that reproduce the unit's sandbox from the unit file: every
+# Environment=PATH, Protect*, Private*, Restrict* and LockPersonality line, and ReadWritePaths as one
+# list property. User is left to the caller, and NoNewPrivileges=no is always added. Values are
+# single-quoted, so a space inside a value stays one argument.
+unit_props() {
+  local line rw=""
+  while IFS= read -r line; do
+    case $line in
+      ReadWritePaths=*) rw="$rw ${line#ReadWritePaths=}" ;;
+      Environment=PATH=* | Protect* | Private* | Restrict* | LockPersonality=*)
+        printf " -p '%s'" "$line" ;;
+    esac
+  done < "$CONF_UNIT"
+  printf " -p 'NoNewPrivileges=no'"
+  [ -z "$rw" ] || printf " -p 'ReadWritePaths=%s'" "${rw# }"
+}
+
+# --in-unit prints two systemd-run commands and exits. It only prints: nothing runs, so it needs no
+# root. Each transient unit takes the installed unit's User and sandbox settings. The first runs the
+# read-only verb through the wrapper as the runner. The second writes the launcher's state folder as
+# the launcher account, inside the same sandbox, and must exit 0.
 if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != --in-unit ]; }; then
   echo "verify-confinement: usage: verify-confinement.sh [--in-unit]" >&2
   exit 2
 fi
 if [ "$#" -eq 1 ]; then
-  echo "systemd-run --wait --pipe --collect -p User=$runner -p NoNewPrivileges=no -p ProtectSystem=strict -p ProtectHome=read-only -p PrivateTmp=yes -- sudo -n $CONF_WRAPPER check-secrets ag-probe-00"
+  [ -r "$CONF_UNIT" ] || { echo "verify-confinement: cannot read $CONF_UNIT" >&2; exit 2; }
+  unit_user=$(sed -n 's/^User=//p' "$CONF_UNIT" | head -n 1)
+  props=$(unit_props)
+  echo "systemd-run --wait --pipe --collect -p 'User=$unit_user'$props -- sudo -n $CONF_WRAPPER check-secrets ag-probe-00"
+  echo "systemd-run --wait --pipe --collect -p 'User=$launcher'$props -- sh -c 'mkdir -p $CONF_STATE && touch $CONF_STATE/.verify-write && rm -f $CONF_STATE/.verify-write'"
   exit 0
 fi
 
