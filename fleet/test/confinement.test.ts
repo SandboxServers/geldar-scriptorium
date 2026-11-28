@@ -107,11 +107,21 @@ const FAKE_SYSTEMCTL = [
 ].join('\n');
 
 // sudo -l -U lists the defaults only for the -U form the script uses. FAKE_NO_ENV_RESET drops
-// env_reset; FAKE_NEG_ENV_RESET lists it negated, as Defaults !env_reset does.
+// env_reset; FAKE_NEG_ENV_RESET lists it negated, as Defaults !env_reset does. FAKE_WRAPPED lists the
+// defaults over several lines, as sudo wraps them; FAKE_WRAPPED_NEG wraps them with a !env_reset last.
 const FAKE_SUDO = [
   'case "$*" in',
   '  *" -U "*)',
-  '    if [ -n "${FAKE_NEG_ENV_RESET:-}" ]; then echo "Matching Defaults entries: !env_reset, mail_badpass"',
+  '    if [ -n "${FAKE_WRAPPED_NEG:-}" ]; then',
+  '      echo "Matching Defaults entries for geldar-runner on host:"',
+  '      echo "    env_reset, mail_badpass,"',
+  '      echo "    secure_path=/usr/local/bin:/usr/bin:/bin,"',
+  '      echo "    !env_reset"',
+  '    elif [ -n "${FAKE_WRAPPED:-}" ]; then',
+  '      echo "Matching Defaults entries for geldar-runner on host:"',
+  '      echo "    env_reset, mail_badpass,"',
+  '      echo "    secure_path=/usr/local/bin:/usr/bin:/bin"',
+  '    elif [ -n "${FAKE_NEG_ENV_RESET:-}" ]; then echo "Matching Defaults entries: !env_reset, mail_badpass"',
   '    elif [ -z "${FAKE_NO_ENV_RESET:-}" ]; then echo "Matching Defaults entries: env_reset, mail_badpass"; fi',
   '    ;;',
   '  *) exit 1 ;;',
@@ -301,6 +311,7 @@ describeBash('runner confinement check (F-05b)', () => {
     ['sudo -n -l', { FAKE_SUDO_PASSWD: '1' }],
     [ENV_RESET_PROBE, { FAKE_NO_ENV_RESET: '1' }],
     [ENV_RESET_PROBE, { FAKE_NEG_ENV_RESET: '1' }],
+    [ENV_RESET_PROBE, { FAKE_WRAPPED_NEG: '1' }],
     ['test -w /etc/geldar/keys', { FAKE_WRITE: '1' }],
     ['test -w /etc/sudoers.d/geldar-fleet', { FAKE_WRITE: '1' }],
     ['test -r /etc/geldar/tokens/<any file>', { FAKE_LEAK: 'token' }],
@@ -330,6 +341,12 @@ describeBash('runner confinement check (F-05b)', () => {
       expect(r.lines, r.out).toContain(`FAIL ${probe}`);
     });
   }
+
+  it('prints ok for env_reset when sudo wraps a plain list over several lines', () => {
+    const r = runVerify({ FAKE_WRAPPED: '1' });
+    expect(r.status, r.out).toBe(0);
+    expect(r.lines).toContain(`ok ${ENV_RESET_PROBE}`);
+  });
 
   it('prints FAIL for the drop-in probe when a drop-in sits under the unit, and exits 1', () => {
     const r = runVerify({}, [], {

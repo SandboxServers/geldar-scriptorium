@@ -130,10 +130,12 @@ sudo_lists_wrapper_only() {
 # env_reset_kept: sudo's policy for the runner keeps env_reset, so the caller's environment (BASH_ENV
 # and the like) is dropped before the wrapper runs. Read as root with sudo's own listing.
 env_reset_kept() {
-  local out
+  local out last
   out=$(sudo -n -l -U "$runner" 2>/dev/null || true)
-  # A negated entry (Defaults !env_reset) is a FAIL even on a line that also names env_reset.
-  if printf '%s\n' "$out" | grep -E '(^|[ ,])env_reset([ ,]|$)' | grep -qv '!env_reset'; then
+  # sudo wraps its list across lines, so the list is split into one token per line. The last env_reset
+  # token decides, as sudo's last setting does: a later !env_reset is a FAIL.
+  last=$(printf '%s\n' "$out" | tr -s ' ,\n' '\n' | grep -E '^!?env_reset$' | tail -n 1 || true)
+  if [ "$last" = env_reset ]; then
     report ok "sudo -l -U $runner has env_reset"
   else
     report FAIL "sudo -l -U $runner has env_reset"
