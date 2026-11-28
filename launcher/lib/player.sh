@@ -290,7 +290,7 @@ pl_deliver_sheet() {
   [ -f "$d/sheet.json" ] || [ -f "$d/roster.json" ] || return 0
   tmp="$d/deliver"
   rm -rf "$tmp"
-  private_mkdir "$tmp"
+  private_mkdir "$d/deliver"
   [ ! -f "$d/sheet.json" ] || cp -- "$d/sheet.json" "$tmp/sheet.json" || rc=1
   [ ! -f "$d/roster.json" ] || cp -- "$d/roster.json" "$tmp/roster.json" || rc=1
   if [ "$rc" -eq 0 ]; then

@@ -90,7 +90,11 @@ function instinctBin(l: Launcher, root: string, check: number): string {
 
 // The env of a start or restart in a player-support world: its docker stand-in runs the helper's
 // script in place of /vol, and the instinct stand-in stands in for the sheet check.
-function startEnv(l: Launcher, s: ReturnType<typeof setupPlayer>, check = 0): Record<string, string> {
+function startEnv(
+  l: Launcher,
+  s: ReturnType<typeof setupPlayer>,
+  check = 0,
+): Record<string, string> {
   return { ...s.env, FAKE_CHOWN_BIN: instinctBin(l, s.w.root, check) };
 }
 
@@ -117,7 +121,6 @@ export function sheetSuite(l: Launcher): void {
   describe(`sheet ${l.name}`, () => {
     const clonePath = (s: Setup) => join(s.w.players, `player-${ID}`);
     const bareRepo = (s: Setup) => join(s.ghRoot, `player-${ID}.git`);
-    const env = (s: Setup) => (l.name === 'bash' ? s.env : s.envPwsh);
     // A path as the launcher reads it: bash takes a MSYS-style path, pwsh the native one.
     const arg = (p: string) => (l.name === 'bash' ? bashPath(p) : p);
     const write = (dir: string, name: string, body: string | Buffer) => {
@@ -312,7 +315,9 @@ export function sheetSuite(l: Launcher): void {
       const supplied = (s: ReturnType<typeof setupPlayer>, name: string) =>
         join(vol(s.w, `geldar-sup-${PS_ID}`), 'instinct', name);
 
-      it('start with a stored sheet runs one delivery helper before compose up, with --network none, a read-only mount of the staged files, the supervisor volume, and no /player mount', { timeout: T }, () => {
+      it('start with a stored sheet runs one delivery helper before compose up, with --network none, a read-only mount of the staged files, the supervisor volume, and no /player mount', {
+        timeout: T,
+      }, () => {
         const s = setupPlayer(l);
         writeFileSync(join(s.p.stateDir, 'sheet.json'), GOOD, { mode: 0o600 });
         const r = run(l, ['start', PS_ID], { env: startEnv(l, s) });
@@ -325,7 +330,8 @@ export function sheetSuite(l: Launcher): void {
         expect(mounts).toHaveLength(2);
         expect(mounts[0]).toMatch(/:\/in:ro$/);
         expect(mounts[1]).toBe(`geldar-sup-${PS_ID}:/vol:rw`);
-        expect(mounts.join(' ')).not.toMatch(/geldar-ws-|\/player/);
+        // The host side of the read-only mount is a state path, so only a container destination of /player counts.
+        expect(mounts.join(' ')).not.toMatch(/geldar-ws-|:\/player(:|$)/);
         const calls = s.w.calls();
         const up = calls.findIndex((c) => c[0] === 'compose' && c.includes('up'));
         expect(calls.indexOf(helper ?? [])).toBeLessThan(up);
@@ -350,7 +356,9 @@ export function sheetSuite(l: Launcher): void {
         expect(existsSync(supplied(s, 'sheet.json'))).toBe(false);
       });
 
-      it('an invalid sheet (the fake check exits 2) refuses start with sheet_bad, and compose is never called', { timeout: T }, () => {
+      it('an invalid sheet (the fake check exits 2) refuses start with sheet_bad, and compose is never called', {
+        timeout: T,
+      }, () => {
         const s = setupPlayer(l);
         writeFileSync(join(s.p.stateDir, 'sheet.json'), GOOD, { mode: 0o600 });
         const r = run(l, ['start', PS_ID], { env: startEnv(l, s, 2) });
@@ -361,26 +369,32 @@ export function sheetSuite(l: Launcher): void {
 
       it('a roster over 16 KiB is refused with sheet_bad', { timeout: T }, () => {
         const s = setupPlayer(l);
-        writeFileSync(join(s.p.stateDir, 'roster.json'), 'r'.repeat(16 * 1024 + 1), { mode: 0o600 });
+        writeFileSync(join(s.p.stateDir, 'roster.json'), 'r'.repeat(16 * 1024 + 1), {
+          mode: 0o600,
+        });
         const r = run(l, ['start', PS_ID], { env: startEnv(l, s) });
         expect(r.status).toBe(1);
         expect(r.stderr).toContain(message('sheet_bad', PS_ID, 'roster'));
         expect(composeCalls(s.w, 'up')).toEqual([]);
       });
 
-      it('the roster and the sheet are both mode 0600 owner 1001 in the volume', { timeout: T }, () => {
+      it('the roster and the sheet are both mode 0600 owner 1001 in the volume', {
+        timeout: T,
+      }, () => {
         const s = setupPlayer(l);
         writeFileSync(join(s.p.stateDir, 'sheet.json'), GOOD, { mode: 0o600 });
         writeFileSync(join(s.p.stateDir, 'roster.json'), ROSTER, { mode: 0o600 });
         const r = run(l, ['start', PS_ID], { env: startEnv(l, s) });
         expect(r.status, r.stderr).toBe(0);
-        // The staged files are chowned to the keeper-less supervisor uid and set 0600 by the helper script.
+        // The helper script gives each staged file owner 1001 and mode 0600 before the move into the volume.
         const [helper] = helperRuns(s);
         const script = helper?.at(-1) ?? '';
         expect(script).toContain('chown 1001:1001 /vol/instinct/.sheet.tmp');
         expect(script).toContain('chmod 0600 /vol/instinct/.sheet.tmp');
         expect(script).toContain('chmod 0600 /vol/instinct/.roster.tmp');
-        expect(readFileSync(join(s.w.dockerRoot, 'chown-calls.log'), 'utf8')).toContain('1001:1001 ');
+        expect(readFileSync(join(s.w.dockerRoot, 'chown-calls.log'), 'utf8')).toContain(
+          '1001:1001 ',
+        );
         if (win) {
           console.info('sheet: POSIX modes are not checked on Windows');
         } else {

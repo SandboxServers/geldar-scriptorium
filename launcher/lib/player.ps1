@@ -369,7 +369,7 @@ function Send-PlayerSheet([string]$Id) {
   if (-not ($hasSheet -or $hasRoster)) { return }
   $tmp = Join-Path $d 'deliver'
   Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
-  New-PrivateDir $tmp
+  New-PrivateDir (Join-Path $d 'deliver')
   $rc = 0
   try {
     if ($hasSheet) { [System.IO.File]::Copy($sheet, (Join-Path $tmp 'sheet.json'), $true) }
